@@ -1,66 +1,74 @@
-import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar, Package, Tag, Hash } from 'lucide-react';
-import { InventoryItem } from '@/hooks/useInventory';
+import { Package, Hash, Calendar, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import type { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (item: Omit<InventoryItem, 'id' | 'updatedAt'>) => void;
+  onSave: (itemData: {
+    product_name: string;
+    product_code: string;
+    location: string;
+    lot?: string;
+    mfd?: string;
+    quantity_boxes: number;
+    quantity_loose: number;
+  }) => void;
   location: string;
   existingItem?: InventoryItem;
 }
 
-export function InventoryModal({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  location, 
-  existingItem 
-}: InventoryModalProps) {
-  const [formData, setFormData] = useState({
-    productName: '',
-    productCode: '',
-    lot: '',
-    mfd: '',
-    quantityBoxes: 0,
-    quantityLoose: 0,
-  });
+export function InventoryModal({ isOpen, onClose, onSave, location, existingItem }: InventoryModalProps) {
+  // Form state
+  const [productName, setProductName] = useState('');
+  const [productCode, setProductCode] = useState('');
+  const [lot, setLot] = useState('');
+  const [mfd, setMfd] = useState('');
+  const [quantityBoxes, setQuantityBoxes] = useState(0);
+  const [quantityLoose, setQuantityLoose] = useState(0);
 
+  // Reset form when modal opens/closes or when existingItem changes
   useEffect(() => {
-    if (existingItem) {
-      setFormData({
-        productName: existingItem.productName,
-        productCode: existingItem.productCode,
-        lot: existingItem.lot || '',
-        mfd: existingItem.mfd || '',
-        quantityBoxes: existingItem.quantityBoxes,
-        quantityLoose: existingItem.quantityLoose,
-      });
-    } else {
-      setFormData({
-        productName: '',
-        productCode: '',
-        lot: '',
-        mfd: '',
-        quantityBoxes: 0,
-        quantityLoose: 0,
-      });
+    if (isOpen) {
+      if (existingItem) {
+        // Editing existing item
+        setProductName(existingItem.product_name);
+        setProductCode(existingItem.product_code);
+        setLot(existingItem.lot || '');
+        setMfd(existingItem.mfd || '');
+        setQuantityBoxes(existingItem.quantity_boxes);
+        setQuantityLoose(existingItem.quantity_loose);
+      } else {
+        // Adding new item
+        setProductName('');
+        setProductCode('');
+        setLot('');
+        setMfd('');
+        setQuantityBoxes(0);
+        setQuantityLoose(0);
+      }
     }
-  }, [existingItem, isOpen]);
+  }, [isOpen, existingItem]);
 
   const handleSave = () => {
-    if (!formData.productName || !formData.productCode) {
+    if (!productName.trim() || !productCode.trim()) {
       return;
     }
-    
+
     onSave({
+      product_name: productName.trim(),
+      product_code: productCode.trim(),
       location,
-      ...formData,
+      lot: lot.trim() || undefined,
+      mfd: mfd || undefined,
+      quantity_boxes: quantityBoxes,
+      quantity_loose: quantityLoose,
     });
+
     onClose();
   };
 
@@ -69,26 +77,33 @@ export function InventoryModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5 text-primary" />
-            บันทึกข้อมูลสินค้า - {location}
+            <Package className="h-5 w-5" />
+            {existingItem ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
           </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-4">
+
+        <div className="space-y-4 py-4">
+          {/* Location Display */}
+          <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+            <MapPin className="h-4 w-4 text-primary" />
+            <span className="font-mono font-medium">ตำแหน่ง: {location}</span>
+          </div>
+
+          {/* Product Name */}
           <div className="space-y-2">
             <Label htmlFor="productName" className="flex items-center gap-2">
-              <Tag className="h-4 w-4" />
+              <Package className="h-4 w-4" />
               ชื่อสินค้า *
             </Label>
             <Input
               id="productName"
-              value={formData.productName}
-              onChange={(e) => setFormData(prev => ({ ...prev, productName: e.target.value }))}
-              placeholder="ระบุชื่อสินค้า"
-              className="h-11"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="กรอกชื่อสินค้า"
             />
           </div>
-          
+
+          {/* Product Code */}
           <div className="space-y-2">
             <Label htmlFor="productCode" className="flex items-center gap-2">
               <Hash className="h-4 w-4" />
@@ -96,38 +111,38 @@ export function InventoryModal({
             </Label>
             <Input
               id="productCode"
-              value={formData.productCode}
-              onChange={(e) => setFormData(prev => ({ ...prev, productCode: e.target.value }))}
-              placeholder="ระบุรหัสสินค้า (SKU)"
-              className="h-11"
+              value={productCode}
+              onChange={(e) => setProductCode(e.target.value)}
+              placeholder="กรอกรหัสสินค้า"
             />
           </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="lot">LOT</Label>
-              <Input
-                id="lot"
-                value={formData.lot}
-                onChange={(e) => setFormData(prev => ({ ...prev, lot: e.target.value }))}
-                placeholder="หมายเลข LOT"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="mfd" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                MFD
-              </Label>
-              <Input
-                id="mfd"
-                type="date"
-                value={formData.mfd}
-                onChange={(e) => setFormData(prev => ({ ...prev, mfd: e.target.value }))}
-              />
-            </div>
+
+          {/* LOT */}
+          <div className="space-y-2">
+            <Label htmlFor="lot">LOT</Label>
+            <Input
+              id="lot"
+              value={lot}
+              onChange={(e) => setLot(e.target.value)}
+              placeholder="กรอก LOT (ถ้ามี)"
+            />
           </div>
-          
+
+          {/* MFD */}
+          <div className="space-y-2">
+            <Label htmlFor="mfd" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              วันที่ผลิต (MFD)
+            </Label>
+            <Input
+              id="mfd"
+              type="date"
+              value={mfd}
+              onChange={(e) => setMfd(e.target.value)}
+            />
+          </div>
+
+          {/* Quantities */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="quantityBoxes">จำนวนลัง</Label>
@@ -135,37 +150,35 @@ export function InventoryModal({
                 id="quantityBoxes"
                 type="number"
                 min="0"
-                value={formData.quantityBoxes}
-                onChange={(e) => setFormData(prev => ({ ...prev, quantityBoxes: parseInt(e.target.value) || 0 }))}
-                placeholder="0"
+                value={quantityBoxes}
+                onChange={(e) => setQuantityBoxes(parseInt(e.target.value) || 0)}
               />
             </div>
-            
             <div className="space-y-2">
               <Label htmlFor="quantityLoose">จำนวนเศษ</Label>
               <Input
                 id="quantityLoose"
                 type="number"
                 min="0"
-                value={formData.quantityLoose}
-                onChange={(e) => setFormData(prev => ({ ...prev, quantityLoose: parseInt(e.target.value) || 0 }))}
-                placeholder="0"
+                value={quantityLoose}
+                onChange={(e) => setQuantityLoose(parseInt(e.target.value) || 0)}
               />
             </div>
           </div>
-          
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={onClose}>
-              ยกเลิก
-            </Button>
-            <Button 
-              onClick={handleSave}
-              disabled={!formData.productName || !formData.productCode}
-              className="bg-gradient-primary"
-            >
-              บันทึก
-            </Button>
-          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-4">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            ยกเลิก
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            className="flex-1"
+            disabled={!productName.trim() || !productCode.trim()}
+          >
+            บันทึก
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

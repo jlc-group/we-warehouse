@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Package, Plus, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
-import { InventoryItem } from '@/hooks/useInventory';
+import { Button } from '@/components/ui/button';
+import { Package, Search, MapPin } from 'lucide-react';
+import type { InventoryItem } from '@/hooks/useInventory';
 
 interface ShelfGridProps {
   items: InventoryItem[];
@@ -13,13 +13,9 @@ interface ShelfGridProps {
 export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [highlightedLocations, setHighlightedLocations] = useState<Set<string>>(new Set());
-  
-  const columns = 4;
-  const rows = 20;
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const shelfRange = alphabet.substring(0, alphabet.indexOf('O') + 1); // A-O
-  
+  const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
+
+  // Create a map for easy lookup
   const itemsByLocation = items.reduce((acc, item) => {
     acc[item.location] = item;
     return acc;
@@ -31,132 +27,150 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     onShelfClick(location, item);
   };
 
-  const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      setHighlightedLocations(new Set());
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim() === '') {
+      setHighlightedLocations([]);
       return;
     }
 
-    const query = searchQuery.toLowerCase().trim();
-    const matchingLocations = items
-      .filter(item => 
-        item.productName.toLowerCase().includes(query) ||
-        item.productCode.toLowerCase().includes(query)
-      )
-      .map(item => item.location);
+    const matchingItems = items.filter(item => 
+      item.product_name.toLowerCase().includes(query.toLowerCase()) ||
+      item.product_code.toLowerCase().includes(query.toLowerCase())
+    );
     
-    setHighlightedLocations(new Set(matchingLocations));
+    const locations = matchingItems.map(item => item.location);
+    setHighlightedLocations(locations);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
+  // Generate shelf grid (A-C rows, 1-4 levels, 01-12 positions)
+  const rows = ['A', 'B', 'C'];
+  const levels = [1, 2, 3, 4];
+  const positions = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
 
   return (
-    <div className="space-y-8">
-      <div className="flex gap-2 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="ค้นหาสินค้า, รหัสสินค้า..."
-            className="pl-10 h-12"
-          />
-        </div>
-        <Button 
-          onClick={handleSearch}
-          className="h-12 px-6 bg-gradient-primary"
-        >
-          ค้นหา
-        </Button>
-        {highlightedLocations.size > 0 && (
-          <Button 
-            onClick={() => {
-              setSearchQuery('');
-              setHighlightedLocations(new Set());
-            }}
-            variant="outline"
-            className="h-12 px-6"
-          >
-            ล้างการค้นหา
-          </Button>
-        )}
-      </div>
-      
-      {highlightedLocations.size > 0 && (
-        <div className="mb-4 p-4 bg-primary/10 rounded-lg border border-primary/20">
-          <p className="text-sm font-medium text-primary">
-            พบ {highlightedLocations.size} รายการที่ตรงกับการค้นหา (ตำแหน่งที่ไฮไลต์จะแสดงด้วยสีแดง)
-          </p>
-        </div>
-      )}
-      
-      {shelfRange.split('').map(rowLetter => (
-        <div key={rowLetter} className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h3 className="text-2xl font-bold text-foreground">แถว {rowLetter}</h3>
-            <div className="h-px bg-border flex-1" />
+    <div className="space-y-6">
+      {/* Search */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="ค้นหาสินค้าตามชื่อหรือรหัส..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button onClick={() => handleSearch(searchQuery)}>
+              <Search className="h-4 w-4" />
+            </Button>
           </div>
-          
-          <div className="grid grid-cols-5 sm:grid-cols-10 lg:grid-cols-20 gap-2">
-            {Array.from({ length: rows }, (_, i) => i + 1).map(shelfNumber => (
-              <div key={shelfNumber} className="space-y-1">
-                <div className="text-xs font-medium text-muted-foreground text-center">
-                  {rowLetter}{shelfNumber}
-                </div>
-                <div className="grid grid-cols-1 gap-1">
-                  {Array.from({ length: columns }, (_, j) => columns - j).map(level => {
-                    const location = `${rowLetter}${shelfNumber}/${level}`;
+        </CardContent>
+      </Card>
+
+      {/* Shelf Grid */}
+      <div className="space-y-8">
+        {rows.map((row) => (
+          <div key={row} className="space-y-4">
+            <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+                {row}
+              </div>
+              แถว {row}
+            </h2>
+            
+            {levels.map((level) => (
+              <div key={level} className="space-y-2">
+                <h3 className="text-lg font-semibold text-muted-foreground flex items-center gap-2">
+                  <div className="w-6 h-6 bg-muted text-muted-foreground rounded-full flex items-center justify-center text-sm font-bold">
+                    {level}
+                  </div>
+                  ชั้นที่ {level}
+                </h3>
+                
+                <div className="grid grid-cols-12 gap-2">
+                  {positions.map((position) => {
+                    const location = `${row}/${level}/${position}`;
                     const item = itemsByLocation[location];
                     const isSelected = selectedShelf === location;
-                    const hasItem = !!item;
-                    const isHighlighted = highlightedLocations.has(location);
+                    const isHighlighted = highlightedLocations.includes(location);
                     
                     return (
-                      <Button
-                        key={level}
-                        variant="outline"
-                        size="sm"
+                      <Card
+                        key={location}
+                        className={`
+                          h-24 cursor-pointer transition-all duration-200 hover:shadow-md
+                          ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}
+                          ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50' : ''}
+                          ${item ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-dashed'}
+                        `}
                         onClick={() => handleShelfClick(location)}
-                        className={cn(
-                          "h-16 w-16 p-1 flex flex-col items-center justify-center text-xs relative transition-all duration-200",
-                          hasItem 
-                            ? "bg-shelf-occupied hover:bg-success/20 border-success/30" 
-                            : "bg-shelf-empty hover:bg-shelf-hover",
-                          isSelected && "ring-2 ring-primary shadow-lg",
-                          isHighlighted && "ring-2 ring-destructive border-destructive bg-destructive/10"
-                        )}
                       >
-                        {hasItem ? (
-                          <>
-                            <Package className="h-3 w-3 text-success mb-1" />
-                            <div className="text-[8px] font-medium text-center leading-tight truncate w-full">
-                              {item.productName}
-                            </div>
-                            <div className="text-[7px] text-muted-foreground">
-                              {item.quantityBoxes}ลัง
-                            </div>
-                          </>
-                        ) : (
-                          <Plus className="h-4 w-4 text-muted-foreground opacity-50" />
-                        )}
-                        
-                        <div className="absolute -bottom-1 -right-1 text-[6px] font-mono text-muted-foreground bg-background px-1 rounded">
-                          {level}
-                        </div>
-                      </Button>
+                        <CardContent className="p-2 h-full flex flex-col justify-between">
+                          <div className="text-xs font-mono text-muted-foreground text-center">
+                            {location}
+                          </div>
+                          
+                          <div className="flex-1 flex items-center justify-center">
+                            {item ? (
+                              <div className="text-xs">
+                                <div className="font-medium truncate">{item.product_name}</div>
+                                <div className="text-muted-foreground">{item.product_code}</div>
+                                <div className="flex gap-1 text-xs">
+                                  <span className="bg-primary/10 text-primary px-1 rounded">
+                                    {item.quantity_boxes}ลัง
+                                  </span>
+                                  <span className="bg-secondary/50 px-1 rounded">
+                                    {item.quantity_loose}เศษ
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground text-center">
+                                <Package className="h-4 w-4 mx-auto mb-1 opacity-30" />
+                                <div>ว่าง</div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
                     );
                   })}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      {/* Info */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-primary/5 border border-primary/20 rounded"></div>
+                <span>มีสินค้า</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-muted/30 border border-dashed rounded"></div>
+                <span>ตำแหน่งว่าง</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
+                <span>ผลการค้นหา</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              <span>คลิกเพื่อเพิ่มหรือแก้ไขสินค้า</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
