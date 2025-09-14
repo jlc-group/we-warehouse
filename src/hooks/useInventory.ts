@@ -12,37 +12,10 @@ export function useInventory() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Persistent anonymous authentication
-  const ensureAuthenticated = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        console.log('No session found, signing in anonymously...');
-        const { data, error } = await supabase.auth.signInAnonymously();
-        if (error) {
-          console.error('Anonymous auth failed:', error);
-          throw error;
-        }
-        console.log('Anonymous auth successful:', data);
-        return data.session;
-      }
-
-      console.log('Using existing session:', session.user.id);
-      return session;
-    } catch (error) {
-      console.error('Authentication error:', error);
-      throw error;
-    }
-  };
-
   const fetchItems = async () => {
     try {
       setLoading(true);
       console.log('Fetching inventory items...');
-
-      // Ensure user is authenticated
-      await ensureAuthenticated();
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -72,19 +45,14 @@ export function useInventory() {
     try {
       console.log('Adding item:', itemData);
 
-      // Get authenticated user ID (will be same anonymous user)
-      const session = await ensureAuthenticated();
-      const userId = session?.user?.id;
-
-      if (!userId) {
-        throw new Error('User not authenticated');
-      }
+      // Use a fixed user_id for all operations (no authentication needed)
+      const fixedUserId = 'public-user';
 
       const { data, error } = await supabase
         .from('inventory_items')
         .insert({
           ...itemData,
-          user_id: userId,
+          user_id: fixedUserId,
         })
         .select()
         .single();
@@ -116,9 +84,6 @@ export function useInventory() {
   const updateItem = async (id: string, updates: InventoryUpdate) => {
     try {
       console.log('Updating item:', id, updates);
-
-      // Ensure user is authenticated
-      await ensureAuthenticated();
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -154,9 +119,6 @@ export function useInventory() {
   const deleteItem = async (id: string) => {
     try {
       console.log('Deleting item:', id);
-
-      // Ensure user is authenticated
-      await ensureAuthenticated();
 
       const { error } = await supabase
         .from('inventory_items')
