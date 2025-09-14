@@ -1,25 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { Database } from '@/integrations/supabase/types';
 
-export interface InventoryItem {
-  id: string;
-  productName: string;
-  productCode: string;
-  location: string;
-  lot?: string;
-  mfd?: string;
-  quantityBoxes: number;
-  quantityLoose: number;
-  updatedAt: string;
-}
+type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
+type InventoryInsert = Database['public']['Tables']['inventory_items']['Insert'];
+type InventoryUpdate = Database['public']['Tables']['inventory_items']['Update'];
 
 export function useInventory() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Fetch inventory items
   const fetchItems = async () => {
     try {
       setLoading(true);
@@ -29,130 +21,139 @@ export function useInventory() {
         .order('location');
 
       if (error) throw error;
-
-      const mappedItems: InventoryItem[] = data?.map(item => ({
-        id: item.id,
-        productName: item.product_name,
-        productCode: item.product_code,
-        location: item.location,
-        lot: item.lot || undefined,
-        mfd: item.mfd || undefined,
-        quantityBoxes: item.quantity_boxes,
-        quantityLoose: item.quantity_loose,
-        updatedAt: item.updated_at,
-      })) || [];
-
-      setItems(mappedItems);
+      setItems(data || []);
     } catch (error) {
-      console.error('Error fetching inventory:', error);
+      console.error('Error fetching inventory items:', error);
       toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถดึงข้อมูลสินค้าได้",
-        variant: "destructive",
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // Add or update inventory item
-  const saveItem = async (itemData: Omit<InventoryItem, 'id' | 'updatedAt'>) => {
+  const addItem = async (itemData: Omit<InventoryInsert, 'user_id'>) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "ต้องเข้าสู่ระบบ",
-          description: "กรุณาเข้าสู่ระบบก่อนทำการบันทึก",
-          variant: "destructive",
-        });
-        return;
-      }
+      if (!user) throw new Error('User not authenticated');
 
-      // Check if item exists at this location
-      const existingItem = items.find(item => item.location === itemData.location);
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .insert({
+          ...itemData,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
       
-      if (existingItem) {
-        // Update existing item
-        const { error } = await supabase
-          .from('inventory_items')
-          .update({
-            product_name: itemData.productName,
-            product_code: itemData.productCode,
-            lot: itemData.lot || null,
-            mfd: itemData.mfd || null,
-            quantity_boxes: itemData.quantityBoxes,
-            quantity_loose: itemData.quantityLoose,
-          })
-          .eq('id', existingItem.id);
-
-        if (error) throw error;
-      } else {
-        // Create new item
-        const { error } = await supabase
-          .from('inventory_items')
-          .insert({
-            product_name: itemData.productName,
-            product_code: itemData.productCode,
-            location: itemData.location,
-            lot: itemData.lot || null,
-            mfd: itemData.mfd || null,
-            quantity_boxes: itemData.quantityBoxes,
-            quantity_loose: itemData.quantityLoose,
-            user_id: user.id,
-          });
-
-        if (error) throw error;
-      }
-
-      await fetchItems();
+      setItems(prev => [...prev, data]);
       toast({
-        title: "บันทึกสำเร็จ",
-        description: `บันทึกข้อมูลสินค้าที่ตำแหน่ง ${itemData.location} เรียบร้อยแล้ว`,
+        title: 'บันทึกสำเร็จ',
+        description: 'เพิ่มสินค้าเข้าคลังแล้ว',
       });
+      
+      return data;
     } catch (error) {
-      console.error('Error saving inventory item:', error);
+      console.error('Error adding inventory item:', error);
       toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถบันทึกข้อมูลสินค้าได้",
-        variant: "destructive",
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถเพิ่มสินค้าได้',
+        variant: 'destructive',
       });
+      throw error;
     }
   };
 
-  // Delete inventory item
-  const deleteItem = async (itemId: string) => {
+  const updateItem = async (id: string, updates: InventoryUpdate) => {
+    try {
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setItems(prev => prev.map(item => item.id === id ? data : item));
+      toast({
+        title: 'อัพเดตสำเร็จ',
+        description: 'แก้ไขข้อมูลสินค้าแล้ว',
+      });
+      
+      return data;
+    } catch (error) {
+      console.error('Error updating inventory item:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถแก้ไขข้อมูลได้',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
+  const deleteItem = async (id: string) => {
     try {
       const { error } = await supabase
         .from('inventory_items')
         .delete()
-        .eq('id', itemId);
+        .eq('id', id);
 
       if (error) throw error;
-
-      await fetchItems();
+      
+      setItems(prev => prev.filter(item => item.id !== id));
       toast({
-        title: "ลบสำเร็จ",
-        description: "ลบข้อมูลสินค้าเรียบร้อยแล้ว",
+        title: 'ลบสำเร็จ',
+        description: 'ลบสินค้าออกจากคลังแล้ว',
       });
     } catch (error) {
       console.error('Error deleting inventory item:', error);
       toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถลบข้อมูลสินค้าได้",
-        variant: "destructive",
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถลบสินค้าได้',
+        variant: 'destructive',
       });
+      throw error;
     }
   };
 
   useEffect(() => {
     fetchItems();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('inventory_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory_items'
+        },
+        () => {
+          fetchItems(); // Refresh data on any change
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return {
     items,
     loading,
-    saveItem,
+    addItem,
+    updateItem,
     deleteItem,
     refetch: fetchItems,
   };
 }
+
+export type { InventoryItem };

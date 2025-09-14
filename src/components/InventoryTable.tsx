@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, MapPin, Hash, Calendar } from 'lucide-react';
-import { InventoryItem } from '@/hooks/useInventory';
+import type { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryTableProps {
   items: InventoryItem[];
@@ -76,13 +76,13 @@ export function InventoryTable({ items }: InventoryTableProps) {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             <Package className="h-4 w-4 text-primary" />
-                            {item.productName}
+                            {item.product_name}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Hash className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono text-sm">{item.productCode}</span>
+                            <span className="font-mono text-sm">{item.product_code}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -101,13 +101,13 @@ export function InventoryTable({ items }: InventoryTableProps) {
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {item.quantityBoxes}
+                          {item.quantity_boxes}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {item.quantityLoose}
+                          {item.quantity_loose}
                         </TableCell>
                         <TableCell>
-                          {getStockBadge(item.quantityBoxes, item.quantityLoose)}
+                          {getStockBadge(item.quantity_boxes, item.quantity_loose)}
                         </TableCell>
                       </TableRow>
                     ))}
