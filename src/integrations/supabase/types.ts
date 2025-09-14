@@ -419,35 +419,19 @@ export type Database = {
       }
     }
     Views: {
-      safe_event_attendees: {
-        Row: {
-          created_at: string | null
-          event_id: string | null
-          id: string | null
-          name: string | null
-          payment_status: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          event_id?: string | null
-          id?: string | null
-          name?: string | null
-          payment_status?: never
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string | null
-          id?: string | null
-          name?: string | null
-          payment_status?: never
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       calculate_monthly_summary: {
         Args: { target_month: string; user_uuid: string }
         Returns: undefined
+      }
+      get_event_attendee_public_info: {
+        Args: { event_uuid: string }
+        Returns: {
+          attendee_count: number
+          verified_count: number
+        }[]
       }
       get_public_attendee_summary: {
         Args: { event_uuid: string }
