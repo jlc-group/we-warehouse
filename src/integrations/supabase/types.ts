@@ -419,7 +419,30 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      safe_event_attendees: {
+        Row: {
+          created_at: string | null
+          event_id: string | null
+          id: string | null
+          name: string | null
+          payment_status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id?: string | null
+          id?: string | null
+          name?: string | null
+          payment_status?: never
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string | null
+          id?: string | null
+          name?: string | null
+          payment_status?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_monthly_summary: {
