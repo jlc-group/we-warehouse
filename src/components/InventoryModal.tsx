@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar, Package, Tag, Hash } from 'lucide-react';
-import { InventoryItem } from './ShelfGrid';
+import { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryModalProps {
   isOpen: boolean;

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { Package, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
-import { InventoryItem } from './ShelfGrid';
+import { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryAnalyticsProps {
   items: InventoryItem[];

@@ -2,88 +2,78 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Warehouse, BarChart3, Table, Search, Package } from 'lucide-react';
-import { ShelfGrid, InventoryItem } from '@/components/ShelfGrid';
+import { Warehouse, BarChart3, Table, Search, Package, LogIn } from 'lucide-react';
+import { ShelfGrid } from '@/components/ShelfGrid';
 import { InventoryModal } from '@/components/InventoryModal';
 import { InventorySearch } from '@/components/InventorySearch';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { InventoryTable } from '@/components/InventoryTable';
-import { useToast } from '@/hooks/use-toast';
+import { useInventory, InventoryItem } from '@/hooks/useInventory';
+import { supabase } from '@/integrations/supabase/client';
+import { useEffect } from 'react';
 
 const Index = () => {
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([
-    // Sample data
-    {
-      id: '1',
-      location: 'A1/1',
-      productName: 'สบู่ยันฮี',
-      productCode: 'YH001',
-      lot: 'L240815',
-      mfd: '2024-08-15',
-      quantityBoxes: 25,
-      quantityLoose: 3,
-      updatedAt: new Date('2024-01-15')
-    },
-    {
-      id: '2',
-      location: 'A2/2',
-      productName: 'แชมพูซันซิล',
-      productCode: 'SS102',
-      lot: 'L240920',
-      mfd: '2024-09-20',
-      quantityBoxes: 15,
-      quantityLoose: 8,
-      updatedAt: new Date('2024-01-14')
-    },
-    {
-      id: '3',
-      location: 'B3/1',
-      productName: 'ครีมกันแดด',
-      productCode: 'SC203',
-      lot: 'L241001',
-      mfd: '2024-10-01',
-      quantityBoxes: 40,
-      quantityLoose: 2,
-      updatedAt: new Date('2024-01-13')
-    }
-  ]);
-  
+  const { items, loading, saveItem } = useInventory();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
-  const { toast } = useToast();
+  const [user, setUser] = useState<any>(null);
+
+  // Check auth status
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleShelfClick = (location: string, item?: InventoryItem) => {
+    if (!user) {
+      alert('กรุณาเข้าสู่ระบบก่อนใช้งาน');
+      return;
+    }
     setSelectedLocation(location);
     setSelectedItem(item);
     setIsModalOpen(true);
   };
 
-  const handleSaveItem = (itemData: Omit<InventoryItem, 'id' | 'updatedAt'>) => {
-    const newItem: InventoryItem = {
-      ...itemData,
-      id: selectedItem?.id || `item-${Date.now()}`,
-      updatedAt: new Date()
-    };
-
-    if (selectedItem) {
-      // Update existing item
-      setInventoryItems(prev => 
-        prev.map(item => item.id === selectedItem.id ? newItem : item)
-      );
-      toast({
-        title: "อัปเดตสำเร็จ",
-        description: `อัปเดตข้อมูลสินค้า ${itemData.productName} แล้ว`,
-      });
+  const handleAuth = async () => {
+    if (user) {
+      await supabase.auth.signOut();
     } else {
-      // Add new item
-      setInventoryItems(prev => [...prev, newItem]);
-      toast({
-        title: "บันทึกสำเร็จ",
-        description: `เพิ่มสินค้า ${itemData.productName} แล้ว`,
-      });
+      // Simple sign up for demo - in real app, use proper auth flow
+      const email = prompt('Email:');
+      const password = prompt('Password:');
+      if (email && password) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin
+          }
+        });
+        if (error) {
+          alert('Error: ' + error.message);
+        }
+      }
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Package className="h-12 w-12 mx-auto mb-4 animate-pulse text-primary" />
+          <p className="text-lg">กำลังโหลดข้อมูล...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,12 +86,22 @@ const Index = () => {
                 <Warehouse className="h-8 w-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-white">ระบบจัดการคลังสินค้า</h1>
-                <p className="text-white/80">Warehouse Inventory Management System</p>
+                <h1 className="text-3xl font-bold text-white">Inventory Warehouse</h1>
+                <p className="text-white/80">ระบบจัดการคลังสินค้า</p>
               </div>
             </div>
-            <div className="text-white/80 text-sm">
-              จำนวนสินค้า: {inventoryItems.length} รายการ
+            <div className="flex items-center gap-4">
+              <div className="text-white/80 text-sm">
+                จำนวนสินค้า: {items.length} รายการ
+              </div>
+              <Button
+                onClick={handleAuth}
+                variant="secondary"
+                className="bg-white/10 text-white border-white/20 hover:bg-white/20"
+              >
+                <LogIn className="h-4 w-4 mr-2" />
+                {user ? `${user.email} (ออกจากระบบ)` : 'เข้าสู่ระบบ'}
+              </Button>
             </div>
           </div>
         </div>
@@ -109,6 +109,16 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
+        {!user && (
+          <Card className="mb-6 border-warning bg-warning/10">
+            <CardContent className="p-4">
+              <p className="text-warning-foreground">
+                <strong>หมายเหตุ:</strong> กรุณาเข้าสู่ระบบเพื่อใช้งานระบบจัดการคลังสินค้าเต็มรูปแบบ
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs defaultValue="grid" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 h-12">
             <TabsTrigger value="grid" className="flex items-center gap-2">
@@ -142,7 +152,7 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <ShelfGrid 
-                  items={inventoryItems} 
+                  items={items} 
                   onShelfClick={handleShelfClick}
                 />
               </CardContent>
@@ -159,7 +169,7 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <InventorySearch 
-                  items={inventoryItems}
+                  items={items}
                   onItemSelect={(item) => handleShelfClick(item.location, item)}
                 />
               </CardContent>
@@ -167,11 +177,11 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="table">
-            <InventoryTable items={inventoryItems} />
+            <InventoryTable items={items} />
           </TabsContent>
 
           <TabsContent value="analytics">
-            <InventoryAnalytics items={inventoryItems} />
+            <InventoryAnalytics items={items} />
           </TabsContent>
         </Tabs>
       </main>
@@ -180,7 +190,7 @@ const Index = () => {
       <InventoryModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveItem}
+        onSave={saveItem}
         location={selectedLocation}
         existingItem={selectedItem}
       />

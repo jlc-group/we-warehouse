@@ -3,7 +3,7 @@ import { Search, MapPin, Package, Hash } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { InventoryItem } from './ShelfGrid';
+import { InventoryItem } from '@/hooks/useInventory';
 
 interface InventorySearchProps {
   items: InventoryItem[];

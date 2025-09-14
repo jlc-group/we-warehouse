@@ -112,6 +112,48 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_items: {
+        Row: {
+          created_at: string
+          id: string
+          location: string
+          lot: string | null
+          mfd: string | null
+          product_code: string
+          product_name: string
+          quantity_boxes: number
+          quantity_loose: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location: string
+          lot?: string | null
+          mfd?: string | null
+          product_code: string
+          product_name: string
+          quantity_boxes?: number
+          quantity_loose?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string
+          lot?: string | null
+          mfd?: string | null
+          product_code?: string
+          product_name?: string
+          quantity_boxes?: number
+          quantity_loose?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meeting_rooms: {
         Row: {
           capacity: number | null

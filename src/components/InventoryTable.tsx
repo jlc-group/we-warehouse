@@ -2,7 +2,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, MapPin, Hash, Calendar } from 'lucide-react';
-import { InventoryItem } from './ShelfGrid';
+import { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryTableProps {
   items: InventoryItem[];

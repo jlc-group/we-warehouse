@@ -3,18 +3,7 @@ import { Package, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-
-export interface InventoryItem {
-  id: string;
-  location: string;
-  productName: string;
-  productCode: string;
-  lot?: string;
-  mfd?: string;
-  quantityBoxes: number;
-  quantityLoose: number;
-  updatedAt: Date;
-}
+import { InventoryItem } from '@/hooks/useInventory';
 
 interface ShelfGridProps {
   items: InventoryItem[];
