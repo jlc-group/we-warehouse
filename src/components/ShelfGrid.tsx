@@ -43,9 +43,9 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     setHighlightedLocations(locations);
   };
 
-  // Generate shelf grid (A-N rows, 1-4 levels, 1-20 positions)
+  // Generate shelf grid (A-N rows, 4-1 levels from top to bottom, 1-20 positions)
   const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
-  const levels = [1, 2, 3, 4];
+  const levels = [4, 3, 2, 1]; // Display from top to bottom: 4, 3, 2, 1
   const positions = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
@@ -172,6 +172,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
           
           <div className="mt-4 text-sm text-muted-foreground">
             <p>ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
+            <p>การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
           </div>
         </CardContent>
       </Card>
