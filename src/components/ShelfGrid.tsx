@@ -43,10 +43,10 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     setHighlightedLocations(locations);
   };
 
-  // Generate shelf grid (A-C rows, 1-4 levels, 01-12 positions)
-  const rows = ['A', 'B', 'C'];
+  // Generate shelf grid (A-N rows, 1-4 levels, 1-20 positions)
+  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
   const levels = [1, 2, 3, 4];
-  const positions = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const positions = Array.from({ length: 20 }, (_, i) => i + 1);
 
   return (
     <div className="space-y-6">
@@ -90,7 +90,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                   ชั้นที่ {level}
                 </h3>
                 
-                <div className="grid grid-cols-12 gap-2">
+                <div className="grid grid-cols-10 xl:grid-cols-20 gap-1">
                   {positions.map((position) => {
                     const location = `${row}/${level}/${position}`;
                     const item = itemsByLocation[location];
@@ -101,36 +101,36 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                       <Card
                         key={location}
                         className={`
-                          h-24 cursor-pointer transition-all duration-200 hover:shadow-md
+                          h-16 cursor-pointer transition-all duration-200 hover:shadow-md
                           ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}
                           ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50' : ''}
                           ${item ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-dashed'}
                         `}
                         onClick={() => handleShelfClick(location)}
                       >
-                        <CardContent className="p-2 h-full flex flex-col justify-between">
+                        <CardContent className="p-1 h-full flex flex-col justify-between">
                           <div className="text-xs font-mono text-muted-foreground text-center">
-                            {location}
+                            {row}{position}
                           </div>
                           
                           <div className="flex-1 flex items-center justify-center">
                             {item ? (
-                              <div className="text-xs">
-                                <div className="font-medium truncate">{item.product_name}</div>
-                                <div className="text-muted-foreground">{item.product_code}</div>
-                                <div className="flex gap-1 text-xs">
-                                  <span className="bg-primary/10 text-primary px-1 rounded">
-                                    {item.quantity_boxes}ลัง
+                              <div className="text-xs text-center">
+                                <div className="font-medium truncate text-xs">{item.product_name.slice(0, 8)}</div>
+                                <div className="text-muted-foreground text-xs">{item.product_code.slice(0, 6)}</div>
+                                <div className="flex gap-1 text-xs justify-center">
+                                  <span className="bg-primary/10 text-primary px-1 rounded text-xs">
+                                    {item.quantity_boxes}
                                   </span>
-                                  <span className="bg-secondary/50 px-1 rounded">
-                                    {item.quantity_loose}เศษ
+                                  <span className="bg-secondary/50 px-1 rounded text-xs">
+                                    {item.quantity_loose}
                                   </span>
                                 </div>
                               </div>
                             ) : (
                               <div className="text-xs text-muted-foreground text-center">
-                                <Package className="h-4 w-4 mx-auto mb-1 opacity-30" />
-                                <div>ว่าง</div>
+                                <Package className="h-3 w-3 mx-auto mb-1 opacity-30" />
+                                <div className="text-xs">ว่าง</div>
                               </div>
                             )}
                           </div>
@@ -168,6 +168,10 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
               <MapPin className="h-4 w-4" />
               <span>คลิกเพื่อเพิ่มหรือแก้ไขสินค้า</span>
             </div>
+          </div>
+          
+          <div className="mt-4 text-sm text-muted-foreground">
+            <p>ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
           </div>
         </CardContent>
       </Card>

@@ -22,7 +22,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
     return new Date(dateString).toLocaleDateString('th-TH');
   };
 
-  // Group items by shelf level
+  // Group items by shelf level (extract from location A/1/1 format)
   const itemsByLevel = items.reduce((acc, item) => {
     const level = item.location.split('/')[1] || '1';
     if (!acc[level]) acc[level] = [];

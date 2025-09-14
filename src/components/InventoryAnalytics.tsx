@@ -62,8 +62,8 @@ export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
     { name: 'สูง', value: stockLevels.high, color: '#10b981' },
   ];
 
-  // Calculate utilization rate (assuming 144 total positions: 3 rows * 4 levels * 12 positions)
-  const totalPositions = 144;
+  // Calculate utilization rate (14 rows * 4 levels * 20 positions = 1120 total positions)
+  const totalPositions = 14 * 4 * 20;
   const utilization = ((totalItems / totalPositions) * 100).toFixed(1);
 
   return (
