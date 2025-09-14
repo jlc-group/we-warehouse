@@ -124,7 +124,7 @@ export type Database = {
           quantity_boxes: number
           quantity_loose: number
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -137,7 +137,7 @@ export type Database = {
           quantity_boxes?: number
           quantity_loose?: number
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -150,7 +150,7 @@ export type Database = {
           quantity_boxes?: number
           quantity_loose?: number
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }

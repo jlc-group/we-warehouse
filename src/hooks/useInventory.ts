@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
-import type { User } from '@supabase/supabase-js';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 type InventoryInsert = Database['public']['Tables']['inventory_items']['Insert'];
@@ -11,38 +10,12 @@ type InventoryUpdate = Database['public']['Tables']['inventory_items']['Update']
 export function useInventory() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
   const { toast } = useToast();
-
-  // Check authentication
-  const checkAuth = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      // Sign in anonymously for demo purposes
-      const { data: { user: newUser }, error } = await supabase.auth.signInAnonymously();
-      if (error) {
-        console.error('Auth error:', error);
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถเข้าสู่ระบบได้',
-          variant: 'destructive',
-        });
-        return null;
-      }
-      setUser(newUser);
-      return newUser;
-    }
-    setUser(user);
-    return user;
-  };
 
   const fetchItems = async () => {
     try {
       setLoading(true);
-      
-      // Ensure user is authenticated
-      const currentUser = await checkAuth();
-      if (!currentUser) return;
+      console.log('Fetching inventory items...');
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -53,6 +26,8 @@ export function useInventory() {
         console.error('Fetch error:', error);
         throw error;
       }
+      
+      console.log('Successfully fetched items:', data?.length || 0);
       setItems(data || []);
     } catch (error) {
       console.error('Error fetching inventory items:', error);
@@ -68,24 +43,16 @@ export function useInventory() {
 
   const addItem = async (itemData: Omit<InventoryInsert, 'user_id'>) => {
     try {
-      // Ensure user is authenticated
-      const currentUser = await checkAuth();
-      if (!currentUser) {
-        toast({
-          title: 'ไม่สามารถบันทึกได้',
-          description: 'กรุณาเข้าสู่ระบบก่อน',
-          variant: 'destructive',
-        });
-        return;
-      }
+      console.log('Adding item:', itemData);
 
-      console.log('Adding item:', itemData, 'User ID:', currentUser.id);
+      // Generate a random user_id since we don't need authentication
+      const randomUserId = crypto.randomUUID();
 
       const { data, error } = await supabase
         .from('inventory_items')
         .insert({
           ...itemData,
-          user_id: currentUser.id,
+          user_id: randomUserId,
         })
         .select()
         .single();
@@ -116,17 +83,6 @@ export function useInventory() {
 
   const updateItem = async (id: string, updates: InventoryUpdate) => {
     try {
-      // Ensure user is authenticated
-      const currentUser = await checkAuth();
-      if (!currentUser) {
-        toast({
-          title: 'ไม่สามารถแก้ไขได้',
-          description: 'กรุณาเข้าสู่ระบบก่อน',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       console.log('Updating item:', id, updates);
 
       const { data, error } = await supabase
@@ -162,17 +118,6 @@ export function useInventory() {
 
   const deleteItem = async (id: string) => {
     try {
-      // Ensure user is authenticated
-      const currentUser = await checkAuth();
-      if (!currentUser) {
-        toast({
-          title: 'ไม่สามารถลบได้',
-          description: 'กรุณาเข้าสู่ระบบก่อน',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       console.log('Deleting item:', id);
 
       const { error } = await supabase
@@ -203,18 +148,8 @@ export function useInventory() {
   };
 
   useEffect(() => {
-    checkAuth().then(() => {
-      fetchItems();
-    });
-
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', event, session?.user?.id);
-      setUser(session?.user || null);
-      if (session?.user) {
-        fetchItems();
-      }
-    });
+    console.log('Initializing inventory hook...');
+    fetchItems();
 
     // Set up real-time subscription
     const channel = supabase
@@ -234,7 +169,7 @@ export function useInventory() {
       .subscribe();
 
     return () => {
-      subscription?.unsubscribe();
+      console.log('Cleaning up inventory hook...');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -242,7 +177,6 @@ export function useInventory() {
   return {
     items,
     loading,
-    user,
     addItem,
     updateItem,
     deleteItem,
