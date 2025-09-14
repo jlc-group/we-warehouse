@@ -71,67 +71,63 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
       </Card>
 
       {/* Shelf Grid */}
-      <div className="space-y-8">
+      <div className="space-y-4">
         {rows.map((row) => (
-          <div key={row} className="space-y-4">
-            <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
-              <div className="w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
+          <div key={row} className="space-y-2">
+            <h2 className="text-lg font-semibold text-primary flex items-center gap-2 mb-1">
+              <div className="w-6 h-6 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-bold">
                 {row}
               </div>
               แถว {row}
             </h2>
-            
+
             {levels.map((level) => (
-              <div key={level} className="space-y-2">
-                <h3 className="text-lg font-semibold text-muted-foreground flex items-center gap-2">
-                  <div className="w-6 h-6 bg-muted text-muted-foreground rounded-full flex items-center justify-center text-sm font-bold">
+              <div key={level} className="space-y-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-4 h-4 bg-muted text-muted-foreground rounded flex items-center justify-center text-xs font-semibold">
                     {level}
                   </div>
-                  ชั้นที่ {level}
-                </h3>
+                  <span className="text-sm text-muted-foreground">ชั้นที่ {level}</span>
+                </div>
                 
                 <div className="overflow-x-auto">
-                  <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
+                  <div className="flex gap-0.5 pb-1" style={{ minWidth: 'max-content' }}>
                     {positions.map((position) => {
                       const location = `${row}/${level}/${position}`;
                       const item = itemsByLocation[location];
                       const isSelected = selectedShelf === location;
                       const isHighlighted = highlightedLocations.includes(location);
-                      
+
                       return (
                         <Card
                           key={location}
                           className={`
-                            w-16 h-16 cursor-pointer transition-all duration-200 hover:shadow-md flex-shrink-0
-                            ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}
-                            ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50' : ''}
-                            ${item ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-dashed'}
+                            w-16 h-12 cursor-pointer transition-all duration-200 hover:shadow-sm hover:scale-105 flex-shrink-0
+                            ${isSelected ? 'ring-2 ring-primary shadow-md scale-105' : ''}
+                            ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50/80' : ''}
+                            ${item ? 'bg-green-50/80 border-green-200/60 hover:bg-green-100/80' : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/50'}
                           `}
                           onClick={() => handleShelfClick(location)}
                         >
-                          <CardContent className="p-1 h-full flex flex-col justify-between">
-                            <div className="text-xs font-mono text-muted-foreground text-center">
-                              {row}{position}
+                          <CardContent className="p-0.5 h-full flex flex-col justify-center items-center">
+                            <div className="text-[9px] font-mono text-muted-foreground font-semibold leading-none">
+                              {row}{position}/{level}
                             </div>
-                            
-                            <div className="flex-1 flex items-center justify-center">
+
+                            <div className="flex-1 flex items-center justify-center mt-0.5">
                               {item ? (
-                                <div className="text-xs text-center">
-                                  <div className="font-medium truncate text-xs">{item.product_name.slice(0, 8)}</div>
-                                  <div className="text-muted-foreground text-xs">{item.product_code.slice(0, 6)}</div>
-                                  <div className="flex gap-1 text-xs justify-center">
-                                    <span className="bg-primary/10 text-primary px-1 rounded text-xs">
-                                      {item.quantity_boxes}
-                                    </span>
-                                    <span className="bg-secondary/50 px-1 rounded text-xs">
-                                      {item.quantity_loose}
-                                    </span>
+                                <div className="text-center">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full mx-auto mb-0.5"></div>
+                                  <div className="text-[8px] text-green-700 font-semibold leading-none">
+                                    {item.quantity_boxes + item.quantity_loose > 0 ?
+                                      `${item.quantity_boxes}+${item.quantity_loose}` :
+                                      '0'
+                                    }
                                   </div>
                                 </div>
                               ) : (
-                                <div className="text-xs text-muted-foreground text-center">
-                                  <Package className="h-3 w-3 mx-auto mb-1 opacity-30" />
-                                  <div className="text-xs">ว่าง</div>
+                                <div className="text-center">
+                                  <div className="w-2 h-2 bg-gray-300 rounded-full mx-auto"></div>
                                 </div>
                               )}
                             </div>
@@ -148,33 +144,38 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
       </div>
 
       {/* Info */}
-      <Card>
-        <CardContent className="p-4">
+      <Card className="border-0 bg-muted/30">
+        <CardContent className="p-3">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-primary/5 border border-primary/20 rounded"></div>
+                <div className="w-3 h-3 bg-green-50 border border-green-200 rounded flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                </div>
                 <span>มีสินค้า</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-muted/30 border border-dashed rounded"></div>
+                <div className="w-3 h-3 bg-gray-50 border border-gray-200 border-dashed rounded flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
+                </div>
                 <span>ตำแหน่งว่าง</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
+                <div className="w-3 h-3 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
                 <span>ผลการค้นหา</span>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <span>คลิกเพื่อเพิ่มหรือแก้ไขสินค้า</span>
+
+            <div className="flex items-center gap-2 text-xs">
+              <MapPin className="h-3 w-3" />
+              <span>คลิกที่ตำแหน่งเพื่อจัดการสินค้า</span>
             </div>
           </div>
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
-            <p>การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
+
+          <div className="mt-3 text-xs text-muted-foreground space-y-1">
+            <p>• ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
+            <p>• การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
+            <p>• ตัวเลขในตำแหน่ง: จำนวนลัง+เศษ (เช่น 5+3 = 5 ลัง 3 เศษ)</p>
           </div>
         </CardContent>
       </Card>
