@@ -1,7 +1,9 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Package, MapPin, Hash, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet } from 'lucide-react';
+import { exportInventoryToCSV, exportLocationSummary } from '@/utils/exportUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 interface InventoryTableProps {
@@ -33,13 +35,47 @@ export function InventoryTable({ items }: InventoryTableProps) {
   // Sort levels numerically
   const sortedLevels = Object.keys(itemsByLevel).sort((a, b) => parseInt(a) - parseInt(b));
 
+  const handleExportFullData = () => {
+    exportInventoryToCSV(items);
+  };
+
+  const handleExportLocationSummary = () => {
+    exportLocationSummary(items);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Package className="h-5 w-5" />
-          ตารางสรุปสินค้าในคลัง
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            ตารางสรุปสินค้าในคลัง
+            <Badge variant="outline" className="ml-2">
+              {items.length} รายการ
+            </Badge>
+          </CardTitle>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportLocationSummary}
+              className="flex items-center gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Export สรุปตำแหน่ง
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportFullData}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export ข้อมูลทั้งหมด
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {items.length === 0 ? (
