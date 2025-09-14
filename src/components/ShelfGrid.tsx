@@ -55,7 +55,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                   {rowLetter}{shelfNumber}
                 </div>
                 <div className="grid grid-cols-1 gap-1">
-                  {Array.from({ length: columns }, (_, j) => j + 1).map(level => {
+                  {Array.from({ length: columns }, (_, j) => columns - j).map(level => {
                     const location = `${rowLetter}${shelfNumber}/${level}`;
                     const item = itemsByLocation[location];
                     const isSelected = selectedShelf === location;
