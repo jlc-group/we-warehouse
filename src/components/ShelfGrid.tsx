@@ -90,54 +90,56 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                   ชั้นที่ {level}
                 </h3>
                 
-                <div className="grid grid-cols-10 xl:grid-cols-20 gap-1">
-                  {positions.map((position) => {
-                    const location = `${row}/${level}/${position}`;
-                    const item = itemsByLocation[location];
-                    const isSelected = selectedShelf === location;
-                    const isHighlighted = highlightedLocations.includes(location);
-                    
-                    return (
-                      <Card
-                        key={location}
-                        className={`
-                          h-16 cursor-pointer transition-all duration-200 hover:shadow-md
-                          ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}
-                          ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50' : ''}
-                          ${item ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-dashed'}
-                        `}
-                        onClick={() => handleShelfClick(location)}
-                      >
-                        <CardContent className="p-1 h-full flex flex-col justify-between">
-                          <div className="text-xs font-mono text-muted-foreground text-center">
-                            {row}{position}
-                          </div>
-                          
-                          <div className="flex-1 flex items-center justify-center">
-                            {item ? (
-                              <div className="text-xs text-center">
-                                <div className="font-medium truncate text-xs">{item.product_name.slice(0, 8)}</div>
-                                <div className="text-muted-foreground text-xs">{item.product_code.slice(0, 6)}</div>
-                                <div className="flex gap-1 text-xs justify-center">
-                                  <span className="bg-primary/10 text-primary px-1 rounded text-xs">
-                                    {item.quantity_boxes}
-                                  </span>
-                                  <span className="bg-secondary/50 px-1 rounded text-xs">
-                                    {item.quantity_loose}
-                                  </span>
+                <div className="overflow-x-auto">
+                  <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
+                    {positions.map((position) => {
+                      const location = `${row}/${level}/${position}`;
+                      const item = itemsByLocation[location];
+                      const isSelected = selectedShelf === location;
+                      const isHighlighted = highlightedLocations.includes(location);
+                      
+                      return (
+                        <Card
+                          key={location}
+                          className={`
+                            w-16 h-16 cursor-pointer transition-all duration-200 hover:shadow-md flex-shrink-0
+                            ${isSelected ? 'ring-2 ring-primary shadow-lg' : ''}
+                            ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-50' : ''}
+                            ${item ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-dashed'}
+                          `}
+                          onClick={() => handleShelfClick(location)}
+                        >
+                          <CardContent className="p-1 h-full flex flex-col justify-between">
+                            <div className="text-xs font-mono text-muted-foreground text-center">
+                              {row}{position}
+                            </div>
+                            
+                            <div className="flex-1 flex items-center justify-center">
+                              {item ? (
+                                <div className="text-xs text-center">
+                                  <div className="font-medium truncate text-xs">{item.product_name.slice(0, 8)}</div>
+                                  <div className="text-muted-foreground text-xs">{item.product_code.slice(0, 6)}</div>
+                                  <div className="flex gap-1 text-xs justify-center">
+                                    <span className="bg-primary/10 text-primary px-1 rounded text-xs">
+                                      {item.quantity_boxes}
+                                    </span>
+                                    <span className="bg-secondary/50 px-1 rounded text-xs">
+                                      {item.quantity_loose}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground text-center">
-                                <Package className="h-3 w-3 mx-auto mb-1 opacity-30" />
-                                <div className="text-xs">ว่าง</div>
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                              ) : (
+                                <div className="text-xs text-muted-foreground text-center">
+                                  <Package className="h-3 w-3 mx-auto mb-1 opacity-30" />
+                                  <div className="text-xs">ว่าง</div>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ))}

@@ -154,6 +154,65 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_movements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          inventory_item_id: string | null
+          location_after: string | null
+          location_before: string | null
+          movement_type: string
+          notes: string | null
+          quantity_boxes_after: number
+          quantity_boxes_before: number
+          quantity_boxes_change: number
+          quantity_loose_after: number
+          quantity_loose_before: number
+          quantity_loose_change: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          location_after?: string | null
+          location_before?: string | null
+          movement_type: string
+          notes?: string | null
+          quantity_boxes_after?: number
+          quantity_boxes_before?: number
+          quantity_boxes_change?: number
+          quantity_loose_after?: number
+          quantity_loose_before?: number
+          quantity_loose_change?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_item_id?: string | null
+          location_after?: string | null
+          location_before?: string | null
+          movement_type?: string
+          notes?: string | null
+          quantity_boxes_after?: number
+          quantity_boxes_before?: number
+          quantity_boxes_change?: number
+          quantity_loose_after?: number
+          quantity_loose_before?: number
+          quantity_loose_change?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_movements_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_rooms: {
         Row: {
           capacity: number | null

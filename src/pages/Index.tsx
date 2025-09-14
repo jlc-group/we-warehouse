@@ -5,8 +5,9 @@ import { InventorySearch } from '@/components/InventorySearch';
 import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModal } from '@/components/InventoryModal';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
+import { MovementLogs } from '@/components/MovementLogs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, BarChart3, Grid3X3, Search, Table } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Search, Table, History } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 
@@ -72,7 +73,7 @@ function Index() {
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="grid" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               แผนผังคลัง
@@ -88,6 +89,10 @@ function Index() {
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               วิเคราะห์ข้อมูล
+            </TabsTrigger>
+            <TabsTrigger value="movements" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              ประวัติการเคลื่อนไหว
             </TabsTrigger>
           </TabsList>
 
@@ -127,6 +132,10 @@ function Index() {
             ) : (
               <InventoryAnalytics items={inventoryItems} />
             )}
+          </TabsContent>
+
+          <TabsContent value="movements" className="space-y-4">
+            <MovementLogs />
           </TabsContent>
         </Tabs>
 
