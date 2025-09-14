@@ -11,7 +11,7 @@ import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
-  const { items: inventoryItems, loading, addItem, updateItem } = useInventory();
+  const { items: inventoryItems, loading, user, addItem, updateItem } = useInventory();
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,6 +64,11 @@ function Index() {
             <p className="text-muted-foreground">
               {loading ? 'กำลังโหลด...' : `จำนวนสินค้าทั้งหมด: ${inventoryItems.length} รายการ`}
             </p>
+            {user && (
+              <p className="text-sm text-success mt-2">
+                ✅ เชื่อมต่อระบบแล้ว (User ID: {user.id.slice(0, 8)}...)
+              </p>
+            )}
           </CardContent>
         </Card>
 
