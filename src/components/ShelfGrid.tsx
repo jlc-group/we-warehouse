@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Package, Plus } from 'lucide-react';
+import { Package, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export interface InventoryItem {
@@ -22,6 +23,8 @@ interface ShelfGridProps {
 
 export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedLocations, setHighlightedLocations] = useState<Set<string>>(new Set());
   
   const columns = 4;
   const rows = 20;
@@ -39,8 +42,70 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     onShelfClick(location, item);
   };
 
+  const handleSearch = () => {
+    if (!searchQuery.trim()) {
+      setHighlightedLocations(new Set());
+      return;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    const matchingLocations = items
+      .filter(item => 
+        item.productName.toLowerCase().includes(query) ||
+        item.productCode.toLowerCase().includes(query)
+      )
+      .map(item => item.location);
+    
+    setHighlightedLocations(new Set(matchingLocations));
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
   return (
     <div className="space-y-8">
+      <div className="flex gap-2 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="ค้นหาสินค้า, รหัสสินค้า..."
+            className="pl-10 h-12"
+          />
+        </div>
+        <Button 
+          onClick={handleSearch}
+          className="h-12 px-6 bg-gradient-primary"
+        >
+          ค้นหา
+        </Button>
+        {highlightedLocations.size > 0 && (
+          <Button 
+            onClick={() => {
+              setSearchQuery('');
+              setHighlightedLocations(new Set());
+            }}
+            variant="outline"
+            className="h-12 px-6"
+          >
+            ล้างการค้นหา
+          </Button>
+        )}
+      </div>
+      
+      {highlightedLocations.size > 0 && (
+        <div className="mb-4 p-4 bg-primary/10 rounded-lg border border-primary/20">
+          <p className="text-sm font-medium text-primary">
+            พบ {highlightedLocations.size} รายการที่ตรงกับการค้นหา (ตำแหน่งที่ไฮไลต์จะแสดงด้วยสีแดง)
+          </p>
+        </div>
+      )}
+      
       {shelfRange.split('').map(rowLetter => (
         <div key={rowLetter} className="space-y-4">
           <div className="flex items-center gap-2">
@@ -60,6 +125,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                     const item = itemsByLocation[location];
                     const isSelected = selectedShelf === location;
                     const hasItem = !!item;
+                    const isHighlighted = highlightedLocations.has(location);
                     
                     return (
                       <Button
@@ -72,7 +138,8 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                           hasItem 
                             ? "bg-shelf-occupied hover:bg-success/20 border-success/30" 
                             : "bg-shelf-empty hover:bg-shelf-hover",
-                          isSelected && "ring-2 ring-primary shadow-lg"
+                          isSelected && "ring-2 ring-primary shadow-lg",
+                          isHighlighted && "ring-2 ring-destructive border-destructive bg-destructive/10"
                         )}
                       >
                         {hasItem ? (
