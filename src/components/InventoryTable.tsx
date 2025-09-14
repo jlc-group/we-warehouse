@@ -22,6 +22,17 @@ export function InventoryTable({ items }: InventoryTableProps) {
     return new Date(dateString).toLocaleDateString('th-TH');
   };
 
+  // Group items by shelf level
+  const itemsByLevel = items.reduce((acc, item) => {
+    const level = item.location.split('/')[1] || '1';
+    if (!acc[level]) acc[level] = [];
+    acc[level].push(item);
+    return acc;
+  }, {} as Record<string, InventoryItem[]>);
+
+  // Sort levels numerically
+  const sortedLevels = Object.keys(itemsByLevel).sort((a, b) => parseInt(a) - parseInt(b));
+
   return (
     <Card>
       <CardHeader>
@@ -30,74 +41,82 @@ export function InventoryTable({ items }: InventoryTableProps) {
           ตารางสรุปสินค้าในคลัง
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">ชื่อสินค้า</TableHead>
-                <TableHead>รหัสสินค้า</TableHead>
-                <TableHead>ตำแหน่ง</TableHead>
-                <TableHead>LOT</TableHead>
-                <TableHead>MFD</TableHead>
-                <TableHead className="text-right">จำนวนลัง</TableHead>
-                <TableHead className="text-right">จำนวนเศษ</TableHead>
-                <TableHead>สถานะ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    ยังไม่มีข้อมูลสินค้าในระบบ
-                  </TableCell>
-                </TableRow>
-              ) : (
-                items.map((item) => (
-                  <TableRow key={item.id} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-primary" />
-                        {item.productName}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Hash className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-mono text-sm">{item.productCode}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-mono">{item.location}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {item.lot || '-'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {item.mfd && <Calendar className="h-3 w-3 text-muted-foreground" />}
-                        {formatDate(item.mfd)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {item.quantityBoxes}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {item.quantityLoose}
-                    </TableCell>
-                    <TableCell>
-                      {getStockBadge(item.quantityBoxes, item.quantityLoose)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+      <CardContent className="space-y-6">
+        {items.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+            ยังไม่มีข้อมูลสินค้าในระบบ
+          </div>
+        ) : (
+          sortedLevels.map((level) => (
+            <div key={level} className="space-y-2">
+              <h3 className="text-lg font-semibold text-primary flex items-center gap-2">
+                <div className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-sm font-bold">
+                  {level}
+                </div>
+                ชั้นที่ {level}
+              </h3>
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[200px]">ชื่อสินค้า</TableHead>
+                      <TableHead>รหัสสินค้า</TableHead>
+                      <TableHead>ตำแหน่ง</TableHead>
+                      <TableHead>LOT</TableHead>
+                      <TableHead>MFD</TableHead>
+                      <TableHead className="text-right">จำนวนลัง</TableHead>
+                      <TableHead className="text-right">จำนวนเศษ</TableHead>
+                      <TableHead>สถานะ</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {itemsByLevel[level].map((item) => (
+                      <TableRow key={item.id} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            {item.productName}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Hash className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-mono text-sm">{item.productCode}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-mono">{item.location}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {item.lot || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {item.mfd && <Calendar className="h-3 w-3 text-muted-foreground" />}
+                            {formatDate(item.mfd)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {item.quantityBoxes}
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {item.quantityLoose}
+                        </TableCell>
+                        <TableCell>
+                          {getStockBadge(item.quantityBoxes, item.quantityLoose)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ))
+        )}
       </CardContent>
     </Card>
   );
