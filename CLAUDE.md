@@ -72,3 +72,9 @@ Key tables include:
 ## Development Notes
 
 This project uses Lovable.dev for deployment and development, but can be run locally with standard Node.js/npm setup. The codebase follows modern React patterns with TypeScript and utilizes Supabase for backend services including real-time subscriptions.
+
+### Important Notes
+- No testing framework is configured - there are no test commands or test files in the project
+- TypeScript configuration uses relaxed settings (no strict null checks, allows any types, allows JS)
+- Always prefer editing existing files over creating new ones
+- Never create documentation files (*.md) unless explicitly requested
