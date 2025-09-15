@@ -46,7 +46,7 @@ export function useInventory() {
       console.log('Adding item:', itemData);
 
       // Use a fixed user_id for all operations (no authentication needed)
-      const fixedUserId = 'public-user';
+      const fixedUserId = '00000000-0000-0000-0000-000000000000';
 
       const { data, error } = await supabase
         .from('inventory_items')
