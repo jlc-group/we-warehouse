@@ -9,30 +9,13 @@ import { InventoryModal } from '@/components/InventoryModal';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, BarChart3, Grid3X3, Search, Table, History, LogOut, User } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Search, Table, History } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
-import { useAuth } from '@/hooks/useAuth';
+// Remove useAuth import since it conflicts with existing auth context
 import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
-  const { user, loading: authLoading, signOut } = useAuth();
   const { items: inventoryItems, loading, addItem, updateItem } = useInventory();
-
-  // Redirect to auth if not logged in
-  if (!authLoading && !user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Package className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>กำลังตรวจสอบการเข้าสู่ระบบ...</p>
-        </div>
-      </div>
-    );
-  }
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,26 +59,9 @@ function Index() {
         {/* Header */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Package className="h-6 w-6" />
-                ระบบจัดการคลัง Inventory Warehouse
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  {user?.email}
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={signOut}
-                  className="flex items-center gap-2"
-                >
-                  <LogOut className="h-4 w-4" />
-                  ออกจากระบบ
-                </Button>
-              </div>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-6 w-6" />
+              ระบบจัดการคลัง Inventory Warehouse
             </CardTitle>
           </CardHeader>
           <CardContent>
