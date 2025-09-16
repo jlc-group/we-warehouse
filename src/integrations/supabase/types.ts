@@ -114,41 +114,41 @@ export type Database = {
       }
       inventory_items: {
         Row: {
+          box_quantity: number
           created_at: string
           id: string
           location: string
+          loose_quantity: number
           lot: string | null
           mfd: string | null
-          product_code: string
           product_name: string
-          quantity_boxes: number
-          quantity_loose: number
+          sku: string
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          box_quantity?: number
           created_at?: string
           id?: string
           location: string
+          loose_quantity?: number
           lot?: string | null
           mfd?: string | null
-          product_code: string
           product_name: string
-          quantity_boxes?: number
-          quantity_loose?: number
+          sku: string
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          box_quantity?: number
           created_at?: string
           id?: string
           location?: string
+          loose_quantity?: number
           lot?: string | null
           mfd?: string | null
-          product_code?: string
           product_name?: string
-          quantity_boxes?: number
-          quantity_loose?: number
+          sku?: string
           updated_at?: string
           user_id?: string | null
         }
@@ -156,52 +156,52 @@ export type Database = {
       }
       inventory_movements: {
         Row: {
+          box_quantity_after: number
+          box_quantity_before: number
+          box_quantity_change: number
           created_at: string
           created_by: string | null
           id: string
           inventory_item_id: string | null
           location_after: string | null
           location_before: string | null
+          loose_quantity_after: number
+          loose_quantity_before: number
+          loose_quantity_change: number
           movement_type: string
           notes: string | null
-          quantity_boxes_after: number
-          quantity_boxes_before: number
-          quantity_boxes_change: number
-          quantity_loose_after: number
-          quantity_loose_before: number
-          quantity_loose_change: number
         }
         Insert: {
+          box_quantity_after?: number
+          box_quantity_before?: number
+          box_quantity_change?: number
           created_at?: string
           created_by?: string | null
           id?: string
           inventory_item_id?: string | null
           location_after?: string | null
           location_before?: string | null
+          loose_quantity_after?: number
+          loose_quantity_before?: number
+          loose_quantity_change?: number
           movement_type: string
           notes?: string | null
-          quantity_boxes_after?: number
-          quantity_boxes_before?: number
-          quantity_boxes_change?: number
-          quantity_loose_after?: number
-          quantity_loose_before?: number
-          quantity_loose_change?: number
         }
         Update: {
+          box_quantity_after?: number
+          box_quantity_before?: number
+          box_quantity_change?: number
           created_at?: string
           created_by?: string | null
           id?: string
           inventory_item_id?: string | null
           location_after?: string | null
           location_before?: string | null
+          loose_quantity_after?: number
+          loose_quantity_before?: number
+          loose_quantity_change?: number
           movement_type?: string
           notes?: string | null
-          quantity_boxes_after?: number
-          quantity_boxes_before?: number
-          quantity_boxes_change?: number
-          quantity_loose_after?: number
-          quantity_loose_before?: number
-          quantity_loose_change?: number
         }
         Relationships: [
           {
