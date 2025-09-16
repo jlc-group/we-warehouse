@@ -6,8 +6,10 @@ import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModal } from '@/components/InventoryModal';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
+import { ProductGroupOverview } from '@/components/ProductGroupOverview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, BarChart3, Grid3X3, Search, Table, History } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Database, Trash2 } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 
@@ -18,7 +20,7 @@ function Index() {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   
   // Custom hook after useState hooks
-  const { items: inventoryItems, loading, addItem, updateItem } = useInventory();
+  const { items: inventoryItems, loading, addItem, updateItem, loadSampleData, clearAllData } = useInventory();
 
   const handleShelfClick = (location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
@@ -61,21 +63,53 @@ function Index() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">
-              {loading ? 'กำลังโหลด...' : `จำนวนสินค้าทั้งหมด: ${inventoryItems.length} รายการ`}
-            </p>
-            <p className="text-sm text-success mt-2">
-              ✅ ระบบพร้อมใช้งาน
-            </p>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <p className="text-muted-foreground">
+                  {loading ? 'กำลังโหลด...' : `จำนวนสินค้าทั้งหมด: ${inventoryItems.length} รายการ`}
+                </p>
+                <p className="text-sm text-success mt-2">
+                  ✅ ระบบพร้อมใช้งาน
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadSampleData}
+                  disabled={loading}
+                  className="flex items-center gap-2"
+                >
+                  <Database className="h-4 w-4" />
+                  โหลดข้อมูลตัวอย่าง
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearAllData}
+                  disabled={loading || inventoryItems.length === 0}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  ล้างข้อมูลทั้งหมด
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="grid" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               แผนผังคลัง
+            </TabsTrigger>
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <PieChart className="h-4 w-4" />
+              ภาพรวมกลุ่มสินค้า
             </TabsTrigger>
             <TabsTrigger value="search" className="flex items-center gap-2">
               <Search className="h-4 w-4" />
@@ -99,8 +133,19 @@ function Index() {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <ShelfGrid 
-                items={inventoryItems} 
+              <ShelfGrid
+                items={inventoryItems}
+                onShelfClick={handleShelfClick}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="overview" className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+            ) : (
+              <ProductGroupOverview
+                items={inventoryItems}
                 onShelfClick={handleShelfClick}
               />
             )}

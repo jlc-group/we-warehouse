@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
+import { generateSampleInventoryData } from '@/data/sampleInventory';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 type InventoryInsert = Database['public']['Tables']['inventory_items']['Insert'];
@@ -174,6 +175,103 @@ export function useInventory() {
     };
   }, []);
 
+  const loadSampleData = async () => {
+    try {
+      setLoading(true);
+      console.log('Loading sample data...');
+
+      // First clear existing data (optional - comment out if you want to keep existing data)
+      const { error: deleteError } = await supabase
+        .from('inventory_items')
+        .delete()
+        .neq('id', ''); // Delete all rows
+
+      if (deleteError) {
+        console.warn('Warning clearing data:', deleteError);
+        // Continue even if delete fails
+      }
+
+      // Generate sample data
+      const sampleData = generateSampleInventoryData();
+      console.log('Generated sample data:', sampleData.length, 'items');
+
+      // Insert sample data in batches to avoid timeout
+      const batchSize = 10;
+      const batches = [];
+      for (let i = 0; i < sampleData.length; i += batchSize) {
+        batches.push(sampleData.slice(i, i + batchSize));
+      }
+
+      for (const batch of batches) {
+        const { error } = await supabase
+          .from('inventory_items')
+          .insert(batch);
+
+        if (error) {
+          console.error('Batch insert error:', error);
+          throw error;
+        }
+      }
+
+      console.log('Successfully loaded sample data');
+
+      // Refresh the items
+      await fetchItems();
+
+      toast({
+        title: 'โหลดข้อมูลตัวอย่างสำเร็จ',
+        description: `เพิ่มสินค้าจุฬาเฮิร์บ ${sampleData.length} รายการแล้ว`,
+      });
+
+    } catch (error) {
+      console.error('Error loading sample data:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลตัวอย่างได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearAllData = async () => {
+    try {
+      setLoading(true);
+      console.log('Clearing all data...');
+
+      const { error } = await supabase
+        .from('inventory_items')
+        .delete()
+        .neq('id', ''); // Delete all rows
+
+      if (error) {
+        console.error('Clear data error:', error);
+        throw error;
+      }
+
+      console.log('Successfully cleared all data');
+
+      // Refresh the items
+      await fetchItems();
+
+      toast({
+        title: 'ล้างข้อมูลสำเร็จ',
+        description: 'ลบข้อมูลทั้งหมดแล้ว',
+      });
+
+    } catch (error) {
+      console.error('Error clearing data:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถล้างข้อมูลได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     items,
     loading,
@@ -181,6 +279,8 @@ export function useInventory() {
     updateItem,
     deleteItem,
     refetch: fetchItems,
+    loadSampleData,
+    clearAllData,
   };
 }
 
