@@ -45,22 +45,40 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
     selectedRow: ''
   });
 
+  // Standard product codes
+  const standardProductCodes = [
+    'A1-40G', 'L13-10G', 'L8A-6G', 'L8B-6G', 'L8A-30G', 'L3-40G', 'L7-6G', 'L4-40G',
+    'L10-7G', 'L3-8G', 'L11-40G', 'L14-40G', 'L4-8G', 'T6A-10G', 'T6A-5G', 'L5-15G',
+    'S3-70G', 'C4-40G', 'L6-8G', 'J8-40G', 'T5A-2G', 'T5B-2G', 'C3-7G', 'L6-40G',
+    'J3-8G', 'L10-30G', 'C1-6G', 'L9-8G', 'C4-8G', 'L8B-6G', 'C3-30G', 'S1-70G',
+    'C4-35G', 'S2-70G', 'T5A-2.5G', 'L7-30G', 'M2-4G', 'T5B-2.5G', 'A2-40G', 'K3-6G',
+    'C2-35G', 'C2-8G', 'C4-40G', 'T5C-2G', 'C2-40G', 'D1-70G', 'D2-70G'
+  ];
+
   // Get filter options
   const filterOptions = useMemo(() => {
     const lots = new Set<string>();
-    const productCodes = new Set<string>();
+    const dbProductCodes = new Set<string>();
     const rows = new Set<string>();
 
     items.forEach(item => {
       if (item.lot) lots.add(item.lot);
-      if (item.product_code) productCodes.add(item.product_code);
+      if (item.product_code) dbProductCodes.add(item.product_code);
       const row = item.location.split('/')[0];
       if (row) rows.add(row);
     });
 
+    // Combine standard codes with DB codes, prioritizing standard order
+    const allProductCodes = [...standardProductCodes];
+    dbProductCodes.forEach(code => {
+      if (!standardProductCodes.includes(code)) {
+        allProductCodes.push(code);
+      }
+    });
+
     return {
       lots: Array.from(lots).sort(),
-      productCodes: Array.from(productCodes).sort(),
+      productCodes: allProductCodes,
       rows: Array.from(rows).sort()
     };
   }, [items]);
@@ -489,7 +507,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     โหมดการแสดงผล
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <Tabs value={visualMode} onValueChange={(value) => setVisualMode(value as VisualMode)}>
                     <TabsList className="grid w-full grid-cols-3 h-12">
                       <TabsTrigger value="product" className="text-sm">สินค้า</TabsTrigger>
@@ -497,6 +515,30 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                       <TabsTrigger value="density" className="text-sm">ความหนาแน่น</TabsTrigger>
                     </TabsList>
                   </Tabs>
+
+                  {/* Product Code Filter for Visual Mode */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">เลือกรหัสสินค้า</label>
+                    <Select
+                      value={filters.selectedProductCode}
+                      onValueChange={(value) => updateFilter('selectedProductCode', value)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="เลือกรหัสสินค้า..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        <SelectItem value="">ทั้งหมด</SelectItem>
+                        {filterOptions.productCodes.map(code => {
+                          const count = items.filter(item => item.product_code === code).length;
+                          return (
+                            <SelectItem key={code} value={code}>
+                              {code} ({count} รายการ)
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </CardContent>
               </Card>
 
