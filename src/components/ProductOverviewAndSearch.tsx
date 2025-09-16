@@ -104,7 +104,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       }
 
       // Product code filter
-      if (filters.selectedProductCode && item.product_code !== filters.selectedProductCode) {
+      if (filters.selectedProductCode && filters.selectedProductCode !== 'all' && item.product_code !== filters.selectedProductCode) {
         return false;
       }
 
@@ -520,14 +520,14 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                   <div className="space-y-2">
                     <label className="text-sm font-medium">เลือกรหัสสินค้า</label>
                     <Select
-                      value={filters.selectedProductCode}
-                      onValueChange={(value) => updateFilter('selectedProductCode', value)}
+                      value={filters.selectedProductCode || 'all'}
+                      onValueChange={(value) => updateFilter('selectedProductCode', value === 'all' ? '' : value)}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="เลือกรหัสสินค้า..." />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
-                        <SelectItem value="">ทั้งหมด</SelectItem>
+                        <SelectItem value="all">ทั้งหมด</SelectItem>
                         {filterOptions.productCodes.map(code => {
                           const count = items.filter(item => item.product_code === code).length;
                           return (
