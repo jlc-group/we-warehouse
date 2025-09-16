@@ -92,22 +92,32 @@ const chulaherb_products = [
   { name: "จุฬาเฮิร์บ เจเด้นท์ทรีเอ็กซ์เอ็กซ์ตร้า แคร์ทูธเพสท์", code: "D2-70G" }
 ];
 
-// Generate complete sample inventory data
+// Generate complete sample inventory data with multiple lots per product
 export const generateSampleInventoryData = () => {
-  return chulaherb_products.map((product) => {
-    const quantities = generateQuantities();
-
-    return {
-      product_name: product.name,
-      product_code: product.code,
-      location: generateRandomLocation(),
-      quantity_boxes: quantities.boxes,
-      quantity_loose: quantities.loose,
-      lot: generateLotNumber(),
-      mfd: generateMFD(),
-      user_id: '00000000-0000-0000-0000-000000000000' // Fixed user ID for demo
-    };
+  const inventoryData = [];
+  
+  // สร้างหลาย lot ต่อผลิตภัณฑ์เพื่อให้ได้ข้อมูล 350+ รายการ
+  chulaherb_products.forEach((product) => {
+    // สร้าง 5-8 lot ต่อผลิตภัณฑ์
+    const lotsPerProduct = Math.floor(Math.random() * 4) + 5; // 5-8 lots
+    
+    for (let i = 0; i < lotsPerProduct; i++) {
+      const quantities = generateQuantities();
+      
+      inventoryData.push({
+        product_name: product.name,
+        product_code: product.code,
+        location: generateRandomLocation(),
+        quantity_boxes: quantities.boxes,
+        quantity_loose: quantities.loose,
+        lot: generateLotNumber(),
+        mfd: generateMFD(),
+        user_id: '00000000-0000-0000-0000-000000000000' // Fixed user ID for demo
+      });
+    }
   });
+  
+  return inventoryData;
 };
 
 // Pre-generated static sample data (for consistent testing)
