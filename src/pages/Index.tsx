@@ -144,7 +144,6 @@ function Index() {
               <ShelfGrid
                 items={inventoryItems}
                 onShelfClick={handleShelfClick}
-                onBulkSave={handleBulkSave}
               />
             )}
           </TabsContent>

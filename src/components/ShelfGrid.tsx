@@ -5,15 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Package, Search, MapPin, Filter, X, CheckSquare, Square, Save } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 interface ShelfGridProps {
   items: InventoryItem[];
   onShelfClick: (location: string, item?: InventoryItem) => void;
-  onBulkSave?: (locations: string[], itemData: any) => void;
 }
 
 interface FilterState {
@@ -27,19 +24,8 @@ interface FilterState {
   };
 }
 
-export function ShelfGrid({ items, onShelfClick, onBulkSave }: ShelfGridProps) {
+export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
-  const [showBulkSaveDialog, setShowBulkSaveDialog] = useState(false);
-  const [bulkSaveData, setBulkSaveData] = useState({
-    product_name: '',
-    product_code: '',
-    quantity_boxes: '',
-    quantity_loose: '',
-    lot: '',
-    mfd: ''
-  });
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     lotFilter: '',
@@ -89,55 +75,9 @@ export function ShelfGrid({ items, onShelfClick, onBulkSave }: ShelfGridProps) {
     });
   }, [items, filters]);
 
-  const handleShelfClick = (location: string) => {
-    if (isMultiSelectMode) {
-      setSelectedLocations(prev => 
-        prev.includes(location) 
-          ? prev.filter(loc => loc !== location)
-          : [...prev, location]
-      );
-    } else {
-      setSelectedShelf(location);
-      const locationItems = itemsByLocation[location];
-      // Pass the first item or undefined if no items
-      onShelfClick(location, locationItems?.[0]);
-    }
-  };
-
-  const toggleMultiSelectMode = () => {
-    setIsMultiSelectMode(!isMultiSelectMode);
-    setSelectedLocations([]);
-  };
-
-  const handleBulkSave = () => {
-    if (selectedLocations.length === 0) return;
-    setShowBulkSaveDialog(true);
-  };
-
-  const confirmBulkSave = () => {
-    if (!onBulkSave) return;
-    
-    const saveData = {
-      product_name: bulkSaveData.product_name,
-      product_code: bulkSaveData.product_code,
-      quantity_boxes: parseInt(bulkSaveData.quantity_boxes) || 0,
-      quantity_loose: parseInt(bulkSaveData.quantity_loose) || 0,
-      lot: bulkSaveData.lot || null,
-      mfd: bulkSaveData.mfd || null
-    };
-
-    onBulkSave(selectedLocations, saveData);
-    setShowBulkSaveDialog(false);
-    setSelectedLocations([]);
-    setIsMultiSelectMode(false);
-    setBulkSaveData({
-      product_name: '',
-      product_code: '',
-      quantity_boxes: '',
-      quantity_loose: '',
-      lot: '',
-      mfd: ''
-    });
+  const handleShelfClick = (location: string, item?: InventoryItem) => {
+    setSelectedShelf(location);
+    onShelfClick(location, item);
   };
 
   const handleFilterChange = (type: 'lot' | 'productCode', value: string) => {
@@ -200,47 +140,6 @@ export function ShelfGrid({ items, onShelfClick, onBulkSave }: ShelfGridProps) {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Multi-Select Controls */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button 
-                  variant={isMultiSelectMode ? "default" : "outline"}
-                  onClick={toggleMultiSelectMode}
-                  className="flex items-center gap-2"
-                >
-                  {isMultiSelectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                  {isMultiSelectMode ? 'ยกเลิกเลือกหลายตำแหน่ง' : 'เลือกหลายตำแหน่ง'}
-                </Button>
-                
-                {isMultiSelectMode && selectedLocations.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      เลือกแล้ว {selectedLocations.length} ตำแหน่ง
-                    </Badge>
-                    <Button 
-                      onClick={handleBulkSave}
-                      className="flex items-center gap-2"
-                      size="sm"
-                    >
-                      <Save className="h-4 w-4" />
-                      บันทึกทั้งหมด
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      onClick={() => setSelectedLocations([])}
-                      size="sm"
-                    >
-                      ล้างการเลือก
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Advanced Search & Filters */}
         <Card>
           <CardContent className="p-4 space-y-4">
@@ -340,338 +239,210 @@ export function ShelfGrid({ items, onShelfClick, onBulkSave }: ShelfGridProps) {
           </CardContent>
         </Card>
 
-      {/* Shelf Grid */}
-      <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row} className="space-y-1">
-            <h2 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
-              <div className="w-6 h-6 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-bold">
-                {row}
-              </div>
-              แถว {row}
-            </h2>
+        {/* Shelf Grid */}
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div key={row} className="space-y-1">
+              <h2 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-bold">
+                  {row}
+                </div>
+                แถว {row}
+              </h2>
 
-            {levels.map((level) => (
-              <div key={level} className="mb-2">
-                <div className="overflow-x-auto">
-                  <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
-                    {positions.map((position) => {
-                      const location = `${row}/${level}/${position}`;
-                      const locationItems = itemsByLocation[location] || [];
-                                       const isSelected = selectedShelf === location;
-                                       const isHighlighted = highlightedLocations.includes(location);
-                                       const isMultiSelected = selectedLocations.includes(location);
-                      const itemCount = locationItems.length;
-                      const totalBoxes = locationItems.reduce((sum, item) => sum + item.quantity_boxes, 0);
-                      const totalLoose = locationItems.reduce((sum, item) => sum + item.quantity_loose, 0);
+              {levels.map((level) => (
+                <div key={level} className="mb-2">
+                  <div className="overflow-x-auto">
+                    <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
+                      {positions.map((position) => {
+                        const location = `${row}/${level}/${position}`;
+                        const locationItems = itemsByLocation[location] || [];
+                        const isSelected = selectedShelf === location;
+                        const isHighlighted = highlightedLocations.includes(location);
+                        const itemCount = locationItems.length;
+                        const totalBoxes = locationItems.reduce((sum, item) => sum + item.quantity_boxes, 0);
+                        const totalLoose = locationItems.reduce((sum, item) => sum + item.quantity_loose, 0);
 
-                      return (
-                        <Tooltip key={location}>
-                          <TooltipTrigger asChild>
-                             <Card
-                               className={`
-                                 w-24 h-20 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] flex-shrink-0 relative
-                                 ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.01] z-10' : ''}
-                                 ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-100/90 shadow-md' : ''}
-                                 ${isMultiSelected ? 'ring-2 ring-blue-500 bg-blue-100/90 shadow-md' : ''}
-                                 ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
-                               `}
-                               onClick={() => handleShelfClick(location)}
-                             >
-                               {/* Multi-select indicator */}
-                               {isMultiSelectMode && (
-                                 <div className="absolute top-1 right-1 z-20">
-                                   {isMultiSelected ? (
-                                     <CheckSquare className="h-3 w-3 text-blue-600" />
-                                   ) : (
-                                     <Square className="h-3 w-3 text-gray-400" />
-                                   )}
-                                 </div>
-                               )}
-                              <CardContent className="p-1.5 h-full flex flex-col justify-between">
-                                {/* Location Label */}
-                                <div className="text-[9px] font-mono text-muted-foreground font-bold text-center leading-none">
-                                  {row}{position}/{level}
+                        return (
+                          <Tooltip key={location}>
+                            <TooltipTrigger asChild>
+                              <Card
+                                className={`
+                                  w-28 h-24 transition-all duration-200 hover:shadow-md flex-shrink-0 relative group
+                                  ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.01] z-10' : ''}
+                                  ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-100/90 shadow-md' : ''}
+                                  ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
+                                `}
+                              >
+                                {/* Add/Edit Button */}
+                                <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-6 w-6 p-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShelfClick(location, locationItems[0]);
+                                    }}
+                                  >
+                                    {itemCount > 0 ? <Edit className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+                                  </Button>
                                 </div>
 
-                                {/* Main Content */}
-                                <div className="flex-1 flex flex-col items-center justify-center">
-                                  {itemCount > 0 ? (
-                                    <div className="text-center w-full">
-                                      {/* Status Indicator */}
-                                      <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${
-                                        itemCount > 1 ? 'bg-blue-500' : 'bg-green-500'
-                                      }`}></div>
-
-                                      {/* Item Count for Multiple Items */}
-                                      {itemCount > 1 && (
-                                        <div className="text-[9px] font-bold text-blue-700 mb-1">
-                                          {itemCount} รายการ
-                                        </div>
-                                      )}
-
-                                      {/* Product Name for Single Item */}
-                                      {itemCount === 1 && locationItems[0].product_name && (
-                                        <div className="text-[8px] font-semibold text-green-700 mb-1 truncate px-0.5">
-                                          {locationItems[0].product_name.slice(0, 10)}
-                                        </div>
-                                      )}
-
-                                      {/* Quantity */}
-                                      <div className={`text-[9px] font-bold ${
-                                        itemCount > 1 ? 'text-blue-700' : 'text-green-700'
-                                      }`}>
-                                        {totalBoxes + totalLoose > 0 ?
-                                          `${totalBoxes}+${totalLoose}` :
-                                          '0'
-                                        }
-                                      </div>
-
-                                      {/* Lot for Single Item */}
-                                      {itemCount === 1 && locationItems[0].lot && (
-                                        <div className="text-[7px] text-muted-foreground mt-0.5 truncate">
-                                          L:{locationItems[0].lot}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="text-center">
-                                      <div className="w-3 h-3 bg-gray-300 rounded-full mx-auto"></div>
-                                      <div className="text-[8px] text-gray-400 mt-1">ว่าง</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-80">
-                            <div className="text-sm space-y-2">
-                              {/* Header */}
-                              <div className="font-bold text-primary border-b pb-1">
-                                📍 ตำแหน่ง: {location}
-                              </div>
-
-                              {itemCount > 0 ? (
-                                <div className="space-y-2">
-                                  {/* Summary */}
-                                  <div className="flex justify-between items-center bg-muted/50 p-2 rounded">
-                                    <span className="font-medium">รายการทั้งหมด:</span>
-                                    <span className="font-bold">{itemCount} รายการ</span>
+                                <CardContent className="p-1.5 h-full flex flex-col justify-between">
+                                  {/* Location Label */}
+                                  <div className="text-[9px] font-mono text-muted-foreground font-bold text-center leading-none">
+                                    {row}{position}/{level}
                                   </div>
 
-                                  <div className="flex justify-between items-center">
-                                    <span>📦 ลัง: <span className="font-semibold">{totalBoxes}</span></span>
-                                    <span>📋 เศษ: <span className="font-semibold">{totalLoose}</span></span>
-                                  </div>
+                                  {/* Main Content */}
+                                  <div className="flex-1 flex flex-col items-center justify-center">
+                                    {itemCount > 0 ? (
+                                      <div className="text-center w-full">
+                                        {/* Status Indicator */}
+                                        <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${
+                                          itemCount > 1 ? 'bg-blue-500' : 'bg-green-500'
+                                        }`}></div>
 
-                                  {/* Items Detail */}
-                                  <div className="space-y-1">
-                                    <div className="font-medium text-xs text-muted-foreground uppercase tracking-wide">รายละเอียดสินค้า:</div>
-                                    {locationItems.slice(0, 4).map((item) => (
-                                      <div key={`${item.id}-${item.location}`} className="text-xs bg-background p-2 rounded border-l-2 border-l-primary/30">
-                                        <div className="font-medium">{item.product_name}</div>
-                                        <div className="text-muted-foreground flex justify-between mt-1">
-                                          <span>รหัส: {item.product_code}</span>
-                                          {item.lot && <span>Lot: {item.lot}</span>}
-                                        </div>
-                                        {item.mfd && (
-                                          <div className="text-muted-foreground text-[10px] mt-0.5">
-                                            MFD: {item.mfd}
+                                        {/* Item Count for Multiple Items */}
+                                        {itemCount > 1 && (
+                                          <div className="text-[9px] font-bold text-blue-700 mb-1">
+                                            {itemCount} รายการ
                                           </div>
                                         )}
-                                        <div className="font-medium text-xs mt-1">
-                                          {item.quantity_boxes}ลัง + {item.quantity_loose}เศษ
+
+                                        {/* Product Name for Single Item */}
+                                        {itemCount === 1 && (
+                                          <div className="text-[8px] font-semibold text-green-800 leading-tight mb-1 truncate px-1">
+                                            {locationItems[0]?.product_name}
+                                          </div>
+                                        )}
+
+                                        {/* Quantity Display */}
+                                        <div className="text-[8px] font-bold text-foreground">
+                                          {totalBoxes > 0 && totalLoose > 0 ? `${totalBoxes}+${totalLoose}` :
+                                           totalBoxes > 0 ? `${totalBoxes}` :
+                                           totalLoose > 0 ? `${totalLoose}` : '0'}
                                         </div>
+
+                                        {/* LOT for single item */}
+                                        {itemCount === 1 && locationItems[0]?.lot && (
+                                          <div className="text-[7px] text-muted-foreground mt-1 truncate px-1">
+                                            {locationItems[0]?.lot}
+                                          </div>
+                                        )}
                                       </div>
-                                    ))}
-                                    {itemCount > 4 && (
-                                      <div className="text-xs text-muted-foreground text-center py-1 italic">
-                                        และอีก {itemCount - 4} รายการ... (คลิกเพื่อดูทั้งหมด)
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center h-full">
+                                        <Package className="h-3 w-3 text-gray-400 mb-1" />
+                                        <div className="text-[8px] text-gray-500">ว่าง</div>
                                       </div>
                                     )}
                                   </div>
+                                </CardContent>
+                              </Card>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="h-3 w-3" />
+                                  <span className="font-semibold">ตำแหน่ง: {location}</span>
                                 </div>
-                              ) : (
-                                <div className="text-center text-muted-foreground py-4">
-                                  <div className="text-2xl mb-2">📂</div>
-                                  <div>ตำแหน่งว่าง</div>
-                                  <div className="text-xs mt-1">คลิกเพื่อเพิ่มสินค้า</div>
-                                </div>
-                              )}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      );
-                    })}
+                                {itemCount > 0 ? (
+                                  <>
+                                    <div className="text-sm">
+                                      จำนวนรายการ: {itemCount}
+                                    </div>
+                                    <div className="text-sm">
+                                      จำนวนรวม: {totalBoxes} ลัง {totalLoose} เศษ
+                                    </div>
+                                    {itemCount === 1 ? (
+                                      <div className="space-y-1 pt-1 border-t">
+                                        <div className="font-medium">{locationItems[0]?.product_name}</div>
+                                        <div className="text-xs">รหัส: {locationItems[0]?.product_code}</div>
+                                        {locationItems[0]?.lot && (
+                                          <div className="text-xs">Lot: {locationItems[0]?.lot}</div>
+                                        )}
+                                        {locationItems[0]?.mfd && (
+                                          <div className="text-xs">MFD: {locationItems[0]?.mfd}</div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="pt-1 border-t text-xs">
+                                        มีสินค้าหลายรายการ คลิกเพื่อดูรายละเอียด
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="text-sm text-muted-foreground">
+                                    ตำแหน่งว่าง - คลิกเพื่อเพิ่มสินค้า
+                                  </div>
+                                )}
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-
-      {/* Info */}
-      <Card className="border-0 bg-muted/30">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-50 border border-green-200 rounded flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                </div>
-                <span>มีสินค้า (1 รายการ)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-50 border border-blue-200 rounded flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                </div>
-                <span>หลายรายการ</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-gray-50 border border-gray-200 border-dashed rounded flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 bg-gray-300 rounded-full"></div>
-                </div>
-                <span>ตำแหน่งว่าง</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-yellow-50 border-2 border-yellow-400 rounded"></div>
-                <span>ผลการค้นหา</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs">
-              <MapPin className="h-3 w-3" />
-              <span>คลิกที่ตำแหน่งเพื่อจัดการสินค้า</span>
-            </div>
-          </div>
-
-          <div className="mt-3 text-xs text-muted-foreground space-y-1">
-            <p>• ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
-            <p>• การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
-            <p>• ตัวเลขในตำแหน่ง: จำนวนลัง+เศษ (เช่น 5+3 = 5 ลัง 3 เศษ)</p>
-            <p>• ข้อมูลแสดง: ชื่อสินค้า (รายการเดียว), จำนวนรายการ (หลายรายการ), Lot</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Bulk Save Dialog */}
-      <Dialog open={showBulkSaveDialog} onOpenChange={setShowBulkSaveDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>บันทึกข้อมูลหลายตำแหน่ง</DialogTitle>
-            <DialogDescription>
-              บันทึกข้อมูลสินค้าให้กับ {selectedLocations.length} ตำแหน่งที่เลือก
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product_name" className="text-right">
-                ชื่อสินค้า
-              </Label>
-              <Input
-                id="product_name"
-                value={bulkSaveData.product_name}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, product_name: e.target.value }))}
-                className="col-span-3"
-                placeholder="ป้อนชื่อสินค้า"
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product_code" className="text-right">
-                รหัสสินค้า
-              </Label>
-              <Input
-                id="product_code"
-                value={bulkSaveData.product_code}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, product_code: e.target.value }))}
-                className="col-span-3"
-                placeholder="ป้อนรหัสสินค้า"
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quantity_boxes" className="text-right">
-                จำนวนลัง
-              </Label>
-              <Input
-                id="quantity_boxes"
-                type="number"
-                value={bulkSaveData.quantity_boxes}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, quantity_boxes: e.target.value }))}
-                className="col-span-3"
-                placeholder="0"
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quantity_loose" className="text-right">
-                จำนวนเศษ
-              </Label>
-              <Input
-                id="quantity_loose"
-                type="number"
-                value={bulkSaveData.quantity_loose}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, quantity_loose: e.target.value }))}
-                className="col-span-3"
-                placeholder="0"
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="lot" className="text-right">
-                Lot
-              </Label>
-              <Input
-                id="lot"
-                value={bulkSaveData.lot}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, lot: e.target.value }))}
-                className="col-span-3"
-                placeholder="ป้อน Lot (ไม่บังคับ)"
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="mfd" className="text-right">
-                วันที่ผลิต
-              </Label>
-              <Input
-                id="mfd"
-                type="date"
-                value={bulkSaveData.mfd}
-                onChange={(e) => setBulkSaveData(prev => ({ ...prev, mfd: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          
-          <div className="text-sm text-muted-foreground mb-4">
-            <div className="font-medium mb-2">ตำแหน่งที่จะบันทึก:</div>
-            <div className="flex flex-wrap gap-1">
-              {selectedLocations.map(location => (
-                <Badge key={location} variant="outline" className="text-xs">
-                  {location}
-                </Badge>
               ))}
             </div>
-          </div>
-          
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowBulkSaveDialog(false)}>
-              ยกเลิก
-            </Button>
-            <Button 
-              type="button" 
-              onClick={confirmBulkSave}
-              disabled={!bulkSaveData.product_name || !bulkSaveData.product_code}
-            >
-              บันทึก
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          ))}
+        </div>
+
+        {/* Legend and Info */}
+        <Card>
+          <CardContent className="p-4">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              คำอธิบายสัญลักษณ์
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                  <span>สินค้า 1 รายการ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full bg-blue-500"></div>
+                  <span>สินค้าหลายรายการ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-dashed border-gray-300 bg-gray-50"></div>
+                  <span>ตำแหน่งว่าง</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-yellow-400 bg-yellow-100"></div>
+                  <span>ผลการค้นหา</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <span>เพิ่มสินค้า (hover)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Edit className="h-4 w-4 text-muted-foreground" />
+                  <span>แก้ไขสินค้า (hover)</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div><strong>ตัวเลขแสดง:</strong> ลัง+เศษ</div>
+                <div><strong>5+3</strong> = 5 ลัง 3 เศษ</div>
+                <div><strong>10</strong> = 10 ลัง</div>
+              </div>
+            </div>
+
+            <div className="mt-3 text-xs text-muted-foreground space-y-1">
+              <p>• ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
+              <p>• การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
+              <p>• ตัวเลขในตำแหน่ง: จำนวนลัง+เศษ (เช่น 5+3 = 5 ลัง 3 เศษ)</p>
+              <p>• ข้อมูลแสดง: ชื่อสินค้า (รายการเดียว), จำนวนรายการ (หลายรายการ), Lot</p>
+              <p>• <strong>Hover ที่ตำแหน่งเพื่อเห็นปุ่มเพิ่ม/แก้ไขสินค้า</strong></p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </TooltipProvider>
   );
