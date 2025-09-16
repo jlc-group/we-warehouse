@@ -418,36 +418,36 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                 <SelectTrigger>
                   <SelectValue placeholder="เลือกรหัสสินค้า" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                  {filterOptions.productCodes.map(code => (
-                    <SelectItem key={code} value={code}>{code}</SelectItem>
-                  ))}
-                </SelectContent>
+                 <SelectContent>
+                   <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                   {filterOptions.productCodes.filter(code => code && code.trim()).map(code => (
+                     <SelectItem key={code} value={code}>{code}</SelectItem>
+                   ))}
+                 </SelectContent>
               </Select>
 
               <Select value={filters.selectedLot || "__all__"} onValueChange={(value) => updateFilter('selectedLot', value === "__all__" ? '' : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="เลือก Lot" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                  {filterOptions.lots.map(lot => (
-                    <SelectItem key={lot} value={lot}>Lot: {lot}</SelectItem>
-                  ))}
-                </SelectContent>
+                 <SelectContent>
+                   <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                   {filterOptions.lots.filter(lot => lot && lot.trim()).map(lot => (
+                     <SelectItem key={lot} value={lot}>Lot: {lot}</SelectItem>
+                   ))}
+                 </SelectContent>
               </Select>
 
               <Select value={filters.selectedRow || "__all__"} onValueChange={(value) => updateFilter('selectedRow', value === "__all__" ? '' : value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="เลือกแถว" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">ทั้งหมด</SelectItem>
-                  {filterOptions.rows.map(row => (
-                    <SelectItem key={row} value={row}>แถว {row}</SelectItem>
-                  ))}
-                </SelectContent>
+                 <SelectContent>
+                   <SelectItem value="__all__">ทั้งหมด</SelectItem>
+                   {filterOptions.rows.filter(row => row && row.trim()).map(row => (
+                     <SelectItem key={row} value={row}>แถว {row}</SelectItem>
+                   ))}
+                 </SelectContent>
               </Select>
 
               <Button

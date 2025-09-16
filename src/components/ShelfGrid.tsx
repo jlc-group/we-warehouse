@@ -177,7 +177,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">ทั้งหมด</SelectItem>
-                    {uniqueLots.map(lot => (
+                    {uniqueLots.filter(lot => lot && lot.trim()).map(lot => (
                       <SelectItem key={lot} value={lot}>{lot}</SelectItem>
                     ))}
                   </SelectContent>
@@ -193,7 +193,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">ทั้งหมด</SelectItem>
-                    {uniqueProductCodes.map(code => (
+                    {uniqueProductCodes.filter(code => code && code.trim()).map(code => (
                       <SelectItem key={code} value={code}>{code}</SelectItem>
                     ))}
                   </SelectContent>
