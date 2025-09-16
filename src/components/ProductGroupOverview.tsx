@@ -775,7 +775,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                           backgroundColor: hiddenGroups.has(lot) ? '#f3f4f6' : lotColorMap[lot],
                           borderColor: lotColorMap[lot]
                         }}
-                        onClick={() => toggleGroupVisibility(lot)}
+                        onClick={() => toggleSingleGroupVisibility(lot)}
                       >
                         {hiddenGroups.has(lot) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                       </Button>

@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
-import { InventorySearch } from '@/components/InventorySearch';
 import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModal } from '@/components/InventoryModal';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
-import { ProductGroupOverview } from '@/components/ProductGroupOverview';
+import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Database, Trash2 } from 'lucide-react';
@@ -101,19 +100,15 @@ function Index() {
         </Card>
 
         {/* Navigation Tabs */}
-        <Tabs defaultValue="grid" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               แผนผังคลัง
             </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
-              ภาพรวมกลุ่มสินค้า
-            </TabsTrigger>
-            <TabsTrigger value="search" className="flex items-center gap-2">
-              <Search className="h-4 w-4" />
-              ค้นหาสินค้า
+              ภาพรวมและค้นหา
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -144,20 +139,9 @@ function Index() {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <ProductGroupOverview
+              <ProductOverviewAndSearch
                 items={inventoryItems}
                 onShelfClick={handleShelfClick}
-              />
-            )}
-          </TabsContent>
-
-          <TabsContent value="search" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <InventorySearch 
-                items={inventoryItems}
-                onItemSelect={(item) => handleShelfClick(item.location, item)}
               />
             )}
           </TabsContent>
