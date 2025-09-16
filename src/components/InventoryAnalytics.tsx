@@ -10,8 +10,8 @@ interface InventoryAnalyticsProps {
 export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
   // Calculate metrics
   const totalItems = items.length;
-  const totalBoxes = items.reduce((sum, item) => sum + item.quantity_boxes, 0);
-  const totalLoose = items.reduce((sum, item) => sum + item.quantity_loose, 0);
+  const totalBoxes = items.reduce((sum, item) => sum + item.box_quantity, 0);
+  const totalLoose = items.reduce((sum, item) => sum + item.loose_quantity, 0);
 
   // Shelf usage by row
   const shelfUsage = items.reduce((acc, item) => {
@@ -27,7 +27,7 @@ export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
 
   // Calculate stock levels
   const stockLevels = items.reduce((acc, item) => {
-    const total = item.quantity_boxes + item.quantity_loose;
+    const total = item.box_quantity + item.loose_quantity;
     if (total === 0) acc.empty++;
     else if (total < 5) acc.low++;
     else if (total < 20) acc.medium++;
@@ -39,7 +39,7 @@ export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
   const topProducts = items
     .map(item => ({
       name: item.product_name,
-      total: item.quantity_boxes + item.quantity_loose
+      total: item.box_quantity + item.loose_quantity
     }))
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);

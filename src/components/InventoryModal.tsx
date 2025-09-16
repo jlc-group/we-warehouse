@@ -37,11 +37,11 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       if (existingItem) {
         // Editing existing item
         setProductName(existingItem.product_name);
-        setProductCode(existingItem.product_code);
+        setProductCode(existingItem.sku);
         setLot(existingItem.lot || '');
         setMfd(existingItem.mfd || '');
-        setQuantityBoxes(existingItem.quantity_boxes);
-        setQuantityLoose(existingItem.quantity_loose);
+        setQuantityBoxes(existingItem.box_quantity);
+        setQuantityLoose(existingItem.loose_quantity);
       } else {
         // Adding new item
         setProductName('');

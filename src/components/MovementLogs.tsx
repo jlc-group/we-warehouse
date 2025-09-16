@@ -12,12 +12,12 @@ interface MovementLog {
   id: string;
   inventory_item_id: string;
   movement_type: 'in' | 'out' | 'adjustment' | 'transfer';
-  quantity_boxes_before: number;
-  quantity_loose_before: number;
-  quantity_boxes_after: number;
-  quantity_loose_after: number;
-  quantity_boxes_change: number;
-  quantity_loose_change: number;
+  box_quantity_before: number;
+  loose_quantity_before: number;
+  box_quantity_after: number;
+  loose_quantity_after: number;
+  box_quantity_change: number;
+  loose_quantity_change: number;
   location_before?: string;
   location_after?: string;
   notes?: string;
@@ -207,28 +207,28 @@ export function MovementLogs() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">ลัง:</span>
-                            <span className="font-mono">{movement.quantity_boxes_before}</span>
+                            <span className="font-mono">{movement.box_quantity_before}</span>
                             <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono">{movement.quantity_boxes_after}</span>
-                            {movement.quantity_boxes_change !== 0 && (
+                            <span className="font-mono">{movement.box_quantity_after}</span>
+                            {movement.box_quantity_change !== 0 && (
                               <span className={`text-sm font-medium ${
-                                movement.quantity_boxes_change > 0 ? 'text-green-600' : 'text-red-600'
+                                movement.box_quantity_change > 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
-                                ({movement.quantity_boxes_change > 0 ? '+' : ''}{movement.quantity_boxes_change})
+                                ({movement.box_quantity_change > 0 ? '+' : ''}{movement.box_quantity_change})
                               </span>
                             )}
                           </div>
                           
                           <div className="flex items-center gap-2">
                             <span className="text-muted-foreground">ชิ้น:</span>
-                            <span className="font-mono">{movement.quantity_loose_before}</span>
+                            <span className="font-mono">{movement.loose_quantity_before}</span>
                             <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono">{movement.quantity_loose_after}</span>
-                            {movement.quantity_loose_change !== 0 && (
+                            <span className="font-mono">{movement.loose_quantity_after}</span>
+                            {movement.loose_quantity_change !== 0 && (
                               <span className={`text-sm font-medium ${
-                                movement.quantity_loose_change > 0 ? 'text-green-600' : 'text-red-600'
+                                movement.loose_quantity_change > 0 ? 'text-green-600' : 'text-red-600'
                               }`}>
-                                ({movement.quantity_loose_change > 0 ? '+' : ''}{movement.quantity_loose_change})
+                                ({movement.loose_quantity_change > 0 ? '+' : ''}{movement.loose_quantity_change})
                               </span>
                             )}
                           </div>

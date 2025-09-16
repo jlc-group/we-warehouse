@@ -118,7 +118,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Hash className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono text-sm">{item.product_code}</span>
+                            <span className="font-mono text-sm">{item.sku}</span>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -137,13 +137,13 @@ export function InventoryTable({ items }: InventoryTableProps) {
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {item.quantity_boxes}
+                          {item.box_quantity}
                         </TableCell>
                         <TableCell className="text-right font-mono">
-                          {item.quantity_loose}
+                          {item.loose_quantity}
                         </TableCell>
                         <TableCell>
-                          {getStockBadge(item.quantity_boxes, item.quantity_loose)}
+                          {getStockBadge(item.box_quantity, item.loose_quantity)}
                         </TableCell>
                       </TableRow>
                     ))}

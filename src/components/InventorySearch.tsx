@@ -22,7 +22,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   const handleSearch = (query: string = searchQuery) => {
     const filteredItems = items.filter(item =>
       item.product_name.toLowerCase().includes(query.toLowerCase()) ||
-      item.product_code.toLowerCase().includes(query.toLowerCase()) ||
+      item.sku.toLowerCase().includes(query.toLowerCase()) ||
       item.location.toLowerCase().includes(query.toLowerCase())
     );
     setSearchResults(filteredItems);
@@ -39,9 +39,9 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     if (searchResults.length === 0) return null;
 
     const uniqueLocations = new Set(searchResults.map(item => item.location));
-    const uniqueProducts = new Set(searchResults.map(item => item.product_code));
-    const totalBoxes = searchResults.reduce((sum, item) => sum + item.quantity_boxes, 0);
-    const totalLoose = searchResults.reduce((sum, item) => sum + item.quantity_loose, 0);
+    const uniqueProducts = new Set(searchResults.map(item => item.sku));
+    const totalBoxes = searchResults.reduce((sum, item) => sum + item.box_quantity, 0);
+    const totalLoose = searchResults.reduce((sum, item) => sum + item.loose_quantity, 0);
 
     return {
       totalItems: searchResults.length,
@@ -66,10 +66,10 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   // Group items by product
   const itemsByProduct = useMemo(() => {
     return searchResults.reduce((acc, item) => {
-      const key = `${item.product_code}-${item.product_name}`;
+      const key = `${item.sku}-${item.product_name}`;
       if (!acc[key]) {
         acc[key] = {
-          product_code: item.product_code,
+          product_code: item.sku,
           product_name: item.product_name,
           items: [],
           totalBoxes: 0,
@@ -78,8 +78,8 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
         };
       }
       acc[key].items.push(item);
-      acc[key].totalBoxes += item.quantity_boxes;
-      acc[key].totalLoose += item.quantity_loose;
+      acc[key].totalBoxes += item.box_quantity;
+      acc[key].totalLoose += item.loose_quantity;
       acc[key].locations.add(item.location);
       return acc;
     }, {} as Record<string, {
@@ -205,7 +205,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                               <div className="font-medium">{item.product_name}</div>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Hash className="h-3 w-3" />
-                                <span>{item.product_code}</span>
+                                <span>{item.sku}</span>
                                 {item.lot && (
                                   <>
                                     <span className="mx-1">•</span>
@@ -216,7 +216,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{item.quantity_boxes} ลัง + {item.quantity_loose} เศษ</div>
+                            <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
                             {item.mfd && (
                               <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                             )}
@@ -268,7 +268,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{item.quantity_boxes} ลัง + {item.quantity_loose} เศษ</div>
+                            <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
                             {item.mfd && (
                               <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                             )}
@@ -298,7 +298,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                           <h3 className="font-medium">{item.product_name}</h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Hash className="h-3 w-3" />
-                            <span>{item.product_code}</span>
+                            <span>{item.sku}</span>
                             <MapPin className="h-3 w-3 ml-2" />
                             <span>{item.location}</span>
                             {item.lot && (
@@ -312,10 +312,10 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                       </div>
                       <div className="text-right">
                         <div className="text-sm">
-                          <span className="font-medium">{item.quantity_boxes}</span> ลัง
+                          <span className="font-medium">{item.box_quantity}</span> ลัง
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          <span>{item.quantity_loose}</span> เศษ
+                          <span>{item.loose_quantity}</span> เศษ
                         </div>
                       </div>
                     </div>
