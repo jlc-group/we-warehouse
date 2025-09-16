@@ -26,7 +26,7 @@ export const formatInventoryForExport = (items: InventoryItem[]): ExportData[] =
     const position = parseInt(locationParts[2]) || 0;
 
     return {
-      sku_code: item.product_code,
+      sku_code: item.sku,
       product_name: item.product_name,
       row: row,
       level: level,
@@ -34,9 +34,9 @@ export const formatInventoryForExport = (items: InventoryItem[]): ExportData[] =
       location: item.location,
       lot: item.lot || '',
       mfd: item.mfd || '',
-      quantity_boxes: item.quantity_boxes,
-      quantity_loose: item.quantity_loose,
-      total_quantity: item.quantity_boxes + item.quantity_loose,
+      quantity_boxes: item.box_quantity,
+      quantity_loose: item.loose_quantity,
+      total_quantity: item.box_quantity + item.loose_quantity,
       created_at: new Date(item.created_at).toLocaleString('th-TH'),
       updated_at: new Date(item.updated_at).toLocaleString('th-TH')
     };
@@ -120,8 +120,8 @@ export const exportLocationSummary = (items: InventoryItem[]) => {
     }
 
     acc[key].items_count += 1;
-    acc[key].total_boxes += item.quantity_boxes;
-    acc[key].total_loose += item.quantity_loose;
+    acc[key].total_boxes += item.box_quantity;
+    acc[key].total_loose += item.loose_quantity;
     acc[key].products.push(item.product_name);
 
     return acc;

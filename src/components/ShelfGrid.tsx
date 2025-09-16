@@ -41,7 +41,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
 
     items.forEach(item => {
       if (item.lot) lots.add(item.lot);
-      if (item.product_code) productCodes.add(item.product_code);
+      if (item.sku) productCodes.add(item.sku);
     });
 
     return {
@@ -66,10 +66,10 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     return items.filter(item => {
       const matchesSearch = filters.searchQuery === '' ||
         item.product_name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-        item.product_code.toLowerCase().includes(filters.searchQuery.toLowerCase());
+        item.sku.toLowerCase().includes(filters.searchQuery.toLowerCase());
 
       const matchesLot = !filters.selectedFilters.lot || item.lot === filters.selectedFilters.lot;
-      const matchesProductCode = !filters.selectedFilters.productCode || item.product_code === filters.selectedFilters.productCode;
+      const matchesProductCode = !filters.selectedFilters.productCode || item.sku === filters.selectedFilters.productCode;
 
       return matchesSearch && matchesLot && matchesProductCode;
     });
@@ -260,8 +260,8 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                         const isSelected = selectedShelf === location;
                         const isHighlighted = highlightedLocations.includes(location);
                         const itemCount = locationItems.length;
-                        const totalBoxes = locationItems.reduce((sum, item) => sum + item.quantity_boxes, 0);
-                        const totalLoose = locationItems.reduce((sum, item) => sum + item.quantity_loose, 0);
+                         const totalBoxes = locationItems.reduce((sum, item) => sum + item.box_quantity, 0);
+                         const totalLoose = locationItems.reduce((sum, item) => sum + item.loose_quantity, 0);
 
                         return (
                           <Tooltip key={location}>
@@ -359,7 +359,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                                     {itemCount === 1 ? (
                                       <div className="space-y-1 pt-1 border-t">
                                         <div className="font-medium">{locationItems[0]?.product_name}</div>
-                                        <div className="text-xs">รหัส: {locationItems[0]?.product_code}</div>
+                                        <div className="text-xs">รหัส: {locationItems[0]?.sku}</div>
                                         {locationItems[0]?.lot && (
                                           <div className="text-xs">Lot: {locationItems[0]?.lot}</div>
                                         )}

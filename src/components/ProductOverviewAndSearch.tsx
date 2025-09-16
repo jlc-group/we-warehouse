@@ -63,7 +63,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
 
     items.forEach(item => {
       if (item.lot) lots.add(item.lot);
-      if (item.product_code) dbProductCodes.add(item.product_code);
+      if (item.sku) dbProductCodes.add(item.sku);
       const row = item.location.split('/')[0];
       if (row) rows.add(row);
     });
@@ -91,7 +91,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         const query = filters.searchQuery.toLowerCase();
         const matchesSearch =
           item.product_name.toLowerCase().includes(query) ||
-          item.product_code.toLowerCase().includes(query) ||
+          item.sku.toLowerCase().includes(query) ||
           item.location.toLowerCase().includes(query) ||
           (item.lot && item.lot.toLowerCase().includes(query));
 
@@ -104,7 +104,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       }
 
       // Product code filter
-      if (filters.selectedProductCode && filters.selectedProductCode !== 'all' && item.product_code !== filters.selectedProductCode) {
+      if (filters.selectedProductCode && filters.selectedProductCode !== 'all' && item.sku !== filters.selectedProductCode) {
         return false;
       }
 
@@ -142,7 +142,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
 
   // Get unique products and assign colors
   const productColorMap = useMemo(() => {
-    const uniqueProducts = [...new Set(items.map(item => item.product_code))].sort();
+    const uniqueProducts = [...new Set(items.map(item => item.sku))].sort();
     const colorMap: Record<string, string> = {};
 
     uniqueProducts.forEach((product, index) => {
@@ -178,10 +178,10 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   // Group items by product
   const itemsByProduct = useMemo(() => {
     return filteredItems.reduce((acc, item) => {
-      const key = `${item.product_code}-${item.product_name}`;
+      const key = `${item.sku}-${item.product_name}`;
       if (!acc[key]) {
         acc[key] = {
-          product_code: item.product_code,
+          product_code: item.sku,
           product_name: item.product_name,
           items: [],
           totalBoxes: 0,
@@ -190,8 +190,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         };
       }
       acc[key].items.push(item);
-      acc[key].totalBoxes += item.quantity_boxes;
-      acc[key].totalLoose += item.quantity_loose;
+      acc[key].totalBoxes += item.box_quantity;
+      acc[key].totalLoose += item.loose_quantity;
       acc[key].locations.add(item.location);
       return acc;
     }, {} as Record<string, {
@@ -208,11 +208,11 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   const statistics = useMemo(() => {
     const stats = {
       totalLocations: Object.keys(itemsByLocation).length,
-      totalProducts: new Set(filteredItems.map(item => item.product_code)).size,
+      totalProducts: new Set(filteredItems.map(item => item.sku)).size,
       totalLots: new Set(filteredItems.map(item => item.lot).filter(Boolean)).size,
       totalItems: filteredItems.length,
-      totalBoxes: filteredItems.reduce((sum, item) => sum + item.quantity_boxes, 0),
-      totalLoose: filteredItems.reduce((sum, item) => sum + item.quantity_loose, 0),
+      totalBoxes: filteredItems.reduce((sum, item) => sum + item.box_quantity, 0),
+      totalLoose: filteredItems.reduce((sum, item) => sum + item.loose_quantity, 0),
       avgItemsPerLocation: 0
     };
 
@@ -226,17 +226,17 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
     const dist: Record<string, { count: number; locations: number; totalBoxes: number; totalLoose: number }> = {};
 
     filteredItems.forEach(item => {
-      if (!dist[item.product_code]) {
-        dist[item.product_code] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
+      if (!dist[item.sku]) {
+        dist[item.sku] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
       }
-      dist[item.product_code].count++;
-      dist[item.product_code].totalBoxes += item.quantity_boxes;
-      dist[item.product_code].totalLoose += item.quantity_loose;
+      dist[item.sku].count++;
+      dist[item.sku].totalBoxes += item.box_quantity;
+      dist[item.sku].totalLoose += item.loose_quantity;
     });
 
     // Count unique locations per product
     Object.keys(dist).forEach(productCode => {
-      const locations = new Set(filteredItems.filter(item => item.product_code === productCode).map(item => item.location));
+      const locations = new Set(filteredItems.filter(item => item.sku === productCode).map(item => item.location));
       dist[productCode].locations = locations.size;
     });
 
@@ -261,7 +261,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       case 'product': {
         const productCounts: Record<string, number> = {};
         locationItems.forEach(item => {
-          productCounts[item.product_code] = (productCounts[item.product_code] || 0) + 1;
+          productCounts[item.sku] = (productCounts[item.sku] || 0) + 1;
         });
         const dominantProduct = Object.keys(productCounts).reduce((a, b) =>
           productCounts[a] > productCounts[b] ? a : b
@@ -282,9 +282,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         return hiddenGroups.has(dominantLot) ? '#f3f4f6' : lotColorMap[dominantLot];
       }
       case 'density': {
-        const totalQuantity = locationItems.reduce((sum, item) => sum + item.quantity_boxes + item.quantity_loose, 0);
+        const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
         const maxQuantity = Math.max(...Object.values(itemsByLocation).map(items =>
-          items.reduce((sum, item) => sum + item.quantity_boxes + item.quantity_loose, 0)
+          items.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0)
         ));
         const intensity = totalQuantity / (maxQuantity || 1);
         const alpha = Math.max(0.2, intensity);
@@ -529,7 +529,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                        <SelectContent className="max-h-60">
                          <SelectItem value="all">ทั้งหมด</SelectItem>
                          {filterOptions.productCodes.filter(code => code && code.trim()).map(code => {
-                           const count = items.filter(item => item.product_code === code).length;
+                           const count = items.filter(item => item.sku === code).length;
                            return (
                              <SelectItem key={code} value={code}>
                                {code} ({count} รายการ)
@@ -585,7 +585,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                                           <div className="space-y-1">
                                             {itemsByLocation[location].map(item => (
                                               <div key={item.id} className="bg-muted/50 p-2 rounded">
-                                                <div className="font-medium text-xs text-primary">{item.product_code}</div>
+                                                <div className="font-medium text-xs text-primary">{item.sku}</div>
                                                 <div className="text-xs text-muted-foreground truncate">
                                                   {item.product_name.length > 30 ? 
                                                     `${item.product_name.substring(0, 30)}...` : 
@@ -593,7 +593,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                                                   }
                                                 </div>
                                                 <div className="text-xs font-medium">
-                                                  📦 {item.quantity_boxes} ลัง + {item.quantity_loose} เศษ
+                                                  📦 {item.box_quantity} ลัง + {item.loose_quantity} เศษ
                                                 </div>
                                               </div>
                                             ))}
@@ -644,7 +644,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                             <div className="font-medium">{item.product_name}</div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Hash className="h-3 w-3" />
-                              <span>{item.product_code}</span>
+                               <span>{item.sku}</span>
                               {item.lot && (
                                 <>
                                   <span className="mx-1">•</span>
@@ -655,7 +655,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{item.quantity_boxes} ลัง + {item.quantity_loose} เศษ</div>
+                           <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
                           {item.mfd && (
                             <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                           )}
@@ -707,7 +707,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{item.quantity_boxes} ลัง + {item.quantity_loose} เศษ</div>
+                          <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
                           {item.mfd && (
                             <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                           )}
@@ -737,7 +737,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           <h3 className="font-medium">{item.product_name}</h3>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Hash className="h-3 w-3" />
-                            <span>{item.product_code}</span>
+                            <span>{item.sku}</span>
                             <MapPin className="h-3 w-3 ml-2" />
                             <span>{item.location}</span>
                             {item.lot && (
@@ -751,10 +751,10 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                       </div>
                       <div className="text-right">
                         <div className="text-sm">
-                          <span className="font-medium">{item.quantity_boxes}</span> ลัง
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          <span>{item.quantity_loose}</span> เศษ
+                           <span className="font-medium">{item.box_quantity}</span> ลัง
+                         </div>
+                         <div className="text-sm text-muted-foreground">
+                           <span>{item.loose_quantity}</span> เศษ
                         </div>
                       </div>
                     </div>

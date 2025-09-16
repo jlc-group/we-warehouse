@@ -67,7 +67,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
 
     items.forEach(item => {
       if (item.lot) lots.add(item.lot);
-      if (item.product_code) productCodes.add(item.product_code);
+      if (item.sku) productCodes.add(item.sku);
       const row = item.location.split('/')[0];
       if (row) rows.add(row);
     });
@@ -87,7 +87,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
         const query = filters.searchQuery.toLowerCase();
         const matchesSearch =
           item.product_name.toLowerCase().includes(query) ||
-          item.product_code.toLowerCase().includes(query) ||
+          item.sku.toLowerCase().includes(query) ||
           item.location.toLowerCase().includes(query) ||
           (item.lot && item.lot.toLowerCase().includes(query));
 
@@ -100,7 +100,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
       }
 
       // Product code filter
-      if (filters.selectedProductCode && item.product_code !== filters.selectedProductCode) {
+      if (filters.selectedProductCode && item.sku !== filters.selectedProductCode) {
         return false;
       }
 
@@ -187,7 +187,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
 
   // Get unique products and assign colors (using all items for consistent colors)
   const productColorMap = useMemo(() => {
-    const uniqueProducts = [...new Set(items.map(item => item.product_code))].sort();
+    const uniqueProducts = [...new Set(items.map(item => item.sku))].sort();
     const colorMap: Record<string, string> = {};
 
     uniqueProducts.forEach((product, index) => {
@@ -224,7 +224,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
   const statistics = useMemo(() => {
     const stats = {
       totalLocations: Object.keys(itemsByLocation).length,
-      totalProducts: new Set(filteredItems.map(item => item.product_code)).size,
+      totalProducts: new Set(filteredItems.map(item => item.sku)).size,
       totalLots: new Set(filteredItems.map(item => item.lot).filter(Boolean)).size,
       totalItems: filteredItems.length,
       avgItemsPerLocation: 0
@@ -240,17 +240,17 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
     const dist: Record<string, { count: number; locations: number; totalBoxes: number; totalLoose: number }> = {};
 
     filteredItems.forEach(item => {
-      if (!dist[item.product_code]) {
-        dist[item.product_code] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
+      if (!dist[item.sku]) {
+        dist[item.sku] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
       }
-      dist[item.product_code].count++;
-      dist[item.product_code].totalBoxes += item.quantity_boxes;
-      dist[item.product_code].totalLoose += item.quantity_loose;
+      dist[item.sku].count++;
+      dist[item.sku].totalBoxes += item.box_quantity;
+      dist[item.sku].totalLoose += item.loose_quantity;
     });
 
     // Count unique locations per product
     Object.keys(dist).forEach(productCode => {
-      const locations = new Set(filteredItems.filter(item => item.product_code === productCode).map(item => item.location));
+      const locations = new Set(filteredItems.filter(item => item.sku === productCode).map(item => item.location));
       dist[productCode].locations = locations.size;
     });
 
@@ -306,7 +306,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
         // Use color of the most common product in this location
         const productCounts: Record<string, number> = {};
         locationItems.forEach(item => {
-          productCounts[item.product_code] = (productCounts[item.product_code] || 0) + 1;
+          productCounts[item.sku] = (productCounts[item.sku] || 0) + 1;
         });
         const dominantProduct = Object.keys(productCounts).reduce((a, b) =>
           productCounts[a] > productCounts[b] ? a : b
@@ -331,9 +331,9 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
 
       case 'density': {
         // Use color intensity based on quantity
-        const totalQuantity = locationItems.reduce((sum, item) => sum + item.quantity_boxes + item.quantity_loose, 0);
+        const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
         const maxQuantity = Math.max(...Object.values(itemsByLocation).map(items =>
-          items.reduce((sum, item) => sum + item.quantity_boxes + item.quantity_loose, 0)
+          items.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0)
         ));
         const intensity = totalQuantity / (maxQuantity || 1);
         const alpha = Math.max(0.2, intensity);
@@ -838,7 +838,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                             const location = `${row}/${level}/${position}`;
                             const locationItems = itemsByLocation[location] || [];
                             const locationColor = getLocationColor(location);
-                            const totalQuantity = locationItems.reduce((sum, item) => sum + item.quantity_boxes + item.quantity_loose, 0);
+                            const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
 
                             return (
                               <Tooltip key={location}>
@@ -875,9 +875,9 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                                             <div key={idx} className="text-xs bg-background p-1 rounded border-l-2 border-l-primary/30">
                                               <div className="font-medium">{item.product_name}</div>
                                               <div className="text-muted-foreground">
-                                                รหัส: {item.product_code} {item.lot && `• Lot: ${item.lot}`}
-                                              </div>
-                                              <div>{item.quantity_boxes} ลัง + {item.quantity_loose} เศษ</div>
+                                                 รหัส: {item.sku} {item.lot && `• Lot: ${item.lot}`}
+                                               </div>
+                                               <div>{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
                                             </div>
                                           ))}
                                           {locationItems.length > 3 && (

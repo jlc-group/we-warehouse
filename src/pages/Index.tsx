@@ -37,10 +37,20 @@ function Index() {
     quantity_loose: number;
   }) => {
     try {
+      const dbItemData = {
+        product_name: itemData.product_name,
+        sku: itemData.product_code,
+        location: itemData.location,
+        lot: itemData.lot,
+        mfd: itemData.mfd,
+        box_quantity: itemData.quantity_boxes,
+        loose_quantity: itemData.quantity_loose,
+      };
+      
       if (selectedItem) {
-        await updateItem(selectedItem.id, itemData);
+        await updateItem(selectedItem.id, dbItemData);
       } else {
-        await addItem(itemData);
+        await addItem(dbItemData);
       }
       
       setIsModalOpen(false);
