@@ -5,12 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Package, Search, MapPin, Filter, X, CheckSquare, Square, Save } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 interface ShelfGridProps {
   items: InventoryItem[];
   onShelfClick: (location: string, item?: InventoryItem) => void;
+  onBulkSave?: (locations: string[], itemData: any) => void;
 }
 
 interface FilterState {
@@ -24,8 +27,19 @@ interface FilterState {
   };
 }
 
-export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
+export function ShelfGrid({ items, onShelfClick, onBulkSave }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [showBulkSaveDialog, setShowBulkSaveDialog] = useState(false);
+  const [bulkSaveData, setBulkSaveData] = useState({
+    product_name: '',
+    product_code: '',
+    quantity_boxes: '',
+    quantity_loose: '',
+    lot: '',
+    mfd: ''
+  });
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     lotFilter: '',
@@ -76,10 +90,54 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
   }, [items, filters]);
 
   const handleShelfClick = (location: string) => {
-    setSelectedShelf(location);
-    const locationItems = itemsByLocation[location];
-    // Pass the first item or undefined if no items
-    onShelfClick(location, locationItems?.[0]);
+    if (isMultiSelectMode) {
+      setSelectedLocations(prev => 
+        prev.includes(location) 
+          ? prev.filter(loc => loc !== location)
+          : [...prev, location]
+      );
+    } else {
+      setSelectedShelf(location);
+      const locationItems = itemsByLocation[location];
+      // Pass the first item or undefined if no items
+      onShelfClick(location, locationItems?.[0]);
+    }
+  };
+
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode(!isMultiSelectMode);
+    setSelectedLocations([]);
+  };
+
+  const handleBulkSave = () => {
+    if (selectedLocations.length === 0) return;
+    setShowBulkSaveDialog(true);
+  };
+
+  const confirmBulkSave = () => {
+    if (!onBulkSave) return;
+    
+    const saveData = {
+      product_name: bulkSaveData.product_name,
+      product_code: bulkSaveData.product_code,
+      quantity_boxes: parseInt(bulkSaveData.quantity_boxes) || 0,
+      quantity_loose: parseInt(bulkSaveData.quantity_loose) || 0,
+      lot: bulkSaveData.lot || null,
+      mfd: bulkSaveData.mfd || null
+    };
+
+    onBulkSave(selectedLocations, saveData);
+    setShowBulkSaveDialog(false);
+    setSelectedLocations([]);
+    setIsMultiSelectMode(false);
+    setBulkSaveData({
+      product_name: '',
+      product_code: '',
+      quantity_boxes: '',
+      quantity_loose: '',
+      lot: '',
+      mfd: ''
+    });
   };
 
   const handleFilterChange = (type: 'lot' | 'productCode', value: string) => {
@@ -142,6 +200,47 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
   return (
     <TooltipProvider>
       <div className="space-y-6">
+        {/* Multi-Select Controls */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant={isMultiSelectMode ? "default" : "outline"}
+                  onClick={toggleMultiSelectMode}
+                  className="flex items-center gap-2"
+                >
+                  {isMultiSelectMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                  {isMultiSelectMode ? 'ยกเลิกเลือกหลายตำแหน่ง' : 'เลือกหลายตำแหน่ง'}
+                </Button>
+                
+                {isMultiSelectMode && selectedLocations.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      เลือกแล้ว {selectedLocations.length} ตำแหน่ง
+                    </Badge>
+                    <Button 
+                      onClick={handleBulkSave}
+                      className="flex items-center gap-2"
+                      size="sm"
+                    >
+                      <Save className="h-4 w-4" />
+                      บันทึกทั้งหมด
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => setSelectedLocations([])}
+                      size="sm"
+                    >
+                      ล้างการเลือก
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Advanced Search & Filters */}
         <Card>
           <CardContent className="p-4 space-y-4">
@@ -259,8 +358,9 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                     {positions.map((position) => {
                       const location = `${row}/${level}/${position}`;
                       const locationItems = itemsByLocation[location] || [];
-                      const isSelected = selectedShelf === location;
-                      const isHighlighted = highlightedLocations.includes(location);
+                                       const isSelected = selectedShelf === location;
+                                       const isHighlighted = highlightedLocations.includes(location);
+                                       const isMultiSelected = selectedLocations.includes(location);
                       const itemCount = locationItems.length;
                       const totalBoxes = locationItems.reduce((sum, item) => sum + item.quantity_boxes, 0);
                       const totalLoose = locationItems.reduce((sum, item) => sum + item.quantity_loose, 0);
@@ -268,15 +368,26 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                       return (
                         <Tooltip key={location}>
                           <TooltipTrigger asChild>
-                            <Card
-                              className={`
-                                w-24 h-20 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] flex-shrink-0
-                                ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.01] z-10' : ''}
-                                ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-100/90 shadow-md' : ''}
-                                ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
-                              `}
-                              onClick={() => handleShelfClick(location)}
-                            >
+                             <Card
+                               className={`
+                                 w-24 h-20 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.01] flex-shrink-0 relative
+                                 ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.01] z-10' : ''}
+                                 ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-100/90 shadow-md' : ''}
+                                 ${isMultiSelected ? 'ring-2 ring-blue-500 bg-blue-100/90 shadow-md' : ''}
+                                 ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
+                               `}
+                               onClick={() => handleShelfClick(location)}
+                             >
+                               {/* Multi-select indicator */}
+                               {isMultiSelectMode && (
+                                 <div className="absolute top-1 right-1 z-20">
+                                   {isMultiSelected ? (
+                                     <CheckSquare className="h-3 w-3 text-blue-600" />
+                                   ) : (
+                                     <Square className="h-3 w-3 text-gray-400" />
+                                   )}
+                                 </div>
+                               )}
                               <CardContent className="p-1.5 h-full flex flex-col justify-between">
                                 {/* Location Label */}
                                 <div className="text-[9px] font-mono text-muted-foreground font-bold text-center leading-none">
@@ -443,6 +554,124 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Save Dialog */}
+      <Dialog open={showBulkSaveDialog} onOpenChange={setShowBulkSaveDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>บันทึกข้อมูลหลายตำแหน่ง</DialogTitle>
+            <DialogDescription>
+              บันทึกข้อมูลสินค้าให้กับ {selectedLocations.length} ตำแหน่งที่เลือก
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="product_name" className="text-right">
+                ชื่อสินค้า
+              </Label>
+              <Input
+                id="product_name"
+                value={bulkSaveData.product_name}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, product_name: e.target.value }))}
+                className="col-span-3"
+                placeholder="ป้อนชื่อสินค้า"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="product_code" className="text-right">
+                รหัสสินค้า
+              </Label>
+              <Input
+                id="product_code"
+                value={bulkSaveData.product_code}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, product_code: e.target.value }))}
+                className="col-span-3"
+                placeholder="ป้อนรหัสสินค้า"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="quantity_boxes" className="text-right">
+                จำนวนลัง
+              </Label>
+              <Input
+                id="quantity_boxes"
+                type="number"
+                value={bulkSaveData.quantity_boxes}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, quantity_boxes: e.target.value }))}
+                className="col-span-3"
+                placeholder="0"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="quantity_loose" className="text-right">
+                จำนวนเศษ
+              </Label>
+              <Input
+                id="quantity_loose"
+                type="number"
+                value={bulkSaveData.quantity_loose}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, quantity_loose: e.target.value }))}
+                className="col-span-3"
+                placeholder="0"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="lot" className="text-right">
+                Lot
+              </Label>
+              <Input
+                id="lot"
+                value={bulkSaveData.lot}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, lot: e.target.value }))}
+                className="col-span-3"
+                placeholder="ป้อน Lot (ไม่บังคับ)"
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="mfd" className="text-right">
+                วันที่ผลิต
+              </Label>
+              <Input
+                id="mfd"
+                type="date"
+                value={bulkSaveData.mfd}
+                onChange={(e) => setBulkSaveData(prev => ({ ...prev, mfd: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          
+          <div className="text-sm text-muted-foreground mb-4">
+            <div className="font-medium mb-2">ตำแหน่งที่จะบันทึก:</div>
+            <div className="flex flex-wrap gap-1">
+              {selectedLocations.map(location => (
+                <Badge key={location} variant="outline" className="text-xs">
+                  {location}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowBulkSaveDialog(false)}>
+              ยกเลิก
+            </Button>
+            <Button 
+              type="button" 
+              onClick={confirmBulkSave}
+              disabled={!bulkSaveData.product_name || !bulkSaveData.product_code}
+            >
+              บันทึก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </TooltipProvider>
   );

@@ -50,6 +50,19 @@ function Index() {
     }
   };
 
+  const handleBulkSave = async (locations: string[], itemData: any) => {
+    try {
+      for (const location of locations) {
+        await addItem({
+          ...itemData,
+          location
+        });
+      }
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -131,6 +144,7 @@ function Index() {
               <ShelfGrid
                 items={inventoryItems}
                 onShelfClick={handleShelfClick}
+                onBulkSave={handleBulkSave}
               />
             )}
           </TabsContent>
