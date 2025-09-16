@@ -75,6 +75,28 @@ function Index() {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {inventoryItems.length === 0 && !loading && (
+              <div className="mb-6 p-6 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <div className="text-center space-y-4">
+                  <div className="text-destructive text-lg font-semibold">
+                    🚨 ไม่พบข้อมูลในระบบ
+                  </div>
+                  <p className="text-muted-foreground">
+                    ระบบไม่พบข้อมูลสินค้าในคลัง กรุณากู้คืนข้อมูลด้วยปุ่มด้านล่าง
+                  </p>
+                  <Button
+                    onClick={loadSampleData}
+                    disabled={loading}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-3 text-lg"
+                    size="lg"
+                  >
+                    <Database className="h-5 w-5 mr-2" />
+                    🔄 กู้คืนข้อมูลสินค้าจุฬาเฮิร์บทั้งหมด
+                  </Button>
+                </div>
+              </div>
+            )}
+            
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <p className="text-muted-foreground">
