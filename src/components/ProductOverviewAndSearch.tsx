@@ -284,39 +284,39 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="container mx-auto max-w-full space-y-6 px-6">
         {/* Header */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChart className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-xl md:text-2xl">
+              <PieChart className="h-6 w-6" />
               ภาพรวมกลุ่มสินค้าและการค้นหา
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{statistics.totalLocations}</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                <div className="text-3xl font-bold text-primary mb-1">{statistics.totalLocations}</div>
                 <div className="text-sm text-muted-foreground">ตำแหน่งที่มีสินค้า</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{statistics.totalProducts}</div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-blue-500/10 to-blue-500/5 border border-blue-500/20">
+                <div className="text-3xl font-bold text-blue-600 mb-1">{statistics.totalProducts}</div>
                 <div className="text-sm text-muted-foreground">สินค้าต่างชนิด</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{statistics.totalLots}</div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20">
+                <div className="text-3xl font-bold text-green-600 mb-1">{statistics.totalLots}</div>
                 <div className="text-sm text-muted-foreground">Lot ต่างกัน</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">{statistics.totalItems}</div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-orange-500/10 to-orange-500/5 border border-orange-500/20">
+                <div className="text-3xl font-bold text-orange-600 mb-1">{statistics.totalItems}</div>
                 <div className="text-sm text-muted-foreground">รายการทั้งหมด</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{statistics.totalBoxes}</div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20">
+                <div className="text-3xl font-bold text-purple-600 mb-1">{statistics.totalBoxes}</div>
                 <div className="text-sm text-muted-foreground">ลังรวม</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-cyan-600">{statistics.totalLoose}</div>
+              <div className="text-center p-4 rounded-lg bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border border-cyan-500/20">
+                <div className="text-3xl font-bold text-cyan-600 mb-1">{statistics.totalLoose}</div>
                 <div className="text-sm text-muted-foreground">เศษรวม</div>
               </div>
             </div>
@@ -479,37 +479,45 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
           </TabsList>
 
           {/* Visual Grid View */}
-          <TabsContent value="visual" className="space-y-4">
-            <div className="flex flex-col lg:flex-row gap-6">
+          <TabsContent value="visual" className="space-y-6">
+            <div className="flex flex-col xl:flex-row gap-8">
               {/* Visual Mode Selector */}
-              <Card className="lg:w-80">
+              <Card className="xl:w-96">
                 <CardHeader>
-                  <CardTitle className="text-base">โหมดการแสดงผล</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    โหมดการแสดงผล
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Tabs value={visualMode} onValueChange={(value) => setVisualMode(value as VisualMode)}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="product">สินค้า</TabsTrigger>
-                      <TabsTrigger value="lot">Lot</TabsTrigger>
-                      <TabsTrigger value="density">ความหนาแน่น</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-3 h-12">
+                      <TabsTrigger value="product" className="text-sm">สินค้า</TabsTrigger>
+                      <TabsTrigger value="lot" className="text-sm">Lot</TabsTrigger>
+                      <TabsTrigger value="density" className="text-sm">ความหนาแน่น</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </CardContent>
               </Card>
 
               {/* Warehouse Grid */}
-              <Card className="flex-1">
+              <Card className="flex-1 min-w-0">
                 <CardHeader>
-                  <CardTitle className="text-base">แผนผังคลัง</CardTitle>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Grid3X3 className="h-5 w-5" />
+                    แผนผังคลัง - ภาพรวมขยาย
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
+                <CardContent className="overflow-x-auto">
+                  <div className="space-y-2 min-w-max">
                     {rows.map(row => (
-                      <div key={row} className="flex items-center gap-1">
-                        <div className="w-6 text-center text-sm font-medium">{row}</div>
-                        <div className="flex gap-0.5">
+                      <div key={row} className="flex items-center gap-2">
+                        <div className="w-8 text-center text-lg font-bold text-primary bg-primary/10 rounded px-2 py-1">
+                          {row}
+                        </div>
+                        <div className="flex gap-1">
                           {positions.map(pos => (
-                            <div key={pos} className="flex flex-col gap-0.5">
+                            <div key={pos} className="flex flex-col gap-1">
                               {levels.map(level => {
                                 const location = `${row}/${level}/${pos}`;
                                 const hasItems = itemsByLocation[location]?.length > 0;
@@ -519,24 +527,37 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                                   <Tooltip key={location}>
                                     <TooltipTrigger asChild>
                                       <button
-                                        className="w-4 h-3 text-[8px] border border-gray-300 hover:border-gray-500 transition-colors flex items-center justify-center"
+                                        className="w-6 h-5 text-xs border-2 border-gray-300 hover:border-primary transition-all duration-200 flex items-center justify-center rounded-sm hover:scale-110 shadow-sm"
                                         style={{ backgroundColor: color }}
                                         onClick={() => onShelfClick(location, itemsByLocation[location]?.[0])}
                                       >
-                                        {hasItems && <span className="text-white text-[6px]">•</span>}
+                                        {hasItems && <span className="text-white text-xs font-bold drop-shadow">•</span>}
                                       </button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
-                                      <div className="text-xs">
-                                        <div className="font-medium">{location}</div>
-                                        {hasItems && (
-                                          <div>
+                                    <TooltipContent side="top" className="max-w-xs">
+                                      <div className="text-sm">
+                                        <div className="font-bold text-primary mb-1 border-b border-primary/20 pb-1">
+                                          📍 {location}
+                                        </div>
+                                        {hasItems ? (
+                                          <div className="space-y-1">
                                             {itemsByLocation[location].map(item => (
-                                              <div key={item.id}>
-                                                {item.product_code}: {item.quantity_boxes}ลัง + {item.quantity_loose}เศษ
+                                              <div key={item.id} className="bg-muted/50 p-2 rounded">
+                                                <div className="font-medium text-xs text-primary">{item.product_code}</div>
+                                                <div className="text-xs text-muted-foreground truncate">
+                                                  {item.product_name.length > 30 ? 
+                                                    `${item.product_name.substring(0, 30)}...` : 
+                                                    item.product_name
+                                                  }
+                                                </div>
+                                                <div className="text-xs font-medium">
+                                                  📦 {item.quantity_boxes} ลัง + {item.quantity_loose} เศษ
+                                                </div>
                                               </div>
                                             ))}
                                           </div>
+                                        ) : (
+                                          <div className="text-muted-foreground text-xs">ไม่มีสินค้า</div>
                                         )}
                                       </div>
                                     </TooltipContent>
