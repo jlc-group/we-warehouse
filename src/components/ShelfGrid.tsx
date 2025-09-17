@@ -40,6 +40,9 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
 
+  // Debug QR codes
+  console.log('🔍 ShelfGrid - QR Codes loaded:', qrCodes.length);
+
   // Function to add new row
   const addNewRow = () => {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';

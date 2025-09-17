@@ -49,6 +49,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
 
+  // Debug QR codes
+  console.log('🔍 ProductOverviewAndSearch - QR Codes loaded:', qrCodes.length);
+
   // Standard product codes - อัปเดตตามรายการใหม่
   const standardProductCodes = [
     'A1-40G', 'L13-10G', 'L8A-6G', 'L8B-6G', 'L8A-30G', 'L3-40G', 'L7-6G', 'L4-40G',

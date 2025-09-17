@@ -31,13 +31,17 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
   // Get all unique locations from inventory
   const allLocations = useMemo(() => {
     const locations = [...new Set(items.map(item => item.location))].sort();
+    console.log('🔍 QRCodeManagement - All locations from inventory:', locations);
     return locations;
   }, [items]);
 
   // Get locations that don't have QR codes yet
   const locationsWithoutQR = useMemo(() => {
     const qrLocations = new Set(qrCodes.map(qr => qr.location));
-    return allLocations.filter(location => !qrLocations.has(location));
+    const withoutQR = allLocations.filter(location => !qrLocations.has(location));
+    console.log('🔍 QRCodeManagement - QR locations:', Array.from(qrLocations));
+    console.log('🔍 QRCodeManagement - Locations without QR:', withoutQR);
+    return withoutQR;
   }, [allLocations, qrCodes]);
 
   // Filter QR codes based on search

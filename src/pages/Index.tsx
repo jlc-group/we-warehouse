@@ -16,10 +16,13 @@ import { LocationQRModal } from '@/components/LocationQRModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus, User, LogOut, Settings } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
@@ -35,9 +38,10 @@ function Index() {
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [activeTab, setActiveTab] = useState<string>('overview');
-  
-  // Custom hook after useState hooks
+
+  // Custom hooks after useState hooks
   const { toast } = useToast();
+  const { profile, signOut } = useAuth();
   const {
     items: inventoryItems,
     loading,
@@ -174,10 +178,87 @@ function Index() {
         {/* Header */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-6 w-6" />
-              ระบบจัดการคลัง Inventory Warehouse
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-6 w-6" />
+                ระบบจัดการคลัง Inventory Warehouse
+              </CardTitle>
+
+              {/* User Profile Section */}
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-sm font-medium">{profile?.full_name || profile?.email}</p>
+                  <div className="flex items-center gap-2">
+                    {profile?.department && (
+                      <Badge
+                        variant="outline"
+                        style={{
+                          borderColor: profile.department.color,
+                          color: profile.department.color,
+                        }}
+                      >
+                        {profile.department.name_thai}
+                      </Badge>
+                    )}
+                    {profile?.role && (
+                      <Badge variant="secondary">
+                        {profile.role.name_thai}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage src={profile?.avatar_url} alt={profile?.full_name || 'User'} />
+                        <AvatarFallback>
+                          {profile?.full_name
+                            ? profile.full_name
+                                .split(' ')
+                                .map((n) => n[0])
+                                .join('')
+                                .toUpperCase()
+                            : profile?.email?.[0]?.toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {profile?.full_name || 'ไม่ระบุชื่อ'}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground">
+                          {profile?.email}
+                        </p>
+                        {profile?.employee_code && (
+                          <p className="text-xs leading-none text-muted-foreground">
+                            รหัส: {profile.employee_code}
+                          </p>
+                        )}
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem disabled>
+                      <User className="mr-2 h-4 w-4" />
+                      <span>โปรไฟล์</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled>
+                      <Settings className="mr-2 h-4 w-4" />
+                      <span>ตั้งค่า</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>ออกจากระบบ</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {inventoryItems.length === 0 && !loading && (

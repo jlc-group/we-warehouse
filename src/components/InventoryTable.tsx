@@ -13,7 +13,10 @@ interface InventoryTableProps {
 
 export function InventoryTable({ items }: InventoryTableProps) {
   // Use QR code data
-  const { getQRByLocation } = useLocationQR();
+  const { qrCodes, getQRByLocation } = useLocationQR();
+
+  // Debug QR codes
+  console.log('🔍 InventoryTable - QR Codes loaded:', qrCodes.length);
 
   const getStockBadge = (boxes: number, loose: number) => {
     const total = boxes + loose;
