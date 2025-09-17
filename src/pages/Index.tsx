@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { InventoryTable } from '@/components/InventoryTable';
@@ -6,20 +7,42 @@ import { InventoryModal } from '@/components/InventoryModal';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
 import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
+import { QRCodeManager } from '@/components/QRCodeManager';
+import { DataRecovery } from '@/components/DataRecovery';
+import { DataExport } from '@/components/DataExport';
+import { BulkAddModal } from '@/components/BulkAddModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Database, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Database, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Trash2, Plus } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
+  const navigate = useNavigate();
+
   // All useState hooks at the top level - no conditional rendering
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   
   // Custom hook after useState hooks
-  const { items: inventoryItems, loading, addItem, updateItem, loadSampleData, clearAllData } = useInventory();
+  const { 
+    items: inventoryItems, 
+    loading, 
+    connectionStatus,
+    isOfflineMode,
+    addItem, 
+    updateItem, 
+    loadSampleData, 
+    clearAllData,
+    retryConnection,
+    emergencyRecovery,
+    bulkUploadToSupabase,
+    recoverUserData,
+    importData
+  } = useInventory();
 
   const handleShelfClick = (location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
@@ -121,6 +144,17 @@ function Index() {
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => setIsBulkModalOpen(true)}
+                  disabled={loading}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  เพิ่มหลายตำแหน่ง
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={loadSampleData}
                   disabled={loading}
                   className="flex items-center gap-2"
@@ -146,14 +180,14 @@ function Index() {
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               แผนผังคลัง
             </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
-              ภาพรวมและค้นหา
+              ภาพรวมและสินค้า
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -166,6 +200,18 @@ function Index() {
             <TabsTrigger value="movements" className="flex items-center gap-2">
               <History className="h-4 w-4" />
               ประวัติการเคลื่อนไหว
+            </TabsTrigger>
+            <TabsTrigger value="qr" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              QR Scanner
+            </TabsTrigger>
+            <TabsTrigger value="recovery" className="flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              กู้คืนข้อมูล
+            </TabsTrigger>
+            <TabsTrigger value="export" className="flex items-center gap-2">
+              <Download className="h-4 w-4" />
+              Export
             </TabsTrigger>
           </TabsList>
 
@@ -210,6 +256,28 @@ function Index() {
           <TabsContent value="movements" className="space-y-4">
             <MovementLogs />
           </TabsContent>
+
+          <TabsContent value="qr" className="space-y-4">
+            <QRCodeManager
+              items={inventoryItems}
+              onShelfClick={handleShelfClick}
+            />
+          </TabsContent>
+
+          <TabsContent value="recovery" className="space-y-4">
+            <DataRecovery
+              onRecoverData={recoverUserData}
+              onEmergencyRecovery={emergencyRecovery}
+              onBulkUpload={bulkUploadToSupabase}
+              onImportData={importData}
+              currentItems={inventoryItems}
+              loading={loading}
+            />
+          </TabsContent>
+
+          <TabsContent value="export" className="space-y-4">
+            <DataExport items={inventoryItems} />
+          </TabsContent>
         </Tabs>
 
         {/* Inventory Modal */}
@@ -222,6 +290,13 @@ function Index() {
           onSave={handleSaveItem}
           location={selectedLocation}
           existingItem={selectedItem}
+        />
+
+        {/* Bulk Add Modal */}
+        <BulkAddModal
+          isOpen={isBulkModalOpen}
+          onClose={() => setIsBulkModalOpen(false)}
+          onSave={handleBulkSave}
         />
       </div>
     </div>
