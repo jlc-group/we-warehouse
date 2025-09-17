@@ -83,12 +83,24 @@ function Index() {
     }
   };
 
-  const handleBulkSave = async (locations: string[], itemData: any) => {
+  const handleBulkSave = async (locations: string[], itemData: {
+    product_name: string;
+    sku: string;
+    lot?: string;
+    mfd?: string;
+    box_quantity: number;
+    loose_quantity: number;
+  }) => {
     try {
       for (const location of locations) {
         await addItem({
-          ...itemData,
-          location
+          product_name: itemData.product_name,
+          sku: itemData.sku,
+          location: location,
+          lot: itemData.lot,
+          mfd: itemData.mfd,
+          box_quantity: itemData.box_quantity,
+          loose_quantity: itemData.loose_quantity,
         });
       }
     } catch (error) {
@@ -260,23 +272,19 @@ function Index() {
           <TabsContent value="qr" className="space-y-4">
             <QRCodeManager
               items={inventoryItems}
-              onShelfClick={handleShelfClick}
             />
           </TabsContent>
 
           <TabsContent value="recovery" className="space-y-4">
-            <DataRecovery
-              onRecoverData={recoverUserData}
-              onEmergencyRecovery={emergencyRecovery}
-              onBulkUpload={bulkUploadToSupabase}
-              onImportData={importData}
-              currentItems={inventoryItems}
-              loading={loading}
-            />
+            <DataRecovery />
           </TabsContent>
 
           <TabsContent value="export" className="space-y-4">
-            <DataExport items={inventoryItems} />
+            <DataExport 
+              items={inventoryItems} 
+              onImportData={importData}
+              onUploadToSupabase={bulkUploadToSupabase}
+            />
           </TabsContent>
         </Tabs>
 
@@ -297,6 +305,7 @@ function Index() {
           isOpen={isBulkModalOpen}
           onClose={() => setIsBulkModalOpen(false)}
           onSave={handleBulkSave}
+          availableLocations={[...new Set(inventoryItems.map(item => item.location))]}
         />
       </div>
     </div>

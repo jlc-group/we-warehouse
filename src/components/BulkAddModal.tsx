@@ -12,12 +12,12 @@ interface BulkAddModalProps {
   onClose: () => void;
   onSave: (locations: string[], itemData: {
     product_name: string;
-    product_code: string;
+    sku: string;
     lot?: string;
     mfd?: string;
-    quantity_boxes: number;
-    quantity_loose: number;
-  }) => void;
+    box_quantity: number;
+    loose_quantity: number;
+  }) => Promise<void>;
   availableLocations: string[];
 }
 
@@ -68,11 +68,11 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
 
     onSave(Array.from(selectedLocations), {
       product_name: productName.trim(),
-      product_code: productCode.trim(),
+      sku: productCode.trim(),
       lot: lot.trim() || undefined,
       mfd: mfd || undefined,
-      quantity_boxes: quantityBoxes,
-      quantity_loose: quantityLoose,
+      box_quantity: quantityBoxes,
+      loose_quantity: quantityLoose,
     });
 
     resetForm();

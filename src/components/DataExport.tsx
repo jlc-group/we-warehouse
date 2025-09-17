@@ -49,8 +49,8 @@ export function DataExport({ items, onImportData, onUploadToSupabase }: DataExpo
         item.mfd || '',
         item.box_quantity || 0,
         item.loose_quantity || 0,
-        item.category || '',
-        item.cost_per_unit || 0,
+        '', // category placeholder
+        0, // cost_per_unit placeholder
         item.created_at,
         item.updated_at
       ].join(','))
@@ -91,8 +91,8 @@ export function DataExport({ items, onImportData, onUploadToSupabase }: DataExpo
               mfd: values[5] || null,
               box_quantity: parseInt(values[6]) || 0,
               loose_quantity: parseInt(values[7]) || 0,
-              category: values[8] || null,
-              cost_per_unit: parseFloat(values[9]) || 0,
+              // category: values[8] || null, // removed non-existent field
+              // cost_per_unit: parseFloat(values[9]) || 0, // removed non-existent field
               created_at: values[10],
               updated_at: values[11],
               user_id: '00000000-0000-0000-0000-000000000000'
