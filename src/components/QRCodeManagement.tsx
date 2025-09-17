@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive } from 'lucide-react';
+import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info } from 'lucide-react';
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import type { InventoryItem } from '@/hooks/useInventory';
 
@@ -61,6 +61,13 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     setIsGenerating(false);
   };
 
+  const handleRegenerateAll = async () => {
+    if (allLocations.length === 0) return;
+    setIsGenerating(true);
+    await bulkGenerateQR(allLocations, items);
+    setIsGenerating(false);
+  };
+
   const downloadQRCode = (qrCode: LocationQRCode) => {
     if (qrCode.qr_image_url) {
       const a = document.createElement('a');
@@ -74,8 +81,29 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     return new Date(dateString).toLocaleString('th-TH');
   };
 
+  // Debug info for environment
+  const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const isProduction = currentUrl.includes('lovableproject.com') || currentUrl.includes('vercel.app');
+
   return (
     <div className="space-y-6">
+      {/* Environment Info */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="pt-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div className="space-y-1">
+              <div className="font-medium text-blue-900">Environment Debug Info</div>
+              <div className="text-sm text-blue-700 space-y-1">
+                <div>Current URL: <code className="bg-blue-100 px-1 rounded">{currentUrl}</code></div>
+                <div>Environment: <Badge variant={isProduction ? "default" : "secondary"}>{isProduction ? "Production" : "Development"}</Badge></div>
+                <div>QR Codes in DB: {qrCodes.length}</div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Header */}
       <Card>
         <CardHeader>
@@ -114,6 +142,16 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             >
               <Plus className="h-4 w-4" />
               สร้าง QR ทั้งหมด ({locationsWithoutQR.length})
+            </Button>
+
+            <Button
+              onClick={handleRegenerateAll}
+              disabled={isGenerating || allLocations.length === 0}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              สร้าง QR ใหม่ทั้งหมด
             </Button>
 
             <Button
@@ -197,11 +235,20 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         ) : filteredQRCodes.length === 0 ? (
           <div className="col-span-full text-center py-8 text-gray-500">
-            {searchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : 'ยังไม่มี QR Code'}
+            {searchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
+              <div className="space-y-4">
+                <div>ยังไม่มี QR Code</div>
+                <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+                  <AlertCircle className="h-4 w-4 inline-block mr-2" />
+                  ต้องสร้าง QR Code ก่อนใช้งาน กดปุ่ม "สร้าง QR ทั้งหมด" ด้านบน
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           filteredQRCodes.map((qrCode) => {
             const snapshot = qrCode.inventory_snapshot as any;
+            const isUrlFormat = qrCode.qr_code_data.startsWith('http');
 
             return (
               <Card key={qrCode.id} className="hover:shadow-md transition-shadow">
@@ -211,9 +258,14 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                       <MapPin className="h-4 w-4" />
                       {qrCode.location}
                     </span>
-                    <Badge variant={qrCode.is_active ? "default" : "secondary"}>
-                      {qrCode.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}
-                    </Badge>
+                    <div className="flex gap-2">
+                      <Badge variant={qrCode.is_active ? "default" : "secondary"}>
+                        {qrCode.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}
+                      </Badge>
+                      <Badge variant={isUrlFormat ? "default" : "destructive"}>
+                        {isUrlFormat ? "URL" : "JSON"}
+                      </Badge>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -225,6 +277,14 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                         alt={`QR Code for ${qrCode.location}`}
                         className="w-32 h-32 border rounded"
                       />
+                    </div>
+                  )}
+
+                  {/* Warning for old JSON QR codes */}
+                  {!isUrlFormat && (
+                    <div className="bg-orange-50 border border-orange-200 rounded p-2 text-sm text-orange-800">
+                      <AlertCircle className="h-4 w-4 inline-block mr-1" />
+                      QR Code รูปแบบเก่า (JSON) - ไม่เปิดหน้าเพิ่มสินค้าได้
                     </div>
                   )}
 
@@ -286,13 +346,23 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                           <div className="text-sm space-y-2">
                             <div><strong>ตำแหน่ง:</strong> {qrCode.location}</div>
                             <div><strong>สถานะ:</strong> {qrCode.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</div>
+                            <div><strong>รูปแบบ:</strong> {isUrlFormat ? 'URL (ใหม่)' : 'JSON (เก่า)'}</div>
                             <div><strong>สร้างเมื่อ:</strong> {formatDate(qrCode.generated_at)}</div>
                             <div><strong>อัพเดตล่าสุด:</strong> {formatDate(qrCode.last_updated)}</div>
-                            <div><strong>URL:</strong> <code className="text-xs bg-gray-100 p-1 rounded">{qrCode.qr_code_data}</code></div>
+                            <div className="break-all"><strong>ข้อมูล:</strong> <code className="text-xs bg-gray-100 p-1 rounded">{qrCode.qr_code_data.substring(0, 100)}...</code></div>
                           </div>
                         </div>
                       </DialogContent>
                     </Dialog>
+
+                    <Button
+                      onClick={() => handleGenerateQR(qrCode.location)}
+                      size="sm"
+                      variant="secondary"
+                      disabled={isGenerating}
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </Button>
 
                     <Button
                       onClick={() => deleteQRCode(qrCode.id)}

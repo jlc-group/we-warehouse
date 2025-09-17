@@ -217,8 +217,21 @@ export function useLocationQR() {
       };
 
       // Create URL for QR Code that opens add item page
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      // Get base URL with environment detection
+      let baseUrl = '';
+      if (typeof window !== 'undefined') {
+        baseUrl = window.location.origin;
+
+        // Log environment info for debugging
+        console.log('🌍 QR URL Generation:');
+        console.log('- Current URL:', window.location.href);
+        console.log('- Origin:', window.location.origin);
+        console.log('- Is Lovable:', baseUrl.includes('lovableproject.com'));
+        console.log('- Is Vercel:', baseUrl.includes('vercel.app'));
+      }
+
       const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(location)}&action=add`;
+      console.log('📱 Generated QR URL:', qrUrl);
 
       // QR Code will contain URL, inventory data stored separately
       const qrDataString = qrUrl;

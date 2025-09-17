@@ -58,34 +58,49 @@ function Index() {
     const location = searchParams.get('location');
     const action = searchParams.get('action');
 
-    console.log('🔍 QR URL Parameters:', { tab, location, action });
-    console.log('🔍 Current URL:', window.location.href);
+    // Enhanced debugging for Lovable environment
+    console.log('🌍 Environment Debug:');
+    console.log('- URL:', window.location.href);
+    console.log('- Search params:', window.location.search);
+    console.log('- Is Lovable:', window.location.href.includes('lovableproject.com'));
+    console.log('🔍 Parsed QR URL Parameters:', { tab, location, action });
 
+    // Always set tab first if provided
     if (tab) {
       console.log('✅ Setting active tab to:', tab);
       setActiveTab(tab);
     }
 
+    // Handle QR code scan with location and action
     if (location && action === 'add') {
-      console.log('✅ Opening modal for location:', location);
-      // Open inventory modal with pre-selected location
-      setSelectedLocation(location);
-      setIsModalOpen(true);
+      console.log('✅ QR Code detected - Opening modal for location:', location);
 
-      // Add toast notification to confirm it worked
-      toast({
-        title: '🔍 QR Code แสกนสำเร็จ',
-        description: `เปิดหน้าเพิ่มสินค้าสำหรับตำแหน่ง: ${location}`,
-      });
+      // Delay modal opening slightly to ensure tab is set first
+      setTimeout(() => {
+        setSelectedLocation(location);
+        setIsModalOpen(true);
 
-      // Clear URL parameters after handling
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('location');
-      newSearchParams.delete('action');
-      if (tab) newSearchParams.delete('tab');
+        // Add toast notification to confirm it worked
+        toast({
+          title: '🔍 QR Code แสกนสำเร็จ',
+          description: `เปิดหน้าเพิ่มสินค้าสำหรับตำแหน่ง: ${location}`,
+          duration: 5000,
+        });
 
-      const newUrl = newSearchParams.toString() ? '?' + newSearchParams.toString() : '/';
-      navigate(newUrl, { replace: true });
+        console.log('✅ Modal opened successfully for location:', location);
+      }, 100);
+
+      // Clear URL parameters after handling (with longer delay)
+      setTimeout(() => {
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('location');
+        newSearchParams.delete('action');
+        if (tab) newSearchParams.delete('tab');
+
+        const newUrl = newSearchParams.toString() ? '?' + newSearchParams.toString() : '/';
+        console.log('🧹 Cleaning URL, navigating to:', newUrl);
+        navigate(newUrl, { replace: true });
+      }, 1000);
     }
   }, [searchParams, navigate, toast]);
 
@@ -231,9 +246,21 @@ function Index() {
 
                 <Button
                   onClick={() => {
-                    const testUrl = `${window.location.origin}?tab=overview&location=A-01&action=add`;
+                    const testLocation = 'TEST-A01';
+                    const testUrl = `${window.location.origin}?tab=overview&location=${encodeURIComponent(testLocation)}&action=add`;
                     console.log('🧪 Testing QR URL:', testUrl);
-                    window.location.href = testUrl;
+                    console.log('🧪 Expected behavior: Modal should open with location:', testLocation);
+
+                    // Add small delay and then navigate
+                    toast({
+                      title: '🧪 Testing QR URL',
+                      description: `Navigating to test URL with location: ${testLocation}`,
+                      duration: 3000,
+                    });
+
+                    setTimeout(() => {
+                      window.location.href = testUrl;
+                    }, 500);
                   }}
                   variant="outline"
                   size="sm"
