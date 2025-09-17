@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,6 +132,9 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
             <QrCode className="h-5 w-5" />
             QR Code - ตำแหน่ง {location}
           </DialogTitle>
+          <DialogDescription>
+            QR Code สำหรับตำแหน่ง {location} พร้อมข้อมูลสินค้าและสถิติ
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

@@ -116,6 +116,24 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
               สร้าง QR ทั้งหมด ({locationsWithoutQR.length})
             </Button>
 
+            {qrCodes.length === 0 && !loading && (
+              <Button
+                onClick={async () => {
+                  try {
+                    // Try to test QR table access
+                    await generateQRForLocation('TEST', []);
+                  } catch (error) {
+                    console.log('Testing QR table access failed, which is expected');
+                  }
+                }}
+                variant="secondary"
+                className="flex items-center gap-2"
+              >
+                <QrCode className="h-4 w-4" />
+                สร้างตาราง QR
+              </Button>
+            )}
+
             <Button
               onClick={refetch}
               variant="outline"
@@ -197,7 +215,18 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         ) : filteredQRCodes.length === 0 ? (
           <div className="col-span-full text-center py-8 text-gray-500">
-            {searchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : 'ยังไม่มี QR Code'}
+            {searchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
+              <div className="space-y-4">
+                <div>ยังไม่มี QR Code</div>
+                <div className="text-sm bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+                  <div className="font-medium text-yellow-800 mb-2">🔧 จำเป็นต้องสร้างตาราง Database</div>
+                  <div className="text-yellow-700 text-xs">
+                    กรุณาไปที่ Supabase Dashboard → SQL Editor<br/>
+                    และรัน script จากไฟล์: <code>supabase/migrations/20250917091500_create_location_qr_codes.sql</code>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           filteredQRCodes.map((qrCode) => {

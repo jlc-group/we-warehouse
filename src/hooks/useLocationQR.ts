@@ -47,6 +47,26 @@ export function useLocationQR() {
 
       if (error) {
         console.error('Fetch QR codes error:', error);
+
+        // If table doesn't exist, try to create it
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.log('🔧 Table does not exist, attempting to create...');
+          await createQRTable();
+
+          // Retry fetch after table creation
+          const { data: retryData, error: retryError } = await supabase
+            .from('location_qr_codes')
+            .select('*')
+            .eq('is_active', true)
+            .order('location');
+
+          if (!retryError) {
+            console.log('✅ Successfully fetched QR codes after table creation:', retryData?.length || 0);
+            setQrCodes(retryData || []);
+            return;
+          }
+        }
+
         throw error;
       }
 
@@ -63,6 +83,87 @@ export function useLocationQR() {
       setLoading(false);
     }
   }, [toast]);
+
+  // Function to create QR table if it doesn't exist
+  const createQRTable = async () => {
+    try {
+      console.log('🔧 Creating location_qr_codes table...');
+
+      // Simple table creation - basic version
+      const { error } = await supabase.rpc('exec', {
+        sql: `
+          CREATE TABLE IF NOT EXISTS location_qr_codes (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            location TEXT NOT NULL,
+            qr_code_data TEXT NOT NULL,
+            qr_image_url TEXT,
+            inventory_snapshot JSONB,
+            generated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            is_active BOOLEAN DEFAULT TRUE,
+            user_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+
+          ALTER TABLE location_qr_codes ENABLE ROW LEVEL SECURITY;
+
+          CREATE POLICY IF NOT EXISTS "Enable all access for location_qr_codes"
+          ON location_qr_codes FOR ALL USING (true);
+        `
+      });
+
+      if (error) {
+        console.error('❌ Error creating QR table via RPC:', error);
+
+        // Manual method if RPC fails
+        console.log('🔄 Trying manual table creation...');
+        const result = await fetch(`${supabase.supabaseUrl}/rest/v1/rpc/exec`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+            'apikey': supabase.supabaseKey || ''
+          },
+          body: JSON.stringify({
+            sql: `CREATE TABLE IF NOT EXISTS location_qr_codes (
+              id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+              location TEXT NOT NULL,
+              qr_code_data TEXT NOT NULL,
+              qr_image_url TEXT,
+              inventory_snapshot JSONB,
+              generated_at TIMESTAMPTZ DEFAULT NOW(),
+              last_updated TIMESTAMPTZ DEFAULT NOW(),
+              is_active BOOLEAN DEFAULT TRUE,
+              user_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'::UUID,
+              created_at TIMESTAMPTZ DEFAULT NOW(),
+              updated_at TIMESTAMPTZ DEFAULT NOW()
+            )`
+          })
+        });
+
+        if (!result.ok) {
+          throw new Error(`Manual table creation failed: ${result.statusText}`);
+        }
+
+        console.log('✅ Manual table creation succeeded');
+      } else {
+        console.log('✅ QR table created successfully via RPC');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to create QR table:', error);
+
+      toast({
+        title: '⚠️ ต้องสร้างตารางด้วยตนเอง',
+        description: 'กรุณาไปที่ Supabase Dashboard → SQL Editor และรัน migration script',
+        variant: 'destructive',
+      });
+
+      return false;
+    }
+  };
 
   const generateQRForLocation = useCallback(async (
     location: string,
