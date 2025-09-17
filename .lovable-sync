@@ -1,0 +1,7 @@
+SYNC_TIMESTAMP=$(date +%s)
+LAST_MODIFIED=$(stat -f %m src/components/InventoryModal.tsx)
+echo "InventoryModal.tsx updated at: $LAST_MODIFIED"
+echo "Sync requested at: $SYNC_TIMESTAMP"
+
+# Force Lovable to detect changes
+touch src/components/InventoryModal.tsx

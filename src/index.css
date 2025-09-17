@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Warehouse Inventory Management Design System */
+
+@layer base {
+  :root {
+    /* Background & Surface */
+    --background: 220 15% 97%;
+    --foreground: 220 25% 15%;
+    
+    /* Card & Surface */
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 15%;
+    
+    /* Warehouse Brand Colors */
+    --primary: 200 85% 45%; /* Warehouse Blue */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 200 85% 40%;
+    
+    /* Secondary - Storage Green */
+    --secondary: 140 60% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 140 60% 40%;
+    
+    /* Warning - Inventory Orange */
+    --warning: 35 85% 55%;
+    --warning-foreground: 0 0% 100%;
+    
+    /* Success - Stock Green */
+    --success: 140 70% 50%;
+    --success-foreground: 0 0% 100%;
+    
+    /* Danger - Out of Stock Red */
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Neutral Colors */
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 15% 45%;
+    
+    --accent: 200 25% 92%;
+    --accent-foreground: 220 25% 15%;
+    
+    /* Input & Border */
+    --border: 220 15% 88%;
+    --input: 220 15% 96%;
+    --ring: 200 85% 45%;
+    
+    /* Grid Colors for Warehouse Shelves */
+    --shelf-empty: 220 15% 95%;
+    --shelf-occupied: 140 50% 85%;
+    --shelf-selected: 200 85% 85%;
+    --shelf-hover: 220 15% 92%;
+    
+    /* Analytics Colors */
+    --chart-1: 200 85% 55%;
+    --chart-2: 140 60% 55%;
+    --chart-3: 35 85% 60%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 25 85% 60%;
+    
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-hover)));
+    --gradient-warehouse: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    --gradient-analytics: linear-gradient(180deg, hsl(var(--accent)), hsl(var(--background)));
+    
+    /* Shadows */
+    --shadow-warehouse: 0 4px 20px -4px hsl(var(--primary) / 0.25);
+    --shadow-shelf: 0 2px 8px -2px hsl(220 15% 15% / 0.15);
+    --shadow-card: 0 4px 16px -4px hsl(220 15% 15% / 0.1);
+    
+    /* Animations */
+    --transition-warehouse: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
