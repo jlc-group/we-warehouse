@@ -8,6 +8,7 @@ import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
 import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
 import { QRCodeManager } from '@/components/QRCodeManager';
+import { QRCodeManagement } from '@/components/QRCodeManagement';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
@@ -163,7 +164,7 @@ function Index() {
 
         {/* Navigation Tabs */}
         <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               แผนผังคลัง
@@ -187,6 +188,10 @@ function Index() {
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
               QR Scanner
+            </TabsTrigger>
+            <TabsTrigger value="qr-manage" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              จัดการ QR
             </TabsTrigger>
             <TabsTrigger value="recovery" className="flex items-center gap-2">
               <Archive className="h-4 w-4" />
@@ -247,6 +252,10 @@ function Index() {
               onShelfClick={handleShelfClick}
               onSaveItem={handleSaveItem}
             />
+          </TabsContent>
+
+          <TabsContent value="qr-manage" className="space-y-4">
+            <QRCodeManagement items={inventoryItems} />
           </TabsContent>
 
           <TabsContent value="recovery" className="space-y-4">

@@ -213,6 +213,48 @@ export type Database = {
           },
         ]
       }
+      location_qr_codes: {
+        Row: {
+          id: string
+          location: string
+          qr_code_data: string
+          qr_image_url: string | null
+          inventory_snapshot: Json | null
+          generated_at: string
+          last_updated: string
+          is_active: boolean
+          user_id: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          location: string
+          qr_code_data: string
+          qr_image_url?: string | null
+          inventory_snapshot?: Json | null
+          generated_at?: string
+          last_updated?: string
+          is_active?: boolean
+          user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          location?: string
+          qr_code_data?: string
+          qr_image_url?: string | null
+          inventory_snapshot?: Json | null
+          generated_at?: string
+          last_updated?: string
+          is_active?: boolean
+          user_id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meeting_rooms: {
         Row: {
           capacity: number | null

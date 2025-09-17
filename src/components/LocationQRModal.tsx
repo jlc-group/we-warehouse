@@ -17,6 +17,8 @@ interface LocationQRModalProps {
 export function LocationQRModal({ isOpen, onClose, location, items }: LocationQRModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [qrError, setQrError] = useState<string>('');
 
   // Filter items for this location
   const locationItems = useMemo(() => {
@@ -50,6 +52,8 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
 
   // Generate QR Code data with comprehensive location info
   const qrData = useMemo(() => {
+    if (!location) return '';
+
     const locationData = {
       type: 'WAREHOUSE_LOCATION',
       location: location,
@@ -69,12 +73,21 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
         loose: item.loose_quantity
       }))
     };
-    return JSON.stringify(locationData);
+    const jsonString = JSON.stringify(locationData);
+    console.log('🔧 Generated QR Data for location:', location, 'Data length:', jsonString.length);
+    return jsonString;
   }, [location, locationItems, totals, productGroups]);
 
   // Generate QR Code
   useEffect(() => {
-    if (isOpen && location && canvasRef.current) {
+    if (isOpen && location && canvasRef.current && qrData) {
+      setIsGeneratingQR(true);
+      setQrError('');
+
+      console.log('Generating QR Code for location:', location);
+      console.log('QR Data:', qrData.substring(0, 100) + '...');
+
+      // Generate QR on canvas
       QRCodeLib.toCanvas(canvasRef.current, qrData, {
         width: 192, // 48 * 4 for high resolution
         margin: 1,
@@ -82,13 +95,23 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
           dark: '#000000',
           light: '#FFFFFF'
         }
-      }).catch(console.error);
+      }).then(() => {
+        console.log('✅ QR Code generated successfully on canvas');
+        setIsGeneratingQR(false);
 
-      // Also generate data URL for download
-      QRCodeLib.toDataURL(qrData, {
-        width: 512,
-        margin: 2
-      }).then(setQrCodeDataURL).catch(console.error);
+        // Also generate data URL for download
+        return QRCodeLib.toDataURL(qrData, {
+          width: 512,
+          margin: 2
+        });
+      }).then((dataURL) => {
+        console.log('✅ QR Code data URL generated');
+        setQrCodeDataURL(dataURL);
+      }).catch((error) => {
+        console.error('❌ QR Code generation failed:', error);
+        setQrError(`เกิดข้อผิดพลาดในการสร้าง QR Code: ${error.message}`);
+        setIsGeneratingQR(false);
+      });
     }
   }, [isOpen, location, qrData]);
 
@@ -115,12 +138,49 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
           {/* QR Code Display */}
           <div className="flex flex-col items-center space-y-4">
             <div className="w-48 h-48 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center p-2">
-              <canvas
-                ref={canvasRef}
-                className="max-w-full max-h-full"
-                style={{ imageRendering: 'pixelated' }}
-              />
+              {isGeneratingQR ? (
+                <div className="text-center space-y-2">
+                  <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
+                  <p className="text-sm text-gray-500">กำลังสร้าง QR Code...</p>
+                </div>
+              ) : qrError ? (
+                <div className="text-center space-y-2">
+                  <div className="text-red-500 text-sm">{qrError}</div>
+                  <Button
+                    onClick={() => {
+                      setQrError('');
+                      // Trigger re-generation by clearing and setting canvas ref
+                      if (canvasRef.current) {
+                        const canvas = canvasRef.current;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                          ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        }
+                      }
+                    }}
+                    size="sm"
+                    variant="outline"
+                  >
+                    ลองใหม่
+                  </Button>
+                </div>
+              ) : (
+                <canvas
+                  ref={canvasRef}
+                  className="max-w-full max-h-full"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              )}
             </div>
+
+            {/* Debug info */}
+            {location && (
+              <div className="text-xs text-gray-400 text-center max-w-md">
+                <p>Location: {location}</p>
+                <p>Items: {locationItems.length}</p>
+                <p>QR Data length: {qrData.length} chars</p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
