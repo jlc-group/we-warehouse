@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive } from 'lucide-react';
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { setupQRTable } from '@/utils/setupQRTable';
 
 interface QRCodeManagementProps {
   items: InventoryItem[];
@@ -119,18 +120,22 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             {qrCodes.length === 0 && !loading && (
               <Button
                 onClick={async () => {
+                  setIsGenerating(true);
                   try {
-                    // Try to test QR table access
-                    await generateQRForLocation('TEST', []);
+                    await setupQRTable();
+                    await refetch(); // Refresh after table creation
                   } catch (error) {
-                    console.log('Testing QR table access failed, which is expected');
+                    console.error('Failed to setup QR table:', error);
+                  } finally {
+                    setIsGenerating(false);
                   }
                 }}
                 variant="secondary"
+                disabled={isGenerating}
                 className="flex items-center gap-2"
               >
                 <QrCode className="h-4 w-4" />
-                สร้างตาราง QR
+                {isGenerating ? 'กำลังสร้างตาราง...' : 'สร้างตาราง QR'}
               </Button>
             )}
 

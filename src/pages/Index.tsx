@@ -16,8 +16,10 @@ import { LocationQRModal } from '@/components/LocationQRModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { setupQRTable } from '@/utils/setupQRTable';
 import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
+import { useToast } from '@/hooks/use-toast';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
@@ -27,18 +29,20 @@ function Index() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   
   // Custom hook after useState hooks
-  const { 
-    items: inventoryItems, 
-    loading, 
+  const { toast } = useToast();
+  const {
+    items: inventoryItems,
+    loading,
     connectionStatus,
     isOfflineMode,
-    addItem, 
-    updateItem, 
+    addItem,
+    updateItem,
     retryConnection,
     emergencyRecovery,
     bulkUploadToSupabase,
@@ -155,6 +159,34 @@ function Index() {
                 >
                   <Plus className="h-4 w-4" />
                   เพิ่มหลายตำแหน่ง
+                </Button>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    setIsCreatingQRTable(true);
+                    try {
+                      await setupQRTable();
+                      toast({
+                        title: '✅ สร้างตาราง QR สำเร็จ',
+                        description: 'ตอนนี้สามารถใช้งาน QR Code ได้แล้ว',
+                      });
+                    } catch (error) {
+                      toast({
+                        title: '❌ เกิดข้อผิดพลาด',
+                        description: 'ไม่สามารถสร้างตาราง QR ได้',
+                        variant: 'destructive',
+                      });
+                    } finally {
+                      setIsCreatingQRTable(false);
+                    }
+                  }}
+                  disabled={isCreatingQRTable || loading}
+                  className="flex items-center gap-2"
+                >
+                  <QrCode className="h-4 w-4" />
+                  {isCreatingQRTable ? 'กำลังสร้าง...' : 'สร้างตาราง QR'}
                 </Button>
 
               </div>
