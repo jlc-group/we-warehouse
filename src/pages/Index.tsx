@@ -58,14 +58,25 @@ function Index() {
     const location = searchParams.get('location');
     const action = searchParams.get('action');
 
+    console.log('🔍 QR URL Parameters:', { tab, location, action });
+    console.log('🔍 Current URL:', window.location.href);
+
     if (tab) {
+      console.log('✅ Setting active tab to:', tab);
       setActiveTab(tab);
     }
 
     if (location && action === 'add') {
+      console.log('✅ Opening modal for location:', location);
       // Open inventory modal with pre-selected location
       setSelectedLocation(location);
       setIsModalOpen(true);
+
+      // Add toast notification to confirm it worked
+      toast({
+        title: '🔍 QR Code แสกนสำเร็จ',
+        description: `เปิดหน้าเพิ่มสินค้าสำหรับตำแหน่ง: ${location}`,
+      });
 
       // Clear URL parameters after handling
       const newSearchParams = new URLSearchParams(searchParams);
@@ -73,9 +84,10 @@ function Index() {
       newSearchParams.delete('action');
       if (tab) newSearchParams.delete('tab');
 
-      navigate('?' + newSearchParams.toString(), { replace: true });
+      const newUrl = newSearchParams.toString() ? '?' + newSearchParams.toString() : '/';
+      navigate(newUrl, { replace: true });
     }
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, toast]);
 
   const handleShelfClick = (location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
@@ -215,6 +227,19 @@ function Index() {
                 >
                   <QrCode className="h-4 w-4" />
                   {isCreatingQRTable ? 'กำลังสร้าง...' : 'สร้างตาราง QR'}
+                </Button>
+
+                <Button
+                  onClick={() => {
+                    const testUrl = `${window.location.origin}?tab=overview&location=A-01&action=add`;
+                    console.log('🧪 Testing QR URL:', testUrl);
+                    window.location.href = testUrl;
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  🧪 Test QR URL
                 </Button>
 
               </div>

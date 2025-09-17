@@ -218,7 +218,7 @@ export function useLocationQR() {
 
       // Create URL for QR Code that opens add item page
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const qrUrl = `${baseUrl}/?tab=overview&location=${encodeURIComponent(location)}&action=add`;
+      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(location)}&action=add`;
 
       // QR Code will contain URL, inventory data stored separately
       const qrDataString = qrUrl;
