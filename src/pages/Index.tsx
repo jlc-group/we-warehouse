@@ -305,7 +305,7 @@ function Index() {
           isOpen={isBulkModalOpen}
           onClose={() => setIsBulkModalOpen(false)}
           onSave={handleBulkSave}
-          availableLocations={[...new Set(inventoryItems.map(item => item.location))]}
+          availableLocations={inventoryItems ? [...new Set(inventoryItems.map(item => item.location))] : []}
         />
       </div>
     </div>

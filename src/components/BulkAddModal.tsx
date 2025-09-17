@@ -220,7 +220,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
               <Label>ตำแหน่งที่มีอยู่:</Label>
               <div className="max-h-48 overflow-y-auto border rounded-lg p-3">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {availableLocations.map(location => (
+                  {(availableLocations || []).map(location => (
                     <div key={location} className="flex items-center space-x-2">
                       <Checkbox
                         id={location}
@@ -235,6 +235,11 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
                       </Label>
                     </div>
                   ))}
+                  {(!availableLocations || availableLocations.length === 0) && (
+                    <div className="col-span-full text-center text-muted-foreground text-sm py-4">
+                      ไม่มีตำแหน่งที่บันทึกไว้
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
