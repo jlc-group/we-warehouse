@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useLocationQR } from '@/hooks/useLocationQR';
 
 interface ShelfGridProps {
   items: InventoryItem[];
@@ -35,6 +36,9 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
   const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
+
+  // Use QR code data
+  const { qrCodes, getQRByLocation } = useLocationQR();
 
   // Function to add new row
   const addNewRow = () => {
@@ -373,9 +377,22 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                             </TooltipTrigger>
                             <TooltipContent side="top" className="max-w-xs">
                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="h-3 w-3" />
-                                  <span className="font-semibold">ตำแหน่ง: {location}</span>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <MapPin className="h-3 w-3" />
+                                    <span className="font-semibold">ตำแหน่ง: {location}</span>
+                                  </div>
+                                  {getQRByLocation(location) ? (
+                                    <div className="flex items-center gap-1">
+                                      <QrCode className="h-3 w-3 text-green-600" />
+                                      <span className="text-xs text-green-600">มี QR</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <QrCode className="h-3 w-3 text-gray-400" />
+                                      <span className="text-xs text-gray-500">ไม่มี QR</span>
+                                    </div>
+                                  )}
                                 </div>
                                 {itemCount > 0 ? (
                                   <>

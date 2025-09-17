@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { PieChart, Package, MapPin, Search, Filter, X, Grid3X3, List, Hash, BarChart3, Eye, EyeOff, ChevronDown, ChevronUp, CheckSquare, Square, RotateCcw } from 'lucide-react';
+import { PieChart, Package, MapPin, Search, Filter, X, Grid3X3, List, Hash, BarChart3, Eye, EyeOff, ChevronDown, ChevronUp, CheckSquare, Square, RotateCcw, QrCode } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useLocationQR } from '@/hooks/useLocationQR';
 
 interface ProductOverviewAndSearchProps {
   items: InventoryItem[];
@@ -44,6 +45,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
     selectedProductCode: '',
     selectedRow: ''
   });
+
+  // Use QR code data
+  const { qrCodes, getQRByLocation } = useLocationQR();
 
   // Standard product codes - อัปเดตตามรายการใหม่
   const standardProductCodes = [
@@ -626,8 +630,29 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     <div className="flex items-center gap-2">
                       <MapPin className="h-5 w-5 text-blue-600" />
                       <span>ตำแหน่ง: {location}</span>
+                      {getQRByLocation(location) && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <QrCode className="h-4 w-4 text-green-600" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>มี QR Code แล้ว</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
                     </div>
-                    <Badge variant="secondary">{locationItems.length} รายการ</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{locationItems.length} รายการ</Badge>
+                      {getQRByLocation(location) ? (
+                        <Badge variant="default" className="bg-green-100 text-green-800">
+                          มี QR
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-orange-600 border-orange-300">
+                          ไม่มี QR
+                        </Badge>
+                      )}
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

@@ -2,15 +2,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet } from 'lucide-react';
+import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode } from 'lucide-react';
 import { exportInventoryToCSV, exportLocationSummary } from '@/utils/exportUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useLocationQR } from '@/hooks/useLocationQR';
 
 interface InventoryTableProps {
   items: InventoryItem[];
 }
 
 export function InventoryTable({ items }: InventoryTableProps) {
+  // Use QR code data
+  const { getQRByLocation } = useLocationQR();
+
   const getStockBadge = (boxes: number, loose: number) => {
     const total = boxes + loose;
     if (total === 0) return <Badge variant="destructive">หมด</Badge>;
@@ -99,6 +103,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                       <TableHead className="w-[200px]">ชื่อสินค้า</TableHead>
                       <TableHead>รหัสสินค้า</TableHead>
                       <TableHead>ตำแหน่ง</TableHead>
+                      <TableHead>QR</TableHead>
                       <TableHead>LOT</TableHead>
                       <TableHead>MFD</TableHead>
                       <TableHead className="text-right">จำนวนลัง</TableHead>
@@ -125,6 +130,21 @@ export function InventoryTable({ items }: InventoryTableProps) {
                           <div className="flex items-center gap-2">
                             <MapPin className="h-3 w-3 text-muted-foreground" />
                             <span className="font-mono">{item.location}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center">
+                            {getQRByLocation(item.location) ? (
+                              <Badge variant="default" className="bg-green-100 text-green-800">
+                                <QrCode className="h-3 w-3 mr-1" />
+                                มี
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-gray-500">
+                                <QrCode className="h-3 w-3 mr-1" />
+                                ไม่มี
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
