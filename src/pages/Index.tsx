@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { InventoryTable } from '@/components/InventoryTable';
@@ -24,6 +24,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 
 function Index() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // All useState hooks at the top level - no conditional rendering
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,6 +34,7 @@ function Index() {
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
+  const [activeTab, setActiveTab] = useState<string>('overview');
   
   // Custom hook after useState hooks
   const { toast } = useToast();
@@ -49,6 +51,31 @@ function Index() {
     recoverUserData,
     importData
   } = useInventory();
+
+  // Handle URL parameters from QR code scan
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const location = searchParams.get('location');
+    const action = searchParams.get('action');
+
+    if (tab) {
+      setActiveTab(tab);
+    }
+
+    if (location && action === 'add') {
+      // Open inventory modal with pre-selected location
+      setSelectedLocation(location);
+      setIsModalOpen(true);
+
+      // Clear URL parameters after handling
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('location');
+      newSearchParams.delete('action');
+      if (tab) newSearchParams.delete('tab');
+
+      navigate('?' + newSearchParams.toString(), { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const handleShelfClick = (location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
@@ -173,9 +200,10 @@ function Index() {
                         description: 'ตอนนี้สามารถใช้งาน QR Code ได้แล้ว',
                       });
                     } catch (error) {
+                      console.error('QR table setup error:', error);
                       toast({
-                        title: '❌ เกิดข้อผิดพลาด',
-                        description: 'ไม่สามารถสร้างตาราง QR ได้',
+                        title: '⚠️ ต้องสร้างตารางด้วยตนเอง',
+                        description: 'กรุณาดู Console (F12) สำหรับ SQL script หรือดู migration file',
                         variant: 'destructive',
                       });
                     } finally {
@@ -195,7 +223,7 @@ function Index() {
         </Card>
 
         {/* Navigation Tabs */}
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />

@@ -195,8 +195,8 @@ export function useLocationQR() {
         groups.get(key)!.push(item);
       });
 
-      // Create QR data
-      const qrData: QRDataLocation = {
+      // Create inventory data for storage
+      const inventoryData: QRDataLocation = {
         type: 'WAREHOUSE_LOCATION',
         location: location,
         timestamp: new Date().toISOString(),
@@ -216,7 +216,12 @@ export function useLocationQR() {
         }))
       };
 
-      const qrDataString = JSON.stringify(qrData);
+      // Create URL for QR Code that opens add item page
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const qrUrl = `${baseUrl}/?tab=overview&location=${encodeURIComponent(location)}&action=add`;
+
+      // QR Code will contain URL, inventory data stored separately
+      const qrDataString = qrUrl;
 
       // Generate QR code image as data URL
       const qrImageDataURL = await QRCodeLib.toDataURL(qrDataString, {
@@ -245,7 +250,7 @@ export function useLocationQR() {
           location: location,
           qr_code_data: qrDataString,
           qr_image_url: qrImageDataURL,
-          inventory_snapshot: qrData as any,
+          inventory_snapshot: inventoryData as any,
           user_id: fixedUserId,
           is_active: true
         })
