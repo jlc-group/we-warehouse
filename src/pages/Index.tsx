@@ -11,6 +11,7 @@ import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
+import { LocationQRModal } from '@/components/LocationQRModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +25,9 @@ function Index() {
   // All useState hooks at the top level - no conditional rendering
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
+  const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   
   // Custom hook after useState hooks
@@ -46,6 +49,11 @@ function Index() {
     setSelectedLocation(location);
     setSelectedItem(item);
     setIsModalOpen(true);
+  };
+
+  const handleQRCodeClick = (location: string) => {
+    setQrSelectedLocation(location);
+    setIsQRModalOpen(true);
   };
 
   const handleSaveItem = async (itemData: {
@@ -197,6 +205,7 @@ function Index() {
               <ShelfGrid
                 items={inventoryItems}
                 onShelfClick={handleShelfClick}
+                onQRCodeClick={handleQRCodeClick}
               />
             )}
           </TabsContent>
@@ -271,6 +280,14 @@ function Index() {
           onClose={() => setIsBulkModalOpen(false)}
           onSave={handleBulkSave}
           availableLocations={[...new Set(inventoryItems.map(item => item.location))].sort()}
+        />
+
+        {/* Location QR Modal */}
+        <LocationQRModal
+          isOpen={isQRModalOpen}
+          onClose={() => setIsQRModalOpen(false)}
+          location={qrSelectedLocation}
+          items={inventoryItems}
         />
       </div>
     </div>

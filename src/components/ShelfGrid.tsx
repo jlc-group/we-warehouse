@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X, Plus, Edit } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 interface ShelfGridProps {
   items: InventoryItem[];
   onShelfClick: (location: string, item?: InventoryItem) => void;
+  onQRCodeClick?: (location: string) => void;
 }
 
 interface FilterState {
@@ -24,7 +25,7 @@ interface FilterState {
   };
 }
 
-export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
+export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -33,6 +34,19 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     selectedFilters: {}
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
+  const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
+
+  // Function to add new row
+  const addNewRow = () => {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lastRow = availableRows[availableRows.length - 1];
+    const lastIndex = alphabet.indexOf(lastRow);
+
+    if (lastIndex < alphabet.length - 1) {
+      const nextRow = alphabet[lastIndex + 1];
+      setAvailableRows(prev => [...prev, nextRow]);
+    }
+  };
 
   // Get unique lots and product codes for filter dropdowns
   const { uniqueLots, uniqueProductCodes } = useMemo(() => {
@@ -132,8 +146,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
     }
   }, [filteredItems, filters]);
 
-  // Generate shelf grid (A-N rows, 4-1 levels from top to bottom, 1-20 positions)
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+  // Generate shelf grid (dynamic rows, 4-1 levels from top to bottom, 1-20 positions)
   const levels = [4, 3, 2, 1]; // Display from top to bottom: 4, 3, 2, 1
   const positions = Array.from({ length: 20 }, (_, i) => i + 1);
 
@@ -241,7 +254,7 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
 
         {/* Shelf Grid */}
         <div className="space-y-3">
-          {rows.map((row) => (
+          {availableRows.map((row) => (
             <div key={row} className="space-y-1">
               <h2 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
                 <div className="w-6 h-6 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-bold">
@@ -274,8 +287,24 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
                                   ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
                                 `}
                               >
-                                {/* Add/Edit Button */}
-                                <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* Action Buttons */}
+                                <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                  {/* QR Code Button */}
+                                  {onQRCodeClick && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 w-6 p-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onQRCodeClick(location);
+                                      }}
+                                    >
+                                      <QrCode className="h-3 w-3" />
+                                    </Button>
+                                  )}
+
+                                  {/* Add/Edit Button */}
                                   <Button
                                     size="sm"
                                     variant="secondary"
@@ -389,6 +418,19 @@ export function ShelfGrid({ items, onShelfClick }: ShelfGridProps) {
               ))}
             </div>
           ))}
+        </div>
+
+        {/* Add New Row Button */}
+        <div className="flex justify-center">
+          <Button
+            onClick={addNewRow}
+            variant="outline"
+            className="flex items-center gap-2"
+            disabled={availableRows.length >= 26} // Max Z
+          >
+            <Plus className="h-4 w-4" />
+            เพิ่มแถวใหม่ ({availableRows.length < 26 ? String.fromCharCode(65 + availableRows.length) : 'สูงสุดแล้ว'})
+          </Button>
         </div>
 
         {/* Legend and Info */}
