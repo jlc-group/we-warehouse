@@ -221,11 +221,19 @@ function LocationManagement({ userRoleLevel }: LocationManagementProps) {
   } = useWarehouseLocations(debouncedSearchTerm, 50);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    row: string;
+    level: number;
+    position: number;
+    location_type: "shelf" | "floor" | "special";
+    capacity_boxes: number;
+    capacity_loose: number;
+    description: string;
+  }>({
     row: '',
     level: 1,
     position: 1,
-    location_type: 'shelf' as const,
+    location_type: 'shelf',
     capacity_boxes: 100,
     capacity_loose: 1000,
     description: ''
@@ -339,7 +347,7 @@ function LocationManagement({ userRoleLevel }: LocationManagementProps) {
         row: parsed.row,
         level: parsed.level,
         position: parsed.position,
-        location_type: location.location_type,
+        location_type: location.location_type as "shelf" | "floor" | "special",
         capacity_boxes: location.capacity_boxes,
         capacity_loose: location.capacity_loose,
         description: finalDescription
@@ -588,7 +596,7 @@ function LocationManagement({ userRoleLevel }: LocationManagementProps) {
                       <Select
                         value={formData.location_type}
                         onValueChange={(value: 'shelf' | 'floor' | 'special') =>
-                          setFormData(prev => ({ ...prev, location_type: value }))
+                          setFormData(prev => ({ ...prev, location_type: value as "shelf" | "floor" | "special" }))
                         }
                       >
                         <SelectTrigger>
