@@ -1,15 +1,17 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan } from 'lucide-react';
+import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan, Grid3X3 } from 'lucide-react';
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import { QRScanner } from './QRScanner';
+import { supabase } from '@/integrations/supabase/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useToast } from '@/hooks/use-toast';
 
 interface QRCodeManagementProps {
   items: InventoryItem[];
@@ -21,8 +23,20 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedQRCode, setSelectedQRCode] = useState<LocationQRCode | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [warehouseLocations, setWarehouseLocations] = useState<string[]>([]);
+  const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number } | null>(null);
+  const [showRangeGenerator, setShowRangeGenerator] = useState(false);
+  const [rangeConfig, setRangeConfig] = useState({
+    startRow: 'A',
+    endRow: 'Z',
+    startLevel: 1,
+    endLevel: 5,
+    startPosition: 1,
+    endPosition: 10,
+  });
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const { toast } = useToast();
 
   const {
     qrCodes,
@@ -34,11 +48,37 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
     refetch
   } = useLocationQR();
 
-  // Get all unique locations from inventory
+  // Fetch warehouse locations
+  useEffect(() => {
+    const fetchWarehouseLocations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('warehouse_locations')
+          .select('location_code')
+          .eq('is_active', true)
+          .order('location_code');
+
+        if (error) {
+          console.error('Error fetching warehouse locations:', error);
+          return;
+        }
+
+        const locations = data?.map(loc => loc.location_code) || [];
+        setWarehouseLocations(locations);
+      } catch (error) {
+        console.error('Error fetching warehouse locations:', error);
+      }
+    };
+
+    fetchWarehouseLocations();
+  }, []);
+
+  // Get all unique locations from inventory + warehouse locations
   const allLocations = useMemo(() => {
-    const locations = [...new Set(items.map(item => item.location))].sort();
-    return locations;
-  }, [items]);
+    const inventoryLocations = [...new Set(items.map(item => item.location))];
+    const combinedLocations = [...new Set([...inventoryLocations, ...warehouseLocations])];
+    return combinedLocations.sort();
+  }, [items, warehouseLocations]);
 
   // Get locations that don't have QR codes yet
   const locationsWithoutQR = useMemo(() => {
@@ -64,15 +104,118 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   const handleBulkGenerate = async () => {
     if (locationsWithoutQR.length === 0) return;
     setIsGenerating(true);
-    await bulkGenerateQR(locationsWithoutQR, items);
-    setIsGenerating(false);
+    setGenerationProgress({ current: 0, total: locationsWithoutQR.length });
+
+    try {
+      let successCount = 0;
+      for (let i = 0; i < locationsWithoutQR.length; i++) {
+        const location = locationsWithoutQR[i];
+        setGenerationProgress({ current: i + 1, total: locationsWithoutQR.length });
+
+        const result = await generateQRForLocation(location, items);
+        if (result) successCount++;
+
+        // Small delay to avoid overwhelming the database
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      toast({
+        title: 'สร้าง QR Code เสร็จสิ้น',
+        description: `สร้างสำเร็จ ${successCount}/${locationsWithoutQR.length} ตำแหน่ง`,
+      });
+    } catch (error) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถสร้าง QR Code ได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(null);
+    }
   };
 
   const handleRegenerateAll = async () => {
     if (allLocations.length === 0) return;
     setIsGenerating(true);
-    await bulkGenerateQR(allLocations, items);
-    setIsGenerating(false);
+    setGenerationProgress({ current: 0, total: allLocations.length });
+
+    try {
+      let successCount = 0;
+      for (let i = 0; i < allLocations.length; i++) {
+        const location = allLocations[i];
+        setGenerationProgress({ current: i + 1, total: allLocations.length });
+
+        const result = await generateQRForLocation(location, items);
+        if (result) successCount++;
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      toast({
+        title: 'สร้าง QR Code ใหม่เสร็จสิ้น',
+        description: `สร้างสำเร็จ ${successCount}/${allLocations.length} ตำแหน่ง`,
+      });
+    } catch (error) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถสร้าง QR Code ใหม่ได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(null);
+    }
+  };
+
+  const generateLocationRange = (): string[] => {
+    const locations: string[] = [];
+    const { startRow, endRow, startLevel, endLevel, startPosition, endPosition } = rangeConfig;
+
+    for (let row = startRow.charCodeAt(0); row <= endRow.charCodeAt(0); row++) {
+      const rowChar = String.fromCharCode(row);
+      for (let level = startLevel; level <= endLevel; level++) {
+        for (let position = startPosition; position <= endPosition; position++) {
+          locations.push(`${rowChar}${level}${position.toString().padStart(2, '0')}`);
+        }
+      }
+    }
+
+    return locations;
+  };
+
+  const handleGenerateFromRange = async () => {
+    const rangeLocations = generateLocationRange();
+    setIsGenerating(true);
+    setGenerationProgress({ current: 0, total: rangeLocations.length });
+
+    try {
+      let successCount = 0;
+      for (let i = 0; i < rangeLocations.length; i++) {
+        const location = rangeLocations[i];
+        setGenerationProgress({ current: i + 1, total: rangeLocations.length });
+
+        const result = await generateQRForLocation(location, items);
+        if (result) successCount++;
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      toast({
+        title: 'สร้าง QR Code จาก Range เสร็จสิ้น',
+        description: `สร้างสำเร็จ ${successCount}/${rangeLocations.length} ตำแหน่ง`,
+      });
+      setShowRangeGenerator(false);
+    } catch (error) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถสร้าง QR Code จาก Range ได้',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(null);
+    }
   };
 
   const handleScanSuccess = (location: string, data: any) => {
@@ -151,6 +294,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             <div className="text-center p-3 bg-green-50 rounded-lg">
               <div className="text-2xl font-bold text-green-600">{allLocations.length}</div>
               <div className="text-sm text-gray-600">ตำแหน่งทั้งหมด</div>
+              <div className="text-xs text-gray-500">({warehouseLocations.length} warehouse)</div>
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
               <div className="text-2xl font-bold text-orange-600">{locationsWithoutQR.length}</div>
@@ -161,6 +305,24 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
               <div className="text-sm text-gray-600">ความครอบคลุม</div>
             </div>
           </div>
+
+          {/* Progress Bar */}
+          {generationProgress && (
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">กำลังสร้าง QR Code...</span>
+                <span className="text-sm text-gray-600">
+                  {generationProgress.current}/{generationProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
@@ -181,6 +343,16 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             >
               <RefreshCw className="h-4 w-4" />
               สร้าง QR ใหม่ทั้งหมด
+            </Button>
+
+            <Button
+              onClick={() => setShowRangeGenerator(true)}
+              disabled={isGenerating}
+              variant="outline"
+              className="flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
+            >
+              <Grid3X3 className="h-4 w-4" />
+              สร้างจาก Range
             </Button>
 
             <Button
@@ -449,6 +621,121 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
         onClose={() => setShowScanner(false)}
         onScanSuccess={handleScanSuccess}
       />
+
+      {/* Range Generator Dialog */}
+      <Dialog open={showRangeGenerator} onOpenChange={setShowRangeGenerator}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Grid3X3 className="h-5 w-5" />
+              สร้าง QR Code จาก Range
+            </DialogTitle>
+            <DialogDescription>
+              กำหนดช่วงของตำแหน่งที่ต้องการสร้าง QR Code
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Row Range */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">แถวเริ่มต้น</label>
+                <Input
+                  value={rangeConfig.startRow}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startRow: e.target.value.toUpperCase() }))}
+                  placeholder="A"
+                  maxLength={1}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">แถวสุดท้าย</label>
+                <Input
+                  value={rangeConfig.endRow}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endRow: e.target.value.toUpperCase() }))}
+                  placeholder="Z"
+                  maxLength={1}
+                />
+              </div>
+            </div>
+
+            {/* Level Range */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">ชั้นเริ่มต้น</label>
+                <Input
+                  type="number"
+                  value={rangeConfig.startLevel}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startLevel: parseInt(e.target.value) || 1 }))}
+                  min={1}
+                  max={10}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">ชั้นสุดท้าย</label>
+                <Input
+                  type="number"
+                  value={rangeConfig.endLevel}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endLevel: parseInt(e.target.value) || 5 }))}
+                  min={1}
+                  max={10}
+                />
+              </div>
+            </div>
+
+            {/* Position Range */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">ตำแหน่งเริ่มต้น</label>
+                <Input
+                  type="number"
+                  value={rangeConfig.startPosition}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startPosition: parseInt(e.target.value) || 1 }))}
+                  min={1}
+                  max={99}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">ตำแหน่งสุดท้าย</label>
+                <Input
+                  type="number"
+                  value={rangeConfig.endPosition}
+                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endPosition: parseInt(e.target.value) || 10 }))}
+                  min={1}
+                  max={99}
+                />
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="text-sm font-medium mb-2">ตัวอย่าง:</div>
+              <div className="text-sm text-gray-600">
+                จะสร้าง {generateLocationRange().length} ตำแหน่ง
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                เช่น: {generateLocationRange().slice(0, 3).join(', ')}...
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                onClick={() => setShowRangeGenerator(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleGenerateFromRange}
+                disabled={isGenerating}
+                className="flex-1"
+              >
+                สร้าง QR Code
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
