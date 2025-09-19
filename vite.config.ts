@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "/",
   server: {
     host: "::",
     port: 8081,
@@ -12,6 +13,20 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       port: 8081, // HMR port should match server port
     },
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-tabs"],
+          utils: ["date-fns", "lodash", "clsx"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
