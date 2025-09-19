@@ -152,17 +152,24 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
     try {
       setLoadingConversion(true);
-      const { data, error } = await supabase
-        .from('product_conversion_rates')
-        .select('*')
-        .eq('sku', sku.toUpperCase())
-        .single();
+      // For now, use a mock data structure since product_conversion_rates table doesn't exist
+      const mockData: ConversionRate = {
+        sku: sku.toUpperCase(),
+        product_name: productName || '',
+        unit_level1_name: 'ลัง',
+        unit_level1_rate: 100,
+        unit_level2_name: 'กล่อง',
+        unit_level2_rate: 10,
+        unit_level3_name: 'ชิ้น',
+      };
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading conversion rate:', error);
-      } else {
-        setConversionRate(data);
+      // For L-series products, use specific rates
+      if (sku.startsWith('L')) {
+        mockData.unit_level1_rate = 504; // 1 ลัง = 504 ชิ้น
+        mockData.unit_level2_rate = 6;   // 1 กล่อง = 6 ชิ้น
       }
+
+      setConversionRate(mockData);
     } catch (error) {
       console.error('Error loading conversion rate:', error);
     } finally {
