@@ -48,35 +48,18 @@ const chulaherb_products = [
   { name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 30 ก.รุ่นหลอด", code: "L8A-30G" },
   { name: "จุฬาเฮิร์บ ดีดี วอเตอร์เมลอน ซันสกรีน 40ก", code: "L3-40G" },
   { name: "จุฬาเฮิร์บ เรดออเร้นจ์ กลูต้า เซรั่ม 6ก", code: "L7-6G" },
-  { name: "จุฬาเฮิร์บ ลองแกน เมลาสม่า เซรั่ม 40 ก.รุ่นหลอด", code: "L4-40G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน 3D ออร่า ซันการ์ด 7ก", code: "L10-7G" },
-  { name: "จุฬาเฮิร์บ ดีดี วอเตอร์เมลอน ซันสกรีน 8ก", code: "L3-8G" },
-  { name: "จุฬาเฮิร์บ เรด ออเรนจ์ ออร่า ไบรท์ บอดี้ โลชั่น 40ก", code: "L11-40G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน ออร่า คลีนซิ่ง วิป โฟม 40ก", code: "L14-40G" },
-  { name: "จุฬาเฮิร์บ ลองแกน เมลาสม่า เซรั่ม 8 ก.รุ่นซอง", code: "L4-8G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน ฟีลเตอร์ ฟิต พาวเดอร์ 10ก", code: "T6A-10G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน ฟีลเตอร์ ฟิต พาวเดอร์ 5ก", code: "T6A-5G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน ไฮโดร ไวท์ เอสเซนส์ 15 ก.", code: "L5-15G" },
-  { name: "จุฬาเฮิร์บ ลองแกน เมลาสม่า โซฟ 70 กรัม", code: "S3-70G" },
-  { name: "จุฬาเฮิร์บ แบล็ก จิงเจอร์ เคลีย เซรั่ม 40 กรัม", code: "C4-40G" },
-  { name: "จุฬาเฮิร์บ แครอท เอจจิ้ง เพอร์เฟค เซรั่ม 8 ก.", code: "L6-8G" },
-  { name: "จุฬาเฮิร์บ แมงโก้ เซรั่ม", code: "J8-40G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน แทททู ลิป 01 ออล สวีท 2ก", code: "T5A-2G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน แทททู ลิป02เบอร์กันดี 2ก", code: "T5B-2G" },
-  { name: "จุฬาเฮิร์บ เมลอน มิลก์ ยูวี เอสเซนส์ 7 ก.", code: "C3-7G" },
-  { name: "จุฬาเฮิร์บ แครอท เอจจิ้ง เพอร์เฟค เซรั่ม 40 ก.", code: "L6-40G" },
-  { name: "จุฬาเฮิร์บ เมลอน มิลก์ ยูวี เอสเซนส์ 8 ก.", code: "J3-8G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน 3D ออร่า ซันการ์ด 30ก", code: "L10-30G" },
-  { name: "จุฬาเฮิร์บ เมลอน มิลก์ ยูวี เอสเซนส์ 30 ก", code: "C3-30G" },
-  { name: "จุฬาเฮิร์บ คาเลนดูล่า แอนติ-แอคเน่ สปอต เจล 6 ก", code: "C1-6G" },
-  { name: "จุฬาเฮิร์บ อโวคาโด มอยส์เจอร์ ครีม 8 ก. รุ่นซอง", code: "L9-8G" },
-  { name: "จุฬาเฮิร์บ แบล็คจิงเจอร์ เคลีย เซรั่ม 8 ก", code: "C4-8G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 02 30 ก.หลอด", code: "L8B-30G" },
-  { name: "จุฬาเฮิร์บ แมริโกลด์ แอคเน่ โซฟ 70กรัม", code: "S1-70G" },
-  { name: "จุฬาเฮิร์บ แบล็ก จิงเจอร์ เคลีย เซรั่ม 35ก หลอด", code: "C4-35G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน ออร่า โซฟ 70กรัม", code: "S2-70G" },
-  { name: "จุฬาเฮิร์บ วอเตอร์เมลอน แทททู ลิป 01 ออล สวีท 2.5ก", code: "T5A-2.5G" },
-  { name: "จุฬาเฮิร์บ เรดออเร้นจ์ กลูต้า เซรั่ม 30 ก ขวด", code: "L7-30G" },
+  { name: "จุฬาเฮิร์บ พลัม คอลลาเจน ไนท์ ครีม 40ก", code: "K1-40G" },
+  { name: "จุฬาเฮิร์บ อัลตร้า ไวท์เทนนิ่ง โบดี้ ครีม 40ก", code: "A3-40G" },
+  { name: "จุฬาเฮิร์บ อัลตร้า ไวท์เทนนิ่ง โบดี้ ครีม 100ก", code: "A3-100G" },
+  { name: "จุฬาเฮิร์บ อัลตร้า ไวท์เทนนิ่ง โบดี้ ครีม 240ก", code: "A3-240G" },
+  { name: "จุฬาเฮิร์บ อัลตร้า ไวท์เทนนิ่ง บอดี้ ครีม 40ก รุ่นซอง", code: "A3-40G-S" },
+  { name: "จุฬาเฮิร์บ นวดเซียงวิเศษไข่ ซูเปอร์ โคลิน", code: "N1-15G" },
+  { name: "จุฬาเฮิร์บ นวดเซียงวิเศษไข่ ซูเปอร์ คูลิ่ง", code: "N2-15G" },
+  { name: "จุฬาเฮิร์บ พลัม คอลลาเจน ไนท์ ครีม 100ก", code: "K1-100G" },
+  { name: "จุฬาเฮิร์บ อันจันสิงห์ ชิงจางเยียฟาง รุ่นใหม่", code: "AN1-30G" },
+  { name: "จุฬาเฮิร์บ บีบี บอดี้โลชั่น 100ก", code: "A1-100G" },
+  { name: "จุฬาเฮิร์บ บีบี บอดี้โลชั่น 40ก หลอด", code: "A1-40G-T" },
+  { name: "จุฬาเฮิร์บ อันจันสิงห์ เอสเซ้นเซีย ลิมิเต็ด เซรั่ม", code: "AN2-6G" },
   { name: "จุฬาเฮิร์บ มาสก์ ลำไยทองคำ 4 ก.", code: "M2-4G" },
   { name: "จุฬาเฮิร์บ วอเตอร์เมลอน แทททู ลิป02เบอร์กันดี 2.5ก", code: "T5B-2.5G" },
   { name: "จุฬาเฮิร์บ วอเตอร์เมลอน สครับ", code: "A2-40G" },
@@ -92,39 +75,51 @@ const chulaherb_products = [
 // Generate complete sample inventory data with multiple lots per product
 export const generateSampleInventoryData = () => {
   const inventoryData = [];
-  
+
   // สร้างหลาย lot ต่อผลิตภัณฑ์เพื่อให้ได้ข้อมูล 350+ รายการ
   chulaherb_products.forEach((product) => {
     // สร้าง 5-8 lot ต่อผลิตภัณฑ์
     const lotsPerProduct = Math.floor(Math.random() * 4) + 5; // 5-8 lots
-    
+
     for (let i = 0; i < lotsPerProduct; i++) {
       const quantities = generateQuantities();
-      
+
       inventoryData.push({
         product_name: product.name,
         sku: product.code,
         location: generateRandomLocation(),
-        box_quantity: quantities.boxes,
-        loose_quantity: quantities.loose,
+        unit_level1_quantity: Math.floor(Math.random() * 5) + 1, // 1-5 ลัง
+        unit_level2_quantity: quantities.boxes, // กล่อง
+        unit_level3_quantity: quantities.loose, // ชิ้น
+        unit_level1_name: 'ลัง',
+        unit_level2_name: 'กล่อง',
+        unit_level3_name: 'ชิ้น',
+        unit_level1_rate: 24, // 1 ลัง = 24 กล่อง
+        unit_level2_rate: 12, // 1 กล่อง = 12 ชิ้น
         lot: generateLotNumber(),
         mfd: generateMFD(),
         user_id: '00000000-0000-0000-0000-000000000000' // Fixed user ID for demo
       });
     }
   });
-  
+
   return inventoryData;
 };
 
-// Pre-generated static sample data (for consistent testing)
+// Pre-generated static sample data (for consistent testing) - ใช้ฟิลด์ unit_level แบบใหม่
 export const sampleInventoryData = [
   {
     product_name: "จุฬาเฮิร์บ บีบี บอดี้โลชั่น 40ก.รุ่นซอง",
     sku: "A1-40G",
     location: "A/2/15",
-    box_quantity: 5,
-    loose_quantity: 12,
+    unit_level1_quantity: 2,
+    unit_level2_quantity: 5,
+    unit_level3_quantity: 12,
+    unit_level1_name: 'ลัง',
+    unit_level2_name: 'กล่อง',
+    unit_level3_name: 'ชิ้น',
+    unit_level1_rate: 24,
+    unit_level2_rate: 12,
     lot: "LOT2024001",
     mfd: "2024-08-15",
     user_id: '00000000-0000-0000-0000-000000000000'
@@ -133,8 +128,14 @@ export const sampleInventoryData = [
     product_name: "จุฬาเฮิร์บ บลูโรส ไวท์เทนนิ่ง อันเดอร์อาร์มครีม10ก",
     sku: "L13-10G",
     location: "B/3/8",
-    box_quantity: 3,
-    loose_quantity: 7,
+    unit_level1_quantity: 1,
+    unit_level2_quantity: 3,
+    unit_level3_quantity: 7,
+    unit_level1_name: 'ลัง',
+    unit_level2_name: 'กล่อง',
+    unit_level3_name: 'ชิ้น',
+    unit_level1_rate: 24,
+    unit_level2_rate: 12,
     lot: "LOT2024002",
     mfd: "2024-09-01",
     user_id: '00000000-0000-0000-0000-000000000000'
@@ -143,83 +144,16 @@ export const sampleInventoryData = [
     product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 6 ก.รุ่นซอง",
     sku: "L8A-6G",
     location: "C/1/12",
-    box_quantity: 8,
-    loose_quantity: 3,
+    unit_level1_quantity: 3,
+    unit_level2_quantity: 8,
+    unit_level3_quantity: 3,
+    unit_level1_name: 'ลัง',
+    unit_level2_name: 'กล่อง',
+    unit_level3_name: 'ชิ้น',
+    unit_level1_rate: 24,
+    unit_level2_rate: 12,
     lot: "LOT2024003",
     mfd: "2024-07-20",
     user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 02 6 ก.รุ่นซอง",
-    sku: "L8B-6G",
-    location: "C/1/13",
-    box_quantity: 6,
-    loose_quantity: 15,
-    lot: "LOT2024004",
-    mfd: "2024-07-20",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 30 ก.รุ่นหลอด",
-    sku: "L8A-30G",
-    location: "C/2/12",
-    box_quantity: 4,
-    loose_quantity: 8,
-    lot: "LOT2024005",
-    mfd: "2024-08-01",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ ดีดี วอเตอร์เมลอน ซันสกรีน 40ก",
-    sku: "L3-40G",
-    location: "D/4/5",
-    box_quantity: 7,
-    loose_quantity: 2,
-    lot: "LOT2024006",
-    mfd: "2024-06-15",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ เรดออเร้นจ์ กลูต้า เซรั่ม 6ก",
-    sku: "L7-6G",
-    location: "E/2/18",
-    box_quantity: 9,
-    loose_quantity: 5,
-    lot: "LOT2024007",
-    mfd: "2024-08-10",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ ลองแกน เมลาสม่า เซรั่ม 40 ก.รุ่นหลอด",
-    sku: "L4-40G",
-    location: "F/1/7",
-    box_quantity: 2,
-    loose_quantity: 18,
-    lot: "LOT2024008",
-    mfd: "2024-05-25",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน 3D ออร่า ซันการ์ด 7ก",
-    sku: "L10-7G",
-    location: "G/3/14",
-    box_quantity: 5,
-    loose_quantity: 11,
-    lot: "LOT2024009",
-    mfd: "2024-07-05",
-    user_id: '00000000-0000-0000-0000-000000000000'
-  },
-  {
-    product_name: "จุฬาเฮิร์บ ดีดี วอเตอร์เมลอน ซันสกรีน 8ก",
-    sku: "L3-8G",
-    location: "D/3/5",
-    box_quantity: 6,
-    loose_quantity: 9,
-    lot: "LOT2024010",
-    mfd: "2024-06-20",
-    user_id: '00000000-0000-0000-0000-000000000000'
   }
-  // ... (remaining products will be generated dynamically or can be added here)
 ];
-
-export default { generateSampleInventoryData, sampleInventoryData };

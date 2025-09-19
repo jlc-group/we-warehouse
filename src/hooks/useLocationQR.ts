@@ -163,51 +163,16 @@ export function useLocationQR() {
     try {
       const normalizedLocation = normalizeLocation(location);
 
-      // Filter items for this location
-      const locationItems = inventoryItems.filter(item => item.location === location);
-
-      // Calculate totals
-      const totals = locationItems.reduce(
-        (acc, item) => ({
-          boxes: acc.boxes + ((item as any).carton_quantity_legacy || 0),
-          loose: acc.loose + ((item as any).box_quantity_legacy || 0),
-          items: acc.items + 1,
-        }),
-        { boxes: 0, loose: 0, items: 0 }
-      );
-
-      // Group by product
-      const groups = new Map<string, InventoryItem[]>();
-      locationItems.forEach(item => {
-        const key = item.sku;
-        if (!groups.has(key)) {
-          groups.set(key, []);
-        }
-        groups.get(key)!.push(item);
-      });
-
-      // Create inventory data for storage
-      const inventoryData: QRDataLocation = {
+      // Create minimal location reference data (no inventory snapshot)
+      const locationData = {
         type: 'WAREHOUSE_LOCATION',
         location: normalizedLocation,
         timestamp: new Date().toISOString(),
-        summary: {
-          total_items: totals.items,
-          total_boxes: totals.boxes,
-          total_loose: totals.loose,
-          product_types: groups.size
-        },
-        items: locationItems.map(item => ({
-          sku: item.sku,
-          product_name: item.product_name,
-          lot: item.lot,
-          mfd: item.mfd,
-          boxes: (item as any).carton_quantity_legacy || 0,
-          loose: (item as any).box_quantity_legacy || 0
-        }))
+        // Note: Real inventory data will be fetched live from database
+        note: 'QR points to location - inventory fetched real-time'
       };
 
-      // Create URL for QR Code that opens add item page
+      // Create URL for QR Code that opens location view
       // Get base URL with environment detection
       let baseUrl = '';
       if (typeof window !== 'undefined') {
@@ -215,9 +180,9 @@ export function useLocationQR() {
 
       }
 
-      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(normalizedLocation)}&action=add`;
+      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(normalizedLocation)}&action=view`;
 
-      // QR Code will contain URL, inventory data stored separately
+      // QR Code contains URL only - no static inventory snapshot
       const qrDataString = qrUrl;
 
       // Generate QR code image as data URL
@@ -247,7 +212,7 @@ export function useLocationQR() {
           location: normalizedLocation,
           qr_code_data: qrDataString,
           qr_image_url: qrImageDataURL,
-          inventory_snapshot: inventoryData as any,
+          inventory_snapshot: locationData as any,
           user_id: fixedUserId,
           is_active: true
         })

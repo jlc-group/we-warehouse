@@ -12,6 +12,8 @@ import { Separator } from '@/components/ui/separator';
 import { MapPin, ArrowRight, Package, AlertCircle, CheckCircle, Truck, ShipIcon } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
+import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
 
 interface LocationTransferModalProps {
   isOpen: boolean;
@@ -40,44 +42,89 @@ export function LocationTransferModal({
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferStatus, setTransferStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  // Get all unique locations from inventory items (this is the actual data)
-  const allLocations = useMemo(() => {
-    const inventoryLocations = new Set(items.map(item => item.location));
-    const locations = Array.from(inventoryLocations).sort();
+  // Get warehouse locations data for empty locations
+  const { locationsWithInventory: warehouseLocations, loading: warehouseLoading } = useWarehouseLocations('', 100);
 
-    // Debug logging สำหรับ track ปัญหา
-    console.log('📍 LocationTransferModal - Updated locations:', {
-      totalItems: items.length,
-      uniqueLocations: locations.length,
-      locations: locations.slice(0, 10), // แสดงแค่ 10 ตัวแรก
-      timestamp: new Date().toISOString()
+  // Generate all possible locations (ShelfGrid pattern + warehouse locations + inventory locations)
+  const getAllPossibleLocations = useMemo(() => {
+    const allLocationSet = new Set<string>();
+
+    // 1. เพิ่มตำแหน่งจาก inventory items (ตำแหน่งที่มีสินค้า) - normalize ให้เป็น format เดียวกัน
+    items.forEach(item => {
+      const normalized = normalizeLocation(item.location);
+      if (normalized) allLocationSet.add(normalized);
     });
 
-    return locations;
-  }, [items]);
+    // 2. เพิ่มตำแหน่งจาก warehouse_locations table (ตำแหน่งที่สร้างไว้) - normalize ให้เป็น format เดียวกัน
+    if (warehouseLocations) {
+      warehouseLocations.forEach(loc => {
+        const normalized = normalizeLocation(loc.location_code);
+        if (normalized) allLocationSet.add(normalized);
+      });
+    }
 
-  // Get location information based on actual inventory data
+    // 3. เพิ่มตำแหน่งตาม ShelfGrid pattern (A/4/1 ถึง N/1/20)
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+    const levels = [4, 3, 2, 1];
+    const positions = Array.from({ length: 20 }, (_, i) => i + 1);
+
+    rows.forEach(row => {
+      levels.forEach(level => {
+        positions.forEach(position => {
+          const location = formatLocation(row, level, position);
+          allLocationSet.add(location);
+        });
+      });
+    });
+
+    const locations = Array.from(allLocationSet).sort();
+
+    // Debug logging (disabled to prevent console spam)
+    // console.log('📍 LocationTransferModal - All possible locations:', {
+    //   totalItems: items.length,
+    //   inventoryLocations: items.length > 0 ? [...new Set(items.map(item => item.location))].length : 0,
+    //   warehouseLocations: warehouseLocations?.length || 0,
+    //   generatedLocations: rows.length * levels.length * positions.length,
+    //   totalUniqueLocations: locations.length,
+    //   examples: locations.slice(0, 10),
+    //   timestamp: new Date().toISOString()
+    // });
+
+    return locations;
+  }, [items, warehouseLocations]);
+
+  const allLocations = getAllPossibleLocations;
+
+  // Get comprehensive location information
   const getLocationInfo = (locationCode: string) => {
-    const inventoryItems = items.filter(item => item.location === locationCode);
+    const normalizedTarget = normalizeLocation(locationCode);
+    const inventoryItems = items.filter(item => normalizeLocation(item.location) === normalizedTarget);
+    const warehouseLocation = warehouseLocations?.find(loc => normalizeLocation(loc.location_code) === normalizedTarget);
 
     return {
       locationCode,
       inventoryCount: inventoryItems.length,
       isEmpty: inventoryItems.length === 0,
-      description: `ตำแหน่งคลัง ${locationCode}`
+      description: warehouseLocation?.description || `ตำแหน่งคลัง ${locationCode}`,
+      capacity: warehouseLocation?.capacity_boxes || 0,
+      utilization: warehouseLocation?.utilization_percentage || 0,
+      isWareHouseLocation: !!warehouseLocation,
+      isGeneratedLocation: !warehouseLocation && inventoryItems.length === 0
     };
   };
 
   // Get items for source location
   const sourceItems = useMemo(() => {
     if (!sourceLocation) return [];
-    return items.filter(item => item.location === sourceLocation);
+    const normalizedSource = normalizeLocation(sourceLocation);
+    return items.filter(item => normalizeLocation(item.location) === normalizedSource);
   }, [items, sourceLocation]);
 
   // Get items for target location
   const targetItems = useMemo(() => {
     if (!targetLocation) return [];
-    return items.filter(item => item.location === targetLocation);
+    const normalizedTarget = normalizeLocation(targetLocation);
+    return items.filter(item => normalizeLocation(item.location) === normalizedTarget);
   }, [items, targetLocation]);
 
   // Check if target location is available (empty)
@@ -302,9 +349,24 @@ export function LocationTransferModal({
                             <SelectItem key={location} value={location}>
                               <div className="flex items-center justify-between w-full">
                                 <span>{location}</span>
-                                <Badge variant={locationInfo.isEmpty ? "outline" : "secondary"} className="ml-2 text-xs">
-                                  {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
-                                </Badge>
+                                <div className="flex items-center gap-1">
+                                  {locationInfo.isGeneratedLocation && (
+                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                      Grid
+                                    </Badge>
+                                  )}
+                                  {locationInfo.isWareHouseLocation && (
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                      WH
+                                    </Badge>
+                                  )}
+                                  <Badge
+                                    variant={locationInfo.isEmpty ? "outline" : "secondary"}
+                                    className="ml-1 text-xs"
+                                  >
+                                    {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
+                                  </Badge>
+                                </div>
                               </div>
                             </SelectItem>
                           );
@@ -341,12 +403,24 @@ export function LocationTransferModal({
                               <SelectItem key={location} value={location} disabled={!locationInfo.isEmpty}>
                                 <div className="flex items-center justify-between w-full">
                                   <span>{location}</span>
-                                  <Badge
-                                    variant={locationInfo.isEmpty ? "outline" : "destructive"}
-                                    className="ml-2 text-xs"
-                                  >
-                                    {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
-                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    {locationInfo.isGeneratedLocation && (
+                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                        Grid
+                                      </Badge>
+                                    )}
+                                    {locationInfo.isWareHouseLocation && (
+                                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                        WH
+                                      </Badge>
+                                    )}
+                                    <Badge
+                                      variant={locationInfo.isEmpty ? "outline" : "destructive"}
+                                      className="ml-1 text-xs"
+                                    >
+                                      {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </SelectItem>
                             );

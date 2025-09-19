@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
-import { generateSampleInventoryData } from '@/data/sampleInventory';
+// Dynamic import for better code splitting
 import { createInventoryItems } from '@/data/userRecoveryData';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
@@ -32,11 +32,19 @@ export function useInventory() {
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
+      setConnectionStatus('connecting');
 
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Request timeout')), 8000)
+      );
+
+      const fetchPromise = supabase
         .from('inventory_items')
         .select('*')
         .order('location');
+
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('Fetch error:', error);
@@ -44,13 +52,45 @@ export function useInventory() {
       }
 
       setItems(data || []);
+      setConnectionStatus('connected');
+
+      // If no data, load sample data
+      if (!data || data.length === 0) {
+        console.log('📦 No data found, loading sample data...');
+        const { generateSampleInventoryData } = await import('@/data/sampleInventory');
+        const sampleData = generateSampleInventoryData();
+        setItems(sampleData.slice(0, 50)); // Load only first 50 items for performance
+
+        toast({
+          title: '📦 ข้อมูลตัวอย่าง',
+          description: 'ไม่พบข้อมูลในระบบ กำลังโหลดข้อมูลตัวอย่าง',
+        });
+      }
+
     } catch (error) {
       console.error('Error fetching inventory items:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
-        variant: 'destructive',
-      });
+      setConnectionStatus('disconnected');
+
+      // Fallback to sample data if connection fails
+      console.log('🔄 Connection failed, loading sample data...');
+      try {
+        const { generateSampleInventoryData } = await import('@/data/sampleInventory');
+        const sampleData = generateSampleInventoryData();
+        setItems(sampleData.slice(0, 50));
+
+        toast({
+          title: '⚠️ โหลดข้อมูลตัวอย่าง',
+          description: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ใช้ข้อมูลตัวอย่างแทน',
+          variant: 'destructive',
+        });
+      } catch (fallbackError) {
+        console.error('Failed to load sample data:', fallbackError);
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: 'ไม่สามารถโหลดข้อมูลได้',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -235,10 +275,104 @@ export function useInventory() {
     }
   };
 
+  const exportItem = async (id: string, cartonQty: number, boxQty: number, looseQty: number, destination: string, notes?: string) => {
+    try {
+      // Get current item
+      const currentItem = items.find(item => item.id === id);
+      if (!currentItem) {
+        throw new Error('ไม่พบสินค้าที่ต้องการส่งออก');
+      }
+
+      // Calculate new quantities
+      const currentCartonQty = Number(currentItem.unit_level1_quantity) || 0;
+      const currentBoxQty = Number(currentItem.unit_level2_quantity) || 0;
+      const currentLooseQty = Number(currentItem.unit_level3_quantity) || 0;
+
+      // Validate quantities
+      if (currentCartonQty < cartonQty) {
+        throw new Error(`จำนวนลังในคลังไม่เพียงพอ (มีอยู่ ${currentCartonQty} ลัง)`);
+      }
+      if (currentBoxQty < boxQty) {
+        throw new Error(`จำนวนกล่องในคลังไม่เพียงพอ (มีอยู่ ${currentBoxQty} กล่อง)`);
+      }
+      if (currentLooseQty < looseQty) {
+        throw new Error(`จำนวนชิ้นในคลังไม่เพียงพอ (มีอยู่ ${currentLooseQty} ชิ้น)`);
+      }
+
+      const newCartonQty = currentCartonQty - cartonQty;
+      const newBoxQty = currentBoxQty - boxQty;
+      const newLooseQty = currentLooseQty - looseQty;
+
+      // Update inventory
+      const { data: updatedItem, error: updateError } = await supabase
+        .from('inventory_items')
+        .update({
+          unit_level1_quantity: newCartonQty,
+          unit_level2_quantity: newBoxQty,
+          unit_level3_quantity: newLooseQty
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Update error:', updateError);
+        throw updateError;
+      }
+
+      // Record movement
+      const { error: movementError } = await supabase
+        .from('inventory_movements')
+        .insert({
+          inventory_item_id: id,
+          movement_type: 'export',
+          location_before: currentItem.location,
+          location_after: destination,
+          box_quantity_before: currentCartonQty,
+          box_quantity_after: newCartonQty,
+          box_quantity_change: -cartonQty,
+          loose_quantity_before: currentLooseQty,
+          loose_quantity_after: newLooseQty,
+          loose_quantity_change: -looseQty,
+          notes: notes || `ส่งออกไปยัง ${destination} (ลัง: ${cartonQty}, กล่อง: ${boxQty}, ชิ้น: ${looseQty})`,
+          created_by: 'user'
+        });
+
+      if (movementError) {
+        console.error('Movement error:', movementError);
+        // Don't throw here, the update already succeeded
+      }
+
+      // Update local state
+      setItems(prev => prev.map(item => item.id === id ? updatedItem : item));
+
+      const totalItems = cartonQty + boxQty + looseQty;
+      const itemDetails = [
+        cartonQty > 0 ? `${cartonQty} ลัง` : '',
+        boxQty > 0 ? `${boxQty} กล่อง` : '',
+        looseQty > 0 ? `${looseQty} ชิ้น` : ''
+      ].filter(Boolean).join(', ');
+
+      toast({
+        title: 'ส่งออกสำเร็จ',
+        description: `ส่งสินค้า ${itemDetails} ไปยัง ${destination}`,
+      });
+    } catch (error: unknown) {
+      const supabaseError = isSupabaseError(error) ? error : {};
+      console.error('Error exporting inventory item:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: `ไม่สามารถส่งออกสินค้าได้: ${supabaseError.message || 'Unknown error'}`,
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   useEffect(() => {
     fetchItems();
 
-    // Set up real-time subscription
+    // Set up real-time subscription with optimized updates
     const channel = supabase
       .channel('inventory_changes')
       .on(
@@ -249,7 +383,28 @@ export function useInventory() {
           table: 'inventory_items'
         },
         (payload) => {
-          fetchItems(); // Refresh data on any change
+          console.log('🔄 Real-time update received:', payload.eventType, payload.new || payload.old);
+
+          // Handle different types of changes for optimized performance
+          if (payload.eventType === 'INSERT' && payload.new) {
+            setItems(prev => [...prev, payload.new as InventoryItem].sort((a, b) => a.location.localeCompare(b.location)));
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            setItems(prev => prev.map(item =>
+              item.id === payload.new.id ? payload.new as InventoryItem : item
+            ).sort((a, b) => a.location.localeCompare(b.location)));
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            setItems(prev => prev.filter(item => item.id !== payload.old.id));
+          } else {
+            // Fallback to full refresh for complex operations
+            fetchItems();
+          }
+
+          // Show toast notification for real-time updates
+          toast({
+            title: '🔄 อัปเดตแบบเรียลไทม์',
+            description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว`,
+            duration: 2000,
+          });
         }
       )
       .subscribe();
@@ -257,7 +412,7 @@ export function useInventory() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchItems]);
+  }, [fetchItems, toast]);
 
   const loadSampleData = async () => {
     try {
@@ -649,6 +804,7 @@ export function useInventory() {
     addItem,
     updateItem,
     deleteItem,
+    exportItem,
     transferItems,
     shipOutItems,
     refetch: fetchItems,

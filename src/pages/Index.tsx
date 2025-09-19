@@ -6,18 +6,19 @@ import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModalSimple } from '@/components/InventoryModalSimple';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
-import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
+import { EnhancedOverview } from '@/components/EnhancedOverview';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
+import { QRScanner } from '@/components/QRScanner';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
 const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
-const ProductConfiguration = lazy(() => import('@/components/ProductConfiguration'));
+// const ProductConfiguration = lazy(() => import('@/components/ProductConfiguration'));
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ComponentLoadingFallback } from '@/components/ui/loading-fallback';
 import { Button } from '@/components/ui/button';
@@ -25,12 +26,13 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus, User, LogOut, Settings, Users, Warehouse, Bell, MapPin, Truck } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
+import { UnitConversionSettings } from '@/components/UnitConversionSettings';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -53,6 +55,7 @@ const Index = memo(() => {
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [activeTab, setActiveTab] = useState<string>('overview');
+  const [showScanner, setShowScanner] = useState(false);
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
@@ -61,14 +64,11 @@ const Index = memo(() => {
     items: inventoryItems,
     loading,
     connectionStatus,
-    isOfflineMode,
     addItem,
     updateItem,
+    exportItem,
     transferItems,
-    retryConnection,
-    emergencyRecovery,
     bulkUploadToSupabase,
-    recoverUserData,
     importData,
     accessSummary,
     permissions,
@@ -118,20 +118,43 @@ const Index = memo(() => {
     }
 
     // Handle QR code scan with location and action
-    if (location && action === 'add') {
-
+    if (location && (action === 'add' || action === 'view')) {
       // Delay modal opening slightly to ensure tab is set first
       setTimeout(() => {
         setSelectedLocation(location);
-        setIsModalOpen(true);
-
-        // Add toast notification to confirm it worked
-        toast({
-          title: '🔍 QR Code แสกนสำเร็จ',
-          description: `เปิดหน้าเพิ่มสินค้าสำหรับตำแหน่ง: ${location}`,
-          duration: 5000,
-        });
-
+        
+        if (action === 'add') {
+          setIsModalOpen(true);
+          toast({
+            title: `🎯 เปิดฟอร์มเพิ่มสินค้าที่ตำแหน่ง: ${location}`,
+            description: 'QR Code ทำงานถูกต้อง - กรุณากรอกข้อมูลสินค้า',
+            duration: 5000,
+          });
+        } else if (action === 'view') {
+          // For view action, find items at this location and show QR modal with real data
+          const locationItems = inventoryItems.filter(item => 
+            item.location === location || 
+            item.location.replace(/\s+/g, '') === location.replace(/\s+/g, '')
+          );
+          
+          // Always show QR modal with real inventory data
+          setQrSelectedLocation(location);
+          setIsQRModalOpen(true);
+          
+          if (locationItems.length > 0) {
+            toast({
+              title: `📍 ข้อมูลตำแหน่ง: ${location}`,
+              description: `พบ ${locationItems.length} รายการสินค้า`,
+              duration: 5000,
+            });
+          } else {
+            toast({
+              title: `📍 ตำแหน่งว่าง: ${location}`,
+              description: 'ยังไม่มีสินค้าในตำแหน่งนี้',
+              duration: 5000,
+            });
+          }
+        }
       }, 100);
 
       // Clear URL parameters after handling (with longer delay)
@@ -145,7 +168,7 @@ const Index = memo(() => {
         navigate(newUrl, { replace: true });
       }, 1000);
     }
-  }, [searchParams, navigate, toast]);
+  }, [searchParams, navigate, toast, inventoryItems]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
@@ -167,6 +190,8 @@ const Index = memo(() => {
     quantity_boxes: number;
     quantity_loose: number;
     unit?: string;
+    unit_level1_rate?: number;
+    unit_level2_rate?: number;
   }) => {
     try {
       // Comprehensive validation before processing
@@ -295,19 +320,18 @@ const Index = memo(() => {
   }, [toast]);
 
   const handleTestQRUrl = useCallback(() => {
-    const testLocation = 'TEST-A01';
-    const testUrl = `${window.location.origin}?tab=overview&location=${encodeURIComponent(testLocation)}&action=add`;
+    // Test the QR URL functionality
+    const testLocation = 'A/4/07';
 
     toast({
-      title: '🧪 Testing QR URL',
-      description: `Navigating to test URL with location: ${testLocation}`,
+      title: '🧪 Test QR URL สำหรับ A/4/07',
+      description: `จะเปิดหน้า QR Modal พร้อมข้อมูลจริง`,
       duration: 3000,
     });
 
-    setTimeout(() => {
-      window.location.href = testUrl;
-    }, 500);
-  }, [toast]);
+    // Navigate to the test URL
+    navigate(`?tab=overview&location=${encodeURIComponent(testLocation)}&action=view`);
+  }, [navigate, toast]);
 
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
@@ -415,7 +439,13 @@ const Index = memo(() => {
             </div>
           </CardHeader>
           <CardContent className="bg-white">
-            {inventoryItems.length === 0 && !loading && (
+            {loading && (
+              <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+                <ComponentLoadingFallback componentName="ระบบคลังสินค้า" />
+              </div>
+            )}
+
+            {!loading && inventoryItems.length === 0 && (
               <div className="mb-6 p-6 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="text-center space-y-4">
                   <div className="text-orange-600 text-lg font-semibold">
@@ -424,6 +454,21 @@ const Index = memo(() => {
                   <p className="text-muted-foreground">
                     ระบบไม่พบข้อมูลสินค้าในคลัง กรุณาใช้แท็บ "กู้คืนข้อมูล" เพื่อเพิ่มข้อมูล
                   </p>
+                </div>
+              </div>
+            )}
+
+            {!loading && inventoryItems.length > 0 && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="text-green-700 font-medium">
+                    ✅ พบข้อมูลสินค้า {inventoryItems.length} รายการ
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    สถานะ: {connectionStatus === 'connected' ? '🟢 เชื่อมต่อแล้ว' :
+                           connectionStatus === 'connecting' ? '🟡 กำลังเชื่อมต่อ...' :
+                           '🔴 ไม่สามารถเชื่อมต่อได้'}
+                  </div>
                 </div>
               </div>
             )}
@@ -553,14 +598,15 @@ const Index = memo(() => {
           </TabsContent>
 
           <TabsContent value="overview" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <ProductOverviewAndSearch
-                items={inventoryItems}
-                onShelfClick={handleShelfClick}
-              />
-            )}
+            <EnhancedOverview
+              items={inventoryItems}
+              onShelfClick={handleShelfClick}
+              onAddItem={() => setIsModalOpen(true)}
+              onTransferItem={() => setIsTransferModalOpen(true)}
+              onExportItem={exportItem}
+              onScanQR={() => setShowScanner(true)}
+              loading={loading}
+            />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
@@ -681,9 +727,7 @@ const Index = memo(() => {
           )}
 
           <TabsContent value="config" className="space-y-4">
-            <Suspense fallback={<ComponentLoadingFallback componentName="Product Configuration" />}>
-              <ProductConfiguration />
-            </Suspense>
+            <UnitConversionSettings />
           </TabsContent>
           {showAdminFeatures && (
             <TabsContent value="admin" className="space-y-4">
@@ -732,6 +776,13 @@ const Index = memo(() => {
           onTransfer={transferItems}
           items={inventoryItems}
           onRefreshData={refetch}
+        />
+
+        {/* QR Scanner */}
+        <QRScanner
+          isOpen={showScanner}
+          onClose={() => setShowScanner(false)}
+          onScanSuccess={handleShelfClick}
         />
       </div>
     </div>

@@ -835,7 +835,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                       <div className="overflow-x-auto">
                         <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
                           {positions.map((position) => {
-                            const location = `${row}/${level}/${position}`;
+                            const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
                             const locationItems = itemsByLocation[location] || [];
                             const locationColor = getLocationColor(location);
                             const totalQuantity = locationItems.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0);

@@ -239,6 +239,23 @@ export function useDepartmentInventory() {
     return inventoryHook.shipOutItems(itemIds, notes);
   }, [permissions.canDelete, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
 
+  // Export item with permission check
+  const exportItemWithPermission = useCallback(async (id: string, cartonQty: number, boxQty: number, looseQty: number, destination: string, notes?: string) => {
+    if (!permissions.canEdit) {
+      recordPermissionDenied('export_item', `User in department ${user?.department} with role level ${user?.role_level} cannot export items`);
+      throw new Error('คุณไม่มีสิทธิ์ส่งออกสินค้าในระบบ');
+    }
+
+    // Additional check: can user access this specific item?
+    const item = allItems.find(item => item.id === id);
+    if (!item || !checkItemAccess(item)) {
+      recordPermissionDenied('export_item', `User cannot access item with id ${id}`);
+      throw new Error('คุณไม่มีสิทธิ์เข้าถึงสินค้านี้');
+    }
+
+    return inventoryHook.exportItem(id, cartonQty, boxQty, looseQty, destination, notes);
+  }, [permissions.canEdit, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
+
   return {
     // Filtered data based on department permissions
     items,
@@ -248,6 +265,7 @@ export function useDepartmentInventory() {
     addItem: addItemWithPermission,
     updateItem: updateItemWithPermission,
     deleteItem: deleteItemWithPermission,
+    exportItem: exportItemWithPermission,
     transferItems: transferItemsWithPermission,
     shipOutItems: shipOutItemsWithPermission,
 

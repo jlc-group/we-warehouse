@@ -178,7 +178,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
       const rowChar = String.fromCharCode(row);
       for (let level = startLevel; level <= endLevel; level++) {
         for (let position = startPosition; position <= endPosition; position++) {
-          locations.push(`${rowChar}${level}${position.toString().padStart(2, '0')}`);
+          locations.push(`${rowChar}/${level}/${position.toString().padStart(2, '0')}`);
         }
       }
     }

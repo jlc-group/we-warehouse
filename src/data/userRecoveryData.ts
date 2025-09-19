@@ -8,7 +8,7 @@ export const userRecoveryData: Array<Omit<InventoryItem, 'id' | 'created_at' | '
   {
     product_name: "จุฬาเฮิร์บ บีบี บอดี้โลชั่น 40ก.รุ่นซอง",
     sku: "A1-40G",
-    location: "A/1/1",
+    location: "A/1/01",
     box_quantity: 5,
     loose_quantity: 12,
     lot: "LOT2024001",
@@ -18,7 +18,7 @@ export const userRecoveryData: Array<Omit<InventoryItem, 'id' | 'created_at' | '
   {
     product_name: "จุฬาเฮิร์บ บลูโรส ไวท์เทนนิ่ง อันเดอร์อาร์มครีม10ก",
     sku: "L13-10G",
-    location: "A/1/2",
+    location: "A/1/02",
     box_quantity: 8,
     loose_quantity: 15,
     lot: "LOT2024002",
@@ -28,7 +28,7 @@ export const userRecoveryData: Array<Omit<InventoryItem, 'id' | 'created_at' | '
   {
     product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 6 ก.รุ่นซอง",
     sku: "L8A-6G",
-    location: "A/1/3",
+    location: "A/1/03",
     box_quantity: 3,
     loose_quantity: 8,
     lot: "LOT2024003",
@@ -38,7 +38,7 @@ export const userRecoveryData: Array<Omit<InventoryItem, 'id' | 'created_at' | '
   {
     product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 02 6 ก.รุ่นซอง",
     sku: "L8B-6G",
-    location: "A/1/4",
+    location: "A/1/04",
     box_quantity: 4,
     loose_quantity: 10,
     lot: "LOT2024004",
@@ -48,7 +48,7 @@ export const userRecoveryData: Array<Omit<InventoryItem, 'id' | 'created_at' | '
   {
     product_name: "จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 30 ก.รุ่นหลอด",
     sku: "L8A-30G",
-    location: "A/1/5",
+    location: "A/1/05",
     box_quantity: 6,
     loose_quantity: 14,
     lot: "LOT2024005",

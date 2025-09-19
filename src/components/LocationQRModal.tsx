@@ -2,10 +2,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { QrCode, MapPin, Package, Clock, Download } from 'lucide-react';
+import { QrCode, MapPin, Package, Clock, Download, RefreshCw } from 'lucide-react';
 import { useMemo, useEffect, useRef, useState, memo, useCallback } from 'react';
 import QRCodeLib from 'qrcode';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useLocationQR } from '@/hooks/useLocationQR';
+import { normalizeLocation } from '@/utils/locationUtils';
 
 interface LocationQRModalProps {
   isOpen: boolean;
@@ -17,10 +19,19 @@ interface LocationQRModalProps {
 export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, location, items }: LocationQRModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
+  
+  // Use QR hook to get existing QR or generate new one
+  const { getQRByLocation, generateQRForLocation, loading: qrLoading } = useLocationQR();
+  
+  // Get existing QR for this location
+  const existingQR = useMemo(() => {
+    return getQRByLocation(location);
+  }, [getQRByLocation, location]);
 
-  // Filter items for this location
+  // Filter items for this location using normalized comparison
   const locationItems = useMemo(() => {
-    return items.filter(item => item.location === location);
+    const normalizedLocation = normalizeLocation(location);
+    return items.filter(item => normalizeLocation(item.location) === normalizedLocation);
   }, [items, location]);
 
   // Calculate totals using multi-level unit system
@@ -91,11 +102,19 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
     return JSON.stringify(locationData);
   }, [location, locationItems, totals, productGroups]);
 
-  // Generate QR Code
+  // Generate QR Code - use existing QR if available, otherwise create new one
   useEffect(() => {
     if (isOpen && location && canvasRef.current) {
-      QRCodeLib.toCanvas(canvasRef.current, qrData, {
-        width: 192, // 48 * 4 for high resolution
+      let qrDataToUse = qrData;
+      
+      // If we have existing QR, use its data
+      if (existingQR?.qr_code_data) {
+        qrDataToUse = existingQR.qr_code_data;
+      }
+      
+      // Render QR to canvas
+      QRCodeLib.toCanvas(canvasRef.current, qrDataToUse, {
+        width: 192,
         margin: 1,
         color: {
           dark: '#000000',
@@ -104,12 +123,19 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
       }).catch(console.error);
 
       // Also generate data URL for download
-      QRCodeLib.toDataURL(qrData, {
+      QRCodeLib.toDataURL(qrDataToUse, {
         width: 512,
         margin: 2
       }).then(setQrCodeDataURL).catch(console.error);
     }
-  }, [isOpen, location, qrData]);
+  }, [isOpen, location, qrData, existingQR]);
+
+  // Generate QR if it doesn't exist
+  const handleGenerateQR = useCallback(async () => {
+    if (!existingQR && !qrLoading) {
+      await generateQRForLocation(location, items);
+    }
+  }, [existingQR, qrLoading, generateQRForLocation, location, items]);
 
   const downloadQR = useCallback(() => {
     if (qrCodeDataURL) {
@@ -145,29 +171,47 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
-                <Download className="h-4 w-4" />
-                ดาวน์โหลด QR Code
-              </Button>
-              <Button
-                onClick={() => {
-                  if (navigator.share && qrCodeDataURL) {
-                    fetch(qrCodeDataURL)
-                      .then(res => res.blob())
-                      .then(blob => {
-                        const file = new File([blob], `location-${location.replace(/\//g, '-')}-qr.png`, { type: 'image/png' });
-                        navigator.share({ files: [file], title: `QR Code - ตำแหน่ง ${location}` });
-                      })
-                      .catch(console.error);
-                  }
-                }}
-                variant="outline"
-                className="flex items-center gap-2"
-                disabled={!qrCodeDataURL || !navigator.share}
-              >
-                <QrCode className="h-4 w-4" />
-                แชร์
-              </Button>
+              {!existingQR ? (
+                <Button 
+                  onClick={handleGenerateQR} 
+                  variant="default" 
+                  className="flex items-center gap-2" 
+                  disabled={qrLoading}
+                >
+                  {qrLoading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <QrCode className="h-4 w-4" />
+                  )}
+                  สร้าง QR Code
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
+                    <Download className="h-4 w-4" />
+                    ดาวน์โหลด QR Code
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (navigator.share && qrCodeDataURL) {
+                        fetch(qrCodeDataURL)
+                          .then(res => res.blob())
+                          .then(blob => {
+                            const file = new File([blob], `location-${location.replace(/\//g, '-')}-qr.png`, { type: 'image/png' });
+                            navigator.share({ files: [file], title: `QR Code - ตำแหน่ง ${location}` });
+                          })
+                          .catch(console.error);
+                      }
+                    }}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                    disabled={!qrCodeDataURL || !navigator.share}
+                  >
+                    <QrCode className="h-4 w-4" />
+                    แชร์
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -308,10 +352,30 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
             </Card>
           )}
 
+          {/* QR Status */}
+          {existingQR && (
+            <Card className="bg-green-50 border-green-200">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <QrCode className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-800">QR Code พร้อมใช้งาน</span>
+                  </div>
+                  <div className="text-xs text-green-600">
+                    สร้างเมื่อ: {new Date(existingQR.generated_at || existingQR.created_at).toLocaleString('th-TH')}
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-green-700">
+                  📱 สแกน QR Code นี้เพื่อดูข้อมูลล่าสุดของตำแหน่ง {location}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Last Updated */}
           <div className="flex items-center justify-center text-xs text-gray-500">
             <Clock className="h-3 w-3 mr-1" />
-            อัพเดตล่าสุด: {new Date().toLocaleString('th-TH')}
+            ข้อมูลอัพเดต: {new Date().toLocaleString('th-TH')}
           </div>
         </div>
       </DialogContent>

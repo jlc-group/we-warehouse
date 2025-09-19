@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw
 import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
+import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
 
 interface ShelfGridProps {
   items: InventoryItem[];
@@ -38,9 +39,51 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
   const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
   const [showScanner, setShowScanner] = useState(false);
+  const [recentlyUpdatedLocations, setRecentlyUpdatedLocations] = useState<Set<string>>(new Set());
+
+  // Helpers for quantity fields across schemas (ให้ตรงกับ EnhancedOverview)
+  const getCartonQty = (item: any) => Number(item.unit_level1_quantity ?? item.carton_quantity_legacy ?? 0) || 0;
+  const getBoxQty = (item: any) => Number(item.unit_level2_quantity ?? item.box_quantity_legacy ?? 0) || 0;
 
   // Use QR code data
   const { qrCodes, getQRByLocation, refetch, loading } = useLocationQR();
+
+  // Track real-time updates for visual indicators
+  const previousItemsRef = useRef(new Map<string, InventoryItem>());
+
+  useEffect(() => {
+    // Check for location changes and highlight updated locations
+    const currentLocations = new Map(items.map(item => [item.location, item]));
+    const updatedLocations = new Set<string>();
+
+    // Find locations with changes
+    currentLocations.forEach((currentItem, location) => {
+      const previousItem = previousItemsRef.current.get(location);
+      if (!previousItem ||
+          getCartonQty(previousItem) !== getCartonQty(currentItem) ||
+          getBoxQty(previousItem) !== getBoxQty(currentItem)) {
+        updatedLocations.add(location);
+      }
+    });
+
+    // Find new locations
+    currentLocations.forEach((_, location) => {
+      if (!previousItemsRef.current.has(location)) {
+        updatedLocations.add(location);
+      }
+    });
+
+    if (updatedLocations.size > 0) {
+      setRecentlyUpdatedLocations(updatedLocations);
+      // Clear highlights after 3 seconds
+      setTimeout(() => {
+        setRecentlyUpdatedLocations(new Set());
+      }, 3000);
+    }
+
+    // Update the ref for next comparison
+    previousItemsRef.current = currentLocations;
+  }, [items]);
 
   // Handle QR scan success
   const handleScanSuccess = useCallback((location: string, data: any) => {
@@ -84,13 +127,14 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
     };
   }, [items]);
 
-  // Create a map for multiple items per location
+  // Create a map for multiple items per location (with normalized locations)
   const itemsByLocation = useMemo(() => {
     return items.reduce((acc, item) => {
-      if (!acc[item.location]) {
-        acc[item.location] = [];
+      const normalizedLocation = normalizeLocation(item.location);
+      if (!acc[normalizedLocation]) {
+        acc[normalizedLocation] = [];
       }
-      acc[item.location].push(item);
+      acc[normalizedLocation].push(item);
       return acc;
     }, {} as Record<string, InventoryItem[]>);
   }, [items]);
@@ -302,19 +346,20 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                   <div className="overflow-x-auto scroll-smooth">
                     <div className="flex gap-1.5 pb-2" style={{ minWidth: 'max-content' }}>
                       {positions.map((position) => {
-                        const location = `${row}/${level}/${position}`;
+                        const location = formatLocation(row, level, position);
                         const locationItems = itemsByLocation[location] || [];
                         const isSelected = selectedShelf === location;
                         const isHighlighted = highlightedLocations.includes(location);
+                        const isRecentlyUpdated = recentlyUpdatedLocations.has(location);
                         const itemCount = locationItems.length;
-                         // Null-safe calculation using ACTUAL database schema
+                         // Null-safe calculation using consistent quantity helpers
                          const totalBoxes = locationItems.reduce((sum, item) => {
-                           const value = Number((item as any).carton_quantity_legacy ?? 0);
+                           const value = getCartonQty(item);
                            return sum + (isNaN(value) ? 0 : value);
                          }, 0);
 
                          const totalLoose = locationItems.reduce((sum, item) => {
-                           const value = Number((item as any).box_quantity_legacy ?? 0);
+                           const value = getBoxQty(item);
                            return sum + (isNaN(value) ? 0 : value);
                          }, 0);
 
@@ -331,7 +376,9 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                   w-32 h-28 transition-all duration-200 ease-out hover:shadow-md flex-shrink-0 relative group cursor-pointer
                                   ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.02] z-10 border-primary/50' : ''}
                                   ${isHighlighted ? 'ring-2 ring-amber-400 bg-amber-50 shadow-md border-amber-300' : ''}
-                                  ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400'}
+                                  ${isRecentlyUpdated ? 'ring-2 ring-green-400 bg-green-100 shadow-lg animate-pulse border-green-400' : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && itemCount === 0 ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
                                 `}
                                 style={{ willChange: 'transform' }}
                               >
