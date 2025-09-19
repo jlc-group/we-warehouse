@@ -27,6 +27,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [showDemoInfo, setShowDemoInfo] = useState(false);
 
   const { signIn } = useAuth();
 
@@ -204,6 +205,52 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
             )}
 
             <div className="text-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDemoInfo(!showDemoInfo)}
+                disabled={isLoading}
+                className="mb-2"
+              >
+                {showDemoInfo ? 'ซ่อน' : 'แสดง'}ข้อมูลผู้ใช้ทดสอบ
+              </Button>
+
+              {showDemoInfo && (
+                <div className="bg-blue-50 p-3 rounded-lg text-left text-xs space-y-2 mb-2">
+                  <p className="font-semibold text-blue-800">ผู้ใช้ทดสอบ (รหัสผ่าน: password)</p>
+                  <div className="space-y-1">
+                    <p><strong>admin@warehouse.com</strong> - ผู้ดูแลระบบ (ระดับ 5)</p>
+                    <p><strong>manager@warehouse.com</strong> - หัวหน้าคลัง (ระดับ 4)</p>
+                    <p><strong>qc@warehouse.com</strong> - หัวหน้า QC (ระดับ 3)</p>
+                    <p><strong>staff@warehouse.com</strong> - พนักงานคลัง (ระดับ 2)</p>
+                  </div>
+                  <div className="mt-2 space-x-1">
+                    {[
+                      { email: 'admin@warehouse.com', label: 'Admin' },
+                      { email: 'manager@warehouse.com', label: 'Manager' },
+                      { email: 'qc@warehouse.com', label: 'QC' },
+                      { email: 'staff@warehouse.com', label: 'Staff' }
+                    ].map(({ email, label }) => (
+                      <Button
+                        key={email}
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="text-xs px-2 py-1 h-auto"
+                        onClick={() => {
+                          setValue('email', email);
+                          setValue('password', 'password');
+                        }}
+                        disabled={isLoading}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-muted-foreground">
                 ระบบจัดการคลังสินค้า v1.0
               </p>

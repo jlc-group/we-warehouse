@@ -58,40 +58,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  // Login function ที่ใช้ตาราง users
+  // Login function ที่ใช้ demo users สำหรับการทดสอบ
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
 
-      // เรียก function authenticate_user ใน Supabase
-      const { data, error } = await supabase.rpc('authenticate_user', {
-        user_email: email,
-        user_password: password
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-      }
-
-      const userData = data[0];
-      const user: User = {
-        id: userData.user_id,
-        email: userData.email,
-        full_name: userData.full_name,
-        department: userData.department || 'ทั่วไป',
-        role: userData.role || 'ผู้ใช้งาน',
-        role_level: userData.role_level ?? 1,
-        employee_code: userData.employee_code,
-        is_active: userData.is_active
+      // Demo users for testing
+      const demoUsers: Record<string, User> = {
+        'admin@warehouse.com': {
+          id: 'admin-001',
+          email: 'admin@warehouse.com',
+          full_name: 'ผู้ดูแลระบบ',
+          department: 'ผู้บริหาร',
+          role: 'ผู้ดูแลระบบ',
+          role_level: 5,
+          employee_code: 'ADM001',
+          is_active: true,
+          last_login: new Date().toISOString()
+        },
+        'manager@warehouse.com': {
+          id: 'mgr-001',
+          email: 'manager@warehouse.com',
+          full_name: 'หัวหน้าคลัง',
+          department: 'คลังสินค้า',
+          role: 'ผู้จัดการ',
+          role_level: 4,
+          employee_code: 'MGR001',
+          is_active: true,
+          last_login: new Date().toISOString()
+        },
+        'staff@warehouse.com': {
+          id: 'staff-001',
+          email: 'staff@warehouse.com',
+          full_name: 'พนักงานคลัง',
+          department: 'คลังสินค้า',
+          role: 'พนักงาน',
+          role_level: 2,
+          employee_code: 'STA001',
+          is_active: true,
+          last_login: new Date().toISOString()
+        },
+        'qc@warehouse.com': {
+          id: 'qc-001',
+          email: 'qc@warehouse.com',
+          full_name: 'พนักงาน QC',
+          department: 'ควบคุมคุณภาพ',
+          role: 'หัวหน้าแผนก',
+          role_level: 3,
+          employee_code: 'QC001',
+          is_active: true,
+          last_login: new Date().toISOString()
+        }
       };
 
-      // เก็บข้อมูล user ใน localStorage และ state
-      localStorage.setItem('warehouse_user', JSON.stringify(user));
-      setUser(user);
+      // Simulate network delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Check demo users (password is always 'password' for demo)
+      if (password === 'password' && demoUsers[email]) {
+        const user = demoUsers[email];
+
+        // เก็บข้อมูล user ใน localStorage และ state
+        localStorage.setItem('warehouse_user', JSON.stringify(user));
+        setUser(user);
+        return;
+      }
+
+      // If not a demo user, try real Supabase authentication
+      try {
+        const { data, error } = await supabase.rpc('authenticate_user', {
+          user_email: email,
+          user_password: password
+        });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+          throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        }
+
+        const userData = data[0];
+        const user: User = {
+          id: userData.user_id,
+          email: userData.email,
+          full_name: userData.full_name,
+          department: userData.department || 'ทั่วไป',
+          role: userData.role || 'ผู้ใช้งาน',
+          role_level: userData.role_level ?? 1,
+          employee_code: userData.employee_code,
+          is_active: userData.is_active,
+          last_login: new Date().toISOString()
+        };
+
+        localStorage.setItem('warehouse_user', JSON.stringify(user));
+        setUser(user);
+
+      } catch (dbError) {
+        // If database fails, throw invalid credentials error
+        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      }
 
     } catch (error: any) {
       console.error('Login error:', error);

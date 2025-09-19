@@ -26,6 +26,7 @@ import { setupQRTable } from '@/utils/setupQRTable';
 import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus, User, LogOut, Settings, Users, Warehouse, Bell, MapPin, Truck } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContextSimple';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { WarehouseDashboard } from '@/components/departments/WarehouseDashboard';
@@ -52,6 +53,7 @@ function Index() {
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
   const {
     items: inventoryItems,
     loading,
