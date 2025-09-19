@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,25 +6,17 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, X, CheckCircle, AlertCircle, Scan, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
-
-export interface ScanPayload {
-  url?: string;
-  location?: string;
-  action?: string;
-  qrData?: LocationQRCode | null;
-  rawData?: unknown;
-}
+import { useLocationQR } from '@/hooks/useLocationQR';
 
 interface QRScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  onScanSuccess: (location: string, data: ScanPayload) => void;
+  onScanSuccess: (location: string, data: any) => void;
 }
 
 interface ScanResult {
   location: string;
-  data: ScanPayload;
+  data: any;
   timestamp: Date;
 }
 
@@ -37,7 +29,21 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
   const { toast } = useToast();
   const { getQRByLocation } = useLocationQR();
 
-  const initializeScanner = useCallback(async () => {
+  // Initialize scanner when dialog opens
+  useEffect(() => {
+    if (isOpen && !scannerRef.current) {
+      initializeScanner();
+    }
+
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current.clear();
+        scannerRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  const initializeScanner = async () => {
     try {
       setError('');
       setIsScanning(true);
@@ -76,23 +82,9 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
       setError('ไม่สามารถเปิดกล้องได้ กรุณาตรวจสอบสิทธิ์การเข้าถึงกล้อง');
       setIsScanning(false);
     }
-  }, []);
+  };
 
-  // Initialize scanner when dialog opens
-  useEffect(() => {
-    if (isOpen && !scannerRef.current) {
-      initializeScanner();
-    }
-
-    return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear();
-        scannerRef.current = null;
-      }
-    };
-  }, [isOpen, initializeScanner]);
-
-  const handleScanSuccess = (decodedText: string, decodedResult: unknown) => {
+  const handleScanSuccess = (decodedText: string, decodedResult: any) => {
 
     try {
       // Parse the scanned URL to extract location information
@@ -113,7 +105,7 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
           url: decodedText,
           location,
           action,
-          qrData: qrData || null,
+          qrData,
           rawData: decodedResult
         },
         timestamp: new Date()

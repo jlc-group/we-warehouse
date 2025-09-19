@@ -18,7 +18,7 @@ export function normalizeLocation(location: string): string {
   }
 
   // Try to parse different formats
-  const parts = cleaned.split(/[/\s-]+/);
+  const parts = cleaned.split(/[\/\-\s]+/);
 
   if (parts.length >= 3) {
     const [row, level, position] = parts;
