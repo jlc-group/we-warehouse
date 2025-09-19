@@ -49,8 +49,8 @@ export function DataExport({ items, onImportData, onUploadToSupabase }: DataExpo
         item.mfd || '',
         ((item as any).carton_quantity_legacy || 0),
         ((item as any).box_quantity_legacy || 0),
-        (item as any).category || '',
-        (item as any).cost_per_unit || 0,
+        item.category || '',
+        item.cost_per_unit || 0,
         item.created_at,
         item.updated_at
       ].join(','))
@@ -89,21 +89,13 @@ export function DataExport({ items, onImportData, onUploadToSupabase }: DataExpo
               location: values[3],
               lot: values[4] || null,
               mfd: values[5] || null,
-              carton_quantity_legacy: parseInt(values[6]) || 0,
-              box_quantity_legacy: parseInt(values[7]) || 0,
-              pieces_quantity_legacy: parseInt(values[8]) || 0,
-              unit: values[8] || 'ชิ้น',
+              box_quantity: parseInt(values[6]) || 0,
+              loose_quantity: parseInt(values[7]) || 0,
+              category: values[8] || null,
+              cost_per_unit: parseFloat(values[9]) || 0,
               created_at: values[10],
               updated_at: values[11],
-              user_id: '00000000-0000-0000-0000-000000000000',
-              unit_level1_quantity: 0,
-              unit_level2_quantity: 0,
-              unit_level3_quantity: 0,
-              unit_level1_name: null,
-              unit_level2_name: null,
-              unit_level3_name: 'ชิ้น',
-              unit_level1_rate: 0,
-              unit_level2_rate: 0
+              user_id: '00000000-0000-0000-0000-000000000000'
             } as InventoryItem;
           });
         } else {

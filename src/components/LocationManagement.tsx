@@ -7,11 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, MapPin, Edit, Trash2, Search, Grid3X3, RefreshCw } from 'lucide-react';
+import { Plus, MapPin, Edit, Trash2, Search, Grid3X3, RefreshCw, Sync } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locationUtils';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
-import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type LocationRow = Database['public']['Tables']['warehouse_locations']['Row'];
@@ -38,19 +37,11 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
   } = useWarehouseLocations();
 
   // Form state
-  const [formData, setFormData] = useState<{
-    row: string;
-    level: number;
-    position: number;
-    location_type: "shelf" | "floor" | "special";
-    capacity_boxes: number;
-    capacity_loose: number;
-    description: string;
-  }>({
+  const [formData, setFormData] = useState({
     row: '',
     level: 1,
     position: 1,
-    location_type: 'shelf',
+    location_type: 'shelf' as const,
     capacity_boxes: 100,
     capacity_loose: 1000,
     description: ''
@@ -60,11 +51,194 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
   const hasPermission = userRoleLevel >= 4;
 
   const createLocationsTable = async () => {
-    toast({
-      title: 'ตารางยังไม่พร้อม',
-      description: 'ฟีเจอร์นี้จะพร้อมใช้งานในเร็วๆ นี้',
-      variant: 'destructive',
-    });
+    try {
+      console.log('🔧 Creating warehouse_locations table...');
+
+      // First, check if execute_sql function exists by testing it
+      console.log('🔍 Testing execute_sql function...');
+      const testResult = await supabase.rpc('execute_sql', {
+        sql_query: 'SELECT 1 as test'
+      });
+
+      if (testResult.error) {
+        throw new Error('execute_sql function not found. Please run the SQL function creation script first.');
+      }
+
+      console.log('✅ execute_sql function is available');
+
+      // Step 1: Create table structure
+      console.log('🏗️ Creating table structure...');
+      const createTableSQL = `
+        CREATE TABLE IF NOT EXISTS public.warehouse_locations (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          location_code TEXT NOT NULL UNIQUE,
+          row TEXT NOT NULL,
+          level INTEGER NOT NULL,
+          position INTEGER NOT NULL,
+          location_type TEXT NOT NULL DEFAULT 'shelf',
+          capacity_boxes INTEGER DEFAULT 100,
+          capacity_loose INTEGER DEFAULT 1000,
+          description TEXT,
+          is_active BOOLEAN DEFAULT TRUE,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          updated_at TIMESTAMPTZ DEFAULT NOW(),
+          user_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
+        );
+      `;
+
+      const result1 = await supabase.rpc('execute_sql', {
+        sql_query: createTableSQL
+      });
+
+      if (result1.error || (result1.data && result1.data.includes('Error:'))) {
+        throw new Error(`Table creation failed: ${result1.data || result1.error.message}`);
+      }
+
+      console.log('✅ Table structure created');
+
+      // Step 2: Add constraints
+      console.log('🔒 Adding constraints...');
+      const constraintsSQL = `
+        DO $$
+        BEGIN
+          -- Add constraints if they don't exist
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_row_format') THEN
+            ALTER TABLE public.warehouse_locations ADD CONSTRAINT check_row_format CHECK (row ~ '^[A-Z]$');
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_level_range') THEN
+            ALTER TABLE public.warehouse_locations ADD CONSTRAINT check_level_range CHECK (level BETWEEN 1 AND 4);
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_position_range') THEN
+            ALTER TABLE public.warehouse_locations ADD CONSTRAINT check_position_range CHECK (position BETWEEN 1 AND 99);
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_location_type') THEN
+            ALTER TABLE public.warehouse_locations ADD CONSTRAINT check_location_type CHECK (location_type IN ('shelf', 'floor', 'special'));
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_capacity_positive') THEN
+            ALTER TABLE public.warehouse_locations ADD CONSTRAINT check_capacity_positive CHECK (capacity_boxes >= 0 AND capacity_loose >= 0);
+          END IF;
+        END $$;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS warehouse_locations_location_code_idx
+        ON public.warehouse_locations(location_code);
+
+        CREATE INDEX IF NOT EXISTS warehouse_locations_active_idx
+        ON public.warehouse_locations(is_active) WHERE is_active = true;
+      `;
+
+      const result2 = await supabase.rpc('execute_sql', {
+        sql_query: constraintsSQL
+      });
+
+      if (result2.error) {
+        console.warn('⚠️ Some constraints may have failed, but table is created');
+      } else {
+        console.log('✅ Constraints and indexes added');
+      }
+
+      // Step 3: Enable RLS and create policy
+      console.log('🛡️ Setting up RLS and policies...');
+      const rlsSQL = `
+        ALTER TABLE public.warehouse_locations ENABLE ROW LEVEL SECURITY;
+
+        DROP POLICY IF EXISTS "Enable all access for warehouse_locations" ON public.warehouse_locations;
+        CREATE POLICY "Enable all access for warehouse_locations"
+        ON public.warehouse_locations FOR ALL TO public USING (true);
+      `;
+
+      const result3 = await supabase.rpc('execute_sql', {
+        sql_query: rlsSQL
+      });
+
+      if (result3.error) {
+        console.warn('⚠️ RLS setup may have failed, but table is accessible');
+      } else {
+        console.log('✅ RLS and policies configured');
+      }
+
+      // Step 4: Get existing locations from inventory and add sample data
+      console.log('📊 Adding sample data and existing locations...');
+
+      // First, get unique locations from existing inventory
+      const { data: existingInventory } = await supabase
+        .from('inventory_items')
+        .select('location')
+        .not('location', 'is', null);
+
+      // Extract unique locations and create sample data
+      const uniqueLocations = [...new Set(existingInventory?.map(item => item.location) || [])];
+      const normalizedLocations = uniqueLocations
+        .map(loc => normalizeLocation(loc))
+        .filter(loc => isValidLocation(loc))
+        .slice(0, 10); // Take first 10 valid locations
+
+      // Create sample data including existing locations
+      let sampleValues = [
+        "('A/1/01', 'A', 1, 1, 'shelf', 100, 1000, 'ชั้นวางแถว A ชั้น 1 ตำแหน่ง 1')",
+        "('A/1/02', 'A', 1, 2, 'shelf', 100, 1000, 'ชั้นวางแถว A ชั้น 1 ตำแหน่ง 2')",
+        "('A/2/01', 'A', 2, 1, 'shelf', 150, 1500, 'ชั้นวางแถว A ชั้น 2 ตำแหน่ง 1')",
+        "('B/1/01', 'B', 1, 1, 'shelf', 100, 1000, 'ชั้นวางแถว B ชั้น 1 ตำแหน่ง 1')",
+        "('F/1/01', 'F', 1, 1, 'floor', 500, 5000, 'พื้นเก็บแถว F ตำแหน่ง 1')"
+      ];
+
+      // Add existing inventory locations
+      normalizedLocations.forEach(loc => {
+        const parsed = parseLocation(loc);
+        if (parsed) {
+          const description = `ตำแหน่งจากระบบ inventory (${loc})`;
+          sampleValues.push(`('${loc}', '${parsed.row}', ${parsed.level}, ${parsed.position}, 'shelf', 100, 1000, '${description}')`);
+        }
+      });
+
+      const sampleDataSQL = `
+        INSERT INTO public.warehouse_locations
+        (location_code, row, level, position, location_type, capacity_boxes, capacity_loose, description) VALUES
+        ${sampleValues.join(',\n        ')}
+        ON CONFLICT (location_code) DO NOTHING;
+      `;
+
+      const result4 = await supabase.rpc('execute_sql', {
+        sql_query: sampleDataSQL
+      });
+
+      if (result4.error) {
+        console.warn('⚠️ Sample data insertion may have failed');
+      } else {
+        console.log('✅ Sample data added');
+      }
+
+      toast({
+        title: '✅ สร้างตารางสำเร็จ!',
+        description: 'ตาราง warehouse_locations ถูกสร้างพร้อมข้อมูลตัวอย่าง 5 ตำแหน่ง',
+      });
+
+      // Refresh locations
+      await fetchLocations();
+
+    } catch (error) {
+      console.error('❌ Failed to create locations table:', error);
+
+      // Check if the error is about missing function
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      if (errorMessage.includes('execute_sql function not found') || errorMessage.includes('function execute_sql') || errorMessage.includes('does not exist')) {
+        toast({
+          title: '⚠️ ต้องสร้าง SQL Function ก่อน',
+          description: 'กรุณาไปที่ Supabase Dashboard → SQL Editor และรัน script สร้าง execute_sql function ก่อน',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '⚠️ สร้างตารางไม่สำเร็จ',
+          description: `เกิดข้อผิดพลาด: ${errorMessage}`,
+          variant: 'destructive',
+        });
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -183,7 +357,8 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
       setIsAddDialogOpen(false);
       setEditingLocation(null);
 
-      // Refresh locations - handled by the hook
+      // Refresh locations
+      await fetchLocations();
 
     } catch (error) {
       console.error('Error saving location:', error);
@@ -202,7 +377,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
         row: parsed.row,
         level: parsed.level,
         position: parsed.position,
-        location_type: location.location_type as "shelf" | "floor" | "special",
+        location_type: location.location_type,
         capacity_boxes: location.capacity_boxes,
         capacity_loose: location.capacity_loose,
         description: location.description || ''
@@ -239,7 +414,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
         description: `ลบตำแหน่ง ${location.location_code} แล้ว`,
       });
 
-      // Refresh handled by the hook
+      await fetchLocations();
     } catch (error) {
       console.error('Error deleting location:', error);
       toast({
@@ -374,7 +549,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
                 <Select
                   value={formData.location_type}
                   onValueChange={(value: 'shelf' | 'floor' | 'special') =>
-                    setFormData(prev => ({ ...prev, location_type: value as "shelf" | "floor" | "special" }))
+                    setFormData(prev => ({ ...prev, location_type: value }))
                   }
                 >
                   <SelectTrigger>
