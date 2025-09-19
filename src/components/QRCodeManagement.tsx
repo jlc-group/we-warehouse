@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan, Grid3X3 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan, Grid3X3, Printer } from 'lucide-react';
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import { QRScanner } from './QRScanner';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,6 +35,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
     startPosition: 1,
     endPosition: 10,
   });
+  const [activeTab, setActiveTab] = useState<'manage' | 'print'>('manage');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const { toast } = useToast();
@@ -284,6 +286,23 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             จัดการ QR Code สำหรับตำแหน่งคลัง
           </CardTitle>
         </CardHeader>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manage' | 'print')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="manage" className="flex items-center gap-2">
+            <Grid3X3 className="h-4 w-4" />
+            จัดการ QR Code
+          </TabsTrigger>
+          <TabsTrigger value="print" className="flex items-center gap-2">
+            <Printer className="h-4 w-4" />
+            พิมพ์ QR Code ({filteredQRCodes.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="manage" className="space-y-6">
+      <Card>
         <CardContent className="space-y-4">
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -736,6 +755,125 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        {/* Print View Tab */}
+        <TabsContent value="print" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5" />
+                QR Code สำหรับพิมพ์
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="ค้นหาตำแหน่ง (เช่น A01-01)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-2"
+                  variant="outline"
+                >
+                  <Printer className="h-4 w-4" />
+                  พิมพ์หน้านี้
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {filteredQRCodes.length === 0 ? (
+                <div className="text-center py-12">
+                  <QrCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    {searchQuery ? 'ไม่พบ QR Code ที่ตรงกับการค้นหา' : 'ไม่มี QR Code ที่พร้อมพิมพ์'}
+                  </p>
+                </div>
+              ) : (
+                <div className="print-container">
+                  <style>
+                    {`
+                      @media print {
+                        .print-container {
+                          display: grid !important;
+                          grid-template-columns: repeat(3, 1fr) !important;
+                          gap: 15px !important;
+                          padding: 0 !important;
+                        }
+                        .print-qr-card {
+                          break-inside: avoid !important;
+                          page-break-inside: avoid !important;
+                          border: 1px solid #000 !important;
+                          padding: 10px !important;
+                          text-align: center !important;
+                          background: white !important;
+                        }
+                        .print-qr-code {
+                          margin: 0 auto 8px auto !important;
+                          max-width: 80px !important;
+                          max-height: 80px !important;
+                        }
+                        .print-location {
+                          font-size: 12px !important;
+                          font-weight: bold !important;
+                          margin-bottom: 4px !important;
+                        }
+                        .print-url {
+                          font-size: 8px !important;
+                          word-break: break-all !important;
+                          color: #666 !important;
+                        }
+                        body { margin: 0 !important; }
+                        .no-print { display: none !important; }
+                      }
+                      .print-container {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                        gap: 20px;
+                      }
+                    `}
+                  </style>
+                  {filteredQRCodes.map((qrCode) => (
+                    <div key={qrCode.location} className="print-qr-card border rounded-lg p-4 text-center bg-white">
+                      <div className="print-qr-code mb-3 flex justify-center">
+                        <img
+                          src={qrCode.qr_code_data}
+                          alt={`QR Code for ${qrCode.location}`}
+                          className="w-24 h-24 mx-auto"
+                        />
+                      </div>
+                      <div className="print-location text-lg font-bold mb-2">
+                        {qrCode.location}
+                      </div>
+                      <div className="print-url text-xs text-muted-foreground break-all">
+                        {qrCode.url}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        ตำแหน่งคลังสินค้า
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {filteredQRCodes.length > 0 && (
+                <div className="no-print mt-6 pt-4 border-t text-center text-muted-foreground">
+                  <p className="text-sm">
+                    แสดง {filteredQRCodes.length} QR Code สำหรับพิมพ์
+                  </p>
+                  <p className="text-xs mt-1">
+                    ใช้ปุ่ม "พิมพ์หน้านี้" ด้านบนหรือ Ctrl+P เพื่อพิมพ์
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
