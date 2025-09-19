@@ -7,7 +7,7 @@ interface InventoryAnalyticsProps {
   items: InventoryItem[];
 }
 
-export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
+function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
   // Calculate metrics
   const totalItems = items.length;
   const totalBoxes = items.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0), 0);
@@ -214,3 +214,5 @@ export function InventoryAnalytics({ items }: InventoryAnalyticsProps) {
     </div>
   );
 }
+
+export default InventoryAnalytics;

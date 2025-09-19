@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { PieChart, Package, MapPin, Search, Filter, X, Grid3X3, List, Hash, BarChart3, Eye, EyeOff, ChevronDown, ChevronUp, CheckSquare, Square, RotateCcw, QrCode } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface ProductOverviewAndSearchProps {
   items: InventoryItem[];
@@ -38,6 +39,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   const [visualMode, setVisualMode] = useState<VisualMode>('product');
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
   const [legendSearch, setLegendSearch] = useState('');
+  const debouncedLegendSearch = useDebounce(legendSearch, 300);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -45,6 +47,12 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
     selectedProductCode: '',
     selectedRow: ''
   });
+
+  const debouncedSearchQuery = useDebounce(filters.searchQuery, 300);
+  const debouncedFilters = useMemo(() => ({
+    ...filters,
+    searchQuery: debouncedSearchQuery
+  }), [filters.selectedLot, filters.selectedProductCode, filters.selectedRow, debouncedSearchQuery]);
 
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
@@ -92,8 +100,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       // Search query filter
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
+      if (debouncedFilters.searchQuery) {
+        const query = debouncedFilters.searchQuery.toLowerCase();
         const matchesSearch =
           item.product_name.toLowerCase().includes(query) ||
           item.sku.toLowerCase().includes(query) ||
@@ -104,26 +112,26 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       }
 
       // Lot filter
-      if (filters.selectedLot && item.lot !== filters.selectedLot) {
+      if (debouncedFilters.selectedLot && item.lot !== debouncedFilters.selectedLot) {
         return false;
       }
 
       // Product code filter
-      if (filters.selectedProductCode && filters.selectedProductCode !== 'all' && item.sku !== filters.selectedProductCode) {
+      if (debouncedFilters.selectedProductCode && debouncedFilters.selectedProductCode !== 'all' && item.sku !== debouncedFilters.selectedProductCode) {
         return false;
       }
 
       // Row filter
-      if (filters.selectedRow) {
+      if (debouncedFilters.selectedRow) {
         const itemRow = item.location.split('/')[0];
-        if (itemRow !== filters.selectedRow) {
+        if (itemRow !== debouncedFilters.selectedRow) {
           return false;
         }
       }
 
       return true;
     });
-  }, [items, filters]);
+  }, [items, debouncedFilters]);
 
   // Update filter state
   const updateFilter = (key: keyof FilterState, value: string) => {
@@ -142,8 +150,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
 
   // Get active filter count
   const activeFilterCount = useMemo(() => {
-    return Object.values(filters).filter(value => value !== '').length;
-  }, [filters]);
+    return Object.values(debouncedFilters).filter(value => value !== '').length;
+  }, [debouncedFilters]);
 
   // Get unique products and assign colors
   const productColorMap = useMemo(() => {
@@ -423,9 +431,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
             {/* Active Filter Tags */}
             {activeFilterCount > 0 && (
               <div className="flex flex-wrap gap-2">
-                {filters.searchQuery && (
+                {debouncedFilters.searchQuery && (
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    ค้นหา: "{filters.searchQuery}"
+                    ค้นหา: "{debouncedFilters.searchQuery}"
                     <Button
                       variant="ghost"
                       size="sm"
@@ -436,9 +444,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     </Button>
                   </Badge>
                 )}
-                {filters.selectedProductCode && (
+                {debouncedFilters.selectedProductCode && (
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    รหัส: {filters.selectedProductCode}
+                    รหัส: {debouncedFilters.selectedProductCode}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -449,9 +457,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     </Button>
                   </Badge>
                 )}
-                {filters.selectedLot && (
+                {debouncedFilters.selectedLot && (
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    Lot: {filters.selectedLot}
+                    Lot: {debouncedFilters.selectedLot}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -462,9 +470,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     </Button>
                   </Badge>
                 )}
-                {filters.selectedRow && (
+                {debouncedFilters.selectedRow && (
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    แถว: {filters.selectedRow}
+                    แถว: {debouncedFilters.selectedRow}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -808,7 +816,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
           </TabsContent>
         </Tabs>
 
-        {/* No Results */}
+          {/* No Results */}
         {activeFilterCount > 0 && filteredItems.length === 0 && (
           <Card>
             <CardContent className="p-8 text-center">

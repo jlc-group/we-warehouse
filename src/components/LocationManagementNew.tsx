@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locationUtils';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
 import type { Database } from '@/integrations/supabase/types';
+import { useDebounce } from '@/hooks/useDebounce';
 
 type LocationRow = Database['public']['Tables']['warehouse_locations']['Row'];
 
@@ -197,13 +198,15 @@ const generateInventoryDescription = (location: LocationWithInventoryCount): str
   return `${itemText}: ${unitsText} (รวม ${location.total_quantity_sum} หน่วย)`;
 };
 
-export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
+function LocationManagement({ userRoleLevel }: LocationManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const { toast } = useToast();
 
-  // Use the new warehouse locations hook with search
+  const debouncedSearchTerm = useDebounce(searchTerm, 400);
+
+  // Use the new warehouse locations hook with debounced search
   const {
     locations,
     locationsWithInventory,
@@ -215,7 +218,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
     updateLocation,
     deleteLocation,
     syncInventoryLocations,
-  } = useWarehouseLocations(searchTerm, 50);
+  } = useWarehouseLocations(debouncedSearchTerm, 50);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -370,9 +373,9 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
   // Memoized filtered data for better performance
   const filteredLocationsWithInventory = useMemo(() =>
     locationsWithInventory.filter(location =>
-      location.location_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      location.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    ), [locationsWithInventory, searchTerm]
+      location.location_code.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      location.description?.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    ), [locationsWithInventory, debouncedSearchTerm]
   );
 
   // Memoized statistics to prevent re-calculations
@@ -709,7 +712,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
               </>
             ) : (
               <div className="p-8 text-center text-muted-foreground">
-                {searchTerm ? 'ไม่พบตำแหน่งที่ตรงกับการค้นหา' : 'ยังไม่มีตำแหน่งในระบบ'}
+                {debouncedSearchTerm ? 'ไม่พบตำแหน่งที่ตรงกับการค้นหา' : 'ยังไม่มีตำแหน่งในระบบ'}
               </div>
             )}
           </div>
@@ -718,3 +721,5 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
     </div>
   );
 }
+
+export default LocationManagement;

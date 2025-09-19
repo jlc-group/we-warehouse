@@ -1,23 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, Suspense, lazy } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModalSimple } from '@/components/InventoryModalSimple';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
 import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
 import { QRCodeManager } from '@/components/QRCodeManager';
-import { QRCodeManagement } from '@/components/QRCodeManagement';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
-import { LocationManagement } from '@/components/LocationManagementNew';
-import { ProductConfiguration } from '@/components/ProductConfiguration';
+
+const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
+const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
+const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
+const ProductConfiguration = lazy(() => import('@/components/ProductConfiguration'));
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ComponentLoadingFallback } from '@/components/ui/loading-fallback';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,16 +29,17 @@ import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, Wi
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { UserManagement } from '@/components/admin/UserManagement';
 import { UserProfile } from '@/components/profile/UserProfile';
-import { WarehouseDashboard } from '@/components/departments/WarehouseDashboard';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
-import { AdvancedAnalytics } from '@/components/inventory/AdvancedAnalytics';
-import { BatchManagement } from '@/components/inventory/BatchManagement';
-import { ForecastingDashboard } from '@/components/inventory/ForecastingDashboard';
+
+const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
+const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
+const AdvancedAnalytics = lazy(() => import('@/components/inventory/AdvancedAnalytics'));
+const BatchManagement = lazy(() => import('@/components/inventory/BatchManagement'));
+const ForecastingDashboard = lazy(() => import('@/components/inventory/ForecastingDashboard'));
 import type { InventoryItem } from '@/hooks/useDepartmentInventory';
 
-function Index() {
+const Index = memo(() => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -70,6 +73,35 @@ function Index() {
     accessSummary,
     permissions
   } = useDepartmentInventory();
+
+  // Memoized calculations for expensive operations
+  const availableLocations = useMemo(
+    () => [...new Set(inventoryItems.map(item => item.location))].sort(),
+    [inventoryItems]
+  );
+
+  const userInitials = useMemo(() => {
+    if (user?.full_name) {
+      return user.full_name
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase();
+    }
+    return user?.email?.[0]?.toUpperCase() || 'U';
+  }, [user?.full_name, user?.email]);
+
+  const userDisplayName = useMemo(() => {
+    return user?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้งาน';
+  }, [user?.full_name, user?.email]);
+
+  const showWarehouseTab = useMemo(() => {
+    return user && ['คลังสินค้า', 'ผู้บริหาร'].includes(user.department);
+  }, [user]);
+
+  const showAdminFeatures = useMemo(() => {
+    return user && user.role_level >= 4;
+  }, [user]);
 
   // Handle URL parameters from QR code scan
   useEffect(() => {
@@ -114,18 +146,18 @@ function Index() {
     }
   }, [searchParams, navigate, toast]);
 
-  const handleShelfClick = (location: string, item?: InventoryItem) => {
+  const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     setSelectedLocation(location);
     setSelectedItem(item);
     setIsModalOpen(true);
-  };
+  }, []);
 
-  const handleQRCodeClick = (location: string) => {
+  const handleQRCodeClick = useCallback((location: string) => {
     setQrSelectedLocation(location);
     setIsQRModalOpen(true);
-  };
+  }, []);
 
-  const handleSaveItem = async (itemData: {
+  const handleSaveItem = useCallback(async (itemData: {
     product_name: string;
     product_code: string;
     location: string;
@@ -203,9 +235,9 @@ function Index() {
     } catch (error) {
       // Error handling is done in the hook
     }
-  };
+  }, [selectedItem, updateItem, addItem]);
 
-  const handleBulkSave = async (locations: string[], itemData: {
+  const handleBulkSave = useCallback(async (locations: string[], itemData: {
     product_name: string;
     sku: string;
     lot?: string;
@@ -223,7 +255,70 @@ function Index() {
     } catch (error) {
       // Error handling is done in the hook
     }
-  };
+  }, [addItem]);
+
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedItem(undefined);
+  }, []);
+
+  const handleBulkModalClose = useCallback(() => {
+    setIsBulkModalOpen(false);
+  }, []);
+
+  const handleQRModalClose = useCallback(() => {
+    setIsQRModalOpen(false);
+  }, []);
+
+  const handleTransferModalClose = useCallback(() => {
+    setIsTransferModalOpen(false);
+  }, []);
+
+  const handleSetupQRTable = useCallback(async () => {
+    setIsCreatingQRTable(true);
+    try {
+      await setupQRTable();
+      toast({
+        title: '✅ สร้างตาราง QR สำเร็จ',
+        description: 'ตอนนี้สามารถใช้งาน QR Code ได้แล้ว',
+      });
+    } catch (error) {
+      toast({
+        title: '⚠️ ต้องสร้างตารางด้วยตนเอง',
+        description: 'กรุณาดู Console (F12) สำหรับ SQL script หรือดู migration file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCreatingQRTable(false);
+    }
+  }, [toast]);
+
+  const handleTestQRUrl = useCallback(() => {
+    const testLocation = 'TEST-A01';
+    const testUrl = `${window.location.origin}?tab=overview&location=${encodeURIComponent(testLocation)}&action=add`;
+
+    toast({
+      title: '🧪 Testing QR URL',
+      description: `Navigating to test URL with location: ${testLocation}`,
+      duration: 3000,
+    });
+
+    setTimeout(() => {
+      window.location.href = testUrl;
+    }, 500);
+  }, [toast]);
+
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+  }, []);
+
+  const handleOpenBulkModal = useCallback(() => {
+    setIsBulkModalOpen(true);
+  }, []);
+
+  const handleOpenTransferModal = useCallback(() => {
+    setIsTransferModalOpen(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
@@ -267,13 +362,7 @@ function Index() {
                       <Avatar className="h-9 w-9">
                         <AvatarImage src={user?.avatar_url} alt={user?.full_name || 'User'} />
                         <AvatarFallback>
-                          {user?.full_name
-                            ? user.full_name
-                                .split(' ')
-                                .map((n) => n[0])
-                                .join('')
-                                .toUpperCase()
-                            : user?.email?.[0]?.toUpperCase() || 'U'}
+                          {userInitials}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
@@ -282,7 +371,7 @@ function Index() {
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">
-                          {user?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้งาน'}
+                          {userDisplayName}
                         </p>
                         <p className="text-xs leading-none text-muted-foreground">
                           {user?.email || user?.email}
@@ -300,7 +389,7 @@ function Index() {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    {user && user.role_level >= 4 && (
+                    {showAdminFeatures && (
                       <DropdownMenuItem onClick={() => setActiveTab('admin')}>
                         <Users className="mr-2 h-4 w-4" />
                         <span>Admin</span>
@@ -358,7 +447,7 @@ function Index() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsBulkModalOpen(true)}
+                    onClick={handleOpenBulkModal}
                     disabled={loading}
                     className="flex items-center gap-2"
                   >
@@ -370,7 +459,7 @@ function Index() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsTransferModalOpen(true)}
+                    onClick={handleOpenTransferModal}
                     disabled={loading}
                     className="flex items-center gap-2"
                   >
@@ -382,24 +471,7 @@ function Index() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={async () => {
-                    setIsCreatingQRTable(true);
-                    try {
-                      await setupQRTable();
-                      toast({
-                        title: '✅ สร้างตาราง QR สำเร็จ',
-                        description: 'ตอนนี้สามารถใช้งาน QR Code ได้แล้ว',
-                      });
-                    } catch (error) {
-                      toast({
-                        title: '⚠️ ต้องสร้างตารางด้วยตนเอง',
-                        description: 'กรุณาดู Console (F12) สำหรับ SQL script หรือดู migration file',
-                        variant: 'destructive',
-                      });
-                    } finally {
-                      setIsCreatingQRTable(false);
-                    }
-                  }}
+                  onClick={handleSetupQRTable}
                   disabled={isCreatingQRTable || loading}
                   className="flex items-center gap-2"
                 >
@@ -408,21 +480,7 @@ function Index() {
                 </Button>
 
                 <Button
-                  onClick={() => {
-                    const testLocation = 'TEST-A01';
-                    const testUrl = `${window.location.origin}?tab=overview&location=${encodeURIComponent(testLocation)}&action=add`;
-
-                    // Add small delay and then navigate
-                    toast({
-                      title: '🧪 Testing QR URL',
-                      description: `Navigating to test URL with location: ${testLocation}`,
-                      duration: 3000,
-                    });
-
-                    setTimeout(() => {
-                      window.location.href = testUrl;
-                    }, 500);
-                  }}
+                  onClick={handleTestQRUrl}
                   variant="outline"
                   size="sm"
                   className="flex items-center gap-2"
@@ -436,7 +494,7 @@ function Index() {
         </Card>
 
         {/* Navigation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
           <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-9 bg-white border border-gray-200">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
@@ -462,13 +520,13 @@ function Index() {
               <Archive className="h-4 w-4" />
               <span className="hidden sm:inline">จัดการ</span>
             </TabsTrigger>
-            {user && ['คลังสินค้า', 'ผู้บริหาร'].includes(user.department) && (
+            {showWarehouseTab && (
               <TabsTrigger value="warehouse" className="flex items-center gap-2">
                 <Warehouse className="h-4 w-4" />
                 <span className="hidden sm:inline">แผนก</span>
               </TabsTrigger>
             )}
-            {user && user.role_level >= 4 && (
+            {showAdminFeatures && (
               <TabsTrigger value="locations" className="flex items-center gap-2">
                 <MapPin className="h-4 w-4" />
                 <span className="hidden sm:inline">ตำแหน่ง</span>
@@ -526,11 +584,15 @@ function Index() {
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-4">
-                  <InventoryAnalytics items={inventoryItems} />
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Analytics" />}>
+                    <InventoryAnalytics items={inventoryItems} />
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="advanced" className="space-y-4">
-                  <AdvancedAnalytics />
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
+                    <AdvancedAnalytics />
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="alerts" className="space-y-4">
@@ -538,11 +600,15 @@ function Index() {
                 </TabsContent>
 
                 <TabsContent value="batch" className="space-y-4">
-                  <BatchManagement />
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
+                    <BatchManagement />
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="forecast" className="space-y-4">
-                  <ForecastingDashboard />
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
+                    <ForecastingDashboard />
+                  </Suspense>
                 </TabsContent>
               </Tabs>
             )}
@@ -565,7 +631,9 @@ function Index() {
               </TabsContent>
 
               <TabsContent value="management" className="space-y-4">
-                <QRCodeManagement items={inventoryItems} />
+                <Suspense fallback={<ComponentLoadingFallback componentName="QR Code Management" />}>
+                  <QRCodeManagement items={inventoryItems} />
+                </Suspense>
               </TabsContent>
 
               <TabsContent value="history" className="space-y-4">
@@ -595,24 +663,32 @@ function Index() {
             </Tabs>
           </TabsContent>
 
-          {user && ['คลังสินค้า', 'ผู้บริหาร'].includes(user.department) && (
+          {showWarehouseTab && (
             <TabsContent value="warehouse" className="space-y-4">
-              <WarehouseDashboard />
+              <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                <WarehouseDashboard />
+              </Suspense>
             </TabsContent>
           )}
 
-          {user && user.role_level >= 4 && (
+          {showAdminFeatures && (
             <TabsContent value="locations" className="space-y-4">
-              <LocationManagement userRoleLevel={user?.role_level || 0} />
+              <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
+                <LocationManagement userRoleLevel={user?.role_level || 0} />
+              </Suspense>
             </TabsContent>
           )}
 
           <TabsContent value="config" className="space-y-4">
-            <ProductConfiguration />
+            <Suspense fallback={<ComponentLoadingFallback componentName="Product Configuration" />}>
+              <ProductConfiguration />
+            </Suspense>
           </TabsContent>
-          {user && user.role_level >= 4 && (
+          {showAdminFeatures && (
             <TabsContent value="admin" className="space-y-4">
-              <UserManagement />
+              <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
+                <UserManagement />
+              </Suspense>
             </TabsContent>
           )}
 
@@ -625,10 +701,7 @@ function Index() {
         <ErrorBoundary>
           <InventoryModalSimple
             isOpen={isModalOpen}
-            onClose={() => {
-              setIsModalOpen(false);
-              setSelectedItem(undefined);
-            }}
+            onClose={handleModalClose}
             onSave={handleSaveItem}
             location={selectedLocation}
             existingItem={selectedItem}
@@ -638,15 +711,15 @@ function Index() {
         {/* Bulk Add Modal */}
         <BulkAddModal
           isOpen={isBulkModalOpen}
-          onClose={() => setIsBulkModalOpen(false)}
+          onClose={handleBulkModalClose}
           onSave={handleBulkSave}
-          availableLocations={[...new Set(inventoryItems.map(item => item.location))].sort()}
+          availableLocations={availableLocations}
         />
 
         {/* Location QR Modal */}
         <LocationQRModal
           isOpen={isQRModalOpen}
-          onClose={() => setIsQRModalOpen(false)}
+          onClose={handleQRModalClose}
           location={qrSelectedLocation}
           items={inventoryItems}
         />
@@ -654,13 +727,13 @@ function Index() {
         {/* Location Transfer Modal */}
         <LocationTransferModal
           isOpen={isTransferModalOpen}
-          onClose={() => setIsTransferModalOpen(false)}
+          onClose={handleTransferModalClose}
           onTransfer={transferItems}
           items={inventoryItems}
         />
       </div>
     </div>
   );
-}
+});
 
 export default Index;

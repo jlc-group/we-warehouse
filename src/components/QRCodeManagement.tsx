@@ -6,21 +6,23 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan } from 'lucide-react';
-import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
-import { useLocationQR, type LocationQRCode, type QRDataLocation } from '@/hooks/useLocationQR';
-import { QRScanner, type ScanPayload } from './QRScanner';
+import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
+import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface QRCodeManagementProps {
   items: InventoryItem[];
 }
 
-export function QRCodeManagement({ items }: QRCodeManagementProps) {
+function QRCodeManagement({ items }: QRCodeManagementProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedQRCode, setSelectedQRCode] = useState<LocationQRCode | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const {
     qrCodes,
@@ -28,32 +30,9 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     generateQRForLocation,
     bulkGenerateQR,
     deleteQRCode,
-    deleteAllQRCodes,
     getQRByLocation,
     refetch
   } = useLocationQR();
-
-  // Warehouse grid definition (default): Rows A-N, Levels 1-4, Positions 1-20
-  const gridLocations = useMemo(() => {
-    const rows = Array.from({ length: 14 }, (_, i) => String.fromCharCode('A'.charCodeAt(0) + i)); // A..N
-    const levels = [1, 2, 3, 4];
-    const positions = Array.from({ length: 20 }, (_, i) => i + 1); // 1..20
-    const list: string[] = [];
-    for (const row of rows) {
-      for (const level of levels) {
-        for (const pos of positions) {
-          list.push(formatLocation(row, level, pos));
-        }
-      }
-    }
-    return list;
-  }, []);
-
-  // Missing grid locations (no active QR yet)
-  const missingGridLocations = useMemo(() => {
-    const qrSet = new Set(qrCodes.filter(q => q.is_active).map(q => normalizeLocation(q.location)));
-    return gridLocations.filter(loc => !qrSet.has(normalizeLocation(loc)));
-  }, [qrCodes, gridLocations]);
 
   // Get all unique locations from inventory
   const allLocations = useMemo(() => {
@@ -70,11 +49,11 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
 
   // Filter QR codes based on search
   const filteredQRCodes = useMemo(() => {
-    if (!searchQuery) return qrCodes;
+    if (!debouncedSearchQuery) return qrCodes;
     return qrCodes.filter(qr =>
-      qr.location.toLowerCase().includes(searchQuery.toLowerCase())
+      qr.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
     );
-  }, [qrCodes, searchQuery]);
+  }, [qrCodes, debouncedSearchQuery]);
 
   const handleGenerateQR = async (location: string) => {
     setIsGenerating(true);
@@ -96,9 +75,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     setIsGenerating(false);
   };
 
-  const handleScanSuccess = (location: string, data: ScanPayload) => {
-    // Narrow the scan payload type to avoid any
-    const payload = (data ?? {}) as { url?: string; action?: string };
+  const handleScanSuccess = (location: string, data: any) => {
     setShowScanner(false);
 
     // Find the scanned QR code in our list
@@ -108,8 +85,8 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     }
 
     // Auto-redirect: Navigate to the scanned URL for seamless experience
-    if (payload.url && payload.action === 'add') {
-      window.location.href = payload.url;
+    if (data.url && data.action === 'add') {
+      window.location.href = data.url;
     } else if (location) {
       // Fallback: Navigate with URL parameters
       const params = new URLSearchParams();
@@ -207,36 +184,6 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             </Button>
 
             <Button
-              onClick={async () => {
-                if (missingGridLocations.length === 0) return;
-                setIsGenerating(true);
-                await bulkGenerateQR(missingGridLocations, items);
-                setIsGenerating(false);
-              }}
-              disabled={isGenerating || missingGridLocations.length === 0}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
-            >
-              <Plus className="h-4 w-4" />
-              สร้าง QR ทุกตำแหน่งในคลัง (ยังไม่มี) ({missingGridLocations.length})
-            </Button>
-
-            <Button
-              onClick={async () => {
-                const ok = window.confirm('สร้าง QR ใหม่ทุกตำแหน่ง (A–N × 4 × 20) ทับของเดิมทั้งหมดหรือไม่?');
-                if (!ok) return;
-                setIsGenerating(true);
-                await bulkGenerateQR(gridLocations, items);
-                setIsGenerating(false);
-              }}
-              disabled={isGenerating || gridLocations.length === 0}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              สร้าง QR ใหม่ทุกตำแหน่งในคลัง (ทับทั้งหมด)
-            </Button>
-
-            <Button
               onClick={refetch}
               variant="outline"
               disabled={loading}
@@ -244,20 +191,6 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
-            </Button>
-
-            <Button
-              onClick={async () => {
-                const ok = window.confirm('ต้องการลบ QR Code ทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้');
-                if (!ok) return;
-                await deleteAllQRCodes();
-              }}
-              variant="destructive"
-              disabled={loading || qrCodes.length === 0}
-              className="flex items-center gap-2"
-            >
-              <Trash2 className="h-4 w-4" />
-              ลบ QR ทั้งหมด
             </Button>
 
             <Button
@@ -277,7 +210,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                   สร้าง QR ตำแหน่งเดียว
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-white">
+              <DialogContent>
                 <DialogHeader>
                   <DialogTitle>สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
                   <DialogDescription>
@@ -340,7 +273,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         ) : filteredQRCodes.length === 0 ? (
           <div className="col-span-full text-center py-8 text-gray-500">
-            {searchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
+            {debouncedSearchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
               <div className="space-y-4">
                 <div>ยังไม่มี QR Code</div>
                 <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
@@ -352,7 +285,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         ) : (
           filteredQRCodes.map((qrCode) => {
-            const snapshot = (qrCode.inventory_snapshot as unknown as QRDataLocation | null) || null;
+            const snapshot = qrCode.inventory_snapshot as any;
             const isUrlFormat = qrCode.qr_code_data.startsWith('http');
 
             return (
@@ -415,19 +348,6 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                   {/* Actions */}
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => {
-                        const url = qrCode.qr_code_data && qrCode.qr_code_data.startsWith('http')
-                          ? qrCode.qr_code_data
-                          : `${window.location.origin}?tab=overview&location=${encodeURIComponent(qrCode.location)}&action=add`;
-                        window.location.href = url;
-                      }}
-                      size="sm"
-                      className="flex-1"
-                    >
-                      เปิด
-                    </Button>
-
-                    <Button
                       onClick={() => downloadQRCode(qrCode)}
                       size="sm"
                       variant="outline"
@@ -447,7 +367,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                           <Eye className="h-3 w-3" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-md bg-white">
+                      <DialogContent className="max-w-md">
                         <DialogHeader>
                           <DialogTitle>QR Code - {qrCode.location}</DialogTitle>
                         </DialogHeader>
@@ -532,3 +452,5 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     </div>
   );
 }
+
+export default QRCodeManagement;

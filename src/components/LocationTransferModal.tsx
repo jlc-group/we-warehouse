@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -217,6 +217,9 @@ export function LocationTransferModal({
             <Package className="h-5 w-5" />
             จัดการสินค้าในคลัง
           </DialogTitle>
+          <DialogDescription>
+            ย้ายสินค้าระหว่างตำแหน่งคลังหรือส่งออกสินค้าจากระบบ
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

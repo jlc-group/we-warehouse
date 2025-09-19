@@ -57,7 +57,7 @@ interface ABCAnalysis {
   description: string;
 }
 
-export function AdvancedAnalytics() {
+function AdvancedAnalytics() {
   const { user } = useAuth();
   const { items, permissions } = useDepartmentInventory();
   const [timeRange, setTimeRange] = useState<'7days' | '30days' | '90days'>('30days');
@@ -549,3 +549,5 @@ export function AdvancedAnalytics() {
     </div>
   );
 }
+
+export default AdvancedAnalytics;

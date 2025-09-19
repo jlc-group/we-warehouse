@@ -40,7 +40,7 @@ interface LocationUtilization {
   capacity: number;
 }
 
-export function WarehouseDashboard() {
+function WarehouseDashboard() {
   const { user } = useAuth();
   const {
     items,
@@ -539,3 +539,5 @@ export function WarehouseDashboard() {
     </div>
   );
 }
+
+export default WarehouseDashboard;

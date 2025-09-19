@@ -25,7 +25,7 @@ interface ConversionRate {
 
 interface ProductConfigurationProps {}
 
-export function ProductConfiguration({}: ProductConfigurationProps) {
+function ProductConfiguration(_props: ProductConfigurationProps) {
   const [rates, setRates] = useState<ConversionRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -491,3 +491,5 @@ export function ProductConfiguration({}: ProductConfigurationProps) {
     </Card>
   );
 }
+
+export default ProductConfiguration;

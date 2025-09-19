@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Package, Search, MapPin, Hash, BarChart3, Grid3X3, List, ExternalLink } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface InventorySearchProps {
   items: InventoryItem[];
@@ -19,7 +20,22 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('location');
 
-  const handleSearch = (query: string = searchQuery) => {
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
+  useEffect(() => {
+    if (debouncedSearchQuery) {
+      const filteredItems = items.filter(item =>
+        item.product_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        item.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      );
+      setSearchResults(filteredItems);
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearchQuery, items]);
+
+  const handleSearch = (query: string) => {
     const filteredItems = items.filter(item =>
       item.product_name.toLowerCase().includes(query.toLowerCase()) ||
       item.sku.toLowerCase().includes(query.toLowerCase()) ||
@@ -30,7 +46,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch();
+      handleSearch(searchQuery);
     }
   };
 
@@ -114,7 +130,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                 className="pl-10"
               />
             </div>
-            <Button onClick={() => handleSearch()}>
+            <Button onClick={() => handleSearch(searchQuery)}>
               <Search className="h-4 w-4 mr-2" />
               ค้นหา
             </Button>
@@ -329,7 +345,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
       )}
 
       {/* No Results */}
-      {searchQuery && searchResults.length === 0 && (
+      {debouncedSearchQuery && searchResults.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -342,7 +358,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
       )}
 
       {/* Instructions */}
-      {!searchQuery && (
+      {!debouncedSearchQuery && (
         <Card>
           <CardContent className="p-8 text-center">
             <Search className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />

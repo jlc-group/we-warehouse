@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 // Types สำหรับ User
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Login function ที่ใช้ demo users สำหรับการทดสอบ
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
 
@@ -164,16 +164,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Logout function
-  const signOut = () => {
+  const signOut = useCallback(() => {
     localStorage.removeItem('warehouse_user');
     setUser(null);
-  };
+  }, []);
 
-  // Permission functions
-  const hasPermission = (permission: string): boolean => {
+  // Permission functions with memoization
+  const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
 
     // Admin ได้ทุกอย่าง
@@ -190,24 +190,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const userPermissions = permissions[user.role_level] || [];
     return userPermissions.includes(permission);
-  };
+  }, [user]);
 
-  const hasRole = (role: string): boolean => {
+  const hasRole = useCallback((role: string): boolean => {
     if (!user) return false;
     return user.role === role;
-  };
+  }, [user]);
 
-  const hasMinimumRole = (level: number): boolean => {
+  const hasMinimumRole = useCallback((level: number): boolean => {
     if (!user) return false;
     return user.role_level >= level;
-  };
+  }, [user]);
 
-  const isInDepartment = (department: string): boolean => {
+  const isInDepartment = useCallback((department: string): boolean => {
     if (!user) return false;
     return user.department === department;
-  };
+  }, [user]);
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     user,
     loading,
     signIn,
@@ -216,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasRole,
     hasMinimumRole,
     isInDepartment,
-  };
+  }), [user, loading, signIn, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment]);
 
   return (
     <AuthContext.Provider value={value}>

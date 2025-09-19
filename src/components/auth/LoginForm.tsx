@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -74,13 +74,13 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   };
 
   // Load remembered email on component mount
-  useState(() => {
+  useEffect(() => {
     const rememberedEmail = localStorage.getItem('remember_user');
     if (rememberedEmail) {
       setValue('email', rememberedEmail);
       setValue('remember', true);
     }
-  });
+  }, [setValue]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">

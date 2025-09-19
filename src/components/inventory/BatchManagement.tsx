@@ -46,7 +46,7 @@ interface ExpiryAlert {
   actionRequired: string;
 }
 
-export function BatchManagement() {
+function BatchManagement() {
   const { user } = useAuth();
   const { items, permissions, updateItem } = useDepartmentInventory();
   const [searchTerm, setSearchTerm] = useState('');
@@ -422,3 +422,5 @@ export function BatchManagement() {
     </div>
   );
 }
+
+export default BatchManagement;

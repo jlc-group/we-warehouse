@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Users, Plus, Edit, Trash2, Shield, AlertCircle, Eye, EyeOff } from 'lucide-react';
@@ -56,7 +56,7 @@ const roles = [
   { name: 'ผู้ดูแลระบบ', level: 5 }
 ];
 
-export function UserManagement() {
+function UserManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -412,6 +412,9 @@ export function UserManagement() {
               <DialogTitle>
                 {editingUser ? 'แก้ไขข้อมูลผู้ใช้' : 'เพิ่มผู้ใช้ใหม่'}
               </DialogTitle>
+              <DialogDescription>
+                {editingUser ? 'แก้ไขข้อมูลและสิทธิการเข้าถึงของผู้ใช้' : 'สร้างบัญชีผู้ใช้ใหม่และกำหนดสิทธิการเข้าถึง'}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 bg-white">
               <div className="space-y-2">
@@ -548,3 +551,5 @@ export function UserManagement() {
     </div>
   );
 }
+
+export default UserManagement;

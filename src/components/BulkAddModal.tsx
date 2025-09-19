@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -92,6 +92,9 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
             <Package className="h-5 w-5" />
             เพิ่มสินค้าหลายตำแหน่ง
           </DialogTitle>
+          <DialogDescription>
+            เพิ่มสินค้าชนิดเดียวกันในหลายตำแหน่งพร้อมกัน
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">

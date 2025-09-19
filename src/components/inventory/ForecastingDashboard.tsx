@@ -60,7 +60,7 @@ interface StockoutRisk {
   impact: 'critical' | 'moderate' | 'minimal';
 }
 
-export function ForecastingDashboard() {
+function ForecastingDashboard() {
   const { user } = useAuth();
   const { items, permissions } = useDepartmentInventory();
   const [timeHorizon, setTimeHorizon] = useState<'7days' | '30days' | '90days'>('30days');
@@ -567,3 +567,5 @@ export function ForecastingDashboard() {
     </div>
   );
 }
+
+export default ForecastingDashboard;

@@ -1,10 +1,9 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QrCode, MapPin, Package, Clock, Download } from 'lucide-react';
-import { normalizeLocation } from '@/utils/locationUtils';
-import { useMemo, useEffect, useRef, useState } from 'react';
+import { useMemo, useEffect, useRef, useState, memo, useCallback } from 'react';
 import QRCodeLib from 'qrcode';
 import type { InventoryItem } from '@/hooks/useInventory';
 
@@ -15,7 +14,7 @@ interface LocationQRModalProps {
   items: InventoryItem[];
 }
 
-export function LocationQRModal({ isOpen, onClose, location, items }: LocationQRModalProps) {
+export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, location, items }: LocationQRModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
 
@@ -61,21 +60,41 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
     return (level1Qty * level1Rate) + (level2Qty * level2Rate) + level3Qty;
   };
 
-  // Generate URL-based QR so scanning opens the app with the correct tab and location
-  const qrUrl = useMemo(() => {
-    const normalized = normalizeLocation(location);
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const params = new URLSearchParams();
-    params.set('tab', 'overview');
-    params.set('location', normalized);
-    params.set('action', 'add');
-    return `${baseUrl}?${params.toString()}`;
-  }, [location]);
+  // Generate QR Code data with comprehensive location info
+  const qrData = useMemo(() => {
+    const locationData = {
+      type: 'WAREHOUSE_LOCATION',
+      location: location,
+      timestamp: new Date().toISOString(),
+      summary: {
+        total_items: totals.items,
+        total_level1: totals.level1,
+        total_level2: totals.level2,
+        total_level3: totals.level3,
+        product_types: productGroups.length
+      },
+      items: locationItems.map(item => ({
+        sku: item.sku,
+        product_name: item.product_name,
+        location: item.location,
+        lot: item.lot,
+        mfd: item.mfd,
+        level1_quantity: item.unit_level1_quantity || 0,
+        level1_name: item.unit_level1_name || 'ลัง',
+        level2_quantity: item.unit_level2_quantity || 0,
+        level2_name: item.unit_level2_name || 'กล่อง',
+        level3_quantity: item.unit_level3_quantity || 0,
+        level3_name: item.unit_level3_name || 'ชิ้น',
+        total_pieces: calculateTotalPieces(item)
+      }))
+    };
+    return JSON.stringify(locationData);
+  }, [location, locationItems, totals, productGroups]);
 
   // Generate QR Code
   useEffect(() => {
     if (isOpen && location && canvasRef.current) {
-      QRCodeLib.toCanvas(canvasRef.current as HTMLCanvasElement, qrUrl, {
+      QRCodeLib.toCanvas(canvasRef.current, qrData, {
         width: 192, // 48 * 4 for high resolution
         margin: 1,
         color: {
@@ -85,30 +104,33 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
       }).catch(console.error);
 
       // Also generate data URL for download
-      QRCodeLib.toDataURL(qrUrl, {
+      QRCodeLib.toDataURL(qrData, {
         width: 512,
         margin: 2
       }).then(setQrCodeDataURL).catch(console.error);
     }
-  }, [isOpen, location, qrUrl]);
+  }, [isOpen, location, qrData]);
 
-  const downloadQR = () => {
+  const downloadQR = useCallback(() => {
     if (qrCodeDataURL) {
       const a = document.createElement('a');
       a.href = qrCodeDataURL;
       a.download = `location-${location.replace(/\//g, '-')}-qr.png`;
       a.click();
     }
-  };
+  }, [qrCodeDataURL, location]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="h-5 w-5" />
             QR Code - ตำแหน่ง {location}
           </DialogTitle>
+          <DialogDescription>
+            สร้างและดาวน์โหลด QR Code สำหรับตำแหน่ง {location} รวมข้อมูลสินค้าทั้งหมดในตำแหน่งนี้
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -295,4 +317,4 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
       </DialogContent>
     </Dialog>
   );
-}
+});
