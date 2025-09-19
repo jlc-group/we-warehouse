@@ -12,7 +12,6 @@ import { Separator } from '@/components/ui/separator';
 import { MapPin, ArrowRight, Package, AlertCircle, CheckCircle, Truck, ShipIcon } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/hooks/useInventory';
-import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
 
 interface LocationTransferModalProps {
   isOpen: boolean;
@@ -21,6 +20,7 @@ interface LocationTransferModalProps {
   onShipOut?: (itemIds: string[], notes?: string) => Promise<boolean>;
   items: InventoryItem[];
   initialSourceLocation?: string;
+  onRefreshData?: () => void; // เพิ่ม callback สำหรับ refresh ข้อมูล
 }
 
 export function LocationTransferModal({
@@ -29,7 +29,8 @@ export function LocationTransferModal({
   onTransfer,
   onShipOut,
   items,
-  initialSourceLocation
+  initialSourceLocation,
+  onRefreshData
 }: LocationTransferModalProps) {
   const [activeTab, setActiveTab] = useState('transfer');
   const [sourceLocation, setSourceLocation] = useState(initialSourceLocation || '');
@@ -39,35 +40,31 @@ export function LocationTransferModal({
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferStatus, setTransferStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
-  // Use warehouse locations hook to get all locations including empty ones
-  const { locationsWithInventory: allWarehouseLocations, loading: locationsLoading } = useWarehouseLocations();
-
-  // Get all locations from warehouse (both empty and occupied)
+  // Get all unique locations from inventory items (this is the actual data)
   const allLocations = useMemo(() => {
-    if (locationsLoading || !allWarehouseLocations) {
-      // Fallback to inventory-based locations while loading
-      const inventoryLocations = new Set(items.map(item => item.location));
-      return Array.from(inventoryLocations).sort();
-    }
+    const inventoryLocations = new Set(items.map(item => item.location));
+    const locations = Array.from(inventoryLocations).sort();
 
-    // Use warehouse locations which include both empty and occupied
-    return allWarehouseLocations
-      .map(loc => loc.location_code)
-      .sort();
-  }, [allWarehouseLocations, items, locationsLoading]);
+    // Debug logging สำหรับ track ปัญหา
+    console.log('📍 LocationTransferModal - Updated locations:', {
+      totalItems: items.length,
+      uniqueLocations: locations.length,
+      locations: locations.slice(0, 10), // แสดงแค่ 10 ตัวแรก
+      timestamp: new Date().toISOString()
+    });
 
-  // Get location information for enhanced display
+    return locations;
+  }, [items]);
+
+  // Get location information based on actual inventory data
   const getLocationInfo = (locationCode: string) => {
-    const warehouseLocation = allWarehouseLocations?.find(loc => loc.location_code === locationCode);
     const inventoryItems = items.filter(item => item.location === locationCode);
 
     return {
       locationCode,
       inventoryCount: inventoryItems.length,
       isEmpty: inventoryItems.length === 0,
-      capacity: warehouseLocation?.capacity_boxes || 0,
-      utilization: warehouseLocation?.utilization_percentage || 0,
-      description: warehouseLocation?.description || ''
+      description: `ตำแหน่งคลัง ${locationCode}`
     };
   };
 
@@ -97,6 +94,21 @@ export function LocationTransferModal({
       setTransferStatus('idle');
     }
   }, [isOpen, initialSourceLocation]);
+
+  // Auto-refresh when items change (real-time updates)
+  useEffect(() => {
+    // ถ้า modal เปิดอยู่ และมีการเปลี่ยนแปลงข้อมูล ให้ clear selections ที่ไม่ valid
+    if (isOpen && selectedItems.size > 0) {
+      const validItemIds = items.map(item => item.id);
+      const newSelectedItems = new Set(
+        Array.from(selectedItems).filter(id => validItemIds.includes(id))
+      );
+
+      if (newSelectedItems.size !== selectedItems.size) {
+        setSelectedItems(newSelectedItems);
+      }
+    }
+  }, [items, isOpen, selectedItems]);
 
   // Toggle item selection
   const toggleItemSelection = (itemId: string) => {
@@ -147,6 +159,12 @@ export function LocationTransferModal({
       if (success) {
         setTransferStatus('success');
         setSelectedItems(new Set());
+
+        // Refresh ข้อมูลทันทีหลัง transfer สำเร็จ
+        if (onRefreshData) {
+          onRefreshData();
+        }
+
         setTimeout(() => {
           onClose();
           setTransferStatus('idle');
@@ -180,6 +198,12 @@ export function LocationTransferModal({
       if (success) {
         setTransferStatus('success');
         setSelectedItems(new Set());
+
+        // Refresh ข้อมูลทันทีหลัง ship out สำเร็จ
+        if (onRefreshData) {
+          onRefreshData();
+        }
+
         setTimeout(() => {
           onClose();
           setTransferStatus('idle');

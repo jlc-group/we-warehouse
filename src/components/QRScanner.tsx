@@ -31,7 +31,7 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
   const [activeTab, setActiveTab] = useState<'scan' | 'browse'>('scan');
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
-  const { getAllQRCodes, getQRByLocation } = useLocationQR();
+  const { qrCodes, getQRByLocation } = useLocationQR();
 
   // Initialize scanner when dialog opens
   useEffect(() => {
@@ -48,7 +48,7 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
   }, [isOpen]);
 
   // Get all QR codes for browsing
-  const allQRCodes = getAllQRCodes();
+  const allQRCodes = qrCodes;
   const filteredQRCodes = allQRCodes.filter(qr =>
     qr.location.toLowerCase().includes(searchQuery.toLowerCase())
   );

@@ -71,7 +71,8 @@ const Index = memo(() => {
     recoverUserData,
     importData,
     accessSummary,
-    permissions
+    permissions,
+    refetch
   } = useDepartmentInventory();
 
   // Memoized calculations for expensive operations
@@ -730,6 +731,7 @@ const Index = memo(() => {
           onClose={handleTransferModalClose}
           onTransfer={transferItems}
           items={inventoryItems}
+          onRefreshData={refetch}
         />
       </div>
     </div>
