@@ -34,9 +34,9 @@ export const formatInventoryForExport = (items: InventoryItem[]): ExportData[] =
       location: item.location,
       lot: item.lot || '',
       mfd: item.mfd || '',
-      quantity_boxes: item.box_quantity,
-      quantity_loose: item.loose_quantity,
-      total_quantity: item.box_quantity + item.loose_quantity,
+      quantity_boxes: (item as any).carton_quantity_legacy || 0,
+      quantity_loose: (item as any).box_quantity_legacy || 0,
+      total_quantity: ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0),
       created_at: new Date(item.created_at).toLocaleString('th-TH'),
       updated_at: new Date(item.updated_at).toLocaleString('th-TH')
     };
@@ -120,8 +120,8 @@ export const exportLocationSummary = (items: InventoryItem[]) => {
     }
 
     acc[key].items_count += 1;
-    acc[key].total_boxes += item.box_quantity;
-    acc[key].total_loose += item.loose_quantity;
+    acc[key].total_boxes += ((item as any).carton_quantity_legacy || 0);
+    acc[key].total_loose += ((item as any).box_quantity_legacy || 0);
     acc[key].products.push(item.product_name);
 
     return acc;

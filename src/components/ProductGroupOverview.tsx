@@ -244,8 +244,8 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
         dist[item.sku] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
       }
       dist[item.sku].count++;
-      dist[item.sku].totalBoxes += item.box_quantity;
-      dist[item.sku].totalLoose += item.loose_quantity;
+      dist[item.sku].totalBoxes += ((item as any).carton_quantity_legacy || 0);
+      dist[item.sku].totalLoose += ((item as any).box_quantity_legacy || 0);
     });
 
     // Count unique locations per product
@@ -331,9 +331,9 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
 
       case 'density': {
         // Use color intensity based on quantity
-        const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
+        const totalQuantity = locationItems.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0);
         const maxQuantity = Math.max(...Object.values(itemsByLocation).map(items =>
-          items.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0)
+          items.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0)
         ));
         const intensity = totalQuantity / (maxQuantity || 1);
         const alpha = Math.max(0.2, intensity);
@@ -838,7 +838,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                             const location = `${row}/${level}/${position}`;
                             const locationItems = itemsByLocation[location] || [];
                             const locationColor = getLocationColor(location);
-                            const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
+                            const totalQuantity = locationItems.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0);
 
                             return (
                               <Tooltip key={location}>
@@ -877,7 +877,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                                               <div className="text-muted-foreground">
                                                  รหัส: {item.sku} {item.lot && `• Lot: ${item.lot}`}
                                                </div>
-                                               <div>{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
+                                               <div>{((item as any).carton_quantity_legacy || 0)} ลัง + {((item as any).box_quantity_legacy || 0)} เศษ</div>
                                             </div>
                                           ))}
                                           {locationItems.length > 3 && (

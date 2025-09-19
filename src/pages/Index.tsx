@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { InventoryTable } from '@/components/InventoryTable';
-import { InventoryModal } from '@/components/InventoryModal';
+import { InventoryModalSimple } from '@/components/InventoryModalSimple';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { InventoryAnalytics } from '@/components/InventoryAnalytics';
 import { MovementLogs } from '@/components/MovementLogs';
 import { ProductOverviewAndSearch } from '@/components/ProductOverviewAndSearch';
@@ -13,17 +14,27 @@ import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
+import { LocationTransferModal } from '@/components/LocationTransferModal';
+import { LocationManagement } from '@/components/LocationManagementNew';
+import { ProductConfiguration } from '@/components/ProductConfiguration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus, User, LogOut, Settings } from 'lucide-react';
-import { useInventory } from '@/hooks/useInventory';
+import { Package, BarChart3, Grid3X3, Search, Table, History, PieChart, Wifi, WifiOff, RefreshCw, AlertCircle, QrCode, Camera, Archive, Download, Plus, User, LogOut, Settings, Users, Warehouse, Bell, MapPin, Truck } from 'lucide-react';
+import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import type { InventoryItem } from '@/hooks/useInventory';
+import { useAuth } from '@/contexts/AuthContextSimple';
+import { UserManagement } from '@/components/admin/UserManagement';
+import { UserProfile } from '@/components/profile/UserProfile';
+import { WarehouseDashboard } from '@/components/departments/WarehouseDashboard';
+import { AlertsPanel } from '@/components/inventory/AlertsPanel';
+import { AdvancedAnalytics } from '@/components/inventory/AdvancedAnalytics';
+import { BatchManagement } from '@/components/inventory/BatchManagement';
+import { ForecastingDashboard } from '@/components/inventory/ForecastingDashboard';
+import type { InventoryItem } from '@/hooks/useDepartmentInventory';
 
 function Index() {
   const navigate = useNavigate();
@@ -33,6 +44,7 @@ function Index() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
@@ -41,7 +53,7 @@ function Index() {
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
-  const { profile, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const {
     items: inventoryItems,
     loading,
@@ -49,12 +61,15 @@ function Index() {
     isOfflineMode,
     addItem,
     updateItem,
+    transferItems,
     retryConnection,
     emergencyRecovery,
     bulkUploadToSupabase,
     recoverUserData,
-    importData
-  } = useInventory();
+    importData,
+    accessSummary,
+    permissions
+  } = useDepartmentInventory();
 
   // Handle URL parameters from QR code scan
   useEffect(() => {
@@ -62,22 +77,15 @@ function Index() {
     const location = searchParams.get('location');
     const action = searchParams.get('action');
 
-    // Enhanced debugging for Lovable environment
-    console.log('🌍 Environment Debug:');
-    console.log('- URL:', window.location.href);
-    console.log('- Search params:', window.location.search);
-    console.log('- Is Lovable:', window.location.href.includes('lovableproject.com'));
-    console.log('🔍 Parsed QR URL Parameters:', { tab, location, action });
+    // Handle QR URL parameters
 
     // Always set tab first if provided
     if (tab) {
-      console.log('✅ Setting active tab to:', tab);
       setActiveTab(tab);
     }
 
     // Handle QR code scan with location and action
     if (location && action === 'add') {
-      console.log('✅ QR Code detected - Opening modal for location:', location);
 
       // Delay modal opening slightly to ensure tab is set first
       setTimeout(() => {
@@ -91,7 +99,6 @@ function Index() {
           duration: 5000,
         });
 
-        console.log('✅ Modal opened successfully for location:', location);
       }, 100);
 
       // Clear URL parameters after handling (with longer delay)
@@ -102,7 +109,6 @@ function Index() {
         if (tab) newSearchParams.delete('tab');
 
         const newUrl = newSearchParams.toString() ? '?' + newSearchParams.toString() : '/';
-        console.log('🧹 Cleaning URL, navigating to:', newUrl);
         navigate(newUrl, { replace: true });
       }, 1000);
     }
@@ -127,21 +133,68 @@ function Index() {
     mfd?: string;
     quantity_boxes: number;
     quantity_loose: number;
+    unit?: string;
   }) => {
     try {
+      // Comprehensive validation before processing
+      console.log('🔍 Index handleSubmit - Raw form data:', {
+        receivedItemData: itemData,
+        selectedItem: selectedItem ? { id: selectedItem.id, product_name: selectedItem.product_name } : null,
+        validationCheck: {
+          hasProductName: Boolean(itemData.product_name),
+          hasProductCode: Boolean(itemData.product_code),
+          hasLocation: Boolean(itemData.location),
+          quantityBoxes: itemData.quantity_boxes,
+          quantityLoose: itemData.quantity_loose,
+          quantityBoxesType: typeof itemData.quantity_boxes,
+          quantityLooseType: typeof itemData.quantity_loose,
+        }
+      });
+
+      // Prepare update payload with proper null-safe defaults to prevent constraint violations
+      // Updated to use ACTUAL database schema: carton_quantity_legacy, box_quantity_legacy
       const dbItemData = {
-        product_name: itemData.product_name,
-        sku: itemData.product_code,
-        location: itemData.location,
-        lot: itemData.lot,
-        mfd: itemData.mfd,
-        box_quantity: itemData.quantity_boxes,
-        loose_quantity: itemData.quantity_loose,
+        product_name: itemData.product_name || '',
+        sku: itemData.product_code || '',
+        location: itemData.location || '',
+        lot: itemData.lot || null,
+        mfd: itemData.mfd || null,
+        unit: itemData.unit || 'กล่อง',
+        // Use ACTUAL database columns - ป้องกัน null constraint violations
+        carton_quantity_legacy: Number(itemData.quantity_boxes) || 0,    // ลัง
+        box_quantity_legacy: Number(itemData.quantity_loose) || 0,       // กล่อง/เศษ
+        pieces_quantity_legacy: 0,                                       // ชิ้น
+        // Multi-level unit fields
+        unit_level1_quantity: Number(itemData.quantity_boxes) || 0,      // ลัง
+        unit_level2_quantity: Number(itemData.quantity_loose) || 0,      // กล่อง
+        unit_level3_quantity: 0,                                         // ชิ้น
+        unit_level1_name: 'ลัง',
+        unit_level2_name: 'กล่อง',
+        unit_level3_name: 'ชิ้น',
+        unit_level1_rate: Number(itemData.unit_level1_rate) || 0,
+        unit_level2_rate: Number(itemData.unit_level2_rate) || 0,
       };
-      
+
+      // Debug processed data before sending
+      console.log('🔍 Index handleSubmit - Processed DB payload:', {
+        dbItemData,
+        operation: selectedItem ? 'UPDATE' : 'INSERT',
+        payloadValidation: {
+          allStringsValid: Boolean(dbItemData.product_name && dbItemData.sku && dbItemData.location),
+          allNumbersValid: !isNaN(dbItemData.carton_quantity_legacy) && !isNaN(dbItemData.box_quantity_legacy),
+          quantityTypes: {
+            carton_quantity_legacy: typeof dbItemData.carton_quantity_legacy,
+            box_quantity_legacy: typeof dbItemData.box_quantity_legacy,
+            pieces_quantity_legacy: typeof dbItemData.pieces_quantity_legacy,
+          }
+        }
+      });
+
       if (selectedItem) {
+        console.log('🔍 Index handleSubmit - Calling updateItem with ID:', selectedItem.id);
         await updateItem(selectedItem.id, dbItemData);
       } else {
+        console.log('🔍 Index handleSubmit - Calling addItem for new item');
         await addItem(dbItemData);
       }
       
@@ -173,10 +226,10 @@ function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Header */}
-        <Card>
+        <Card className="bg-white border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
@@ -187,22 +240,22 @@ function Index() {
               {/* User Profile Section */}
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className="text-sm font-medium">{profile?.full_name || profile?.email}</p>
+                  <p className="text-sm font-medium">{user?.role || 'ผู้ใช้งาน'}</p>
                   <div className="flex items-center gap-2">
-                    {profile?.department && (
+                    {user?.department && (
                       <Badge
                         variant="outline"
                         style={{
-                          borderColor: profile.department.color,
-                          color: profile.department.color,
+                          borderColor: '#3b82f6',
+                          color: '#3b82f6',
                         }}
                       >
-                        {profile.department.name_thai}
+                        {user.department}
                       </Badge>
                     )}
-                    {profile?.role && (
+                    {user?.role && (
                       <Badge variant="secondary">
-                        {profile.role.name_thai}
+                        {user.role}
                       </Badge>
                     )}
                   </div>
@@ -212,37 +265,48 @@ function Index() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                       <Avatar className="h-9 w-9">
-                        <AvatarImage src={profile?.avatar_url} alt={profile?.full_name || 'User'} />
+                        <AvatarImage src={user?.avatar_url} alt={user?.full_name || 'User'} />
                         <AvatarFallback>
-                          {profile?.full_name
-                            ? profile.full_name
+                          {user?.full_name
+                            ? user.full_name
                                 .split(' ')
                                 .map((n) => n[0])
                                 .join('')
                                 .toUpperCase()
-                            : profile?.email?.[0]?.toUpperCase() || 'U'}
+                            : user?.email?.[0]?.toUpperCase() || 'U'}
                         </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuContent className="w-56 bg-white border border-gray-200 shadow-lg" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">
-                          {profile?.full_name || 'ไม่ระบุชื่อ'}
+                          {user?.full_name || user?.email?.split('@')[0] || 'ผู้ใช้งาน'}
                         </p>
                         <p className="text-xs leading-none text-muted-foreground">
-                          {profile?.email}
+                          {user?.email || user?.email}
                         </p>
-                        {profile?.employee_code && (
+                        {user?.employee_code && (
                           <p className="text-xs leading-none text-muted-foreground">
-                            รหัส: {profile.employee_code}
+                            รหัส: {user.employee_code}
+                          </p>
+                        )}
+                        {!user && (
+                          <p className="text-xs leading-none text-orange-600">
+                            กำลังโหลดข้อมูลโปรไฟล์...
                           </p>
                         )}
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem disabled>
+                    {user && user.role_level >= 4 && (
+                      <DropdownMenuItem onClick={() => setActiveTab('admin')}>
+                        <Users className="mr-2 h-4 w-4" />
+                        <span>Admin</span>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => setActiveTab('profile')}>
                       <User className="mr-2 h-4 w-4" />
                       <span>โปรไฟล์</span>
                     </DropdownMenuItem>
@@ -260,7 +324,7 @@ function Index() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="bg-white">
             {inventoryItems.length === 0 && !loading && (
               <div className="mb-6 p-6 bg-orange-50 border border-orange-200 rounded-lg">
                 <div className="text-center space-y-4">
@@ -279,22 +343,41 @@ function Index() {
                 <p className="text-muted-foreground">
                   {loading ? 'กำลังโหลด...' : `จำนวนสินค้าทั้งหมด: ${inventoryItems.length} รายการ`}
                 </p>
+                {accessSummary && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    🔒 เข้าถึงได้ {accessSummary.accessibleItems}/{accessSummary.totalItems} รายการ ({accessSummary.accessPercentage}%)
+                  </p>
+                )}
                 <p className="text-sm text-success mt-2">
                   ✅ ระบบพร้อมใช้งาน
                 </p>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsBulkModalOpen(true)}
-                  disabled={loading}
-                  className="flex items-center gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  เพิ่มหลายตำแหน่ง
-                </Button>
+                {permissions.canAdd && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsBulkModalOpen(true)}
+                    disabled={loading}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    เพิ่มหลายตำแหน่ง
+                  </Button>
+                )}
+                {permissions.canEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsTransferModalOpen(true)}
+                    disabled={loading}
+                    className="flex items-center gap-2"
+                  >
+                    <Truck className="h-4 w-4" />
+                    ย้ายสินค้า
+                  </Button>
+                )}
 
                 <Button
                   variant="secondary"
@@ -308,7 +391,6 @@ function Index() {
                         description: 'ตอนนี้สามารถใช้งาน QR Code ได้แล้ว',
                       });
                     } catch (error) {
-                      console.error('QR table setup error:', error);
                       toast({
                         title: '⚠️ ต้องสร้างตารางด้วยตนเอง',
                         description: 'กรุณาดู Console (F12) สำหรับ SQL script หรือดู migration file',
@@ -329,8 +411,6 @@ function Index() {
                   onClick={() => {
                     const testLocation = 'TEST-A01';
                     const testUrl = `${window.location.origin}?tab=overview&location=${encodeURIComponent(testLocation)}&action=add`;
-                    console.log('🧪 Testing QR URL:', testUrl);
-                    console.log('🧪 Expected behavior: Modal should open with location:', testLocation);
 
                     // Add small delay and then navigate
                     toast({
@@ -357,43 +437,48 @@ function Index() {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-9">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-9 bg-white border border-gray-200">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
-              แผนผังคลัง
+              <span className="hidden sm:inline">แผนผัง</span>
             </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
-              ภาพรวมและสินค้า
+              <span className="hidden sm:inline">ภาพรวม</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
-              ตารางสรุป
+              <span className="hidden sm:inline">ตาราง</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              วิเคราะห์ข้อมูล
-            </TabsTrigger>
-            <TabsTrigger value="movements" className="flex items-center gap-2">
-              <History className="h-4 w-4" />
-              ประวัติการเคลื่อนไหว
+              <span className="hidden sm:inline">Analytics</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
-              QR Scanner
+              <span className="hidden sm:inline">QR System</span>
             </TabsTrigger>
-            <TabsTrigger value="qr-manage" className="flex items-center gap-2">
-              <QrCode className="h-4 w-4" />
-              จัดการ QR
-            </TabsTrigger>
-            <TabsTrigger value="recovery" className="flex items-center gap-2">
+            <TabsTrigger value="management" className="flex items-center gap-2">
               <Archive className="h-4 w-4" />
-              กู้คืนข้อมูล
+              <span className="hidden sm:inline">จัดการ</span>
             </TabsTrigger>
-            <TabsTrigger value="export" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export
+            {user && ['คลังสินค้า', 'ผู้บริหาร'].includes(user.department) && (
+              <TabsTrigger value="warehouse" className="flex items-center gap-2">
+                <Warehouse className="h-4 w-4" />
+                <span className="hidden sm:inline">แผนก</span>
+              </TabsTrigger>
+            )}
+            {user && user.role_level >= 4 && (
+              <TabsTrigger value="locations" className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                <span className="hidden sm:inline">ตำแหน่ง</span>
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="config" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">ตั้งค่า</span>
             </TabsTrigger>
+            {/* Admin tab removed from navbar as requested */}
           </TabsList>
 
           <TabsContent value="grid" className="space-y-4">
@@ -431,50 +516,124 @@ function Index() {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <InventoryAnalytics items={inventoryItems} />
+              <Tabs defaultValue="overview" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+                  <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
+                  <TabsTrigger value="advanced">ขั้นสูง</TabsTrigger>
+                  <TabsTrigger value="alerts">แจ้งเตือน</TabsTrigger>
+                  <TabsTrigger value="batch">Batch</TabsTrigger>
+                  <TabsTrigger value="forecast">พยากรณ์</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview" className="space-y-4">
+                  <InventoryAnalytics items={inventoryItems} />
+                </TabsContent>
+
+                <TabsContent value="advanced" className="space-y-4">
+                  <AdvancedAnalytics />
+                </TabsContent>
+
+                <TabsContent value="alerts" className="space-y-4">
+                  <AlertsPanel />
+                </TabsContent>
+
+                <TabsContent value="batch" className="space-y-4">
+                  <BatchManagement />
+                </TabsContent>
+
+                <TabsContent value="forecast" className="space-y-4">
+                  <ForecastingDashboard />
+                </TabsContent>
+              </Tabs>
             )}
           </TabsContent>
 
-          <TabsContent value="movements" className="space-y-4">
-            <MovementLogs />
-          </TabsContent>
-
           <TabsContent value="qr" className="space-y-4">
-            <QRCodeManager
-              items={inventoryItems}
-              onShelfClick={handleShelfClick}
-              onSaveItem={handleSaveItem}
-            />
+            <Tabs defaultValue="scanner" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                <TabsTrigger value="scanner">Scanner</TabsTrigger>
+                <TabsTrigger value="management">จัดการ QR</TabsTrigger>
+                <TabsTrigger value="history">ประวัติ</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="scanner" className="space-y-4">
+                <QRCodeManager
+                  items={inventoryItems}
+                  onShelfClick={handleShelfClick}
+                  onSaveItem={handleSaveItem}
+                />
+              </TabsContent>
+
+              <TabsContent value="management" className="space-y-4">
+                <QRCodeManagement items={inventoryItems} />
+              </TabsContent>
+
+              <TabsContent value="history" className="space-y-4">
+                <MovementLogs />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="qr-manage" className="space-y-4">
-            <QRCodeManagement items={inventoryItems} />
+          <TabsContent value="management" className="space-y-4">
+            <Tabs defaultValue="recovery" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                <TabsTrigger value="recovery">กู้คืนข้อมูล</TabsTrigger>
+                <TabsTrigger value="export">Import/Export</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="recovery" className="space-y-4">
+                <DataRecovery />
+              </TabsContent>
+
+              <TabsContent value="export" className="space-y-4">
+                <DataExport
+                  items={inventoryItems}
+                  onImportData={importData}
+                  onUploadToSupabase={bulkUploadToSupabase}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="recovery" className="space-y-4">
-            <DataRecovery />
-          </TabsContent>
+          {user && ['คลังสินค้า', 'ผู้บริหาร'].includes(user.department) && (
+            <TabsContent value="warehouse" className="space-y-4">
+              <WarehouseDashboard />
+            </TabsContent>
+          )}
 
-          <TabsContent value="export" className="space-y-4">
-            <DataExport
-              items={inventoryItems}
-              onImportData={importData}
-              onUploadToSupabase={bulkUploadToSupabase}
-            />
+          {user && user.role_level >= 4 && (
+            <TabsContent value="locations" className="space-y-4">
+              <LocationManagement userRoleLevel={user?.role_level || 0} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="config" className="space-y-4">
+            <ProductConfiguration />
+          </TabsContent>
+          {user && user.role_level >= 4 && (
+            <TabsContent value="admin" className="space-y-4">
+              <UserManagement />
+            </TabsContent>
+          )}
+
+          <TabsContent value="profile" className="space-y-4">
+            <UserProfile />
           </TabsContent>
         </Tabs>
 
         {/* Inventory Modal */}
-        <InventoryModal
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false);
-            setSelectedItem(undefined);
-          }}
-          onSave={handleSaveItem}
-          location={selectedLocation}
-          existingItem={selectedItem}
-        />
+        <ErrorBoundary>
+          <InventoryModalSimple
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedItem(undefined);
+            }}
+            onSave={handleSaveItem}
+            location={selectedLocation}
+            existingItem={selectedItem}
+          />
+        </ErrorBoundary>
 
         {/* Bulk Add Modal */}
         <BulkAddModal
@@ -489,6 +648,14 @@ function Index() {
           isOpen={isQRModalOpen}
           onClose={() => setIsQRModalOpen(false)}
           location={qrSelectedLocation}
+          items={inventoryItems}
+        />
+
+        {/* Location Transfer Modal */}
+        <LocationTransferModal
+          isOpen={isTransferModalOpen}
+          onClose={() => setIsTransferModalOpen(false)}
+          onTransfer={transferItems}
           items={inventoryItems}
         />
       </div>

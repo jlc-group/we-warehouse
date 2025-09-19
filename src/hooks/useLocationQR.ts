@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
 import QRCodeLib from 'qrcode';
+import { normalizeLocation, locationsEqual } from '@/utils/locationUtils';
 
 type LocationQRCode = Database['public']['Tables']['location_qr_codes']['Row'];
 type LocationQRCodeInsert = Database['public']['Tables']['location_qr_codes']['Insert'];
@@ -37,7 +38,6 @@ export function useLocationQR() {
   const fetchQRCodes = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching location QR codes...');
 
       const { data, error } = await supabase
         .from('location_qr_codes')
@@ -50,7 +50,6 @@ export function useLocationQR() {
 
         // If table doesn't exist, try to create it
         if (error.code === '42P01' || error.message?.includes('does not exist')) {
-          console.log('🔧 Table does not exist, attempting to create...');
           await createQRTable();
 
           // Retry fetch after table creation
@@ -61,7 +60,6 @@ export function useLocationQR() {
             .order('location');
 
           if (!retryError) {
-            console.log('✅ Successfully fetched QR codes after table creation:', retryData?.length || 0);
             setQrCodes(retryData || []);
             return;
           }
@@ -70,7 +68,6 @@ export function useLocationQR() {
         throw error;
       }
 
-      console.log('Successfully fetched QR codes:', data?.length || 0);
       setQrCodes(data || []);
     } catch (error) {
       console.error('Error fetching QR codes:', error);
@@ -87,7 +84,6 @@ export function useLocationQR() {
   // Function to create QR table if it doesn't exist
   const createQRTable = async () => {
     try {
-      console.log('🔧 Creating location_qr_codes table...');
 
       // Simple table creation - basic version
       const { error } = await supabase.rpc('exec', {
@@ -114,10 +110,7 @@ export function useLocationQR() {
       });
 
       if (error) {
-        console.error('❌ Error creating QR table via RPC:', error);
-
         // Manual method if RPC fails
-        console.log('🔄 Trying manual table creation...');
         const result = await fetch(`${supabase.supabaseUrl}/rest/v1/rpc/exec`, {
           method: 'POST',
           headers: {
@@ -146,9 +139,7 @@ export function useLocationQR() {
           throw new Error(`Manual table creation failed: ${result.statusText}`);
         }
 
-        console.log('✅ Manual table creation succeeded');
       } else {
-        console.log('✅ QR table created successfully via RPC');
       }
 
       return true;
@@ -170,7 +161,7 @@ export function useLocationQR() {
     inventoryItems: InventoryItem[]
   ): Promise<LocationQRCode | null> => {
     try {
-      console.log(`Generating QR Code for location: ${location}`);
+      const normalizedLocation = normalizeLocation(location);
 
       // Filter items for this location
       const locationItems = inventoryItems.filter(item => item.location === location);
@@ -178,8 +169,8 @@ export function useLocationQR() {
       // Calculate totals
       const totals = locationItems.reduce(
         (acc, item) => ({
-          boxes: acc.boxes + item.box_quantity,
-          loose: acc.loose + item.loose_quantity,
+          boxes: acc.boxes + ((item as any).carton_quantity_legacy || 0),
+          loose: acc.loose + ((item as any).box_quantity_legacy || 0),
           items: acc.items + 1,
         }),
         { boxes: 0, loose: 0, items: 0 }
@@ -198,7 +189,7 @@ export function useLocationQR() {
       // Create inventory data for storage
       const inventoryData: QRDataLocation = {
         type: 'WAREHOUSE_LOCATION',
-        location: location,
+        location: normalizedLocation,
         timestamp: new Date().toISOString(),
         summary: {
           total_items: totals.items,
@@ -211,8 +202,8 @@ export function useLocationQR() {
           product_name: item.product_name,
           lot: item.lot,
           mfd: item.mfd,
-          boxes: item.box_quantity,
-          loose: item.loose_quantity
+          boxes: (item as any).carton_quantity_legacy || 0,
+          loose: (item as any).box_quantity_legacy || 0
         }))
       };
 
@@ -222,16 +213,9 @@ export function useLocationQR() {
       if (typeof window !== 'undefined') {
         baseUrl = window.location.origin;
 
-        // Log environment info for debugging
-        console.log('🌍 QR URL Generation:');
-        console.log('- Current URL:', window.location.href);
-        console.log('- Origin:', window.location.origin);
-        console.log('- Is Lovable:', baseUrl.includes('lovableproject.com'));
-        console.log('- Is Vercel:', baseUrl.includes('vercel.app'));
       }
 
-      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(location)}&action=add`;
-      console.log('📱 Generated QR URL:', qrUrl);
+      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(normalizedLocation)}&action=add`;
 
       // QR Code will contain URL, inventory data stored separately
       const qrDataString = qrUrl;
@@ -249,18 +233,18 @@ export function useLocationQR() {
       // Fixed user ID for all operations
       const fixedUserId = '00000000-0000-0000-0000-000000000000';
 
-      // First, deactivate any existing QR for this location
+      // First, deactivate any existing QR for this location (both original and normalized)
       await supabase
         .from('location_qr_codes')
         .update({ is_active: false })
-        .eq('location', location)
+        .in('location', [location, normalizedLocation])
         .eq('is_active', true);
 
       // Insert new QR code record
       const { data, error } = await supabase
         .from('location_qr_codes')
         .insert({
-          location: location,
+          location: normalizedLocation,
           qr_code_data: qrDataString,
           qr_image_url: qrImageDataURL,
           inventory_snapshot: inventoryData as any,
@@ -275,10 +259,14 @@ export function useLocationQR() {
         throw error;
       }
 
-      console.log('Successfully generated QR code for location:', location);
 
-      // Refresh QR codes list
+      // Refresh QR codes list with delay to ensure database consistency
       await fetchQRCodes();
+
+      // Double-check with another fetch after a short delay
+      setTimeout(async () => {
+        await fetchQRCodes();
+      }, 500);
 
       toast({
         title: 'สร้าง QR Code สำเร็จ',
@@ -294,6 +282,39 @@ export function useLocationQR() {
         variant: 'destructive',
       });
       return null;
+    }
+  }, [fetchQRCodes, toast]);
+
+  const deleteAllQRCodes = useCallback(async (): Promise<boolean> => {
+    try {
+      // Danger: delete all QR codes
+      const { error } = await supabase
+        .from('location_qr_codes')
+        .delete()
+        // Use a condition that matches all rows safely
+        .neq('id', '00000000-0000-0000-0000-000000000001');
+
+      if (error) {
+        console.error('Delete ALL QR codes error:', error);
+        throw error;
+      }
+
+      await fetchQRCodes();
+
+      toast({
+        title: 'ลบ QR Code ทั้งหมดสำเร็จ',
+        description: 'ข้อมูล QR Code ถูกลบทั้งหมดแล้ว',
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error deleting ALL QR codes:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถลบ QR Code ทั้งหมดได้',
+        variant: 'destructive',
+      });
+      return false;
     }
   }, [fetchQRCodes, toast]);
 
@@ -322,7 +343,6 @@ export function useLocationQR() {
 
   const deleteQRCode = useCallback(async (id: string): Promise<boolean> => {
     try {
-      console.log('Deleting QR code:', id);
 
       const { error } = await supabase
         .from('location_qr_codes')
@@ -334,7 +354,6 @@ export function useLocationQR() {
         throw error;
       }
 
-      console.log('Successfully deleted QR code:', id);
       await fetchQRCodes();
 
       toast({
@@ -355,7 +374,34 @@ export function useLocationQR() {
   }, [fetchQRCodes, toast]);
 
   const getQRByLocation = useCallback((location: string): LocationQRCode | undefined => {
-    return qrCodes.find(qr => qr.location === location && qr.is_active);
+    if (!location) return undefined;
+
+    const normalizedLocation = normalizeLocation(location);
+
+    // Try exact match first
+    const exactMatch = qrCodes.find(qr => qr.location === location && qr.is_active);
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    // Try normalized location match
+    const normalizedMatch = qrCodes.find(qr => {
+      const normalizedQRLocation = normalizeLocation(qr.location);
+      return normalizedQRLocation === normalizedLocation && qr.is_active;
+    });
+
+    if (normalizedMatch) {
+      return normalizedMatch;
+    }
+
+    // Try using locationsEqual for fuzzy matching
+    const fuzzyMatch = qrCodes.find(qr => locationsEqual(qr.location, location) && qr.is_active);
+    if (fuzzyMatch) {
+      return fuzzyMatch;
+    }
+
+
+    return undefined;
   }, [qrCodes]);
 
   const updateQRCode = useCallback(async (
@@ -363,7 +409,6 @@ export function useLocationQR() {
     updates: LocationQRCodeUpdate
   ): Promise<LocationQRCode | null> => {
     try {
-      console.log('Updating QR code:', id, updates);
 
       const { data, error } = await supabase
         .from('location_qr_codes')
@@ -377,7 +422,6 @@ export function useLocationQR() {
         throw error;
       }
 
-      console.log('Successfully updated QR code:', id);
       await fetchQRCodes();
 
       toast({
@@ -399,6 +443,29 @@ export function useLocationQR() {
 
   useEffect(() => {
     fetchQRCodes();
+
+    // Set up real-time subscription for QR codes
+    const subscription = supabase
+      .channel('location_qr_codes_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'location_qr_codes'
+        },
+        (payload) => {
+
+          // Refetch QR codes when any change occurs
+          fetchQRCodes();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }, [fetchQRCodes]);
 
   return {
@@ -407,6 +474,7 @@ export function useLocationQR() {
     generateQRForLocation,
     bulkGenerateQR,
     deleteQRCode,
+    deleteAllQRCodes,
     getQRByLocation,
     updateQRCode,
     refetch: fetchQRCodes,

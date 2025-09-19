@@ -6,6 +6,12 @@ import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode } fr
 import { exportInventoryToCSV, exportLocationSummary } from '@/utils/exportUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
+import {
+  calculateTotalBaseQuantity,
+  formatUnitsDisplay,
+  formatTotalQuantity,
+  type MultiLevelInventoryItem
+} from '@/utils/unitCalculations';
 
 interface InventoryTableProps {
   items: InventoryItem[];
@@ -15,11 +21,31 @@ export function InventoryTable({ items }: InventoryTableProps) {
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
 
-  // Debug QR codes
-  console.log('🔍 InventoryTable - QR Codes loaded:', qrCodes.length);
 
-  const getStockBadge = (boxes: number, loose: number) => {
-    const total = boxes + loose;
+  // Updated to support multi-level units
+  const getStockBadge = (item: InventoryItem) => {
+    // Try to calculate using multi-level data if available
+    const extendedItem = item as any;
+    let total = 0;
+
+    if (extendedItem.unit_level1_quantity !== undefined) {
+      // Use new multi-level system
+      const multiLevelItem: MultiLevelInventoryItem = {
+        unit_level1_name: extendedItem.unit_level1_name,
+        unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
+        unit_level1_conversion_rate: extendedItem.unit_level1_rate || 0,
+        unit_level2_name: extendedItem.unit_level2_name,
+        unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
+        unit_level2_conversion_rate: extendedItem.unit_level2_rate || 0,
+        unit_level3_name: extendedItem.unit_level3_name,
+        unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
+      };
+      total = calculateTotalBaseQuantity(multiLevelItem);
+    } else {
+      // Fallback to legacy system - use ACTUAL database column names
+      total = (item as any).carton_quantity_legacy + (item as any).box_quantity_legacy;
+    }
+
     if (total === 0) return <Badge variant="destructive">หมด</Badge>;
     if (total < 5) return <Badge className="bg-warning text-warning-foreground">ต่ำ</Badge>;
     if (total < 20) return <Badge className="bg-chart-1 text-white">ปานกลาง</Badge>;
@@ -109,8 +135,8 @@ export function InventoryTable({ items }: InventoryTableProps) {
                       <TableHead>QR</TableHead>
                       <TableHead>LOT</TableHead>
                       <TableHead>MFD</TableHead>
-                      <TableHead className="text-right">จำนวนลัง</TableHead>
-                      <TableHead className="text-right">จำนวนเศษ</TableHead>
+                      <TableHead className="w-[200px]">หน่วยสินค้า</TableHead>
+                      <TableHead className="text-right">รวมทั้งหมด</TableHead>
                       <TableHead>สถานะ</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -138,7 +164,17 @@ export function InventoryTable({ items }: InventoryTableProps) {
                         <TableCell>
                           <div className="flex items-center justify-center">
                             {getQRByLocation(item.location) ? (
-                              <Badge variant="default" className="bg-green-100 text-green-800">
+                              <Badge
+                                variant="default"
+                                className="bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
+                                onClick={() => {
+                                  const params = new URLSearchParams();
+                                  params.set('tab', 'overview');
+                                  params.set('location', item.location);
+                                  params.set('action', 'add');
+                                  window.location.href = `${window.location.origin}?${params.toString()}`;
+                                }}
+                              >
                                 <QrCode className="h-3 w-3 mr-1" />
                                 มี
                               </Badge>
@@ -159,14 +195,138 @@ export function InventoryTable({ items }: InventoryTableProps) {
                             {formatDate(item.mfd)}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {item.box_quantity}
+                        <TableCell>
+                          {(() => {
+                            const extendedItem = item as any;
+                            if (extendedItem.unit_level1_quantity !== undefined) {
+                              // Use multi-level display
+                              const multiLevelItem: MultiLevelInventoryItem = {
+                                unit_level1_name: extendedItem.unit_level1_name,
+                                unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
+                                unit_level1_conversion_rate: extendedItem.unit_level1_rate || 0,
+                                unit_level2_name: extendedItem.unit_level2_name,
+                                unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
+                                unit_level2_conversion_rate: extendedItem.unit_level2_rate || 0,
+                                unit_level3_name: extendedItem.unit_level3_name,
+                                unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
+                              };
+                              // Simple direct display แบบเดียวกับ ShelfGrid
+                              const level1Qty = extendedItem.unit_level1_quantity || 0;
+                              const level2Qty = extendedItem.unit_level2_quantity || 0;
+                              const level3Qty = extendedItem.unit_level3_quantity || 0;
+                              const level1Rate = extendedItem.unit_level1_rate || 0;
+                              const level2Rate = extendedItem.unit_level2_rate || 0;
+
+                              const hasMultiLevelData = level1Qty > 0 || level2Qty > 0 || level3Qty > 0;
+
+                              let displayText = '';
+                              let calculationText = '';
+
+                              if (hasMultiLevelData) {
+                                const parts = [];
+                                const calcParts = [];
+
+                                if (level1Qty > 0) {
+                                  parts.push(`${level1Qty} ${extendedItem.unit_level1_name || 'ลัง'}`);
+                                  if (level1Rate > 0) calcParts.push(`${level1Qty}×${level1Rate}`);
+                                }
+                                if (level2Qty > 0) {
+                                  parts.push(`${level2Qty} ${extendedItem.unit_level2_name || 'กล่อง'}`);
+                                  if (level2Rate > 0) calcParts.push(`${level2Qty}×${level2Rate}`);
+                                }
+                                if (level3Qty > 0) {
+                                  parts.push(`${level3Qty} ${extendedItem.unit_level3_name || 'ชิ้น'}`);
+                                  if (level2Rate > 0 || level1Rate > 0) calcParts.push(`${level3Qty}×1`);
+                                }
+
+                                displayText = parts.join(' + ');
+                                // แสดง calculation text เมื่อมี conversion rates
+                                if (calcParts.length > 0 && (level1Rate > 0 || level2Rate > 0)) {
+                                  calculationText = `คำนวณ: (${calcParts.join(' + ')})`;
+                                }
+                              } else {
+                                displayText = 'ไม่มีข้อมูล';
+                              }
+
+                              return (
+                                <div className="text-sm">
+                                  <div className="font-medium">{displayText}</div>
+                                  {calculationText && (
+                                    <div className="text-xs text-muted-foreground mt-1">
+                                      {calculationText}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            } else {
+                              // Fallback to legacy display
+                              return (
+                                <div className="text-sm">
+                                  <div>{(item as any).carton_quantity_legacy} ลัง + {(item as any).box_quantity_legacy} เศษ</div>
+                                </div>
+                              );
+                            }
+                          })()
+                        }
                         </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {item.loose_quantity}
+                        <TableCell className="text-right">
+                          {(() => {
+                            const extendedItem = item as any;
+                            if (extendedItem.unit_level1_quantity !== undefined) {
+                              const multiLevelItem: MultiLevelInventoryItem = {
+                                unit_level1_name: extendedItem.unit_level1_name,
+                                unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
+                                unit_level1_conversion_rate: extendedItem.unit_level1_rate || 0,
+                                unit_level2_name: extendedItem.unit_level2_name,
+                                unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
+                                unit_level2_conversion_rate: extendedItem.unit_level2_rate || 0,
+                                unit_level3_name: extendedItem.unit_level3_name,
+                                unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
+                              };
+                              // คำนวณจำนวนรวมแบบ smart
+                              const level1Qty = extendedItem.unit_level1_quantity || 0;
+                              const level2Qty = extendedItem.unit_level2_quantity || 0;
+                              const level3Qty = extendedItem.unit_level3_quantity || 0;
+                              const level1Rate = extendedItem.unit_level1_rate || 0;
+                              const level2Rate = extendedItem.unit_level2_rate || 0;
+
+                              let totalCalculated = 0;
+                              let showCalculated = false;
+
+                              // ถ้ามี conversion rates ให้คำนวณ
+                              if (level1Rate > 0 || level2Rate > 0) {
+                                totalCalculated = (level1Qty * level1Rate) + (level2Qty * level2Rate) + level3Qty;
+                                showCalculated = true;
+                              }
+
+                              return (
+                                <div className="font-mono font-bold text-primary">
+                                  {showCalculated ? (
+                                    `${totalCalculated.toLocaleString('th-TH')} ${extendedItem.unit_level3_name || 'ชิ้น'}`
+                                  ) : (
+                                    // แสดงผลแบบ smart display แยกหน่วย
+                                    (() => {
+                                      const parts = [];
+                                      if (level1Qty > 0) parts.push(`${level1Qty} ${extendedItem.unit_level1_name || 'ลัง'}`);
+                                      if (level2Qty > 0) parts.push(`${level2Qty} ${extendedItem.unit_level2_name || 'กล่อง'}`);
+                                      if (level3Qty > 0) parts.push(`${level3Qty} ${extendedItem.unit_level3_name || 'ชิ้น'}`);
+                                      return parts.length > 0 ? parts.join(' + ') : '0';
+                                    })()
+                                  )}
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="font-mono">
+                                  {(item as any).carton_quantity_legacy + (item as any).box_quantity_legacy} รวม
+                                </div>
+                              );
+                            }
+                          })()
+                        }
                         </TableCell>
                         <TableCell>
-                          {getStockBadge(item.box_quantity, item.loose_quantity)}
+                          {getStockBadge(item)}
                         </TableCell>
                       </TableRow>
                     ))}

@@ -1,11 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw } from 'lucide-react';
+import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 
@@ -36,12 +37,24 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
   const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
+  const [showScanner, setShowScanner] = useState(false);
 
   // Use QR code data
-  const { qrCodes, getQRByLocation } = useLocationQR();
+  const { qrCodes, getQRByLocation, refetch, loading } = useLocationQR();
 
-  // Debug QR codes
-  console.log('🔍 ShelfGrid - QR Codes loaded:', qrCodes.length);
+  // Handle QR scan success
+  const handleScanSuccess = useCallback((location: string, data: any) => {
+    setShowScanner(false);
+
+    // Highlight the scanned location
+    setHighlightedLocations([location]);
+
+    // Auto-redirect or handle the scan result
+    if (data.action === 'add') {
+      onShelfClick(location);
+    }
+  }, [onShelfClick]);
+
 
   // Function to add new row
   const addNewRow = () => {
@@ -96,10 +109,10 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
     });
   }, [items, filters]);
 
-  const handleShelfClick = (location: string, item?: InventoryItem) => {
+  const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     setSelectedShelf(location);
     onShelfClick(location, item);
-  };
+  }, [onShelfClick]);
 
   const handleFilterChange = (type: 'lot' | 'productCode', value: string) => {
     setFilters(prev => ({
@@ -153,9 +166,11 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
     }
   }, [filteredItems, filters]);
 
-  // Generate shelf grid (dynamic rows, 4-1 levels from top to bottom, 1-20 positions)
-  const levels = [4, 3, 2, 1]; // Display from top to bottom: 4, 3, 2, 1
-  const positions = Array.from({ length: 20 }, (_, i) => i + 1);
+  // Generate shelf grid configuration
+  const { levels, positions } = useMemo(() => ({
+    levels: [4, 3, 2, 1], // Display from top to bottom: 4, 3, 2, 1
+    positions: Array.from({ length: 20 }, (_, i) => i + 1)
+  }), []);
 
   return (
     <TooltipProvider>
@@ -225,6 +240,18 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                   ล้างทั้งหมด
                 </Button>
               )}
+
+              {/* Refresh QR Data */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refetch}
+                disabled={loading}
+                className="flex items-center gap-1"
+              >
+                <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+                รีเฟรช QR
+              </Button>
             </div>
 
             {/* Active Filters Display */}
@@ -260,48 +287,62 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
         </Card>
 
         {/* Shelf Grid */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {availableRows.map((row) => (
-            <div key={row} className="space-y-1">
-              <h2 className="text-lg font-semibold text-primary flex items-center gap-2 mb-2">
-                <div className="w-6 h-6 bg-primary text-primary-foreground rounded-md flex items-center justify-center text-sm font-bold">
+            <div key={row} className="space-y-2">
+              <h2 className="text-xl font-bold text-primary flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-primary text-primary-foreground rounded-lg flex items-center justify-center text-lg font-bold">
                   {row}
                 </div>
-                แถว {row}
+                <span>แถว {row}</span>
               </h2>
 
               {levels.map((level) => (
-                <div key={level} className="mb-2">
-                  <div className="overflow-x-auto">
-                    <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
+                <div key={level} className="mb-3">
+                  <div className="overflow-x-auto scroll-smooth">
+                    <div className="flex gap-1.5 pb-2" style={{ minWidth: 'max-content' }}>
                       {positions.map((position) => {
                         const location = `${row}/${level}/${position}`;
                         const locationItems = itemsByLocation[location] || [];
                         const isSelected = selectedShelf === location;
                         const isHighlighted = highlightedLocations.includes(location);
                         const itemCount = locationItems.length;
-                         const totalBoxes = locationItems.reduce((sum, item) => sum + item.box_quantity, 0);
-                         const totalLoose = locationItems.reduce((sum, item) => sum + item.loose_quantity, 0);
+                         // Null-safe calculation using ACTUAL database schema
+                         const totalBoxes = locationItems.reduce((sum, item) => {
+                           const value = Number((item as any).carton_quantity_legacy ?? 0);
+                           return sum + (isNaN(value) ? 0 : value);
+                         }, 0);
+
+                         const totalLoose = locationItems.reduce((sum, item) => {
+                           const value = Number((item as any).box_quantity_legacy ?? 0);
+                           return sum + (isNaN(value) ? 0 : value);
+                         }, 0);
+
+                         const totalPieces = locationItems.reduce((sum, item) => {
+                           const value = Number((item as any).pieces_quantity_legacy ?? 0);
+                           return sum + (isNaN(value) ? 0 : value);
+                         }, 0);
 
                         return (
                           <Tooltip key={location}>
                             <TooltipTrigger asChild>
                               <Card
                                 className={`
-                                  w-28 h-24 transition-all duration-200 hover:shadow-md flex-shrink-0 relative group
-                                  ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.01] z-10' : ''}
-                                  ${isHighlighted ? 'ring-2 ring-yellow-400 bg-yellow-100/90 shadow-md' : ''}
-                                  ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50/90 border-blue-300/70 hover:bg-blue-100/90' : 'bg-green-50/90 border-green-300/70 hover:bg-green-100/90') : 'bg-gray-50/50 border-gray-200/50 border-dashed hover:bg-gray-100/70'}
+                                  w-32 h-28 transition-all duration-200 ease-out hover:shadow-md flex-shrink-0 relative group cursor-pointer
+                                  ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.02] z-10 border-primary/50' : ''}
+                                  ${isHighlighted ? 'ring-2 ring-amber-400 bg-amber-50 shadow-md border-amber-300' : ''}
+                                  ${itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400'}
                                 `}
+                                style={{ willChange: 'transform' }}
                               >
                                 {/* Action Buttons */}
-                                <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                <div className="absolute top-1.5 right-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out flex gap-1">
                                   {/* QR Code Button */}
                                   {onQRCodeClick && (
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-6 w-6 p-0"
+                                      className="h-6 w-6 p-0 bg-white/95 hover:bg-white border-gray-200 hover:border-gray-300 transition-colors duration-150"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         onQRCodeClick(location);
@@ -315,7 +356,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                   <Button
                                     size="sm"
                                     variant="secondary"
-                                    className="h-6 w-6 p-0"
+                                    className="h-6 w-6 p-0 bg-white/95 hover:bg-white border-gray-200 hover:border-gray-300 transition-colors duration-150"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleShelfClick(location, locationItems[0]);
@@ -325,9 +366,9 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                   </Button>
                                 </div>
 
-                                <CardContent className="p-1.5 h-full flex flex-col justify-between">
+                                <CardContent className="p-2 h-full flex flex-col justify-between">
                                   {/* Location Label */}
-                                  <div className="text-[9px] font-mono text-muted-foreground font-bold text-center leading-none">
+                                  <div className="text-[10px] font-mono text-slate-600 font-bold text-center leading-none">
                                     {row}{position}/{level}
                                   </div>
 
@@ -336,26 +377,26 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                     {itemCount > 0 ? (
                                       <div className="text-center w-full">
                                         {/* Status Indicator */}
-                                        <div className={`w-3 h-3 rounded-full mx-auto mb-1 ${
-                                          itemCount > 1 ? 'bg-blue-500' : 'bg-green-500'
+                                        <div className={`w-4 h-4 rounded-full mx-auto mb-1 ${
+                                          itemCount > 1 ? 'bg-blue-500' : 'bg-emerald-500'
                                         }`}></div>
 
                                         {/* Item Count for Multiple Items */}
                                         {itemCount > 1 && (
-                                          <div className="text-[9px] font-bold text-blue-700 mb-1">
+                                          <div className="text-[10px] font-bold text-blue-700 mb-1">
                                             {itemCount} รายการ
                                           </div>
                                         )}
 
                                         {/* Product Name for Single Item */}
                                         {itemCount === 1 && (
-                                          <div className="text-[8px] font-semibold text-green-800 leading-tight mb-1 truncate px-1">
+                                          <div className="text-[9px] font-semibold text-emerald-800 leading-tight mb-1 truncate px-1">
                                             {locationItems[0]?.product_name}
                                           </div>
                                         )}
 
                                         {/* Quantity Display */}
-                                        <div className="text-[8px] font-bold text-foreground">
+                                        <div className="text-[9px] font-bold text-slate-700 bg-white/70 px-1 py-0.5 rounded">
                                           {totalBoxes > 0 && totalLoose > 0 ? `${totalBoxes}+${totalLoose}` :
                                            totalBoxes > 0 ? `${totalBoxes}` :
                                            totalLoose > 0 ? `${totalLoose}` : '0'}
@@ -363,15 +404,15 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
 
                                         {/* LOT for single item */}
                                         {itemCount === 1 && locationItems[0]?.lot && (
-                                          <div className="text-[7px] text-muted-foreground mt-1 truncate px-1">
+                                          <div className="text-[8px] text-slate-500 mt-1 truncate px-1 bg-white/50 rounded px-1 py-0.5">
                                             {locationItems[0]?.lot}
                                           </div>
                                         )}
                                       </div>
                                     ) : (
                                       <div className="flex flex-col items-center justify-center h-full">
-                                        <Package className="h-3 w-3 text-gray-400 mb-1" />
-                                        <div className="text-[8px] text-gray-500">ว่าง</div>
+                                        <Package className="h-4 w-4 text-gray-400 mb-1" />
+                                        <div className="text-[9px] text-gray-500 font-medium">ว่าง</div>
                                       </div>
                                     )}
                                   </div>
@@ -385,7 +426,14 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                     <MapPin className="h-3 w-3" />
                                     <span className="font-semibold">ตำแหน่ง: {location}</span>
                                   </div>
-                                  {getQRByLocation(location) ? (
+                                  {loading ? (
+                                    <div className="flex items-center gap-1">
+                                      <RefreshCw className="h-3 w-3 text-blue-500 animate-spin" />
+                                      <span className="text-xs text-blue-500">กำลังโหลด QR</span>
+                                    </div>
+                                  ) : (() => {
+                                    return getQRByLocation(location);
+                                  })() ? (
                                     <div className="flex items-center gap-1">
                                       <QrCode className="h-3 w-3 text-green-600" />
                                       <span className="text-xs text-green-600">มี QR</span>
@@ -505,6 +553,30 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
             </div>
           </CardContent>
         </Card>
+
+        {/* Floating QR Scanner Button */}
+        <div className="fixed bottom-6 right-6 z-50">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                onClick={() => setShowScanner(true)}
+                className="w-14 h-14 rounded-full shadow-lg bg-blue-600 hover:bg-blue-700 hover:scale-110 transition-transform"
+              >
+                <Scan className="h-6 w-6" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              <p>สแกน QR Code</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* QR Scanner */}
+        <QRScanner
+          isOpen={showScanner}
+          onClose={() => setShowScanner(false)}
+          onScanSuccess={handleScanSuccess}
+        />
       </div>
     </TooltipProvider>
   );

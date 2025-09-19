@@ -1,8 +1,9 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { QrCode, MapPin, Package, Clock, Download } from 'lucide-react';
+import { normalizeLocation } from '@/utils/locationUtils';
 import { useMemo, useEffect, useRef, useState } from 'react';
 import QRCodeLib from 'qrcode';
 import type { InventoryItem } from '@/hooks/useInventory';
@@ -17,23 +18,22 @@ interface LocationQRModalProps {
 export function LocationQRModal({ isOpen, onClose, location, items }: LocationQRModalProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [qrCodeDataURL, setQrCodeDataURL] = useState<string>('');
-  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
-  const [qrError, setQrError] = useState<string>('');
 
   // Filter items for this location
   const locationItems = useMemo(() => {
     return items.filter(item => item.location === location);
   }, [items, location]);
 
-  // Calculate totals
+  // Calculate totals using multi-level unit system
   const totals = useMemo(() => {
     return locationItems.reduce(
       (acc, item) => ({
-        boxes: acc.boxes + item.box_quantity,
-        loose: acc.loose + item.loose_quantity,
+        level1: acc.level1 + (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0),
+        level2: acc.level2 + (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0),
+        level3: acc.level3 + (item.unit_level3_quantity || (item as any).pieces_quantity_legacy || 0),
         items: acc.items + 1,
       }),
-      { boxes: 0, loose: 0, items: 0 }
+      { level1: 0, level2: 0, level3: 0, items: 0 }
     );
   }, [locationItems]);
 
@@ -50,70 +50,47 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
     return Array.from(groups.entries());
   }, [locationItems]);
 
-  // Generate QR Code data with comprehensive location info
-  const qrData = useMemo(() => {
-    if (!location) return '';
+  // Calculate total pieces for each item
+  const calculateTotalPieces = (item: InventoryItem) => {
+    const level1Rate = item.unit_level1_rate || 0;
+    const level2Rate = item.unit_level2_rate || 0;
+    const level1Qty = item.unit_level1_quantity || 0;
+    const level2Qty = item.unit_level2_quantity || 0;
+    const level3Qty = item.unit_level3_quantity || 0;
 
-    const locationData = {
-      type: 'WAREHOUSE_LOCATION',
-      location: location,
-      timestamp: new Date().toISOString(),
-      summary: {
-        total_items: totals.items,
-        total_boxes: totals.boxes,
-        total_loose: totals.loose,
-        product_types: productGroups.length
-      },
-      items: locationItems.map(item => ({
-        sku: item.sku,
-        product_name: item.product_name,
-        lot: item.lot,
-        mfd: item.mfd,
-        boxes: item.box_quantity,
-        loose: item.loose_quantity
-      }))
-    };
-    const jsonString = JSON.stringify(locationData);
-    console.log('🔧 Generated QR Data for location:', location, 'Data length:', jsonString.length);
-    return jsonString;
-  }, [location, locationItems, totals, productGroups]);
+    return (level1Qty * level1Rate) + (level2Qty * level2Rate) + level3Qty;
+  };
+
+  // Generate URL-based QR so scanning opens the app with the correct tab and location
+  const qrUrl = useMemo(() => {
+    const normalized = normalizeLocation(location);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const params = new URLSearchParams();
+    params.set('tab', 'overview');
+    params.set('location', normalized);
+    params.set('action', 'add');
+    return `${baseUrl}?${params.toString()}`;
+  }, [location]);
 
   // Generate QR Code
   useEffect(() => {
-    if (isOpen && location && canvasRef.current && qrData) {
-      setIsGeneratingQR(true);
-      setQrError('');
-
-      console.log('Generating QR Code for location:', location);
-      console.log('QR Data:', qrData.substring(0, 100) + '...');
-
-      // Generate QR on canvas
-      QRCodeLib.toCanvas(canvasRef.current, qrData, {
+    if (isOpen && location && canvasRef.current) {
+      QRCodeLib.toCanvas(canvasRef.current as HTMLCanvasElement, qrUrl, {
         width: 192, // 48 * 4 for high resolution
         margin: 1,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
         }
-      }).then(() => {
-        console.log('✅ QR Code generated successfully on canvas');
-        setIsGeneratingQR(false);
+      }).catch(console.error);
 
-        // Also generate data URL for download
-        return QRCodeLib.toDataURL(qrData, {
-          width: 512,
-          margin: 2
-        });
-      }).then((dataURL) => {
-        console.log('✅ QR Code data URL generated');
-        setQrCodeDataURL(dataURL);
-      }).catch((error) => {
-        console.error('❌ QR Code generation failed:', error);
-        setQrError(`เกิดข้อผิดพลาดในการสร้าง QR Code: ${error.message}`);
-        setIsGeneratingQR(false);
-      });
+      // Also generate data URL for download
+      QRCodeLib.toDataURL(qrUrl, {
+        width: 512,
+        margin: 2
+      }).then(setQrCodeDataURL).catch(console.error);
     }
-  }, [isOpen, location, qrData]);
+  }, [isOpen, location, qrUrl]);
 
   const downloadQR = () => {
     if (qrCodeDataURL) {
@@ -126,64 +103,24 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-white">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <QrCode className="h-5 w-5" />
             QR Code - ตำแหน่ง {location}
           </DialogTitle>
-          <DialogDescription>
-            QR Code สำหรับตำแหน่ง {location} พร้อมข้อมูลสินค้าและสถิติ
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* QR Code Display */}
           <div className="flex flex-col items-center space-y-4">
             <div className="w-48 h-48 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center p-2">
-              {isGeneratingQR ? (
-                <div className="text-center space-y-2">
-                  <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-                  <p className="text-sm text-gray-500">กำลังสร้าง QR Code...</p>
-                </div>
-              ) : qrError ? (
-                <div className="text-center space-y-2">
-                  <div className="text-red-500 text-sm">{qrError}</div>
-                  <Button
-                    onClick={() => {
-                      setQrError('');
-                      // Trigger re-generation by clearing and setting canvas ref
-                      if (canvasRef.current) {
-                        const canvas = canvasRef.current;
-                        const ctx = canvas.getContext('2d');
-                        if (ctx) {
-                          ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        }
-                      }
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    ลองใหม่
-                  </Button>
-                </div>
-              ) : (
-                <canvas
-                  ref={canvasRef}
-                  className="max-w-full max-h-full"
-                  style={{ imageRendering: 'pixelated' }}
-                />
-              )}
+              <canvas
+                ref={canvasRef}
+                className="max-w-full max-h-full"
+                style={{ imageRendering: 'pixelated' }}
+              />
             </div>
-
-            {/* Debug info */}
-            {location && (
-              <div className="text-xs text-gray-400 text-center max-w-md">
-                <p>Location: {location}</p>
-                <p>Items: {locationItems.length}</p>
-                <p>QR Data length: {qrData.length} chars</p>
-              </div>
-            )}
 
             <div className="flex gap-2">
               <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
@@ -221,21 +158,25 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="text-center p-3 bg-blue-50 rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">{totals.items}</div>
                   <div className="text-sm text-gray-600">รายการสินค้า</div>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{totals.boxes}</div>
+                  <div className="text-2xl font-bold text-green-600">{totals.level1}</div>
                   <div className="text-sm text-gray-600">ลัง</div>
                 </div>
                 <div className="text-center p-3 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{totals.loose}</div>
-                  <div className="text-sm text-gray-600">เศษ</div>
+                  <div className="text-2xl font-bold text-orange-600">{totals.level2}</div>
+                  <div className="text-sm text-gray-600">กล่อง</div>
                 </div>
                 <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{productGroups.length}</div>
+                  <div className="text-2xl font-bold text-purple-600">{totals.level3}</div>
+                  <div className="text-sm text-gray-600">ชิ้น</div>
+                </div>
+                <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                  <div className="text-2xl font-bold text-indigo-600">{productGroups.length}</div>
                   <div className="text-sm text-gray-600">ประเภทสินค้า</div>
                 </div>
               </div>
@@ -266,17 +207,40 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
                           )}
                         </div>
                         <div className="text-right space-y-1">
-                          <div className="text-sm">
-                            <span className="font-medium">
-                              {groupItems.reduce((sum, item) => sum + item.box_quantity, 0)}
+                          {/* Level 1 Units (ลัง) */}
+                          {groupItems.some(item => (item.unit_level1_quantity || 0) > 0) && (
+                            <div className="text-sm">
+                              <span className="font-medium">
+                                {groupItems.reduce((sum, item) => sum + (item.unit_level1_quantity || 0), 0)}
+                              </span>
+                              <span className="text-gray-500"> {groupItems[0].unit_level1_name || 'ลัง'}</span>
+                            </div>
+                          )}
+                          {/* Level 2 Units (กล่อง) */}
+                          {groupItems.some(item => (item.unit_level2_quantity || 0) > 0) && (
+                            <div className="text-sm">
+                              <span className="font-medium">
+                                {groupItems.reduce((sum, item) => sum + (item.unit_level2_quantity || 0), 0)}
+                              </span>
+                              <span className="text-gray-500"> {groupItems[0].unit_level2_name || 'กล่อง'}</span>
+                            </div>
+                          )}
+                          {/* Level 3 Units (ชิ้น) */}
+                          {groupItems.some(item => (item.unit_level3_quantity || 0) > 0) && (
+                            <div className="text-sm">
+                              <span className="font-medium">
+                                {groupItems.reduce((sum, item) => sum + (item.unit_level3_quantity || 0), 0)}
+                              </span>
+                              <span className="text-gray-500"> {groupItems[0].unit_level3_name || 'ชิ้น'}</span>
+                            </div>
+                          )}
+                          {/* Total Pieces */}
+                          <div className="text-sm text-indigo-600 font-semibold border-t pt-1">
+                            <span>รวม: </span>
+                            <span className="font-bold">
+                              {groupItems.reduce((sum, item) => sum + calculateTotalPieces(item), 0)}
                             </span>
-                            <span className="text-gray-500"> ลัง</span>
-                          </div>
-                          <div className="text-sm">
-                            <span className="font-medium">
-                              {groupItems.reduce((sum, item) => sum + item.loose_quantity, 0)}
-                            </span>
-                            <span className="text-gray-500"> เศษ</span>
+                            <span> ชิ้น</span>
                           </div>
                         </div>
                       </div>
@@ -293,7 +257,10 @@ export function LocationQRModal({ isOpen, onClose, location, items }: LocationQR
                                 )}
                               </span>
                               <span className="text-gray-600">
-                                {item.box_quantity}ลัง {item.loose_quantity}เศษ
+                                {item.unit_level1_quantity && item.unit_level1_quantity > 0 && `${item.unit_level1_quantity}${item.unit_level1_name || 'ลัง'} `}
+                                {item.unit_level2_quantity && item.unit_level2_quantity > 0 && `${item.unit_level2_quantity}${item.unit_level2_name || 'กล่อง'} `}
+                                {item.unit_level3_quantity && item.unit_level3_quantity > 0 && `${item.unit_level3_quantity}${item.unit_level3_name || 'ชิ้น'}`}
+                                <span className="text-indigo-600 ml-2">(รวม: {calculateTotalPieces(item)} ชิ้น)</span>
                               </span>
                             </div>
                           ))}

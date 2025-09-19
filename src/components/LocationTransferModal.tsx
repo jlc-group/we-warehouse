@@ -1,0 +1,709 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { MapPin, ArrowRight, Package, AlertCircle, CheckCircle, Truck, ShipIcon } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import type { InventoryItem } from '@/hooks/useInventory';
+import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
+
+interface LocationTransferModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onTransfer: (itemIds: string[], targetLocation: string, notes?: string) => Promise<boolean>;
+  onShipOut?: (itemIds: string[], notes?: string) => Promise<boolean>;
+  items: InventoryItem[];
+  initialSourceLocation?: string;
+}
+
+export function LocationTransferModal({
+  isOpen,
+  onClose,
+  onTransfer,
+  onShipOut,
+  items,
+  initialSourceLocation
+}: LocationTransferModalProps) {
+  const [activeTab, setActiveTab] = useState('transfer');
+  const [sourceLocation, setSourceLocation] = useState(initialSourceLocation || '');
+  const [targetLocation, setTargetLocation] = useState('');
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [transferNotes, setTransferNotes] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferStatus, setTransferStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  // Use warehouse locations hook to get all locations including empty ones
+  const { locationsWithInventory: allWarehouseLocations, loading: locationsLoading } = useWarehouseLocations();
+
+  // Get all locations from warehouse (both empty and occupied)
+  const allLocations = useMemo(() => {
+    if (locationsLoading || !allWarehouseLocations) {
+      // Fallback to inventory-based locations while loading
+      const inventoryLocations = new Set(items.map(item => item.location));
+      return Array.from(inventoryLocations).sort();
+    }
+
+    // Use warehouse locations which include both empty and occupied
+    return allWarehouseLocations
+      .map(loc => loc.location_code)
+      .sort();
+  }, [allWarehouseLocations, items, locationsLoading]);
+
+  // Get location information for enhanced display
+  const getLocationInfo = (locationCode: string) => {
+    const warehouseLocation = allWarehouseLocations?.find(loc => loc.location_code === locationCode);
+    const inventoryItems = items.filter(item => item.location === locationCode);
+
+    return {
+      locationCode,
+      inventoryCount: inventoryItems.length,
+      isEmpty: inventoryItems.length === 0,
+      capacity: warehouseLocation?.capacity_boxes || 0,
+      utilization: warehouseLocation?.utilization_percentage || 0,
+      description: warehouseLocation?.description || ''
+    };
+  };
+
+  // Get items for source location
+  const sourceItems = useMemo(() => {
+    if (!sourceLocation) return [];
+    return items.filter(item => item.location === sourceLocation);
+  }, [items, sourceLocation]);
+
+  // Get items for target location
+  const targetItems = useMemo(() => {
+    if (!targetLocation) return [];
+    return items.filter(item => item.location === targetLocation);
+  }, [items, targetLocation]);
+
+  // Check if target location is available (empty)
+  const isTargetLocationAvailable = targetItems.length === 0;
+
+  // Reset form when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab('transfer');
+      setSourceLocation(initialSourceLocation || '');
+      setTargetLocation('');
+      setSelectedItems(new Set());
+      setTransferNotes('');
+      setTransferStatus('idle');
+    }
+  }, [isOpen, initialSourceLocation]);
+
+  // Toggle item selection
+  const toggleItemSelection = (itemId: string) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  // Select all items
+  const selectAllItems = () => {
+    if (selectedItems.size === sourceItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(sourceItems.map(item => item.id)));
+    }
+  };
+
+  // Handle transfer
+  const handleTransfer = async () => {
+    if (selectedItems.size === 0 || !targetLocation || !sourceLocation) {
+      return;
+    }
+
+    if (sourceLocation === targetLocation) {
+      setTransferStatus('error');
+      return;
+    }
+
+    if (!isTargetLocationAvailable) {
+      setTransferStatus('error');
+      return;
+    }
+
+    try {
+      setIsTransferring(true);
+      setTransferStatus('idle');
+
+      const success = await onTransfer(
+        Array.from(selectedItems),
+        targetLocation,
+        transferNotes || undefined
+      );
+
+      if (success) {
+        setTransferStatus('success');
+        setSelectedItems(new Set());
+        setTimeout(() => {
+          onClose();
+          setTransferStatus('idle');
+        }, 2000);
+      } else {
+        setTransferStatus('error');
+      }
+    } catch (error) {
+      console.error('Transfer error:', error);
+      setTransferStatus('error');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  // Handle ship out
+  const handleShipOut = async () => {
+    if (selectedItems.size === 0 || !sourceLocation || !onShipOut) {
+      return;
+    }
+
+    try {
+      setIsTransferring(true);
+      setTransferStatus('idle');
+
+      const success = await onShipOut(
+        Array.from(selectedItems),
+        transferNotes || undefined
+      );
+
+      if (success) {
+        setTransferStatus('success');
+        setSelectedItems(new Set());
+        setTimeout(() => {
+          onClose();
+          setTransferStatus('idle');
+        }, 2000);
+      } else {
+        setTransferStatus('error');
+      }
+    } catch (error) {
+      console.error('Ship out error:', error);
+      setTransferStatus('error');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  // Calculate totals for selected items
+  const selectedTotals = useMemo(() => {
+    const selected = sourceItems.filter(item => selectedItems.has(item.id));
+    return selected.reduce((acc, item) => ({
+      level1: acc.level1 + (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0),
+      level2: acc.level2 + (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0),
+      level3: acc.level3 + (item.unit_level3_quantity || (item as any).pieces_quantity_legacy || 0),
+      items: acc.items + 1
+    }), { level1: 0, level2: 0, level3: 0, items: 0 });
+  }, [sourceItems, selectedItems]);
+
+  const canTransfer = selectedItems.size > 0 && targetLocation && sourceLocation && sourceLocation !== targetLocation && isTargetLocationAvailable;
+  const canShipOut = selectedItems.size > 0 && sourceLocation && onShipOut;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            จัดการสินค้าในคลัง
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* Status Alert */}
+          {transferStatus === 'success' && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>
+                ✅ ดำเนินการสำเร็จ! กำลังปิดหน้าต่าง...
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {transferStatus === 'error' && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                ❌ เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง
+                {activeTab === 'transfer' && sourceLocation === targetLocation && ' (ตำแหน่งต้นทางและปลายทางต้องแตกต่างกัน)'}
+                {activeTab === 'transfer' && !isTargetLocationAvailable && targetLocation && ' (ตำแหน่งปลายทางมีสินค้าอยู่แล้ว ต้องเป็นตำแหน่งว่างเท่านั้น)'}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Tab Navigation */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="transfer" className="flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                ย้ายตำแหน่ง
+              </TabsTrigger>
+              <TabsTrigger value="shipout" className="flex items-center gap-2" disabled={!onShipOut}>
+                <ShipIcon className="h-4 w-4" />
+                ส่งออก
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="transfer" className="space-y-4">
+              {/* Location Selection */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                  {/* Source Location */}
+                  <div className="space-y-2">
+                    <Label htmlFor="sourceLocation" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      จากตำแหน่ง
+                    </Label>
+                    <Select value={sourceLocation} onValueChange={setSourceLocation}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="เลือกตำแหน่งต้นทาง" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allLocations.map(location => {
+                          const locationInfo = getLocationInfo(location);
+                          return (
+                            <SelectItem key={location} value={location}>
+                              <div className="flex items-center justify-between w-full">
+                                <span>{location}</span>
+                                <Badge variant={locationInfo.isEmpty ? "outline" : "secondary"} className="ml-2 text-xs">
+                                  {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
+                                </Badge>
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
+                        <div className="p-2">
+                          <Separator className="mb-2" />
+                          <div className="text-xs text-gray-500 px-2">💡 เลือกตำแหน่งที่มีสินค้าเพื่อย้าย</div>
+                        </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex justify-center">
+                    <ArrowRight className="h-6 w-6 text-muted-foreground" />
+                  </div>
+
+                  {/* Target Location */}
+                  <div className="space-y-2">
+                    <Label htmlFor="targetLocation" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      ไปยังตำแหน่ง
+                    </Label>
+                    <Select value={targetLocation} onValueChange={setTargetLocation}>
+                      <SelectTrigger className={!isTargetLocationAvailable && targetLocation ? 'border-red-500' : ''}>
+                        <SelectValue placeholder="เลือกตำแหน่งปลายทาง" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allLocations
+                          .filter(location => location !== sourceLocation)
+                          .map(location => {
+                            const locationInfo = getLocationInfo(location);
+                            return (
+                              <SelectItem key={location} value={location} disabled={!locationInfo.isEmpty}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{location}</span>
+                                  <Badge
+                                    variant={locationInfo.isEmpty ? "outline" : "destructive"}
+                                    className="ml-2 text-xs"
+                                  >
+                                    {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
+                                  </Badge>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        <div className="p-2">
+                          <Separator className="mb-2" />
+                          <div className="text-xs text-gray-500 px-2">💡 สามารถย้ายไปตำแหน่งว่างเท่านั้น</div>
+                        </div>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Location Status Display */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Source Location Status */}
+                  {sourceLocation && (
+                    <Card className="border-blue-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-blue-600" />
+                          ตำแหน่งต้นทาง: {sourceLocation}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm">
+                          <div className="flex items-center justify-between">
+                            <span>สถานะ:</span>
+                            <Badge variant={sourceItems.length > 0 ? "default" : "secondary"}>
+                              {sourceItems.length > 0 ? `มีสินค้า ${sourceItems.length} รายการ` : 'ว่าง'}
+                            </Badge>
+                          </div>
+                          {sourceItems.length > 0 && (
+                            <div className="mt-2 text-xs text-gray-600">
+                              พร้อมย้าย
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Target Location Status */}
+                  {targetLocation && (
+                    <Card className={`${isTargetLocationAvailable ? 'border-green-200' : 'border-red-200'}`}>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <MapPin className={`h-4 w-4 ${isTargetLocationAvailable ? 'text-green-600' : 'text-red-600'}`} />
+                          ตำแหน่งปลายทาง: {targetLocation}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-sm">
+                          <div className="flex items-center justify-between">
+                            <span>สถานะ:</span>
+                            <Badge variant={isTargetLocationAvailable ? "outline" : "destructive"}>
+                              {isTargetLocationAvailable ? 'ว่าง - พร้อมรับสินค้า' : `มีสินค้า ${targetItems.length} รายการ`}
+                            </Badge>
+                          </div>
+                          {!isTargetLocationAvailable && (
+                            <div className="mt-2 text-xs text-red-600">
+                              ⚠️ ไม่สามารถย้ายได้ - ต้องเป็นตำแหน่งว่าง
+                            </div>
+                          )}
+                          {isTargetLocationAvailable && (
+                            <div className="mt-2 text-xs text-green-600">
+                              ✅ สามารถย้ายได้
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="shipout" className="space-y-4">
+              {/* Ship Out Section */}
+              <Card className="border-orange-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-orange-700">
+                    <ShipIcon className="h-4 w-4" />
+                    ส่งออกสินค้าจากคลัง
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="text-sm text-orange-600">
+                      การส่งออกจะลบสินค้าออกจากระบบคลังทั้งหมด (ไม่ใช่การย้ายตำแหน่ง)
+                    </div>
+
+                    {/* Source Location for Ship Out */}
+                    <div className="space-y-2">
+                      <Label htmlFor="shipOutSource" className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        จากตำแหน่ง
+                      </Label>
+                      <Select value={sourceLocation} onValueChange={setSourceLocation}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="เลือกตำแหน่งที่จะส่งออกสินค้า" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allLocations.map(location => {
+                            const locationInfo = getLocationInfo(location);
+                            return (
+                              <SelectItem key={location} value={location} disabled={locationInfo.isEmpty}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{location}</span>
+                                  <Badge variant={locationInfo.isEmpty ? "outline" : "secondary"} className="ml-2 text-xs">
+                                    {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
+                                  </Badge>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                          <div className="p-2">
+                            <Separator className="mb-2" />
+                            <div className="text-xs text-gray-500 px-2">📦 เลือกตำแหน่งที่มีสินค้าเพื่อส่งออก</div>
+                          </div>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {sourceLocation && (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          ⚠️ <strong>คำเตือน:</strong> สินค้าที่ส่งออกจะถูกลบออกจากระบบคลังอย่างถาวร
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Items Selection */}
+          {sourceLocation && sourceItems.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    สินค้าในตำแหน่ง {sourceLocation}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">
+                      {sourceItems.length} รายการ
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllItems}
+                    >
+                      {selectedItems.size === sourceItems.length ? 'ยกเลิกเลือกทั้งหมด' : 'เลือกทั้งหมด'}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {sourceItems.map(item => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedItems.has(item.id)
+                          ? 'bg-primary/10 border-primary'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      onClick={() => toggleItemSelection(item.id)}
+                    >
+                      <Checkbox
+                        checked={selectedItems.has(item.id)}
+                        onChange={() => toggleItemSelection(item.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{item.product_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          <span className="font-mono">{item.sku}</span>
+                          {item.sku && item.product_name && <span className="mx-1">-</span>}
+                          <span className="text-gray-600">{item.product_name}</span>
+                        </div>
+                        {item.lot && (
+                          <Badge variant="outline" className="text-xs">
+                            LOT: {item.lot}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-right space-y-1">
+                        <div className="text-sm">
+                          {/* Show multi-level units */}
+                          {item.unit_level1_name && item.unit_level1_quantity > 0 && (
+                            <div>
+                              <span className="font-medium">{item.unit_level1_quantity}</span>
+                              <span className="text-gray-500 ml-1">{item.unit_level1_name}</span>
+                            </div>
+                          )}
+                          {item.unit_level2_name && item.unit_level2_quantity > 0 && (
+                            <div>
+                              <span className="font-medium">{item.unit_level2_quantity}</span>
+                              <span className="text-gray-500 ml-1">{item.unit_level2_name}</span>
+                            </div>
+                          )}
+                          {item.unit_level3_name && item.unit_level3_quantity > 0 && (
+                            <div>
+                              <span className="font-medium">{item.unit_level3_quantity}</span>
+                              <span className="text-gray-500 ml-1">{item.unit_level3_name}</span>
+                            </div>
+                          )}
+
+                          {/* Fallback to legacy fields if multi-level is not available */}
+                          {(!item.unit_level1_quantity && !item.unit_level2_quantity && !item.unit_level3_quantity) && (
+                            <>
+                              {(item as any).carton_quantity_legacy > 0 && (
+                                <div>
+                                  <span className="font-medium">{(item as any).carton_quantity_legacy}</span>
+                                  <span className="text-gray-500 ml-1">ลัง</span>
+                                </div>
+                              )}
+                              {(item as any).box_quantity_legacy > 0 && (
+                                <div>
+                                  <span className="font-medium">{(item as any).box_quantity_legacy}</span>
+                                  <span className="text-gray-500 ml-1">กล่อง</span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Selection Summary */}
+          {selectedItems.size > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">สรุปสินค้าที่เลือก</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{selectedTotals.items}</div>
+                    <div className="text-sm text-gray-600">รายการ</div>
+                  </div>
+                  <div className="text-center p-3 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{selectedTotals.level1}</div>
+                    <div className="text-sm text-gray-600">ลัง</div>
+                  </div>
+                  <div className="text-center p-3 bg-orange-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{selectedTotals.level2}</div>
+                    <div className="text-sm text-gray-600">กล่อง</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">{selectedTotals.level3}</div>
+                    <div className="text-sm text-gray-600">ชิ้น</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Transfer Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="transferNotes">
+              หมายเหตุ{activeTab === 'transfer' ? 'การย้าย' : 'การส่งออก'} (ถ้ามี)
+            </Label>
+            <Input
+              id="transferNotes"
+              value={transferNotes}
+              onChange={(e) => setTransferNotes(e.target.value)}
+              placeholder={activeTab === 'transfer'
+                ? "เช่น ย้ายเพื่อจัดเรียงใหม่, ปรับปรุงโซน เป็นต้น"
+                : "เช่น ส่งให้ลูกค้า, โอนไปสาขาอื่น เป็นต้น"
+              }
+            />
+          </div>
+
+          {/* Target Location Items (if not empty) */}
+          {activeTab === 'transfer' && targetLocation && !isTargetLocationAvailable && (
+            <Card className="border-red-200">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2 text-red-700">
+                  <Package className="h-4 w-4" />
+                  สินค้าในตำแหน่งปลายทาง {targetLocation} (ต้องย้ายออกก่อน)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {targetItems.map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-2 border rounded bg-red-50">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{item.product_name}</div>
+                        <div className="text-xs text-gray-500 font-mono">{item.sku}</div>
+                      </div>
+                      <div className="text-right text-xs">
+                        {item.unit_level1_quantity > 0 && (
+                          <div>{item.unit_level1_quantity} {item.unit_level1_name || 'ลัง'}</div>
+                        )}
+                        {item.unit_level2_quantity > 0 && (
+                          <div>{item.unit_level2_quantity} {item.unit_level2_name || 'กล่อง'}</div>
+                        )}
+                        {item.unit_level3_quantity > 0 && (
+                          <div>{item.unit_level3_quantity} {item.unit_level3_name || 'ชิ้น'}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                  <div className="text-sm text-yellow-800">
+                    💡 <strong>คำแนะนำ:</strong> ย้ายสินค้าเหล่านี้ออกจากตำแหน่ง {targetLocation} ก่อน หรือเลือกตำแหน่งว่างอื่น
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Empty State */}
+          {sourceLocation && sourceItems.length === 0 && (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-600 mb-2">ไม่มีสินค้าในตำแหน่งนี้</h3>
+                <p className="text-gray-500">
+                  กรุณาเลือกตำแหน่งที่มีสินค้าอื่น
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={onClose} className="flex-1">
+            ยกเลิก
+          </Button>
+
+          {activeTab === 'transfer' && (
+            <Button
+              onClick={handleTransfer}
+              className="flex-1"
+              disabled={!canTransfer || isTransferring}
+            >
+              {isTransferring ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  กำลังย้าย...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  ย้ายสินค้า ({selectedItems.size} รายการ)
+                </div>
+              )}
+            </Button>
+          )}
+
+          {activeTab === 'shipout' && onShipOut && (
+            <Button
+              onClick={handleShipOut}
+              className="flex-1 bg-orange-600 hover:bg-orange-700"
+              disabled={!canShipOut || isTransferring}
+            >
+              {isTransferring ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                  กำลังส่งออก...
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <ShipIcon className="h-4 w-4" />
+                  ส่งออกสินค้า ({selectedItems.size} รายการ)
+                </div>
+              )}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

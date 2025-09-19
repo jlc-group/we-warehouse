@@ -5,8 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info } from 'lucide-react';
-import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
+import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan } from 'lucide-react';
+import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
+import { useLocationQR, type LocationQRCode, type QRDataLocation } from '@/hooks/useLocationQR';
+import { QRScanner, type ScanPayload } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 
 interface QRCodeManagementProps {
@@ -18,6 +20,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedQRCode, setSelectedQRCode] = useState<LocationQRCode | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   const {
     qrCodes,
@@ -25,13 +28,36 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     generateQRForLocation,
     bulkGenerateQR,
     deleteQRCode,
+    deleteAllQRCodes,
+    getQRByLocation,
     refetch
   } = useLocationQR();
+
+  // Warehouse grid definition (default): Rows A-N, Levels 1-4, Positions 1-20
+  const gridLocations = useMemo(() => {
+    const rows = Array.from({ length: 14 }, (_, i) => String.fromCharCode('A'.charCodeAt(0) + i)); // A..N
+    const levels = [1, 2, 3, 4];
+    const positions = Array.from({ length: 20 }, (_, i) => i + 1); // 1..20
+    const list: string[] = [];
+    for (const row of rows) {
+      for (const level of levels) {
+        for (const pos of positions) {
+          list.push(formatLocation(row, level, pos));
+        }
+      }
+    }
+    return list;
+  }, []);
+
+  // Missing grid locations (no active QR yet)
+  const missingGridLocations = useMemo(() => {
+    const qrSet = new Set(qrCodes.filter(q => q.is_active).map(q => normalizeLocation(q.location)));
+    return gridLocations.filter(loc => !qrSet.has(normalizeLocation(loc)));
+  }, [qrCodes, gridLocations]);
 
   // Get all unique locations from inventory
   const allLocations = useMemo(() => {
     const locations = [...new Set(items.map(item => item.location))].sort();
-    console.log('🔍 QRCodeManagement - All locations from inventory:', locations);
     return locations;
   }, [items]);
 
@@ -39,8 +65,6 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
   const locationsWithoutQR = useMemo(() => {
     const qrLocations = new Set(qrCodes.map(qr => qr.location));
     const withoutQR = allLocations.filter(location => !qrLocations.has(location));
-    console.log('🔍 QRCodeManagement - QR locations:', Array.from(qrLocations));
-    console.log('🔍 QRCodeManagement - Locations without QR:', withoutQR);
     return withoutQR;
   }, [allLocations, qrCodes]);
 
@@ -70,6 +94,30 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
     setIsGenerating(true);
     await bulkGenerateQR(allLocations, items);
     setIsGenerating(false);
+  };
+
+  const handleScanSuccess = (location: string, data: ScanPayload) => {
+    // Narrow the scan payload type to avoid any
+    const payload = (data ?? {}) as { url?: string; action?: string };
+    setShowScanner(false);
+
+    // Find the scanned QR code in our list
+    const qrCode = getQRByLocation(location);
+    if (qrCode) {
+      setSelectedQRCode(qrCode);
+    }
+
+    // Auto-redirect: Navigate to the scanned URL for seamless experience
+    if (payload.url && payload.action === 'add') {
+      window.location.href = payload.url;
+    } else if (location) {
+      // Fallback: Navigate with URL parameters
+      const params = new URLSearchParams();
+      params.set('tab', 'overview');
+      params.set('location', location);
+      params.set('action', 'add');
+      window.location.href = `${window.location.origin}?${params.toString()}`;
+    }
   };
 
   const downloadQRCode = (qrCode: LocationQRCode) => {
@@ -159,6 +207,36 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             </Button>
 
             <Button
+              onClick={async () => {
+                if (missingGridLocations.length === 0) return;
+                setIsGenerating(true);
+                await bulkGenerateQR(missingGridLocations, items);
+                setIsGenerating(false);
+              }}
+              disabled={isGenerating || missingGridLocations.length === 0}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4" />
+              สร้าง QR ทุกตำแหน่งในคลัง (ยังไม่มี) ({missingGridLocations.length})
+            </Button>
+
+            <Button
+              onClick={async () => {
+                const ok = window.confirm('สร้าง QR ใหม่ทุกตำแหน่ง (A–N × 4 × 20) ทับของเดิมทั้งหมดหรือไม่?');
+                if (!ok) return;
+                setIsGenerating(true);
+                await bulkGenerateQR(gridLocations, items);
+                setIsGenerating(false);
+              }}
+              disabled={isGenerating || gridLocations.length === 0}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              สร้าง QR ใหม่ทุกตำแหน่งในคลัง (ทับทั้งหมด)
+            </Button>
+
+            <Button
               onClick={refetch}
               variant="outline"
               disabled={loading}
@@ -166,6 +244,29 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
+            </Button>
+
+            <Button
+              onClick={async () => {
+                const ok = window.confirm('ต้องการลบ QR Code ทั้งหมดหรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้');
+                if (!ok) return;
+                await deleteAllQRCodes();
+              }}
+              variant="destructive"
+              disabled={loading || qrCodes.length === 0}
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              ลบ QR ทั้งหมด
+            </Button>
+
+            <Button
+              onClick={() => setShowScanner(true)}
+              variant="default"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <Scan className="h-4 w-4" />
+              สแกน QR Code
             </Button>
 
             {/* Single location generation */}
@@ -176,7 +277,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                   สร้าง QR ตำแหน่งเดียว
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="bg-white">
                 <DialogHeader>
                   <DialogTitle>สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
                   <DialogDescription>
@@ -251,7 +352,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </div>
         ) : (
           filteredQRCodes.map((qrCode) => {
-            const snapshot = qrCode.inventory_snapshot as any;
+            const snapshot = (qrCode.inventory_snapshot as unknown as QRDataLocation | null) || null;
             const isUrlFormat = qrCode.qr_code_data.startsWith('http');
 
             return (
@@ -314,6 +415,19 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                   {/* Actions */}
                   <div className="flex gap-2">
                     <Button
+                      onClick={() => {
+                        const url = qrCode.qr_code_data && qrCode.qr_code_data.startsWith('http')
+                          ? qrCode.qr_code_data
+                          : `${window.location.origin}?tab=overview&location=${encodeURIComponent(qrCode.location)}&action=add`;
+                        window.location.href = url;
+                      }}
+                      size="sm"
+                      className="flex-1"
+                    >
+                      เปิด
+                    </Button>
+
+                    <Button
                       onClick={() => downloadQRCode(qrCode)}
                       size="sm"
                       variant="outline"
@@ -333,7 +447,7 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
                           <Eye className="h-3 w-3" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-md">
+                      <DialogContent className="max-w-md bg-white">
                         <DialogHeader>
                           <DialogTitle>QR Code - {qrCode.location}</DialogTitle>
                         </DialogHeader>
@@ -408,6 +522,13 @@ export function QRCodeManagement({ items }: QRCodeManagementProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* QR Scanner */}
+      <QRScanner
+        isOpen={showScanner}
+        onClose={() => setShowScanner(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }

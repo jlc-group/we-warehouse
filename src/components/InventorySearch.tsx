@@ -40,8 +40,8 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
 
     const uniqueLocations = new Set(searchResults.map(item => item.location));
     const uniqueProducts = new Set(searchResults.map(item => item.sku));
-    const totalBoxes = searchResults.reduce((sum, item) => sum + item.box_quantity, 0);
-    const totalLoose = searchResults.reduce((sum, item) => sum + item.loose_quantity, 0);
+    const totalBoxes = searchResults.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0), 0);
+    const totalLoose = searchResults.reduce((sum, item) => sum + ((item as any).box_quantity_legacy || 0), 0);
 
     return {
       totalItems: searchResults.length,
@@ -78,8 +78,8 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
         };
       }
       acc[key].items.push(item);
-      acc[key].totalBoxes += item.box_quantity;
-      acc[key].totalLoose += item.loose_quantity;
+      acc[key].totalBoxes += ((item as any).carton_quantity_legacy || 0);
+      acc[key].totalLoose += ((item as any).box_quantity_legacy || 0);
       acc[key].locations.add(item.location);
       return acc;
     }, {} as Record<string, {
@@ -216,7 +216,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
+                            <div className="font-medium">{((item as any).carton_quantity_legacy || 0)} ลัง + {((item as any).box_quantity_legacy || 0)} เศษ</div>
                             {item.mfd && (
                               <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                             )}
@@ -268,7 +268,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
+                            <div className="font-medium">{((item as any).carton_quantity_legacy || 0)} ลัง + {((item as any).box_quantity_legacy || 0)} เศษ</div>
                             {item.mfd && (
                               <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                             )}
@@ -312,10 +312,10 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                       </div>
                       <div className="text-right">
                         <div className="text-sm">
-                          <span className="font-medium">{item.box_quantity}</span> ลัง
+                          <span className="font-medium">{((item as any).carton_quantity_legacy || 0)}</span> ลัง
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          <span>{item.loose_quantity}</span> เศษ
+                          <span>{((item as any).box_quantity_legacy || 0)}</span> เศษ
                         </div>
                       </div>
                     </div>

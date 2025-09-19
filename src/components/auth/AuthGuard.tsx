@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContextSimple';
 import { LoginForm } from './LoginForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -24,7 +24,6 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const {
     user,
-    profile,
     loading,
     hasPermission,
     hasRole,
@@ -53,37 +52,8 @@ export function AuthGuard({
     return <LoginForm />;
   }
 
-  // If authenticated but no profile, show profile setup required
-  if (!profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <div className="flex items-center justify-center mb-4">
-              <div className="bg-orange-600 p-3 rounded-full">
-                <Users className="h-6 w-6 text-white" />
-              </div>
-            </div>
-            <CardTitle className="text-center">ตั้งค่าโปรไฟล์</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Alert>
-              <Settings className="h-4 w-4" />
-              <AlertDescription>
-                กรุณารอให้ผู้ดูแลระบบกำหนดแผนกและสิทธิ์ให้กับบัญชีของคุณ
-                <br />
-                <br />
-                หากมีคำถาม กรุณาติดต่อผู้ดูแลระบบ
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Check if profile is active
-  if (!profile.is_active) {
+  // Check if user is active
+  if (user && !user.is_active) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-100 p-4">
         <Card className="w-full max-w-md">
@@ -115,7 +85,7 @@ export function AuthGuard({
         title="ไม่มีสิทธิ์เข้าถึง"
         message={fallbackMessage || `คุณไม่มีสิทธิ์: ${requiredPermission}`}
         icon={<Shield className="h-6 w-6 text-white" />}
-        profile={profile}
+        profile={user}
       />
     );
   }
@@ -127,7 +97,7 @@ export function AuthGuard({
         title="สิทธิ์ไม่เพียงพอ"
         message={fallbackMessage || `คุณต้องมีสิทธิ์: ${requiredRole}`}
         icon={<Users className="h-6 w-6 text-white" />}
-        profile={profile}
+        profile={user}
       />
     );
   }
@@ -139,7 +109,7 @@ export function AuthGuard({
         title="ระดับสิทธิ์ไม่เพียงพอ"
         message={fallbackMessage || `คุณต้องมีสิทธิ์ระดับ ${minimumRoleLevel} ขึ้นไป`}
         icon={<Users className="h-6 w-6 text-white" />}
-        profile={profile}
+        profile={user}
       />
     );
   }
@@ -151,7 +121,7 @@ export function AuthGuard({
         title="แผนกไม่ถูกต้อง"
         message={fallbackMessage || `คุณต้องอยู่ในแผนก: ${requiredDepartment}`}
         icon={<Package className="h-6 w-6 text-white" />}
-        profile={profile}
+        profile={user}
       />
     );
   }
@@ -191,8 +161,8 @@ function UnauthorizedAccess({ title, message, icon, profile }: UnauthorizedAcces
           <div className="text-sm text-muted-foreground bg-gray-50 p-3 rounded-lg">
             <p><strong>ข้อมูลบัญชีของคุณ:</strong></p>
             <p>อีเมล: {profile?.email}</p>
-            <p>แผนก: {profile?.department?.name_thai || 'ไม่ระบุ'}</p>
-            <p>สิทธิ์: {profile?.role?.name_thai || 'ไม่ระบุ'}</p>
+            <p>แผนก: {profile?.department || 'ไม่ระบุ'}</p>
+            <p>สิทธิ์: {profile?.role || 'ไม่ระบุ'}</p>
           </div>
 
           <div className="flex gap-2">

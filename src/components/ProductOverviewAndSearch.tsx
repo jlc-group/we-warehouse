@@ -49,8 +49,6 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
 
-  // Debug QR codes
-  console.log('🔍 ProductOverviewAndSearch - QR Codes loaded:', qrCodes.length);
 
   // Standard product codes - อัปเดตตามรายการใหม่
   const standardProductCodes = [
@@ -197,8 +195,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         };
       }
       acc[key].items.push(item);
-      acc[key].totalBoxes += item.box_quantity;
-      acc[key].totalLoose += item.loose_quantity;
+      acc[key].totalBoxes += (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0);
+      acc[key].totalLoose += (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0);
       acc[key].locations.add(item.location);
       return acc;
     }, {} as Record<string, {
@@ -218,8 +216,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       totalProducts: new Set(filteredItems.map(item => item.sku)).size,
       totalLots: new Set(filteredItems.map(item => item.lot).filter(Boolean)).size,
       totalItems: filteredItems.length,
-      totalBoxes: filteredItems.reduce((sum, item) => sum + item.box_quantity, 0),
-      totalLoose: filteredItems.reduce((sum, item) => sum + item.loose_quantity, 0),
+      totalBoxes: filteredItems.reduce((sum, item) => sum + (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0), 0),
+      totalLoose: filteredItems.reduce((sum, item) => sum + (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0), 0),
       avgItemsPerLocation: 0
     };
 
@@ -237,8 +235,8 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         dist[item.sku] = { count: 0, locations: 0, totalBoxes: 0, totalLoose: 0 };
       }
       dist[item.sku].count++;
-      dist[item.sku].totalBoxes += item.box_quantity;
-      dist[item.sku].totalLoose += item.loose_quantity;
+      dist[item.sku].totalBoxes += (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0);
+      dist[item.sku].totalLoose += (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0);
     });
 
     // Count unique locations per product
@@ -289,9 +287,9 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         return hiddenGroups.has(dominantLot) ? '#f3f4f6' : lotColorMap[dominantLot];
       }
       case 'density': {
-        const totalQuantity = locationItems.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0);
+        const totalQuantity = locationItems.reduce((sum, item) => sum + (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0) + (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0), 0);
         const maxQuantity = Math.max(...Object.values(itemsByLocation).map(items =>
-          items.reduce((sum, item) => sum + item.box_quantity + item.loose_quantity, 0)
+          items.reduce((sum, item) => sum + (item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0) + (item.unit_level2_quantity || (item as any).box_quantity_legacy || 0), 0)
         ));
         const intensity = totalQuantity / (maxQuantity || 1);
         const alpha = Math.max(0.2, intensity);
@@ -319,7 +317,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
                 <div className="text-3xl font-bold text-primary mb-1">{statistics.totalLocations}</div>
                 <div className="text-sm text-muted-foreground">ตำแหน่งที่มีสินค้า</div>
@@ -342,7 +340,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
               </div>
               <div className="text-center p-4 rounded-lg bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border border-cyan-500/20">
                 <div className="text-3xl font-bold text-cyan-600 mb-1">{statistics.totalLoose}</div>
-                <div className="text-sm text-muted-foreground">เศษรวม</div>
+                <div className="text-sm text-muted-foreground">กล่องรวม</div>
               </div>
             </div>
           </CardContent>
@@ -557,11 +555,11 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     แผนผังคลัง - ภาพรวมขยาย
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
-                  <div className="space-y-2 min-w-max">
+                <CardContent className="overflow-x-auto scroll-smooth">
+                  <div className="space-y-3 min-w-max">
                     {rows.map(row => (
-                      <div key={row} className="flex items-center gap-2">
-                        <div className="w-8 text-center text-lg font-bold text-primary bg-primary/10 rounded px-2 py-1">
+                      <div key={row} className="flex items-center gap-3">
+                        <div className="w-8 h-8 text-center text-sm font-bold text-primary-foreground bg-primary rounded-lg flex items-center justify-center">
                           {row}
                         </div>
                         <div className="flex gap-1">
@@ -576,11 +574,18 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                                   <Tooltip key={location}>
                                     <TooltipTrigger asChild>
                                       <button
-                                        className="w-6 h-5 text-xs border-2 border-gray-300 hover:border-primary transition-all duration-200 flex items-center justify-center rounded-sm hover:scale-110 shadow-sm"
-                                        style={{ backgroundColor: color }}
+                                        className="w-9 h-7 text-sm border border-gray-300 hover:border-primary/60 transition-colors duration-200 ease-out flex items-center justify-center rounded hover:scale-[1.02] shadow-sm hover:shadow-md"
+                                        style={{
+                                          backgroundColor: color,
+                                          willChange: 'transform'
+                                        }}
                                         onClick={() => onShelfClick(location, itemsByLocation[location]?.[0])}
                                       >
-                                        {hasItems && <span className="text-white text-xs font-bold drop-shadow">•</span>}
+                                        {hasItems && (
+                                          <span className="text-white text-sm font-bold drop-shadow">
+                                            •
+                                          </span>
+                                        )}
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" className="max-w-xs">
@@ -600,7 +605,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                                                   }
                                                 </div>
                                                 <div className="text-xs font-medium">
-                                                  📦 {item.box_quantity} ลัง + {item.loose_quantity} เศษ
+                                                  📦 {item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0} ลัง + {item.unit_level2_quantity || (item as any).box_quantity_legacy || 0} กล่อง
                                                 </div>
                                               </div>
                                             ))}
@@ -647,7 +652,17 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">{locationItems.length} รายการ</Badge>
                       {getQRByLocation(location) ? (
-                        <Badge variant="default" className="bg-green-100 text-green-800">
+                        <Badge
+                          variant="default"
+                          className="bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
+                          onClick={() => {
+                            const params = new URLSearchParams();
+                            params.set('tab', 'overview');
+                            params.set('location', location);
+                            params.set('action', 'add');
+                            window.location.href = `${window.location.origin}?${params.toString()}`;
+                          }}
+                        >
                           มี QR
                         </Badge>
                       ) : (
@@ -683,7 +698,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           </div>
                         </div>
                         <div className="text-right">
-                           <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
+                           <div className="font-medium">{item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0} ลัง + {item.unit_level2_quantity || (item as any).box_quantity_legacy || 0} กล่อง</div>
                           {item.mfd && (
                             <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                           )}
@@ -712,7 +727,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     <div className="text-right">
                       <Badge variant="secondary">{productGroup.locations.size} ตำแหน่ง</Badge>
                       <div className="text-sm text-muted-foreground mt-1">
-                        รวม: {productGroup.totalBoxes} ลัง + {productGroup.totalLoose} เศษ
+                        รวม: {productGroup.totalBoxes} ลัง + {productGroup.totalLoose} กล่อง
                       </div>
                     </div>
                   </CardTitle>
@@ -735,7 +750,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium">{item.box_quantity} ลัง + {item.loose_quantity} เศษ</div>
+                          <div className="font-medium">{item.unit_level1_quantity} ลัง + {item.unit_level2_quantity} กล่อง</div>
                           {item.mfd && (
                             <div className="text-xs text-muted-foreground">MFD: {item.mfd}</div>
                           )}
@@ -779,10 +794,10 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                       </div>
                       <div className="text-right">
                         <div className="text-sm">
-                           <span className="font-medium">{item.box_quantity}</span> ลัง
+                           <span className="font-medium">{item.unit_level1_quantity || (item as any).carton_quantity_legacy || 0}</span> ลัง
                          </div>
                          <div className="text-sm text-muted-foreground">
-                           <span>{item.loose_quantity}</span> เศษ
+                           <span>{item.unit_level2_quantity || (item as any).box_quantity_legacy || 0}</span> กล่อง
                         </div>
                       </div>
                     </div>

@@ -114,43 +114,73 @@ export type Database = {
       }
       inventory_items: {
         Row: {
-          box_quantity: number
+          carton_quantity_legacy: number
+          box_quantity_legacy: number
+          pieces_quantity_legacy: number
           created_at: string
           id: string
           location: string
-          loose_quantity: number
           lot: string | null
           mfd: string | null
           product_name: string
           sku: string
           updated_at: string
           user_id: string | null
+          unit: string | null
+          unit_level1_quantity: number
+          unit_level2_quantity: number
+          unit_level3_quantity: number
+          unit_level1_name: string | null
+          unit_level2_name: string | null
+          unit_level3_name: string | null
+          unit_level1_rate: number | null
+          unit_level2_rate: number | null
         }
         Insert: {
-          box_quantity?: number
+          carton_quantity_legacy?: number
+          box_quantity_legacy?: number
+          pieces_quantity_legacy?: number
           created_at?: string
           id?: string
           location: string
-          loose_quantity?: number
           lot?: string | null
           mfd?: string | null
           product_name: string
           sku: string
           updated_at?: string
           user_id?: string | null
+          unit?: string | null
+          unit_level1_quantity?: number
+          unit_level2_quantity?: number
+          unit_level3_quantity?: number
+          unit_level1_name?: string | null
+          unit_level2_name?: string | null
+          unit_level3_name?: string | null
+          unit_level1_rate?: number | null
+          unit_level2_rate?: number | null
         }
         Update: {
-          box_quantity?: number
+          carton_quantity_legacy?: number
+          box_quantity_legacy?: number
+          pieces_quantity_legacy?: number
           created_at?: string
           id?: string
           location?: string
-          loose_quantity?: number
           lot?: string | null
           mfd?: string | null
           product_name?: string
           sku?: string
           updated_at?: string
           user_id?: string | null
+          unit?: string | null
+          unit_level1_quantity?: number
+          unit_level2_quantity?: number
+          unit_level3_quantity?: number
+          unit_level1_name?: string | null
+          unit_level2_name?: string | null
+          unit_level3_name?: string | null
+          unit_level1_rate?: number | null
+          unit_level2_rate?: number | null
         }
         Relationships: []
       }
@@ -557,6 +587,54 @@ export type Database = {
           status?: string | null
           sync_date?: string
           total_records?: number | null
+        }
+        Relationships: []
+      }
+      warehouse_locations: {
+        Row: {
+          id: string
+          location_code: string
+          row: string
+          level: number
+          position: number
+          location_type: string
+          capacity_boxes: number
+          capacity_loose: number
+          description: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          location_code: string
+          row: string
+          level: number
+          position: number
+          location_type?: string
+          capacity_boxes?: number
+          capacity_loose?: number
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          id?: string
+          location_code?: string
+          row?: string
+          level?: number
+          position?: number
+          location_type?: string
+          capacity_boxes?: number
+          capacity_loose?: number
+          description?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

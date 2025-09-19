@@ -32,7 +32,6 @@ export function useInventory() {
   const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching inventory items...');
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -44,7 +43,6 @@ export function useInventory() {
         throw error;
       }
 
-      console.log('Successfully fetched items:', data?.length || 0);
       setItems(data || []);
     } catch (error) {
       console.error('Error fetching inventory items:', error);
@@ -58,19 +56,82 @@ export function useInventory() {
     }
   }, [toast]);
 
-  const addItem = async (itemData: Omit<InventoryInsert, 'user_id'>) => {
+  // Function to ensure product exists in products table
+  const ensureProductExists = async (productCode: string, productName: string) => {
     try {
-      console.log('Adding item:', itemData);
+      // Check if product already exists
+      const { data: existingProduct } = await supabase
+        .from('products')
+        .select('*')
+        .eq('sku_code', productCode)
+        .single();
+
+      if (existingProduct) {
+        return existingProduct;
+      }
+
+      // Create new product if it doesn't exist
+      const { data: newProduct, error } = await supabase
+        .from('products')
+        .insert({
+          sku_code: productCode,
+          product_name: productName,
+          user_id: '00000000-0000-0000-0000-000000000000'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('Failed to create product:', error);
+        // Don't fail the inventory creation if product creation fails
+      }
+
+      return newProduct;
+    } catch (error) {
+      console.warn('Error ensuring product exists:', error);
+      return null;
+    }
+  };
+
+  const addItem = async (itemData: any) => {
+    try {
 
       // Use a fixed user_id for all operations (no authentication needed)
       const fixedUserId = '00000000-0000-0000-0000-000000000000';
 
+      // Ensure product exists in products table (for new products)
+      const productCode = itemData.sku || itemData.product_code;
+      if (productCode && itemData.product_name) {
+        await ensureProductExists(productCode, itemData.product_name);
+      }
+
+      // Support both old format (quantity_boxes) and new format (carton_quantity_legacy)
+      const insertData = {
+        product_name: itemData.product_name,
+        sku: productCode,
+        location: itemData.location,
+        lot: itemData.lot || null,
+        mfd: itemData.mfd || null,
+        // Use ACTUAL database column names - support both formats
+        carton_quantity_legacy: itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
+        box_quantity_legacy: itemData.box_quantity_legacy || itemData.quantity_loose || 0,
+        pieces_quantity_legacy: itemData.pieces_quantity_legacy || 0,
+        user_id: fixedUserId,
+        // Multi-level unit fields - ฟิลด์หน่วยใหม่
+        unit_level1_quantity: itemData.unit_level1_quantity || itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
+        unit_level2_quantity: itemData.unit_level2_quantity || itemData.box_quantity_legacy || itemData.quantity_loose || 0,
+        unit_level3_quantity: itemData.unit_level3_quantity || itemData.pieces_quantity_legacy || 0,
+        unit_level1_name: itemData.unit_level1_name || 'ลัง',
+        unit_level2_name: itemData.unit_level2_name || 'กล่อง',
+        unit_level3_name: itemData.unit_level3_name || 'ชิ้น',
+        // Add conversion rates if available
+        unit_level1_rate: itemData.unit_level1_rate || 0,
+        unit_level2_rate: itemData.unit_level2_rate || 0,
+      };
+
       const { data, error } = await supabase
         .from('inventory_items')
-        .insert({
-          ...itemData,
-          user_id: fixedUserId,
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -85,7 +146,6 @@ export function useInventory() {
         throw error;
       }
       
-      console.log('Successfully added item:', data);
       setItems(prev => [...prev, data]);
       toast({
         title: 'บันทึกสำเร็จ',
@@ -113,7 +173,6 @@ export function useInventory() {
 
   const updateItem = async (id: string, updates: InventoryUpdate) => {
     try {
-      console.log('Updating item:', id, updates);
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -127,7 +186,6 @@ export function useInventory() {
         throw error;
       }
       
-      console.log('Successfully updated item:', data);
       setItems(prev => prev.map(item => item.id === id ? data : item));
       toast({
         title: 'อัพเดตสำเร็จ',
@@ -149,7 +207,6 @@ export function useInventory() {
 
   const deleteItem = async (id: string) => {
     try {
-      console.log('Deleting item:', id);
 
       const { error } = await supabase
         .from('inventory_items')
@@ -161,7 +218,6 @@ export function useInventory() {
         throw error;
       }
       
-      console.log('Successfully deleted item:', id);
       setItems(prev => prev.filter(item => item.id !== id));
       toast({
         title: 'ลบสำเร็จ',
@@ -180,7 +236,6 @@ export function useInventory() {
   };
 
   useEffect(() => {
-    console.log('Initializing inventory hook...');
     fetchItems();
 
     // Set up real-time subscription
@@ -194,14 +249,12 @@ export function useInventory() {
           table: 'inventory_items'
         },
         (payload) => {
-          console.log('Real-time change:', payload);
           fetchItems(); // Refresh data on any change
         }
       )
       .subscribe();
 
     return () => {
-      console.log('Cleaning up inventory hook...');
       supabase.removeChannel(channel);
     };
   }, [fetchItems]);
@@ -209,7 +262,6 @@ export function useInventory() {
   const loadSampleData = async () => {
     try {
       setLoading(true);
-      console.log('Loading sample data...');
 
       // First clear existing data (optional - comment out if you want to keep existing data)
       const { error: deleteError } = await supabase
@@ -218,13 +270,11 @@ export function useInventory() {
         .neq('id', ''); // Delete all rows
 
       if (deleteError) {
-        console.warn('Warning clearing data:', deleteError);
         // Continue even if delete fails
       }
 
       // Generate sample data
       const sampleData = generateSampleInventoryData();
-      console.log('Generated sample data:', sampleData.length, 'items');
 
       // Insert sample data in batches to avoid timeout
       const batchSize = 10;
@@ -244,7 +294,6 @@ export function useInventory() {
         }
       }
 
-      console.log('Successfully loaded sample data');
 
       // Refresh the items
       await fetchItems();
@@ -269,7 +318,6 @@ export function useInventory() {
   const clearAllData = async () => {
     try {
       setLoading(true);
-      console.log('Clearing all data...');
 
       const { error } = await supabase
         .from('inventory_items')
@@ -281,7 +329,6 @@ export function useInventory() {
         throw error;
       }
 
-      console.log('Successfully cleared all data');
 
       // Refresh the items
       await fetchItems();
@@ -305,7 +352,6 @@ export function useInventory() {
 
   // Emergency recovery function
   const emergencyRecovery = useCallback(() => {
-    console.log('🚨 EMERGENCY RECOVERY: Force loading sample data immediately...');
     
     const sampleData = generateSampleInventoryData();
     const recoveryItems: InventoryItem[] = sampleData.map((item, index) => ({
@@ -329,10 +375,7 @@ export function useInventory() {
 
   // กู้ข้อมูลจริงของผู้ใช้
   const recoverUserData = useCallback(() => {
-    console.log('🎯 USER DATA RECOVERY: Loading your actual data immediately...');
-
     const userActualData = createInventoryItems();
-    console.log(`📦 Loading ${userActualData.length} items of your real data...`);
 
     setItems(userActualData);
     setConnectionStatus('connected');
@@ -351,7 +394,6 @@ export function useInventory() {
   const bulkUploadToSupabase = useCallback(async (itemsToUpload: InventoryItem[]) => {
     try {
       setLoading(true);
-      console.log(`🔄 Starting bulk upload of ${itemsToUpload.length} items to Supabase...`);
 
       // Clear existing data first
       const { error: deleteError } = await supabase
@@ -360,7 +402,6 @@ export function useInventory() {
         .neq('id', '');
 
       if (deleteError && deleteError.code !== '42501') {
-        console.warn('Warning while clearing existing data:', deleteError);
       }
 
       // Upload in batches
@@ -373,7 +414,6 @@ export function useInventory() {
       let totalUploaded = 0;
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
-        console.log(`📤 Uploading batch ${i + 1}/${batches.length} (${batch.length} items)...`);
 
         const uploadItems = batch.map(item => {
           const uploadItem = { ...item };
@@ -396,7 +436,6 @@ export function useInventory() {
         totalUploaded += batch.length;
       }
 
-      console.log(`🎉 Bulk upload completed: ${totalUploaded} items uploaded to Supabase`);
       await fetchItems();
 
       toast({
@@ -422,14 +461,12 @@ export function useInventory() {
 
   // Retry connection function
   const retryConnection = async () => {
-    console.log('Retrying connection...');
     setConnectionStatus('connecting');
     await fetchItems();
   };
 
   // Import data function
   const importData = useCallback((newItems: InventoryItem[]) => {
-    console.log(`📤 Importing ${newItems.length} items...`);
 
     const existingKeys = new Set(items.map(item => `${item.product_name}-${item.location}`));
     const uniqueNewItems = newItems.filter(item =>
@@ -455,6 +492,155 @@ export function useInventory() {
     return timestampedItems;
   }, [items, toast]);
 
+  // Transfer items between locations
+  const transferItems = useCallback(async (itemIds: string[], targetLocation: string, notes?: string) => {
+    try {
+      setLoading(true);
+
+      // Get current items to transfer
+      const itemsToTransfer = items.filter(item => itemIds.includes(item.id));
+
+      if (itemsToTransfer.length === 0) {
+        throw new Error('ไม่พบสินค้าที่ต้องการย้าย');
+      }
+
+      // Use Supabase transaction with batch update
+      const updates = itemsToTransfer.map(item => ({
+        id: item.id,
+        location: targetLocation,
+        updated_at: new Date().toISOString()
+      }));
+
+      // Update all items in a single operation
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .upsert(updates.map(update => ({
+          id: update.id,
+          location: update.location
+        })))
+        .select();
+
+      if (error) {
+        console.error('Transfer error:', error);
+        throw error;
+      }
+
+      // Log movement for each transferred item
+      const fixedUserId = '00000000-0000-0000-0000-000000000000';
+      const movementLogs = itemsToTransfer.map(item => ({
+        item_id: item.id,
+        movement_type: 'transfer' as const,
+        carton_quantity_change: 0,
+        box_quantity_change: 0,
+        pieces_quantity_change: 0,
+        location_from: item.location,
+        location_to: targetLocation,
+        notes: notes || `ย้ายจาก ${item.location} ไป ${targetLocation}`,
+        user_id: fixedUserId,
+        movement_date: new Date().toISOString()
+      }));
+
+      // Insert movement logs
+      const { error: logError } = await supabase
+        .from('inventory_movements')
+        .insert(movementLogs);
+
+      if (logError) {
+        console.warn('Failed to log movement:', logError);
+        // Don't fail the whole operation if logging fails
+      }
+
+      // Update local state
+      setItems(prev => prev.map(item => {
+        if (itemIds.includes(item.id)) {
+          return { ...item, location: targetLocation, updated_at: new Date().toISOString() };
+        }
+        return item;
+      }));
+
+      toast({
+        title: '🚛 ย้ายสินค้าสำเร็จ',
+        description: `ย้ายสินค้า ${itemsToTransfer.length} รายการไป ${targetLocation} แล้ว`,
+      });
+
+      return true;
+    } catch (error: unknown) {
+      const supabaseError = isSupabaseError(error) ? error : {};
+      console.error('Error transferring items:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: `ไม่สามารถย้ายสินค้าได้: ${supabaseError.message || 'Unknown error'}`,
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [items, toast]);
+
+  // Ship out items (bulk delete with proper logging)
+  const shipOutItems = useCallback(async (itemIds: string[], notes?: string) => {
+    try {
+      setLoading(true);
+
+      // Get current items to ship out
+      const itemsToShipOut = items.filter(item => itemIds.includes(item.id));
+      if (itemsToShipOut.length === 0) {
+        throw new Error('ไม่พบสินค้าที่ต้องการส่งออก');
+      }
+
+      // Prepare movement logs for ship out
+      const movementLogs = itemsToShipOut.map(item => ({
+        item_id: item.id,
+        movement_type: 'ship_out' as const,
+        location_from: item.location,
+        location_to: null, // Ship out means removed from warehouse
+        notes: notes || `ส่งออกจาก ${item.location}`,
+        user_id: item.user_id || '00000000-0000-0000-0000-000000000000',
+        created_at: new Date().toISOString()
+      }));
+
+      // Delete items from database
+      const { error } = await supabase
+        .from('inventory_items')
+        .delete()
+        .in('id', itemIds);
+
+      if (error) throw error;
+
+      // Insert movement logs
+      const { error: logError } = await supabase
+        .from('inventory_movements')
+        .insert(movementLogs);
+
+      if (logError) {
+        console.warn('Failed to log ship out movement:', logError);
+        // Don't fail the whole operation if logging fails
+      }
+
+      // Update local state - remove shipped items
+      setItems(prev => prev.filter(item => !itemIds.includes(item.id)));
+
+      toast({
+        title: '📦 ส่งออกสินค้าสำเร็จ',
+        description: `ส่งออกสินค้า ${itemsToShipOut.length} รายการออกจากระบบคลังแล้ว`,
+      });
+
+      return true;
+    } catch (error: unknown) {
+      const supabaseError = isSupabaseError(error) ? error : {};
+      console.error('Error shipping out items:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: `ไม่สามารถส่งออกสินค้าได้: ${supabaseError.message || 'Unknown error'}`,
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [items, toast]);
+
   return {
     items,
     loading,
@@ -463,6 +649,8 @@ export function useInventory() {
     addItem,
     updateItem,
     deleteItem,
+    transferItems,
+    shipOutItems,
     refetch: fetchItems,
     loadSampleData,
     clearAllData,

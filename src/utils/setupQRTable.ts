@@ -2,13 +2,11 @@ import { supabase } from '@/integrations/supabase/client';
 
 export async function setupQRTable() {
   try {
-    console.log('🔧 Setting up location_qr_codes table...');
 
     // Since automatic SQL execution isn't available, we'll provide clear instructions
     // and try to create a simple approach
 
     // First, let's try to check if the table exists by attempting a simple operation
-    console.log('🔍 Checking if table exists...');
 
     try {
       const { data, error } = await supabase
@@ -17,7 +15,6 @@ export async function setupQRTable() {
         .limit(1);
 
       if (!error) {
-        console.log('✅ Table already exists and is accessible');
         return true;
       }
 
@@ -26,7 +23,6 @@ export async function setupQRTable() {
         throw error;
       }
     } catch (checkError) {
-      console.log('Table does not exist, need to create manually');
     }
 
     // Since we can't create tables automatically, let's provide helpful guidance
@@ -59,16 +55,12 @@ ALTER TABLE public.location_qr_codes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY IF NOT EXISTS "Allow full access to location_qr_codes"
 ON public.location_qr_codes FOR ALL USING (true);`;
 
-    console.log('📋 SQL Script to run manually:');
-    console.log(sqlScript);
 
     // Copy to clipboard if possible
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(sqlScript);
-        console.log('📋 SQL script copied to clipboard');
       } catch (clipboardError) {
-        console.log('Could not copy to clipboard');
       }
     }
 

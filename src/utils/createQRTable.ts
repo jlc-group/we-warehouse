@@ -2,7 +2,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 export async function createLocationQRTable() {
   try {
-    console.log('🔧 Creating location_qr_codes table...');
 
     // Check if table exists first
     const { data: tables, error: checkError } = await supabase
@@ -16,7 +15,6 @@ export async function createLocationQRTable() {
     }
 
     if (tables && tables.length > 0) {
-      console.log('✅ Table location_qr_codes already exists');
       return true;
     }
 
@@ -77,7 +75,6 @@ export async function createLocationQRTable() {
       console.error('❌ Error creating table:', error);
 
       // Try alternative method - direct table creation
-      console.log('🔄 Trying alternative table creation...');
 
       // Use individual operations
       const { error: createError } = await supabase.rpc('exec', {
@@ -102,7 +99,6 @@ export async function createLocationQRTable() {
       }
     }
 
-    console.log('✅ Successfully created location_qr_codes table');
     return true;
   } catch (error) {
     console.error('❌ Failed to create table:', error);

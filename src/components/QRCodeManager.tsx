@@ -145,8 +145,8 @@ export function QRCodeManager({ items, onShelfClick, onSaveItem }: QRCodeManager
         {filteredLocations.map(location => {
           const locationItems = items.filter(item => item.location === location);
           const totalItems = locationItems.length;
-          const totalBoxes = locationItems.reduce((sum, item) => sum + (item.box_quantity || 0), 0);
-          const totalLoose = locationItems.reduce((sum, item) => sum + (item.loose_quantity || 0), 0);
+          const totalBoxes = locationItems.reduce((sum, item) => sum + (((item as any).carton_quantity_legacy || 0)), 0);
+          const totalLoose = locationItems.reduce((sum, item) => sum + (((item as any).box_quantity_legacy || 0)), 0);
 
           return (
             <Card key={location} className="hover:shadow-md transition-shadow">
@@ -206,7 +206,7 @@ export function QRCodeManager({ items, onShelfClick, onSaveItem }: QRCodeManager
                       {locationItems.slice(0, 3).map(item => (
                         <div key={item.id} className="text-xs flex justify-between">
                           <span className="truncate">{item.product_name}</span>
-                          <span>{item.box_quantity || 0}+{item.loose_quantity || 0}</span>
+                          <span>{((item as any).carton_quantity_legacy || 0)}+{((item as any).box_quantity_legacy || 0)}</span>
                         </div>
                       ))}
                       {locationItems.length > 3 && (
