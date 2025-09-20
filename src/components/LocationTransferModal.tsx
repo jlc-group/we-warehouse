@@ -3,17 +3,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, ArrowRight, Package, AlertCircle, CheckCircle, Truck, ShipIcon } from 'lucide-react';
+import { MapPin, ArrowRight, Package, AlertCircle, CheckCircle, Truck, ShipIcon, ChevronsUpDown, Check } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
-import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
+import { formatLocation, normalizeLocation, displayLocation } from '@/utils/locationUtils';
 
 interface LocationTransferModalProps {
   isOpen: boolean;
@@ -41,6 +43,9 @@ export function LocationTransferModal({
   const [transferNotes, setTransferNotes] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [transferStatus, setTransferStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [sourceLocationOpen, setSourceLocationOpen] = useState(false);
+  const [targetLocationOpen, setTargetLocationOpen] = useState(false);
+  const [shipOutLocationOpen, setShipOutLocationOpen] = useState(false);
 
   // Get warehouse locations data for empty locations
   const { locationsWithInventory: warehouseLocations, loading: warehouseLoading } = useWarehouseLocations('', 100);
@@ -338,45 +343,69 @@ export function LocationTransferModal({
                       <MapPin className="h-4 w-4" />
                       จากตำแหน่ง
                     </Label>
-                    <Select value={sourceLocation} onValueChange={setSourceLocation}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="เลือกตำแหน่งต้นทาง" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allLocations.map(location => {
-                          const locationInfo = getLocationInfo(location);
-                          return (
-                            <SelectItem key={location} value={location}>
-                              <div className="flex items-center justify-between w-full">
-                                <span>{location}</span>
-                                <div className="flex items-center gap-1">
-                                  {locationInfo.isGeneratedLocation && (
-                                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                                      Grid
-                                    </Badge>
-                                  )}
-                                  {locationInfo.isWareHouseLocation && (
-                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
-                                      WH
-                                    </Badge>
-                                  )}
-                                  <Badge
-                                    variant={locationInfo.isEmpty ? "outline" : "secondary"}
-                                    className="ml-1 text-xs"
+                    <Popover open={sourceLocationOpen} onOpenChange={setSourceLocationOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={sourceLocationOpen}
+                          className="w-full justify-between"
+                        >
+                          {sourceLocation ? displayLocation(sourceLocation) : "เลือกตำแหน่งต้นทาง"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0 bg-white">
+                        <Command className="bg-white">
+                          <CommandInput placeholder="ค้นหาตำแหน่ง..." />
+                          <CommandEmpty>ไม่พบตำแหน่งที่ค้นหา</CommandEmpty>
+                          <CommandList>
+                            <CommandGroup>
+                              {allLocations.map(location => {
+                                const locationInfo = getLocationInfo(location);
+                                return (
+                                  <CommandItem
+                                    key={location}
+                                    value={location}
+                                    onSelect={(currentValue) => {
+                                      setSourceLocation(currentValue === sourceLocation ? "" : currentValue);
+                                      setSourceLocationOpen(false);
+                                    }}
                                   >
-                                    {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                        <div className="p-2">
-                          <Separator className="mb-2" />
-                          <div className="text-xs text-gray-500 px-2">💡 เลือกตำแหน่งที่มีสินค้าเพื่อย้าย</div>
-                        </div>
-                      </SelectContent>
-                    </Select>
+                                    <Check
+                                      className={`mr-2 h-4 w-4 ${
+                                        sourceLocation === location ? "opacity-100" : "opacity-0"
+                                      }`}
+                                    />
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{displayLocation(location)}</span>
+                                      <div className="flex items-center gap-1">
+                                        {locationInfo.isGeneratedLocation && (
+                                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                            Grid
+                                          </Badge>
+                                        )}
+                                        {locationInfo.isWareHouseLocation && (
+                                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                            WH
+                                          </Badge>
+                                        )}
+                                        <Badge
+                                          variant={locationInfo.isEmpty ? "outline" : "secondary"}
+                                          className="ml-1 text-xs"
+                                        >
+                                          {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   {/* Arrow */}
@@ -390,47 +419,74 @@ export function LocationTransferModal({
                       <MapPin className="h-4 w-4" />
                       ไปยังตำแหน่ง
                     </Label>
-                    <Select value={targetLocation} onValueChange={setTargetLocation}>
-                      <SelectTrigger className={!isTargetLocationAvailable && targetLocation ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="เลือกตำแหน่งปลายทาง" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allLocations
-                          .filter(location => location !== sourceLocation)
-                          .map(location => {
-                            const locationInfo = getLocationInfo(location);
-                            return (
-                              <SelectItem key={location} value={location} disabled={!locationInfo.isEmpty}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{location}</span>
-                                  <div className="flex items-center gap-1">
-                                    {locationInfo.isGeneratedLocation && (
-                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                                        Grid
-                                      </Badge>
-                                    )}
-                                    {locationInfo.isWareHouseLocation && (
-                                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
-                                        WH
-                                      </Badge>
-                                    )}
-                                    <Badge
-                                      variant={locationInfo.isEmpty ? "outline" : "destructive"}
-                                      className="ml-1 text-xs"
+                    <Popover open={targetLocationOpen} onOpenChange={setTargetLocationOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={targetLocationOpen}
+                          className={`w-full justify-between ${!isTargetLocationAvailable && targetLocation ? 'border-red-500' : ''}`}
+                        >
+                          {targetLocation ? displayLocation(targetLocation) : "เลือกตำแหน่งปลายทาง"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0 bg-white">
+                        <Command className="bg-white">
+                          <CommandInput placeholder="ค้นหาตำแหน่งปลายทาง..." />
+                          <CommandEmpty>ไม่พบตำแหน่งที่ค้นหา</CommandEmpty>
+                          <CommandList>
+                            <CommandGroup>
+                              {allLocations
+                                .filter(location => location !== sourceLocation)
+                                .map(location => {
+                                  const locationInfo = getLocationInfo(location);
+                                  return (
+                                    <CommandItem
+                                      key={location}
+                                      value={location}
+                                      disabled={!locationInfo.isEmpty}
+                                      onSelect={(currentValue) => {
+                                        if (locationInfo.isEmpty) {
+                                          setTargetLocation(currentValue === targetLocation ? "" : currentValue);
+                                          setTargetLocationOpen(false);
+                                        }
+                                      }}
                                     >
-                                      {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        <div className="p-2">
-                          <Separator className="mb-2" />
-                          <div className="text-xs text-gray-500 px-2">💡 สามารถย้ายไปตำแหน่งว่างเท่านั้น</div>
-                        </div>
-                      </SelectContent>
-                    </Select>
+                                      <Check
+                                        className={`mr-2 h-4 w-4 ${
+                                          targetLocation === location ? "opacity-100" : "opacity-0"
+                                        }`}
+                                      />
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>{displayLocation(location)}</span>
+                                        <div className="flex items-center gap-1">
+                                          {locationInfo.isGeneratedLocation && (
+                                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                              Grid
+                                            </Badge>
+                                          )}
+                                          {locationInfo.isWareHouseLocation && (
+                                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                              WH
+                                            </Badge>
+                                          )}
+                                          <Badge
+                                            variant={locationInfo.isEmpty ? "outline" : "destructive"}
+                                            className="ml-1 text-xs"
+                                          >
+                                            {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    </CommandItem>
+                                  );
+                                })}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 
@@ -442,7 +498,7 @@ export function LocationTransferModal({
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm flex items-center gap-2">
                           <MapPin className="h-4 w-4 text-blue-600" />
-                          ตำแหน่งต้นทาง: {sourceLocation}
+                          ตำแหน่งต้นทาง: {displayLocation(sourceLocation)}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -469,7 +525,7 @@ export function LocationTransferModal({
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm flex items-center gap-2">
                           <MapPin className={`h-4 w-4 ${isTargetLocationAvailable ? 'text-green-600' : 'text-red-600'}`} />
-                          ตำแหน่งปลายทาง: {targetLocation}
+                          ตำแหน่งปลายทาง: {displayLocation(targetLocation)}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -519,30 +575,57 @@ export function LocationTransferModal({
                         <MapPin className="h-4 w-4" />
                         จากตำแหน่ง
                       </Label>
-                      <Select value={sourceLocation} onValueChange={setSourceLocation}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="เลือกตำแหน่งที่จะส่งออกสินค้า" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allLocations.map(location => {
-                            const locationInfo = getLocationInfo(location);
-                            return (
-                              <SelectItem key={location} value={location} disabled={locationInfo.isEmpty}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{location}</span>
-                                  <Badge variant={locationInfo.isEmpty ? "outline" : "secondary"} className="ml-2 text-xs">
-                                    {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
-                                  </Badge>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                          <div className="p-2">
-                            <Separator className="mb-2" />
-                            <div className="text-xs text-gray-500 px-2">📦 เลือกตำแหน่งที่มีสินค้าเพื่อส่งออก</div>
-                          </div>
-                        </SelectContent>
-                      </Select>
+                      <Popover open={shipOutLocationOpen} onOpenChange={setShipOutLocationOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={shipOutLocationOpen}
+                            className="w-full justify-between"
+                          >
+                            {sourceLocation ? displayLocation(sourceLocation) : "เลือกตำแหน่งที่จะส่งออกสินค้า"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0 bg-white">
+                          <Command className="bg-white">
+                            <CommandInput placeholder="ค้นหาตำแหน่งส่งออก..." />
+                            <CommandEmpty>ไม่พบตำแหน่งที่ค้นหา</CommandEmpty>
+                            <CommandList>
+                              <CommandGroup>
+                                {allLocations.map(location => {
+                                  const locationInfo = getLocationInfo(location);
+                                  return (
+                                    <CommandItem
+                                      key={location}
+                                      value={location}
+                                      disabled={locationInfo.isEmpty}
+                                      onSelect={(currentValue) => {
+                                        if (!locationInfo.isEmpty) {
+                                          setSourceLocation(currentValue === sourceLocation ? "" : currentValue);
+                                          setShipOutLocationOpen(false);
+                                        }
+                                      }}
+                                    >
+                                      <Check
+                                        className={`mr-2 h-4 w-4 ${
+                                          sourceLocation === location ? "opacity-100" : "opacity-0"
+                                        }`}
+                                      />
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>{displayLocation(location)}</span>
+                                        <Badge variant={locationInfo.isEmpty ? "outline" : "secondary"} className="ml-2 text-xs">
+                                          {locationInfo.isEmpty ? 'ว่าง' : `${locationInfo.inventoryCount} รายการ`}
+                                        </Badge>
+                                      </div>
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     {sourceLocation && (
@@ -566,7 +649,7 @@ export function LocationTransferModal({
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-4 w-4" />
-                    สินค้าในตำแหน่ง {sourceLocation}
+                    สินค้าในตำแหน่ง {displayLocation(sourceLocation)}
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">
@@ -710,7 +793,7 @@ export function LocationTransferModal({
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2 text-red-700">
                   <Package className="h-4 w-4" />
-                  สินค้าในตำแหน่งปลายทาง {targetLocation} (ต้องย้ายออกก่อน)
+                  สินค้าในตำแหน่งปลายทาง {displayLocation(targetLocation)} (ต้องย้ายออกก่อน)
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -737,7 +820,7 @@ export function LocationTransferModal({
                 </div>
                 <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
                   <div className="text-sm text-yellow-800">
-                    💡 <strong>คำแนะนำ:</strong> ย้ายสินค้าเหล่านี้ออกจากตำแหน่ง {targetLocation} ก่อน หรือเลือกตำแหน่งว่างอื่น
+                    💡 <strong>คำแนะนำ:</strong> ย้ายสินค้าเหล่านี้ออกจากตำแหน่ง {displayLocation(targetLocation)} ก่อน หรือเลือกตำแหน่งว่างอื่น
                   </div>
                 </div>
               </CardContent>
