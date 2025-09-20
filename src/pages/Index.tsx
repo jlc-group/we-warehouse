@@ -236,10 +236,24 @@ const Index = memo(() => {
 
       // Prepare update payload with proper null-safe defaults to prevent constraint violations
       // Updated to use ACTUAL database schema: carton_quantity_legacy, box_quantity_legacy
+      const normalizedLocation = normalizeLocation(itemData.location || '');
+
+      // If normalization fails, provide a default valid location
+      const finalLocation = /^[A-Z]\/[1-4]\/\d{2}$/.test(normalizedLocation)
+        ? normalizedLocation
+        : 'A/1/01'; // Default fallback location
+
+      console.log('🔍 Location normalization:', {
+        original: itemData.location,
+        normalized: normalizedLocation,
+        final: finalLocation,
+        passes_regex: /^[A-Z]\/[1-4]\/\d{2}$/.test(finalLocation)
+      });
+
       const dbItemData = {
         product_name: itemData.product_name || '',
         sku: itemData.product_code || '',
-        location: normalizeLocation(itemData.location || ''),
+        location: finalLocation,
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
         unit: itemData.unit || 'กล่อง',
