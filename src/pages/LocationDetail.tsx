@@ -1,0 +1,378 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  MapPin,
+  Package,
+  Edit3,
+  Plus,
+  ArrowLeftRight,
+  Send,
+  ArrowLeft,
+  BarChart3,
+  Clock
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { LocationEditModal } from '@/components/location/LocationEditModal';
+import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
+import { LocationTransferModal } from '@/components/location/LocationTransferModal';
+import { LocationExportModal } from '@/components/location/LocationExportModal';
+
+interface LocationInventory {
+  id: string;
+  sku: string;
+  product_name: string;
+  unit_level1_quantity: number;
+  unit_level2_quantity: number;
+  unit_level3_quantity: number;
+  unit_level1_name: string;
+  unit_level2_name: string;
+  unit_level3_name: string;
+  unit_level1_rate: number;
+  unit_level2_rate: number;
+  total_pieces: number;
+}
+
+interface LocationInfo {
+  location: string;
+  zone: string;
+  section: string;
+  level: string;
+  position: string;
+}
+
+export function LocationDetail() {
+  const { locationId } = useParams<{ locationId: string }>();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
+  const [inventory, setInventory] = useState<LocationInventory[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (locationId) {
+      loadLocationData();
+    }
+  }, [locationId]);
+
+  const loadLocationData = async () => {
+    try {
+      setLoading(true);
+
+      // Load inventory items for this location
+      const { data: inventoryData, error: inventoryError } = await supabase
+        .from('inventory_items')
+        .select(`
+          id,
+          sku,
+          product_name,
+          unit_level1_quantity,
+          unit_level2_quantity,
+          unit_level3_quantity,
+          unit_level1_name,
+          unit_level2_name,
+          unit_level3_name,
+          unit_level1_rate,
+          unit_level2_rate
+        `)
+        .eq('location', locationId)
+        .order('sku');
+
+      if (inventoryError) {
+        console.error('Error loading inventory:', inventoryError);
+        toast({
+          title: 'ข้อผิดพลาด',
+          description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Calculate total pieces for each item
+      const processedInventory = inventoryData?.map(item => {
+        const level1Pieces = (item.unit_level1_quantity || 0) * (item.unit_level1_rate || 0);
+        const level2Pieces = (item.unit_level2_quantity || 0) * (item.unit_level2_rate || 0);
+        const level3Pieces = item.unit_level3_quantity || 0;
+        const total_pieces = level1Pieces + level2Pieces + level3Pieces;
+
+        return {
+          ...item,
+          total_pieces
+        };
+      }) || [];
+
+      setInventory(processedInventory);
+
+      // Parse location info from location string (e.g., "A-01-B-02")
+      if (locationId) {
+        const parts = locationId.split('-');
+        setLocationInfo({
+          location: locationId,
+          zone: parts[0] || '',
+          section: parts[1] || '',
+          level: parts[2] || '',
+          position: parts[3] || ''
+        });
+      }
+
+    } catch (error) {
+      console.error('Error loading location data:', error);
+      toast({
+        title: 'ข้อผิดพลาด',
+        description: 'เกิดข้อผิดพลาดในการโหลดข้อมูล',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatQuantityDisplay = (item: LocationInventory): string => {
+    const parts = [];
+
+    if (item.unit_level1_quantity > 0) {
+      parts.push(`${item.unit_level1_quantity} ${item.unit_level1_name || 'L1'}`);
+    }
+    if (item.unit_level2_quantity > 0) {
+      parts.push(`${item.unit_level2_quantity} ${item.unit_level2_name || 'L2'}`);
+    }
+    if (item.unit_level3_quantity > 0) {
+      parts.push(`${item.unit_level3_quantity} ${item.unit_level3_name || 'L3'}`);
+    }
+
+    return parts.length > 0 ? parts.join(' + ') : '0 ชิ้น';
+  };
+
+  const getTotalStock = (): number => {
+    return inventory.reduce((sum, item) => sum + item.total_pieces, 0);
+  };
+
+  const getUniqueProducts = (): number => {
+    return inventory.length;
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4 max-w-4xl">
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>กำลังโหลดข้อมูล...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!locationInfo) {
+    return (
+      <div className="container mx-auto p-4 max-w-4xl">
+        <div className="text-center py-8">
+          <p className="text-gray-500">ไม่พบข้อมูล Location</p>
+          <Button onClick={() => navigate('/')} className="mt-4">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            กลับหน้าหลัก
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-4 max-w-4xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <Button
+          variant="ghost"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          กลับ
+        </Button>
+      </div>
+
+      {/* Location Info Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <MapPin className="h-6 w-6 text-blue-600" />
+            <div>
+              <div className="text-2xl font-bold">{locationInfo.location}</div>
+              <div className="text-sm text-gray-500 font-normal">
+                โซน {locationInfo.zone} • เซกชัน {locationInfo.section} • ชั้น {locationInfo.level} • ตำแหน่ง {locationInfo.position}
+              </div>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{getUniqueProducts()}</div>
+              <div className="text-sm text-gray-500">รายการสินค้า</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-600">{getTotalStock().toLocaleString()}</div>
+              <div className="text-sm text-gray-500">รวมชิ้น</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-purple-600">
+                <Clock className="h-5 w-5 inline mr-1" />
+                {new Date().toLocaleDateString('th-TH')}
+              </div>
+              <div className="text-sm text-gray-500">วันที่อัปเดต</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Inventory List */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            สินค้าในคลัง
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {inventory.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>ไม่มีสินค้าใน Location นี้</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-96">
+              <div className="space-y-3">
+                {inventory.map((item) => (
+                  <div
+                    key={item.id}
+                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="font-mono">
+                            {item.sku}
+                          </Badge>
+                        </div>
+                        <h3 className="font-medium text-gray-900 mb-2">
+                          {item.product_name}
+                        </h3>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div>📦 {formatQuantityDisplay(item)}</div>
+                          <div className="flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4" />
+                            <span className="font-medium text-green-600">
+                              รวม {item.total_pieces.toLocaleString()} ชิ้น
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Action Buttons */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-center">🛠️ จัดการ Location</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col items-center gap-2"
+              onClick={() => setEditModalOpen(true)}
+              disabled={inventory.length === 0}
+            >
+              <Edit3 className="h-6 w-6" />
+              <span>แก้ไข</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col items-center gap-2"
+              onClick={() => setAddModalOpen(true)}
+            >
+              <Plus className="h-6 w-6" />
+              <span>เพิ่มสินค้า</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col items-center gap-2"
+              onClick={() => setTransferModalOpen(true)}
+              disabled={inventory.length === 0}
+            >
+              <ArrowLeftRight className="h-6 w-6" />
+              <span>ย้ายคลัง</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-20 flex flex-col items-center gap-2"
+              onClick={() => setExportModalOpen(true)}
+              disabled={inventory.length === 0}
+            >
+              <Send className="h-6 w-6" />
+              <span>ส่งออก</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modal Components */}
+      {locationId && (
+        <>
+          <LocationEditModal
+            isOpen={editModalOpen}
+            onClose={() => setEditModalOpen(false)}
+            locationId={locationId}
+            inventory={inventory}
+            onSuccess={loadLocationData}
+          />
+
+          <LocationAddItemModal
+            isOpen={addModalOpen}
+            onClose={() => setAddModalOpen(false)}
+            locationId={locationId}
+            onSuccess={loadLocationData}
+          />
+
+          <LocationTransferModal
+            isOpen={transferModalOpen}
+            onClose={() => setTransferModalOpen(false)}
+            fromLocationId={locationId}
+            inventory={inventory}
+            onSuccess={loadLocationData}
+          />
+
+          <LocationExportModal
+            isOpen={exportModalOpen}
+            onClose={() => setExportModalOpen(false)}
+            locationId={locationId}
+            inventory={inventory}
+            onSuccess={loadLocationData}
+          />
+        </>
+      )}
+    </div>
+  );
+}

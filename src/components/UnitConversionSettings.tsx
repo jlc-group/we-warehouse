@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Settings,
   Save,
@@ -17,7 +18,9 @@ import {
   Edit3,
   AlertCircle,
   CheckCircle,
-  Info
+  Info,
+  Plus,
+  Search
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -36,76 +39,95 @@ interface UnitConversionData {
   sample_quantity_3: number;
 }
 
+interface Product {
+  id: string;
+  sku_code: string;
+  product_name: string;
+  product_type: string;
+}
+
 interface UnitConversionSettingsProps {
   onClose?: () => void;
 }
 
 export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps) {
   const [conversionData, setConversionData] = useState<UnitConversionData[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<UnitConversionData | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tableSearchQuery, setTableSearchQuery] = useState('');
   const { toast } = useToast();
 
-  // Load conversion data from all unique SKUs
+  // Load conversion data and products
   useEffect(() => {
-    loadConversionData();
+    loadData();
   }, []);
 
-  const loadConversionData = async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .select(`
-          sku,
-          product_name,
-          unit_level1_name,
-          unit_level2_name,
-          unit_level3_name,
-          unit_level1_rate,
-          unit_level2_rate,
-          unit_level1_quantity,
-          unit_level2_quantity,
-          unit_level3_quantity
-        `)
+
+      // Load existing conversion rates from product_conversion_rates table
+      const { data: conversionRates, error: conversionError } = await supabase
+        .from('product_conversion_rates')
+        .select('*')
         .order('sku');
 
-      if (error) throw error;
+      if (conversionError) {
+        console.error('Error loading conversion rates:', conversionError);
+      }
 
-      // Group by SKU and get unique SKUs with their conversion settings
-      const skuMap = new Map<string, UnitConversionData>();
+      // Load all products from products table
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, sku_code, product_name, product_type')
+        .order('sku_code');
 
-      data?.forEach(item => {
-        if (!skuMap.has(item.sku)) {
-          skuMap.set(item.sku, {
-            sku: item.sku,
-            product_name: item.product_name,
-            unit_level1_name: item.unit_level1_name,
-            unit_level2_name: item.unit_level2_name,
-            unit_level3_name: item.unit_level3_name,
-            unit_level1_rate: item.unit_level1_rate,
-            unit_level2_rate: item.unit_level2_rate,
-            sample_quantity_1: item.unit_level1_quantity || 0,
-            sample_quantity_2: item.unit_level2_quantity || 0,
-            sample_quantity_3: item.unit_level3_quantity || 0,
-          });
-        }
-      });
+      if (productsError) {
+        console.error('Error loading products:', productsError);
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      setConversionData(Array.from(skuMap.values()));
+      setAllProducts(products || []);
+
+      // Convert conversion rates to display format
+      const conversionMap = conversionRates?.map(rate => ({
+        sku: rate.sku,
+        product_name: rate.product_name || '',
+        unit_level1_name: rate.unit_level1_name,
+        unit_level2_name: rate.unit_level2_name,
+        unit_level3_name: rate.unit_level3_name,
+        unit_level1_rate: rate.unit_level1_rate,
+        unit_level2_rate: rate.unit_level2_rate,
+        sample_quantity_1: 0,
+        sample_quantity_2: 0,
+        sample_quantity_3: 0,
+      })) || [];
+
+      setConversionData(conversionMap);
     } catch (error) {
-      console.error('Error loading conversion data:', error);
+      console.error('Error loading data:', error);
       toast({
         title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลการแปลงหน่วยได้',
+        description: 'ไม่สามารถโหลดข้อมูลได้',
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
   };
+
+  const loadConversionData = loadData;
 
   const handleEditClick = (item: UnitConversionData) => {
     setEditingItem({ ...item });
@@ -118,24 +140,56 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
     try {
       setSaving(true);
 
-      // Update all inventory items with this SKU
-      const { error } = await supabase
-        .from('inventory_items')
-        .update({
-          unit_level1_name: editingItem.unit_level1_name,
-          unit_level2_name: editingItem.unit_level2_name,
-          unit_level3_name: editingItem.unit_level3_name,
-          unit_level1_rate: editingItem.unit_level1_rate,
-          unit_level2_rate: editingItem.unit_level2_rate,
-        })
-        .eq('sku', editingItem.sku);
+      // Check if conversion rate exists
+      const { data: existingRate } = await supabase
+        .from('product_conversion_rates')
+        .select('id')
+        .eq('sku', editingItem.sku)
+        .single();
 
-      if (error) throw error;
+      if (existingRate) {
+        // Update existing conversion rate
+        const { error } = await supabase
+          .from('product_conversion_rates')
+          .update({
+            product_name: editingItem.product_name,
+            unit_level1_name: editingItem.unit_level1_name,
+            unit_level2_name: editingItem.unit_level2_name,
+            unit_level3_name: editingItem.unit_level3_name,
+            unit_level1_rate: editingItem.unit_level1_rate,
+            unit_level2_rate: editingItem.unit_level2_rate,
+          })
+          .eq('sku', editingItem.sku);
+
+        if (error) throw error;
+      } else {
+        // Create new conversion rate
+        const { error } = await supabase
+          .from('product_conversion_rates')
+          .insert({
+            sku: editingItem.sku,
+            product_name: editingItem.product_name,
+            unit_level1_name: editingItem.unit_level1_name,
+            unit_level2_name: editingItem.unit_level2_name,
+            unit_level3_name: editingItem.unit_level3_name,
+            unit_level1_rate: editingItem.unit_level1_rate,
+            unit_level2_rate: editingItem.unit_level2_rate,
+          });
+
+        if (error) throw error;
+      }
 
       // Update local state
-      setConversionData(prev => prev.map(item =>
-        item.sku === editingItem.sku ? editingItem : item
-      ));
+      setConversionData(prev => {
+        const existing = prev.find(item => item.sku === editingItem.sku);
+        if (existing) {
+          return prev.map(item =>
+            item.sku === editingItem.sku ? editingItem : item
+          );
+        } else {
+          return [...prev, editingItem];
+        }
+      });
 
       setShowEditDialog(false);
       setEditingItem(null);
@@ -154,6 +208,46 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCreateConversion = async () => {
+    const selectedProduct = allProducts.find(p => p.id === selectedProductId);
+    if (!selectedProduct) return;
+
+    // Check if conversion rate already exists
+    const existingConversion = conversionData.find(item => item.sku === selectedProduct.sku_code);
+
+    if (existingConversion) {
+      // Edit existing conversion
+      setEditingItem({ ...existingConversion });
+      toast({
+        title: 'แก้ไขการตั้งค่าที่มีอยู่',
+        description: `${selectedProduct.sku_code} มีการตั้งค่าแล้ว จะเปิดหน้าแก้ไข`,
+      });
+    } else {
+      // Create new conversion
+      const newConversion: UnitConversionData = {
+        sku: selectedProduct.sku_code,
+        product_name: selectedProduct.product_name,
+        unit_level1_name: 'ลัง',
+        unit_level2_name: 'กล่อง',
+        unit_level3_name: 'ชิ้น',
+        unit_level1_rate: null,
+        unit_level2_rate: null,
+        sample_quantity_1: 0,
+        sample_quantity_2: 0,
+        sample_quantity_3: 0,
+      };
+      setEditingItem(newConversion);
+      toast({
+        title: 'สร้างการตั้งค่าใหม่',
+        description: `กำลังสร้างการตั้งค่าสำหรับ ${selectedProduct.sku_code}`,
+      });
+    }
+
+    setShowCreateDialog(false);
+    setShowEditDialog(true);
+    setSelectedProductId('');
   };
 
   // Calculate conversion preview
@@ -184,6 +278,22 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
               item.unit_level1_rate && item.unit_level1_rate > 0);
   };
 
+  // Filter conversion data based on search query
+  const filteredConversionData = useMemo(() => {
+    if (!tableSearchQuery.trim()) {
+      return conversionData;
+    }
+
+    const query = tableSearchQuery.toLowerCase();
+    return conversionData.filter(item =>
+      item.sku.toLowerCase().includes(query) ||
+      item.product_name.toLowerCase().includes(query) ||
+      item.unit_level1_name?.toLowerCase().includes(query) ||
+      item.unit_level2_name?.toLowerCase().includes(query) ||
+      item.unit_level3_name?.toLowerCase().includes(query)
+    );
+  }, [conversionData, tableSearchQuery]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -205,11 +315,19 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
           </div>
           <Badge variant="outline" className="px-3 py-1">
             <Package className="h-4 w-4 mr-1" />
-            {conversionData.length} SKU
+            {tableSearchQuery ? `${filteredConversionData.length}/${conversionData.length}` : conversionData.length} SKU
           </Badge>
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="default"
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            สร้าง SKU ใหม่
+          </Button>
           <Button variant="outline" onClick={loadConversionData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
             รีเฟรช
@@ -237,6 +355,24 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
             <Calculator className="h-5 w-5" />
             รายการตั้งค่าแปลงหน่วย
           </CardTitle>
+
+          {/* Search box for table */}
+          <div className="mt-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="ค้นหา SKU, ชื่อสินค้า, หน่วย..."
+                value={tableSearchQuery}
+                onChange={(e) => setTableSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            {tableSearchQuery && (
+              <p className="text-sm text-gray-500 mt-2">
+                พบ {filteredConversionData.length} รายการจากการค้นหา "{tableSearchQuery}"
+              </p>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-96">
@@ -255,7 +391,7 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {conversionData.map((item) => (
+                {filteredConversionData.map((item) => (
                   <TableRow key={item.sku}>
                     <TableCell className="font-mono font-medium">{item.sku}</TableCell>
                     <TableCell className="max-w-xs truncate" title={item.product_name}>
@@ -310,6 +446,16 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                     </TableCell>
                   </TableRow>
                 ))}
+                {filteredConversionData.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                      {tableSearchQuery
+                        ? `ไม่พบรายการที่ตรงกับ "${tableSearchQuery}"`
+                        : 'ยังไม่มีการตั้งค่าแปลงหน่วย'
+                      }
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </ScrollArea>
@@ -469,6 +615,130 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create New SKU Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>เลือก SKU จากสินค้าในระบบ</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                เลือกสินค้าจากรายการด้านล่างเพื่อสร้างการตั้งค่าแปลงหน่วยใหม่ หรือแก้ไขการตั้งค่าที่มีอยู่แล้ว
+                <br />
+                ระบบจะดึงข้อมูล SKU และชื่อสินค้าจากฐานข้อมูลสินค้าโดยตรง
+                <br />
+                <strong>🔹 สินค้าที่มี badge "มีการตั้งค่าแล้ว" จะเป็นการแก้ไขค่าเดิม</strong>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="product-search">ค้นหาสินค้า</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  id="product-search"
+                  placeholder="ค้นหาด้วย SKU หรือชื่อสินค้า..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="product-select">เลือกสินค้า</Label>
+              <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกสินค้าที่ต้องการตั้งค่าแปลงหน่วย" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-64">
+                    {allProducts
+                      .filter(product => {
+                        const query = searchQuery.toLowerCase();
+                        return (
+                          product.sku_code.toLowerCase().includes(query) ||
+                          product.product_name.toLowerCase().includes(query)
+                        );
+                      })
+                      // Show all products - let user create new or edit existing
+                      .map((product) => {
+                        const hasConversion = conversionData.find(c => c.sku === product.sku_code);
+                        return (
+                          <SelectItem key={product.id} value={product.id}>
+                            <div className="flex flex-col items-start w-full">
+                              <div className="flex items-center gap-2 w-full">
+                                <span className="font-mono font-medium">{product.sku_code}</span>
+                                <Badge variant="outline">{product.product_type}</Badge>
+                                {hasConversion && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    มีการตั้งค่าแล้ว
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-sm text-gray-600 truncate max-w-xs">
+                                {product.product_name}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedProductId && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-blue-800 mb-2">สินค้าที่เลือก</h4>
+                {(() => {
+                  const selectedProduct = allProducts.find(p => p.id === selectedProductId);
+                  return selectedProduct ? (
+                    <div className="grid grid-cols-1 gap-2 text-sm">
+                      <div>
+                        <span className="text-blue-600">SKU:</span>
+                        <span className="font-mono font-medium ml-2">{selectedProduct.sku_code}</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-600">ชื่อสินค้า:</span>
+                        <span className="ml-2">{selectedProduct.product_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-blue-600">ประเภท:</span>
+                        <span className="ml-2">{selectedProduct.product_type}</span>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowCreateDialog(false);
+                  setSelectedProductId('');
+                  setSearchQuery('');
+                }}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                onClick={handleCreateConversion}
+                disabled={!selectedProductId}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                ดำเนินการ
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

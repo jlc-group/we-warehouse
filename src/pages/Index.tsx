@@ -213,7 +213,26 @@ const Index = memo(() => {
     }
   }, [searchParams, navigate, toast, inventoryItems]);
 
+  const handleLocationScan = useCallback((locationId: string) => {
+    console.log('🏗️ Location QR scanned:', locationId);
+
+    // Navigate to LocationDetailPage for this location
+    navigate(`/location/${encodeURIComponent(locationId)}`);
+
+    toast({
+      title: `📍 กำลังเปิดหน้า Location`,
+      description: `ตำแหน่ง: ${locationId}`,
+      duration: 3000,
+    });
+  }, [navigate, toast]);
+
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
+    // Check if this is a location ID (for QR scanning to LocationDetail)
+    // Location format like A-01-B-02 or similar should redirect to LocationDetail
+    if (location.match(/^[A-Z]-\d{2}-[A-Z]-\d{2}$/)) {
+      return handleLocationScan(location);
+    }
+
     // Normalize the location for consistent matching
     const normalizedLocation = normalizeLocation(location);
 
@@ -247,7 +266,7 @@ const Index = memo(() => {
       setSelectedItem(undefined); // Clear any selected item for new item creation
       setIsModalOpen(true);
     }
-  }, [inventoryItems]);
+  }, [inventoryItems, handleLocationScan]);
 
   const handleQRCodeClick = useCallback((location: string) => {
     setQrSelectedLocation(location);

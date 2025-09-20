@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { QrCode, MapPin, Package, Clock, Download, RefreshCw } from 'lucide-react';
+import { QrCode, MapPin, Package, Clock, Download, RefreshCw, Printer } from 'lucide-react';
 import { useMemo, useEffect, useRef, useState, memo, useCallback } from 'react';
 import QRCodeLib from 'qrcode';
 import type { InventoryItem } from '@/hooks/useInventory';
@@ -146,6 +146,82 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
     }
   }, [qrCodeDataURL, location]);
 
+  const generatePrintableQR = useCallback(async () => {
+    if (!qrCodeDataURL) return;
+
+    try {
+      // Create a canvas for the printable version
+      const printCanvas = document.createElement('canvas');
+      const ctx = printCanvas.getContext('2d');
+      if (!ctx) return;
+
+      // Set canvas size for printable format (300 DPI equivalent)
+      const canvasWidth = 600;
+      const canvasHeight = 800;
+      printCanvas.width = canvasWidth;
+      printCanvas.height = canvasHeight;
+
+      // Fill white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      // Load QR code image
+      const qrImage = new Image();
+      qrImage.onload = () => {
+        // Draw QR code centered
+        const qrSize = 400;
+        const qrX = (canvasWidth - qrSize) / 2;
+        const qrY = 80;
+        ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+
+        // Add title text
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 28px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ตำแหน่งคลังสินค้า', canvasWidth / 2, 40);
+
+        // Add location text below QR code
+        ctx.font = 'bold 36px Arial, sans-serif';
+        ctx.fillText(location, canvasWidth / 2, qrY + qrSize + 60);
+
+        // Add summary information
+        ctx.font = '20px Arial, sans-serif';
+        ctx.fillStyle = '#666666';
+        const summaryY = qrY + qrSize + 100;
+        ctx.fillText(`สินค้า ${totals.items} รายการ`, canvasWidth / 2, summaryY);
+
+        if (totals.level1 > 0 || totals.level2 > 0 || totals.level3 > 0) {
+          const stockText = [];
+          if (totals.level1 > 0) stockText.push(`${totals.level1} ลัง`);
+          if (totals.level2 > 0) stockText.push(`${totals.level2} กล่อง`);
+          if (totals.level3 > 0) stockText.push(`${totals.level3} ชิ้น`);
+          ctx.fillText(stockText.join(' • '), canvasWidth / 2, summaryY + 30);
+        }
+
+        // Add timestamp
+        ctx.font = '16px Arial, sans-serif';
+        ctx.fillStyle = '#999999';
+        const timestamp = new Date().toLocaleString('th-TH');
+        ctx.fillText(`สร้างเมื่อ: ${timestamp}`, canvasWidth / 2, summaryY + 80);
+
+        // Add instruction text
+        ctx.font = '18px Arial, sans-serif';
+        ctx.fillStyle = '#333333';
+        ctx.fillText('สแกน QR Code เพื่อดูรายละเอียดสินค้า', canvasWidth / 2, summaryY + 120);
+
+        // Convert to data URL and download
+        const printableDataURL = printCanvas.toDataURL('image/png', 1.0);
+        const a = document.createElement('a');
+        a.href = printableDataURL;
+        a.download = `location-${location.replace(/\//g, '-')}-printable.png`;
+        a.click();
+      };
+      qrImage.src = qrCodeDataURL;
+    } catch (error) {
+      console.error('Error generating printable QR:', error);
+    }
+  }, [qrCodeDataURL, location, totals]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -190,6 +266,15 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                   <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
                     <Download className="h-4 w-4" />
                     ดาวน์โหลด QR Code
+                  </Button>
+                  <Button
+                    onClick={generatePrintableQR}
+                    variant="default"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    disabled={!qrCodeDataURL}
+                  >
+                    <Printer className="h-4 w-4" />
+                    พิมพ์พร้อมข้อความ
                   </Button>
                   <Button
                     onClick={() => {

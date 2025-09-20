@@ -9,6 +9,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { LocationDetail } from "./pages/LocationDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,6 +42,14 @@ const App = () => (
               }
             />
             <Route path="/auth" element={<Auth />} />
+            <Route
+              path="/location/:locationId"
+              element={
+                <AuthGuard>
+                  <LocationDetail />
+                </AuthGuard>
+              }
+            />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
