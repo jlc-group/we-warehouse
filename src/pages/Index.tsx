@@ -279,18 +279,23 @@ const Index = memo(() => {
         }
       });
 
+      let result;
       if (selectedItem) {
         console.log('🔍 Index handleSubmit - Calling updateItem with ID:', selectedItem.id);
-        await updateItem(selectedItem.id, dbItemData);
+        result = await updateItem(selectedItem.id, dbItemData);
       } else {
         console.log('🔍 Index handleSubmit - Calling addItem for new item');
-        await addItem(dbItemData);
+        result = await addItem(dbItemData);
       }
-      
-      setIsModalOpen(false);
-      setSelectedItem(undefined);
+
+      // Only close modal if operation was successful
+      if (result !== null) {
+        setIsModalOpen(false);
+        setSelectedItem(undefined);
+      }
     } catch (error) {
-      // Error handling is done in the hook
+      // Error handling is done in the hook - keep modal open for retry
+      console.error('Error in handleSaveItem:', error);
     }
   }, [selectedItem, updateItem, addItem]);
 

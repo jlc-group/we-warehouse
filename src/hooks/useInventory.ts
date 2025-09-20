@@ -244,7 +244,8 @@ export function useInventory() {
         description: `ไม่สามารถเพิ่มสินค้าได้: ${supabaseError.message || supabaseError.details || 'Unknown error'}`,
         variant: 'destructive',
       });
-      throw error;
+      // Don't throw error to prevent app crash - return null instead
+      return null;
     }
   };
 
@@ -278,7 +279,8 @@ export function useInventory() {
         description: `ไม่สามารถแก้ไขข้อมูลได้: ${supabaseError.message || 'Unknown error'}`,
         variant: 'destructive',
       });
-      throw error;
+      // Don't throw error to prevent app crash
+      return null;
     }
   };
 
