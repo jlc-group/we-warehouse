@@ -316,12 +316,16 @@ const Index = memo(() => {
     mfd?: string;
     box_quantity: number;
     loose_quantity: number;
+    pieces_quantity: number;
   }) => {
     try {
       for (const location of locations) {
         await addItem({
           ...itemData,
-          location: location
+          location: location,
+          unit_level1_quantity: itemData.box_quantity, // ลัง
+          unit_level2_quantity: itemData.loose_quantity, // กล่อง
+          unit_level3_quantity: itemData.pieces_quantity // ชิ้น
         });
       }
     } catch (error) {
