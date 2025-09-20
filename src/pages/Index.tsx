@@ -13,6 +13,7 @@ import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
+import { normalizeLocation } from '@/utils/locationUtils';
 import { QRScanner } from '@/components/QRScanner';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -238,7 +239,7 @@ const Index = memo(() => {
       const dbItemData = {
         product_name: itemData.product_name || '',
         sku: itemData.product_code || '',
-        location: itemData.location || '',
+        location: normalizeLocation(itemData.location || ''),
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
         unit: itemData.unit || 'กล่อง',
@@ -299,7 +300,7 @@ const Index = memo(() => {
       for (const location of locations) {
         await addItem({
           ...itemData,
-          location
+          location: normalizeLocation(location)
         });
       }
     } catch (error) {
