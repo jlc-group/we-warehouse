@@ -24,9 +24,15 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductWithCounts, ProductConversionRate } from '@/integrations/supabase/types';
+import type { ProductConversionRate } from '@/integrations/supabase/types';
 
-interface ProductSummaryData extends ProductWithCounts {
+interface ProductSummaryData {
+  id: string;
+  sku_code: string;
+  product_name: string;
+  product_type: string;
+  total_stock_quantity: number;
+  inventory_items_count: number;
   conversion_rates?: ProductConversionRate;
   formatted_quantity?: {
     cartons: number;
@@ -52,23 +58,37 @@ export function ProductSummaryTable() {
 
   const itemsPerPage = 50;
 
-  // Fetch products and conversion rates
+  // Fetch raw data and calculate quantities correctly
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
 
-        // Fetch products with inventory counts
+        // Fetch products
         const { data: productsData, error: productsError } = await supabase
-          .from('products_with_counts')
-          .select('*')
-          .order('total_stock_quantity', { ascending: false });
+          .from('products')
+          .select('id, sku_code, product_name, product_type');
 
         if (productsError) {
           console.error('Error fetching products:', productsError);
           toast({
             title: 'ข้อผิดพลาด',
             description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        // Fetch all inventory items
+        const { data: inventoryData, error: inventoryError } = await supabase
+          .from('inventory_items')
+          .select('sku, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity');
+
+        if (inventoryError) {
+          console.error('Error fetching inventory:', inventoryError);
+          toast({
+            title: 'ข้อผิดพลาด',
+            description: 'ไม่สามารถโหลดข้อมูล inventory ได้',
             variant: 'destructive'
           });
           return;
@@ -90,38 +110,87 @@ export function ProductSummaryTable() {
         });
         setConversionRates(ratesMap);
 
-        // Process products data with conversion calculations
+        // Group inventory by SKU and calculate totals
+        const inventoryMap = new Map<string, {
+          totalL1: number;
+          totalL2: number;
+          totalL3: number;
+          locationCount: number;
+        }>();
+
+        inventoryData?.forEach(item => {
+          if (!inventoryMap.has(item.sku)) {
+            inventoryMap.set(item.sku, {
+              totalL1: 0,
+              totalL2: 0,
+              totalL3: 0,
+              locationCount: 0
+            });
+          }
+          const inv = inventoryMap.get(item.sku)!;
+          inv.totalL1 += item.unit_level1_quantity || 0;
+          inv.totalL2 += item.unit_level2_quantity || 0;
+          inv.totalL3 += item.unit_level3_quantity || 0;
+          inv.locationCount += 1;
+        });
+
+        // Process products data with correct calculations
         const processedProducts = productsData?.map(product => {
+          const inventory = inventoryMap.get(product.sku_code);
           const rate = ratesMap.get(product.sku_code);
+
+          let total_stock_quantity = 0;
+          let inventory_items_count = 0;
           let formatted_quantity = undefined;
 
-          if (rate && product.total_stock_quantity > 0) {
-            const totalPieces = product.total_stock_quantity;
-            const level1Rate = rate.unit_level1_rate || 0;
-            const level2Rate = rate.unit_level2_rate || 0;
+          if (inventory) {
+            inventory_items_count = inventory.locationCount;
 
-            if (level1Rate > 0 && level2Rate > 0) {
-              const cartons = Math.floor(totalPieces / level1Rate);
-              const remaining1 = totalPieces % level1Rate;
-              const boxes = Math.floor(remaining1 / level2Rate);
-              const pieces = remaining1 % level2Rate;
+            if (rate) {
+              // Calculate total pieces using correct conversion rates
+              const level1Pieces = inventory.totalL1 * (rate.unit_level1_rate || 0);
+              const level2Pieces = inventory.totalL2 * (rate.unit_level2_rate || 0);
+              const level3Pieces = inventory.totalL3;
 
-              const displayParts = [];
-              if (cartons > 0) displayParts.push(`${cartons} ลัง`);
-              if (boxes > 0) displayParts.push(`${boxes} กล่อง`);
-              if (pieces > 0) displayParts.push(`${pieces} ชิ้น`);
+              total_stock_quantity = level1Pieces + level2Pieces + level3Pieces;
 
-              formatted_quantity = {
-                cartons,
-                boxes,
-                pieces,
-                display: displayParts.join(' + ') || `${totalPieces} ชิ้น`
-              };
+              // Format quantity display
+              if (total_stock_quantity > 0) {
+                const level1Rate = rate.unit_level1_rate || 0;
+                const level2Rate = rate.unit_level2_rate || 0;
+
+                if (level1Rate > 0 && level2Rate > 0) {
+                  const cartons = Math.floor(total_stock_quantity / level1Rate);
+                  const remaining1 = total_stock_quantity % level1Rate;
+                  const boxes = Math.floor(remaining1 / level2Rate);
+                  const pieces = remaining1 % level2Rate;
+
+                  const displayParts = [];
+                  if (cartons > 0) displayParts.push(`${cartons} ลัง`);
+                  if (boxes > 0) displayParts.push(`${boxes} กล่อง`);
+                  if (pieces > 0) displayParts.push(`${pieces} ชิ้น`);
+
+                  formatted_quantity = {
+                    cartons,
+                    boxes,
+                    pieces,
+                    display: displayParts.join(' + ') || `${total_stock_quantity} ชิ้น`
+                  };
+                }
+              }
+            } else {
+              // If no conversion rates, use simple sum as fallback
+              total_stock_quantity = inventory.totalL1 + inventory.totalL2 + inventory.totalL3;
             }
           }
 
           return {
-            ...product,
+            id: product.id,
+            sku_code: product.sku_code,
+            product_name: product.product_name,
+            product_type: product.product_type,
+            total_stock_quantity,
+            inventory_items_count,
             conversion_rates: rate,
             formatted_quantity
           };
@@ -145,7 +214,7 @@ export function ProductSummaryTable() {
 
   // Filter and sort products
   const filteredAndSortedProducts = useMemo(() => {
-    let filtered = products.filter(product => {
+    const filtered = products.filter(product => {
       const matchesSearch =
         product.sku_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.product_name.toLowerCase().includes(searchQuery.toLowerCase());
