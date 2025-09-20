@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,6 +48,7 @@ interface InventoryModalSimpleProps {
   }) => void;
   location: string;
   existingItem?: InventoryItem;
+  otherItemsAtLocation?: InventoryItem[];
 }
 
 // Product name mapping สำหรับรหัสสินค้าที่พบบ่อย
@@ -220,7 +221,7 @@ const PRODUCT_NAME_MAPPING: Record<string, string> = {
   'TB-L8B-30G_M1': 'หลอดบรรจุ วอเตอร์เมลอน อีอี คูชั่น แมตต์ SPF50PA+++(2 Natural)'
 };
 
-export function InventoryModalSimple({ isOpen, onClose, onSave, location, existingItem }: InventoryModalSimpleProps) {
+export function InventoryModalSimple({ isOpen, onClose, onSave, location, existingItem, otherItemsAtLocation }: InventoryModalSimpleProps) {
   // Form state
   const [productName, setProductName] = useState('');
   const [productCode, setProductCode] = useState('');
@@ -513,6 +514,34 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
             <MapPin className="h-4 w-4 text-primary" />
             <span className="font-mono font-medium">ตำแหน่ง: {location}</span>
           </div>
+
+          {/* Warning for Multiple Items at Location */}
+          {otherItemsAtLocation && otherItemsAtLocation.length > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-yellow-800">
+                    ⚠️ มีสินค้าอื่นในตำแหน่งนี้แล้ว
+                  </div>
+                  <div className="text-sm text-yellow-700">
+                    พบ {otherItemsAtLocation.length} รายการสินค้าในตำแหน่ง {location}:
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {otherItemsAtLocation.map((item, index) => (
+                      <div key={item.id} className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded">
+                        {index + 1}. {item.product_name} (SKU: {item.sku})
+                        {item.lot && ` - LOT: ${item.lot}`}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs text-yellow-600 mt-2">
+                    💡 การเพิ่มสินค้าใหม่จะไม่มีผลต่อสินค้าที่มีอยู่แล้ว
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Product Code */}
           <div className="space-y-2">

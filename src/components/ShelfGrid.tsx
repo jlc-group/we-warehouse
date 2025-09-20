@@ -9,7 +9,7 @@ import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw
 import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
-import { formatLocation, normalizeLocation } from '@/utils/locationUtils';
+import { formatLocation, normalizeLocation, displayLocation } from '@/utils/locationUtils';
 
 interface ShelfGridProps {
   items: InventoryItem[];
@@ -53,7 +53,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
 
   useEffect(() => {
     // Check for location changes and highlight updated locations
-    const currentLocations = new Map(items.map(item => [item.location, item]));
+    const currentLocations = new Map(items.map(item => [normalizeLocation(item.location), item]));
     const updatedLocations = new Set<string>();
 
     // Find locations with changes
@@ -129,7 +129,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
 
   // Create a map for multiple items per location (with normalized locations)
   const itemsByLocation = useMemo(() => {
-    return items.reduce((acc, item) => {
+    const locationMap = items.reduce((acc, item) => {
       const normalizedLocation = normalizeLocation(item.location);
       if (!acc[normalizedLocation]) {
         acc[normalizedLocation] = [];
@@ -137,6 +137,22 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
       acc[normalizedLocation].push(item);
       return acc;
     }, {} as Record<string, InventoryItem[]>);
+
+    // Debug: Log locations with multiple items to understand the grouping
+    Object.entries(locationMap).forEach(([location, itemsInLocation]) => {
+      if (itemsInLocation.length > 1) {
+        console.log(`🔍 Location ${location} has ${itemsInLocation.length} items:`, itemsInLocation.map(item => ({
+          id: item.id,
+          sku: item.sku,
+          product_name: item.product_name,
+          lot: item.lot,
+          original_location: item.location,
+          normalized_location: normalizeLocation(item.location)
+        })));
+      }
+    });
+
+    return locationMap;
   }, [items]);
 
   // Filter items based on current filter state
@@ -348,11 +364,26 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                     <div className="flex gap-1.5 pb-2" style={{ minWidth: 'max-content' }}>
                       {positions.map((position) => {
                         const location = formatLocation(row, level, position);
-                        const locationItems = itemsByLocation[location] || [];
+                        const normalizedLocation = normalizeLocation(location);
+                        const locationItems = itemsByLocation[normalizedLocation] || [];
                         const isSelected = selectedShelf === location;
                         const isHighlighted = highlightedLocations.includes(location);
-                        const isRecentlyUpdated = recentlyUpdatedLocations.has(location);
+                        const isRecentlyUpdated = recentlyUpdatedLocations.has(normalizedLocation);
                         const itemCount = locationItems.length;
+                        
+                        // Debug: Log items for locations with multiple items
+                        if (itemCount > 1 && ['A/1/4', 'A/1/2', 'A/3/1'].includes(location)) {
+                          console.log(`🔍 Debug location ${displayLocation(location)} (${location}):`, locationItems.map(item => ({
+                            id: item.id,
+                            sku: item.sku,
+                            product_name: item.product_name,
+                            lot: item.lot,
+                            mfd: item.mfd,
+                            location: item.location,
+                            carton_qty: getCartonQty(item),
+                            box_qty: getBoxQty(item)
+                          })));
+                        }
                          // Null-safe calculation using consistent quantity helpers
                          const totalBoxes = locationItems.reduce((sum, item) => {
                            const value = getCartonQty(item);
@@ -417,7 +448,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                 <CardContent className="p-2 h-full flex flex-col justify-between">
                                   {/* Location Label */}
                                   <div className="text-[10px] font-mono text-slate-600 font-bold text-center leading-none">
-                                    {row}{position}/{level}
+                                    {displayLocation(location)}
                                   </div>
 
                                   {/* Main Content */}
@@ -440,6 +471,20 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                         {itemCount === 1 && (
                                           <div className="text-[9px] font-semibold text-emerald-800 leading-tight mb-1 truncate px-1">
                                             {locationItems[0]?.product_name}
+                                          </div>
+                                        )}
+
+                                        {/* Product Summary for Multiple Items */}
+                                        {itemCount > 1 && (
+                                          <div className="text-[8px] text-blue-800 leading-tight mb-1 px-1">
+                                            {(() => {
+                                              const uniqueProducts = new Set(locationItems.map(item => item.product_name));
+                                              if (uniqueProducts.size === 1) {
+                                                return Array.from(uniqueProducts)[0];
+                                              } else {
+                                                return `${uniqueProducts.size} ชนิดสินค้า`;
+                                              }
+                                            })()}
                                           </div>
                                         )}
 
@@ -472,7 +517,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <MapPin className="h-3 w-3" />
-                                    <span className="font-semibold">ตำแหน่ง: {location}</span>
+                                    <span className="font-semibold">ตำแหน่ง: {displayLocation(location)}</span>
                                   </div>
                                   {loading ? (
                                     <div className="flex items-center gap-1">
@@ -513,8 +558,21 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                         )}
                                       </div>
                                     ) : (
-                                      <div className="pt-1 border-t text-xs">
-                                        มีสินค้าหลายรายการ คลิกเพื่อดูรายละเอียด
+                                      <div className="pt-1 border-t">
+                                        <div className="text-xs font-medium mb-1">สินค้าในตำแหน่งนี้:</div>
+                                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                                          {locationItems.map((item) => (
+                                            <div key={item.id} className="text-xs bg-gray-50 p-1 rounded">
+                                              <div className="font-medium text-gray-800 truncate">{item.product_name}</div>
+                                              <div className="text-gray-600">
+                                                รหัส: {item.sku} | ลัง: {getCartonQty(item)} กล่อง: {getBoxQty(item)}
+                                              </div>
+                                              {item.lot && (
+                                                <div className="text-gray-500 text-xs">Lot: {item.lot}</div>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
                                     )}
                                   </>

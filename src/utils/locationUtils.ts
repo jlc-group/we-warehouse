@@ -110,6 +110,27 @@ export function formatLocation(row: string, level: number, position: number): st
 }
 
 /**
+ * Format location for display purposes (user-friendly format)
+ * Shows in format: A1/4, B15/3 (Row+Position/Level)
+ * This format is easier for warehouse workers to understand
+ */
+export function displayLocation(location: string): string {
+  const parsed = parseLocation(location);
+  if (!parsed) return location;
+  
+  return `${parsed.row}${parsed.position}/${parsed.level}`;
+}
+
+/**
+ * Format location for database storage (normalized format)
+ * Uses the same format as displayLocation but ensures consistency
+ * Database constraint: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$
+ */
+export function dbLocation(location: string): string {
+  return normalizeLocation(location);
+}
+
+/**
  * Generate all possible warehouse locations
  * Returns array of all valid locations (A/1/1 to N/4/20)
  * Total: 14 rows * 4 levels * 20 positions = 1,120 locations

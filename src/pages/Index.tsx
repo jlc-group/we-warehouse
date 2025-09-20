@@ -13,6 +13,7 @@ import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
+import { LocationItemSelector } from '@/components/LocationItemSelector';
 import { QRScanner } from '@/components/QRScanner';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -27,7 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { generateAllWarehouseLocations } from '@/utils/locationUtils';
+import { generateAllWarehouseLocations, normalizeLocation } from '@/utils/locationUtils';
 import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2 } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
@@ -52,10 +53,12 @@ const Index = memo(() => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isLocationItemSelectorOpen, setIsLocationItemSelectorOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
+  const [locationItems, setLocationItems] = useState<InventoryItem[]>([]);
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [showScanner, setShowScanner] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -69,6 +72,7 @@ const Index = memo(() => {
     connectionStatus,
     addItem,
     updateItem,
+    deleteItem,
     exportItem,
     transferItems,
     bulkUploadToSupabase,
@@ -205,10 +209,40 @@ const Index = memo(() => {
   }, [searchParams, navigate, toast, inventoryItems]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
-    setSelectedLocation(location);
-    setSelectedItem(item);
-    setIsModalOpen(true);
-  }, []);
+    // Normalize the location for consistent matching
+    const normalizedLocation = normalizeLocation(location);
+
+    // Find all items at this location
+    const itemsAtLocation = inventoryItems.filter(inventoryItem =>
+      normalizeLocation(inventoryItem.location) === normalizedLocation
+    );
+
+    console.log('🔍 handleShelfClick - Location analysis:', {
+      originalLocation: location,
+      normalizedLocation: normalizedLocation,
+      itemsFound: itemsAtLocation.length,
+      items: itemsAtLocation.map(item => ({
+        id: item.id,
+        sku: item.sku,
+        product_name: item.product_name,
+        lot: item.lot
+      }))
+    });
+
+    setSelectedLocation(normalizedLocation);
+
+    // If multiple items exist at this location, show the LocationItemSelector
+    if (itemsAtLocation.length > 1) {
+      console.log('📋 Multiple items detected - showing LocationItemSelector');
+      setLocationItems(itemsAtLocation);
+      setIsLocationItemSelectorOpen(true);
+    } else {
+      // Single item or empty location - use the existing modal
+      console.log('📝 Single/empty location - showing InventoryModalSimple');
+      setSelectedItem(item || itemsAtLocation[0]);
+      setIsModalOpen(true);
+    }
+  }, [inventoryItems]);
 
   const handleQRCodeClick = useCallback((location: string) => {
     setQrSelectedLocation(location);
@@ -300,8 +334,15 @@ const Index = memo(() => {
 
       // Only close modal if operation was successful
       if (result !== null) {
+        console.log('✅ Index handleSaveItem - Operation successful, closing modal and refreshing data');
         setIsModalOpen(false);
         setSelectedItem(undefined);
+
+        // Force refresh inventory data to ensure UI consistency
+        setTimeout(() => {
+          console.log('🔄 Index - Forcing inventory refresh after successful save');
+          refetch();
+        }, 300);
       }
     } catch (error) {
       // Error handling is done in the hook - keep modal open for retry
@@ -319,19 +360,36 @@ const Index = memo(() => {
     pieces_quantity: number;
   }) => {
     try {
+      console.log('🔄 Index handleBulkSave - Starting bulk save for', locations.length, 'locations');
+      let successCount = 0;
+
       for (const location of locations) {
-        await addItem({
+        const result = await addItem({
           ...itemData,
           location: location,
           unit_level1_quantity: itemData.box_quantity, // ลัง
           unit_level2_quantity: itemData.loose_quantity, // กล่อง
           unit_level3_quantity: itemData.pieces_quantity // ชิ้น
         });
+
+        if (result !== null) {
+          successCount++;
+        }
       }
+
+      console.log('✅ Index handleBulkSave - Completed:', successCount, 'of', locations.length, 'items saved');
+
+      // Force refresh after bulk operations
+      setTimeout(() => {
+        console.log('🔄 Index - Forcing inventory refresh after bulk save');
+        refetch();
+      }, 1000); // Longer delay for bulk operations
+
     } catch (error) {
       // Error handling is done in the hook
+      console.error('Error in handleBulkSave:', error);
     }
-  }, [addItem]);
+  }, [addItem, refetch]);
 
   const handleModalClose = useCallback(() => {
     setIsModalOpen(false);
@@ -349,6 +407,69 @@ const Index = memo(() => {
   const handleTransferModalClose = useCallback(() => {
     setIsTransferModalOpen(false);
   }, []);
+
+  const handleLocationItemSelectorClose = useCallback(() => {
+    setIsLocationItemSelectorOpen(false);
+    setLocationItems([]);
+  }, []);
+
+  const handleSelectEditItem = useCallback((item: InventoryItem) => {
+    console.log('📝 Edit selected item:', item.id, item.product_name);
+    setSelectedItem(item);
+    setIsLocationItemSelectorOpen(false);
+    setIsModalOpen(true);
+  }, []);
+
+  const handleDeleteLocationItem = useCallback(async (itemId: string) => {
+    console.log('🗑️ Delete item:', itemId);
+    try {
+      await deleteItem(itemId);
+      console.log('✅ Item deleted successfully:', itemId);
+
+      // Update the locationItems state to remove the deleted item
+      setLocationItems(prev => prev.filter(item => item.id !== itemId));
+
+      // Force refresh to ensure consistency
+      setTimeout(() => {
+        refetch();
+      }, 300);
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error deleting item:', error);
+      throw error; // Let the LocationItemSelector component handle the error display
+    }
+  }, [deleteItem, refetch]);
+
+  const handleClearLocationItems = useCallback(async () => {
+    console.log('🗑️ Clear all items at location:', selectedLocation);
+    try {
+      // Delete all items at the selected location
+      const itemIdsToDelete = locationItems.map(item => item.id);
+      console.log('🗑️ Deleting items:', itemIdsToDelete);
+
+      // Delete items sequentially to avoid race conditions
+      for (const itemId of itemIdsToDelete) {
+        await deleteItem(itemId);
+        console.log('✅ Deleted item:', itemId);
+      }
+
+      console.log('✅ All items cleared from location:', selectedLocation);
+
+      setIsLocationItemSelectorOpen(false);
+      setLocationItems([]);
+
+      // Force refresh to ensure consistency
+      setTimeout(() => {
+        refetch();
+      }, 300);
+
+      return true;
+    } catch (error) {
+      console.error('❌ Error clearing location items:', error);
+      throw error; // Let the LocationItemSelector component handle the error display
+    }
+  }, [selectedLocation, locationItems, deleteItem, refetch]);
 
   const handleSetupQRTable = useCallback(async () => {
     setIsCreatingQRTable(true);
@@ -371,10 +492,10 @@ const Index = memo(() => {
 
   const handleTestQRUrl = useCallback(() => {
     // Test the QR URL functionality
-    const testLocation = 'A/4/07';
+    const testLocation = 'A/4/7';
 
     toast({
-      title: '🧪 Test QR URL สำหรับ A/4/07',
+      title: '🧪 Test QR URL สำหรับ A/4/7',
       description: `จะเปิดหน้า QR Modal พร้อมข้อมูลจริง`,
       duration: 3000,
     });
@@ -672,7 +793,10 @@ const Index = memo(() => {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <InventoryTable items={inventoryItems} />
+              <InventoryTable
+                key={`inventory-table-${inventoryItems.length}-${Date.now()}`}
+                items={inventoryItems}
+              />
             )}
           </TabsContent>
 
@@ -809,6 +933,16 @@ const Index = memo(() => {
             onSave={handleSaveItem}
             location={selectedLocation}
             existingItem={selectedItem}
+            otherItemsAtLocation={
+              selectedItem
+                ? inventoryItems.filter(item =>
+                    normalizeLocation(item.location) === normalizeLocation(selectedLocation) &&
+                    item.id !== selectedItem.id
+                  )
+                : inventoryItems.filter(item =>
+                    normalizeLocation(item.location) === normalizeLocation(selectedLocation)
+                  )
+            }
           />
         </ErrorBoundary>
 
@@ -835,6 +969,17 @@ const Index = memo(() => {
           onTransfer={transferItems}
           items={inventoryItems}
           onRefreshData={refetch}
+        />
+
+        {/* Location Item Selector Modal */}
+        <LocationItemSelector
+          isOpen={isLocationItemSelectorOpen}
+          onClose={handleLocationItemSelectorClose}
+          location={selectedLocation}
+          items={locationItems}
+          onSelectEdit={handleSelectEditItem}
+          onDeleteItem={handleDeleteLocationItem}
+          onClearLocation={handleClearLocationItems}
         />
 
         {/* QR Scanner */}

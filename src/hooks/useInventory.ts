@@ -206,6 +206,15 @@ export function useInventory() {
         unit_level2_rate: itemData.unit_level2_rate || 0,
       };
 
+      // Additional validation before insert
+      console.log('🔍 Final insertData before database:', {
+        location: insertData.location,
+        product_name: insertData.product_name,
+        sku: insertData.sku,
+        normalizedLocation: normalizeLocation(insertData.location || ''),
+        isValidLocation: /^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/.test(insertData.location || '')
+      });
+
       const { data, error } = await supabase
         .from('inventory_items')
         .insert(insertData)
@@ -223,12 +232,28 @@ export function useInventory() {
         throw error;
       }
       
-      setItems(prev => [...prev, data]);
+      // Update local state immediately and ensure proper sorting
+      setItems(prev => {
+        const updatedItems = [...prev, data].sort((a, b) => a.location.localeCompare(b.location));
+        console.log('🔄 addItem - Updated local state:', {
+          newItemAdded: data.id,
+          totalItems: updatedItems.length,
+          newLocation: data.location
+        });
+        return updatedItems;
+      });
+
+      // Force a fresh fetch to ensure consistency with database
+      setTimeout(() => {
+        console.log('🔄 addItem - Forcing data refresh for consistency');
+        fetchItems(true);
+      }, 500);
+
       toast({
         title: 'บันทึกสำเร็จ',
         description: 'เพิ่มสินค้าเข้าคลังแล้ว',
       });
-      
+
       return data;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
@@ -264,12 +289,29 @@ export function useInventory() {
         throw error;
       }
       
-      setItems(prev => prev.map(item => item.id === id ? data : item));
+      // Update local state immediately with proper sorting
+      setItems(prev => {
+        const updatedItems = prev.map(item => item.id === id ? data : item)
+          .sort((a, b) => a.location.localeCompare(b.location));
+        console.log('🔄 updateItem - Updated local state:', {
+          updatedItemId: id,
+          totalItems: updatedItems.length,
+          updatedLocation: data.location
+        });
+        return updatedItems;
+      });
+
+      // Force a fresh fetch to ensure consistency
+      setTimeout(() => {
+        console.log('🔄 updateItem - Forcing data refresh for consistency');
+        fetchItems(true);
+      }, 500);
+
       toast({
         title: 'อัพเดตสำเร็จ',
         description: 'แก้ไขข้อมูลสินค้าแล้ว',
       });
-      
+
       return data;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
@@ -422,26 +464,47 @@ export function useInventory() {
           table: 'inventory_items'
         },
         (payload) => {
-          console.log('🔄 Real-time update received:', payload.eventType, payload.new || payload.old);
+          console.log('🔄 Real-time update received:', {
+            eventType: payload.eventType,
+            newData: payload.new,
+            oldData: payload.old,
+            timestamp: new Date().toISOString()
+          });
 
           // Handle different types of changes for optimized performance
           if (payload.eventType === 'INSERT' && payload.new) {
-            setItems(prev => [...prev, payload.new as InventoryItem].sort((a, b) => a.location.localeCompare(b.location)));
+            console.log('🔄 Real-time INSERT - Adding new item to state');
+            setItems(prev => {
+              const newItems = [...prev, payload.new as InventoryItem].sort((a, b) => a.location.localeCompare(b.location));
+              console.log('🔄 Real-time INSERT - State updated, total items:', newItems.length);
+              return newItems;
+            });
           } else if (payload.eventType === 'UPDATE' && payload.new) {
-            setItems(prev => prev.map(item =>
-              item.id === payload.new.id ? payload.new as InventoryItem : item
-            ).sort((a, b) => a.location.localeCompare(b.location)));
+            console.log('🔄 Real-time UPDATE - Updating existing item in state');
+            setItems(prev => {
+              const updatedItems = prev.map(item =>
+                item.id === payload.new.id ? payload.new as InventoryItem : item
+              ).sort((a, b) => a.location.localeCompare(b.location));
+              console.log('🔄 Real-time UPDATE - State updated, total items:', updatedItems.length);
+              return updatedItems;
+            });
           } else if (payload.eventType === 'DELETE' && payload.old) {
-            setItems(prev => prev.filter(item => item.id !== payload.old.id));
+            console.log('🔄 Real-time DELETE - Removing item from state');
+            setItems(prev => {
+              const filteredItems = prev.filter(item => item.id !== payload.old.id);
+              console.log('🔄 Real-time DELETE - State updated, total items:', filteredItems.length);
+              return filteredItems;
+            });
           } else {
             // Fallback to full refresh for complex operations
+            console.log('🔄 Real-time - Fallback to full refresh');
             fetchItems();
           }
 
-          // Show toast notification for real-time updates
+          // Show toast notification for real-time updates (but not too frequently)
           toast({
             title: '🔄 อัปเดตแบบเรียลไทม์',
-            description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว`,
+            description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว (${payload.eventType})`,
             duration: 2000,
           });
         }

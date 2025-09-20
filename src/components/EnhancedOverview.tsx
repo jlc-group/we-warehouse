@@ -38,7 +38,7 @@ import { MonitorDashboardSimple } from './MonitorDashboardSimple';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
-import { normalizeLocation } from '@/utils/locationUtils';
+import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 
 interface EnhancedOverviewProps {
   items: InventoryItem[];
@@ -272,11 +272,11 @@ export function EnhancedOverview({
       const productName = getProductName(sku).toLowerCase();
       return sku.toLowerCase().includes(query) || productName.includes(query);
     });
-  }, [allSkus, skuSearchQuery]);
+  }, [allSkus, skuSearchQuery, items]);
 
   // รายการแถวทั้งหมด A-N และแถวที่เพิ่มเติม
   const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
-  const allRows = useMemo(() => [...defaultRows, ...customRows], [customRows]);
+  const allRows = useMemo(() => [...defaultRows, ...customRows], [customRows, items]);
 
   // รายการ MFD ทั้งหมด
   const allMfds = useMemo(() => {
@@ -334,12 +334,12 @@ export function EnhancedOverview({
     if (customRows.length > 0) {
       localStorage.setItem('warehouse-custom-rows', JSON.stringify(customRows));
     }
-  }, [customRows]);
+  }, [customRows, items]);
 
   // Save row groups to localStorage when changed
   useEffect(() => {
     localStorage.setItem('warehouse-row-groups', JSON.stringify(rowGroups));
-  }, [rowGroups]);
+  }, [rowGroups, items]);
 
   // Close search results when clicking outside
   useEffect(() => {
@@ -2073,8 +2073,9 @@ export function EnhancedOverview({
                                       {Array.from({ length: 20 }, (_, i) => {
                                         const position = (i + 1).toString().padStart(2, '0');
                                         const location = `${row}/${level}/${position}`;
-                                        const originalItems = itemsByLocation[location] || [];
-                                        const locationItems = filteredItemsByLocation[location] || [];
+                                        const normalizedLocation = normalizeLocation(location);
+                                        const originalItems = itemsByLocation[normalizedLocation] || [];
+                                        const locationItems = filteredItemsByLocation[normalizedLocation] || [];
                                         const itemCount = locationItems.length;
                                         const totalQty = locationItems.reduce((sum, item) =>
                                           sum + getCartonQty(item) + getBoxQty(item), 0
@@ -2125,8 +2126,8 @@ export function EnhancedOverview({
                                             onClick={() => onShelfClick(normalizeLocation(location), originalItems[0])}
                                             title={
                                               itemCount === 0
-                                                ? `${location} - ว่าง`
-                                                : `${location} - ${locationItems.length} รายการ (${totalQty} หน่วย)\nSKU: ${skusInLocation.join(', ')}\n${locationItems.map(item => `• ${getProductName(item.sku || '')} (${item.sku})`).join('\n')}`
+                                                ? `${displayLocation(location)} - ว่าง`
+                                                : `${displayLocation(location)} - ${locationItems.length} รายการ (${totalQty} หน่วย)\n\nสินค้าในตำแหน่งนี้:\n${locationItems.map(item => `• ${item.product_name}\n  รหัส: ${item.sku} | Lot: ${item.lot || '-'}`).join('\n')}`
                                             }
                                           >
                                             <div className="w-full h-full flex items-center justify-center text-xs font-bold">

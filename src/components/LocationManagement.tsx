@@ -306,7 +306,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
               </DialogTitle>
               <DialogDescription>
                 กรุณากรอกข้อมูลตำแหน่งคลังสินค้า<br />
-                <span className="text-sm text-blue-600">รูปแบบ: แถว (A-Z) / ชั้น (1-4) / ตำแหน่ง (1-99) → เช่น A/1/01</span>
+                <span className="text-sm text-blue-600">รูปแบบ: แถว (A-Z) / ชั้น (1-4) / ตำแหน่ง (1-20) → เช่น A/1/1</span>
               </DialogDescription>
             </DialogHeader>
 

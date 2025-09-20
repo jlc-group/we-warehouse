@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,19 @@ interface InventoryTableProps {
 export function InventoryTable({ items }: InventoryTableProps) {
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
+
+  // Debug logging for items prop changes
+  useEffect(() => {
+    console.log('📋 InventoryTable - Items prop changed:', {
+      itemCount: items.length,
+      timestamp: new Date().toISOString(),
+      sampleItems: items.slice(0, 3).map(item => ({
+        id: item.id,
+        product_name: item.product_name,
+        location: item.location
+      }))
+    });
+  }, [items]);
 
 
   // Updated to support multi-level units
