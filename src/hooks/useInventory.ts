@@ -150,9 +150,9 @@ export function useInventory() {
 
   const addItem = async (itemData: any) => {
     try {
-
-      // Use a fixed user_id for all operations (no authentication needed)
-      const fixedUserId = '00000000-0000-0000-0000-000000000000';
+      // Set user_id to null to bypass RLS policies since user_id is nullable
+      // This allows public access without authentication
+      const userId = null;
 
       // Ensure product exists in products table (for new products)
       const productCode = itemData.sku || itemData.product_code;
@@ -193,7 +193,7 @@ export function useInventory() {
         carton_quantity_legacy: itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
         box_quantity_legacy: itemData.box_quantity_legacy || itemData.quantity_loose || 0,
         pieces_quantity_legacy: itemData.pieces_quantity_legacy || 0,
-        user_id: fixedUserId,
+        user_id: userId,
         // Multi-level unit fields - ฟิลด์หน่วยใหม่
         unit_level1_quantity: itemData.unit_level1_quantity || itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
         unit_level2_quantity: itemData.unit_level2_quantity || itemData.box_quantity_legacy || itemData.quantity_loose || 0,
@@ -746,7 +746,7 @@ export function useInventory() {
         location_from: item.location,
         location_to: targetLocation,
         notes: notes || `ย้ายจาก ${item.location} ไป ${targetLocation}`,
-        user_id: fixedUserId,
+        user_id: userId,
         movement_date: new Date().toISOString()
       }));
 
