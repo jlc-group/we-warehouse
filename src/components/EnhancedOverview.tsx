@@ -29,7 +29,9 @@ import {
   Filter,
   X,
   Search,
-  Send
+  Send,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ShelfGrid } from './ShelfGrid';
 import { MonitorDashboardSimple } from './MonitorDashboardSimple';
@@ -397,6 +399,670 @@ export function EnhancedOverview({
     });
   };
 
+  // Export Grid to Excel
+  const exportGridToExcel = () => {
+    try {
+      // Create grid data structure
+      const gridData: any[][] = [];
+      
+      // Header row
+      const headerRow = ['แถว/ชั้น', ...Array.from({length: 20}, (_, i) => String(i + 1).padStart(2, '0'))];
+      gridData.push(headerRow);
+      
+      // Data rows for each shelf (A-N) and levels (1-4)
+      allRows.forEach(row => {
+        for (let level = 4; level >= 1; level--) {
+          const rowData = [`${row}/${level}`];
+          
+          // For each position 01-20
+          for (let pos = 1; pos <= 20; pos++) {
+            const location = `${row}/${level}/${String(pos).padStart(2, '0')}`;
+            const locationItems = items.filter(item => 
+              normalizeLocation(item.location) === normalizeLocation(location)
+            );
+            
+            if (locationItems.length > 0) {
+              const item = locationItems[0];
+              const sku = item.sku || 'N/A';
+              const productName = getProductName(sku);
+              const cartonQty = getCartonQty(item);
+              const boxQty = getBoxQty(item);
+              
+              rowData.push(`${sku}\n${productName}\nลัง:${cartonQty} กล่อง:${boxQty}`);
+            } else {
+              rowData.push('ว่าง');
+            }
+          }
+          
+          gridData.push(rowData);
+        }
+      });
+      
+      // Convert to CSV format
+      const csvContent = gridData.map(row => 
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
+      
+      // Create and download file
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `warehouse-grid-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: '✅ Export สำเร็จ',
+        description: 'ไฟล์ Grid ถูกดาวน์โหลดแล้ว (CSV format)',
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: '❌ Export ล้มเหลว',
+        description: 'เกิดข้อผิดพลาดในการ Export ข้อมูล',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Export Grid to PDF with complete data like in the image
+  const exportGridToPDF = () => {
+    try {
+      // Create a completely isolated window
+      const printWindow = window.open('about:blank', '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no');
+      if (!printWindow) {
+        toast({
+          title: '❌ ไม่สามารถเปิดหน้าต่างได้',
+          description: 'กรุณาอนุญาตให้เปิด popup window',
+          variant: 'destructive',
+          duration: 3000,
+        });
+        return;
+      }
+
+      // Clear any existing content and prevent external interference
+      printWindow.document.open();
+      printWindow.document.clear();
+
+      // Generate SKU colors
+      const skuColors = new Map();
+      items.forEach(item => {
+        if (item.sku && !skuColors.has(item.sku)) {
+          const colors = getSKUColor(item.sku);
+          skuColors.set(item.sku, colors);
+        }
+      });
+
+      // Generate CSS for SKU colors
+      let skuStyles = '';
+      skuColors.forEach((colors, sku) => {
+        const safeClass = sku.replace(/[^a-zA-Z0-9]/g, '_');
+        skuStyles += `.sku-${safeClass} { background: ${colors.bg} !important; border-left: 3px solid ${colors.border} !important; color: ${colors.text} !important; }\n`;
+      });
+
+      // Create complete grid sections for all rows A-N
+      const createSectionHTML = (sectionRows) => {
+        console.log('Creating sections for rows:', sectionRows);
+        let sectionHTML = '';
+        
+        sectionRows.forEach((row, index) => {
+          console.log(`Generating section ${index + 1}: Row ${row}`);
+          
+          sectionHTML += `
+            <div class="section" id="section-${row}">
+              <div class="section-header">แถว ${row}</div>
+              <div class="section-subtitle">ระดับ 1-4 | ตำแหน่ง 01-20</div>
+              <div class="grid-container">
+                <div class="grid-header">ชั้น</div>`;
+          
+          // Column headers 01-20
+          for (let i = 1; i <= 20; i++) {
+            sectionHTML += `<div class="grid-header">${String(i).padStart(2, '0')}</div>`;
+          }
+          
+          // Rows for levels 4 down to 1
+          for (let level = 4; level >= 1; level--) {
+            sectionHTML += `<div class="row-label">${level}</div>`;
+            
+            for (let pos = 1; pos <= 20; pos++) {
+              const location = `${row}/${level}/${String(pos).padStart(2, '0')}`;
+              const locationItems = items.filter(item => 
+                normalizeLocation(item.location) === normalizeLocation(location)
+              );
+              
+              if (locationItems.length > 0) {
+                const item = locationItems[0];
+                const sku = item.sku || 'N/A';
+                const cartonQty = getCartonQty(item);
+                const boxQty = getBoxQty(item);
+                const looseQty = item.unit_level3_quantity || item.pieces_quantity_legacy || 0;
+                const skuClass = sku.replace(/[^a-zA-Z0-9]/g, '_');
+                
+                sectionHTML += `<div class="grid-cell sku-${skuClass}">
+                  <div class="sku-code">${sku}</div>
+                  <div class="product-info">${getProductName(sku).substring(0, 15)}${getProductName(sku).length > 15 ? '...' : ''}</div>
+                  ${item.lot ? `<div class="lot-info">Lot: ${item.lot}</div>` : ''}
+                  ${item.mfd ? `<div class="mfd-info">MFD: ${item.mfd}</div>` : ''}
+                  <div class="quantity-info">
+                    ${cartonQty > 0 ? `<div>ลัง: ${cartonQty}</div>` : ''}
+                    ${boxQty > 0 ? `<div>กล่อง: ${boxQty}</div>` : ''}
+                    ${looseQty > 0 ? `<div>ชิ้น: ${looseQty}</div>` : ''}
+                  </div>
+                </div>`;
+              } else {
+                sectionHTML += '<div class="grid-cell empty">ว่าง</div>';
+              }
+            }
+          }
+          
+          sectionHTML += `</div></div>`;
+          
+          // Add page break after every 3 sections for better layout
+          if ((index + 1) % 3 === 0 && index < sectionRows.length - 1) {
+            sectionHTML += `<div class="page-break" style="page-break-after: always; height: 0; visibility: hidden;"></div>`;
+          }
+        });
+        
+        console.log('Total sections generated:', sectionRows.length);
+        return sectionHTML;
+      };
+
+      const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>แผนผังคลังสินค้า - ${new Date().toLocaleDateString('th-TH')}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Reset and isolation */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+      width: 100%; 
+      height: 100%; 
+      overflow-x: auto; 
+      background: white !important; 
+      font-family: 'Sarabun', Arial, sans-serif !important;
+    }
+    
+    /* Hide any external content */
+    iframe, embed, object, applet, script[src*="ubersuggest"], 
+    script[src*="analytics"], script[src*="gtag"], 
+    div[id*="ubersuggest"], div[class*="ubersuggest"],
+    .ubersuggest, #ubersuggest, [data-ubersuggest] { 
+      display: none !important; 
+      visibility: hidden !important; 
+      opacity: 0 !important; 
+    }
+    
+    @media print { 
+      body { margin: 0 !important; } 
+      .no-print { display: none !important; }
+      iframe, embed, object { display: none !important; }
+      .section { 
+        page-break-inside: avoid !important; 
+        display: block !important;
+        visibility: visible !important;
+      }
+      .grid-container { 
+        page-break-inside: avoid !important; 
+        display: grid !important;
+        visibility: visible !important;
+      }
+      .grid-cell {
+        display: flex !important;
+        visibility: visible !important;
+      }
+      * { 
+        -webkit-print-color-adjust: exact !important; 
+        color-adjust: exact !important; 
+        print-color-adjust: exact !important;
+      }
+      html, body { height: auto !important; }
+    }
+    
+    body { 
+      margin: 10px; 
+      background: white; 
+      color: black; 
+      position: relative;
+      z-index: 999999;
+    }
+    
+    .container {
+      width: 100%;
+      background: white;
+      position: relative;
+      z-index: 999999;
+    }
+    
+    .header { 
+      text-align: center; 
+      margin-bottom: 15px; 
+      padding: 10px; 
+      background: #f8fafc; 
+      border-radius: 8px; 
+      border: 2px solid #e2e8f0;
+    }
+    .header h1 { margin: 0 0 5px 0; font-size: 20px; color: #1e40af; }
+    .header .info { font-size: 10px; color: #475569; margin: 2px; }
+    
+    .section { 
+      margin-bottom: 10px; 
+      page-break-inside: avoid; 
+      page-break-after: auto;
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .section-header { 
+      background: #e2e8f0; 
+      padding: 8px; 
+      font-weight: bold; 
+      font-size: 16px; 
+      color: #1e40af; 
+    }
+    .section-subtitle { 
+      background: #f1f5f9; 
+      padding: 4px 8px; 
+      font-size: 12px; 
+      color: #64748b; 
+      margin-bottom: 5px; 
+    }
+    
+    .grid-container { 
+      display: grid; 
+      grid-template-columns: 40px repeat(20, 1fr); 
+      gap: 1px; 
+      border: 1px solid #cbd5e1; 
+      background: #cbd5e1; 
+      font-size: 8px;
+      margin: 5px;
+    }
+    
+    .grid-header { 
+      background: #3b82f6; 
+      color: white; 
+      font-weight: bold; 
+      text-align: center; 
+      padding: 6px 2px; 
+      font-size: 9px; 
+    }
+    
+    .row-label { 
+      background: #64748b; 
+      color: white; 
+      font-weight: bold; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 10px; 
+    }
+    
+    .grid-cell { 
+      background: white; 
+      padding: 2px; 
+      text-align: center; 
+      font-size: 6px; 
+      min-height: 45px; 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: flex-start; 
+      align-items: center;
+      overflow: hidden;
+    }
+    
+    .empty { 
+      background: #f8fafc !important; 
+      color: #94a3b8; 
+      font-style: italic; 
+      justify-content: center;
+      font-size: 7px;
+    }
+    
+    .sku-code { font-weight: bold; font-size: 7px; margin-bottom: 1px; }
+    .product-info { font-size: 5px; color: rgba(0,0,0,0.7); margin-bottom: 1px; line-height: 1.1; }
+    .lot-info, .mfd-info { font-size: 5px; color: rgba(0,0,0,0.6); margin: 0.5px 0; }
+    .quantity-info { font-size: 5px; color: rgba(0,0,0,0.8); margin-top: 1px; }
+    .quantity-info div { margin: 0.5px 0; }
+    
+    .print-button { 
+      position: fixed; 
+      top: 10px; 
+      right: 10px; 
+      padding: 8px 16px; 
+      background: #3b82f6; 
+      color: white; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-size: 11px; 
+      z-index: 999999; 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    ${skuStyles}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="print-button no-print" onclick="cleanPrint()">🖨️ พิมพ์</button>
+    <div class="header">
+      <h1>แผนผังคลังสินค้า</h1>
+      <div class="info">วันที่: ${new Date().toLocaleDateString('th-TH')} | เวลา: ${new Date().toLocaleTimeString('th-TH')}</div>
+      <div class="info">รายการสินค้า: ${items.length} รายการ | ตำแหน่งที่ใช้งาน: ${new Set(items.map(item => item.location)).size} ตำแหน่ง</div>
+    </div>
+    ${createSectionHTML(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'])}
+  
+  <script>
+    // Log the generated content for debugging
+    console.log('Generated sections:', document.querySelectorAll('.section').length);
+    console.log('Generated cells:', document.querySelectorAll('.grid-cell').length);
+  </script>
+  </div>
+  
+  <script>
+    // Completely isolate this window
+    (function() {
+      // Remove any external scripts or elements
+      function cleanDocument() {
+        const externalElements = document.querySelectorAll('iframe, embed, object, applet, script[src], link[href*="ubersuggest"]');
+        externalElements.forEach(el => {
+          if (el.src && (el.src.includes('ubersuggest') || el.src.includes('analytics'))) {
+            el.remove();
+          }
+        });
+        
+        // Remove any divs with ubersuggest
+        const ubersuggestDivs = document.querySelectorAll('div[id*="ubersuggest"], div[class*="ubersuggest"], .ubersuggest');
+        ubersuggestDivs.forEach(el => el.remove());
+      }
+      
+      // Enhanced print function with data verification (single execution)
+      let printInProgress = false;
+      
+      function cleanPrint(isAutoCall = false) {
+        if (printInProgress) {
+          console.log('Print already in progress, skipping...');
+          return;
+        }
+        
+        printInProgress = true;
+        cleanDocument();
+        
+        // Verify data is loaded
+        const gridCells = document.querySelectorAll('.grid-cell');
+        const sections = document.querySelectorAll('.section');
+        
+        console.log('Grid cells found:', gridCells.length);
+        console.log('Sections found:', sections.length);
+        
+        if (gridCells.length === 0 || sections.length === 0) {
+          if (!isAutoCall) {
+            alert('ข้อมูลยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่');
+          }
+          printInProgress = false; // Reset flag
+          return;
+        }
+        
+        // Add print styles to ensure everything prints
+        const printStyle = document.createElement('style');
+        printStyle.textContent = \`
+          @media print {
+            * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; }
+            .section { page-break-inside: avoid !important; }
+            .grid-container { page-break-inside: avoid !important; }
+            body { font-size: 8px !important; }
+            .no-print { display: none !important; }
+          }
+        \`;
+        document.head.appendChild(printStyle);
+        
+        console.log('Starting print process...');
+        
+        // Print and reset flag after completion
+        window.print();
+        
+        // Reset flag after print dialog
+        setTimeout(() => {
+          printInProgress = false;
+          console.log('Print process completed');
+        }, 2000);
+      }
+      
+      // Make cleanPrint available globally
+      window.cleanPrint = cleanPrint;
+      
+      // Auto focus and clean
+      window.focus();
+      cleanDocument();
+      
+      // Wait for complete data loading before printing (single execution)
+      let loadAttempts = 0;
+      let dataCheckInterval;
+      let printExecuted = false; // Flag to prevent multiple prints
+      
+      function checkDataLoaded() {
+        if (printExecuted) return; // Exit if already printed
+        
+        const gridCells = document.querySelectorAll('.grid-cell');
+        const sections = document.querySelectorAll('.section');
+        const gridContainers = document.querySelectorAll('.grid-container');
+        
+        console.log('=== Data Check ===');
+        console.log('Sections found:', sections.length);
+        console.log('Grid containers:', gridContainers.length);
+        console.log('Grid cells:', gridCells.length);
+        
+        // We expect 14 sections (A-N), each with grid content
+        const expectedSections = 14;
+        const hasAllSections = sections.length >= expectedSections;
+        const hasGridContent = gridContainers.length >= expectedSections;
+        
+        if (hasAllSections && hasGridContent) {
+          console.log('✅ All sections and grids loaded - Auto printing!');
+          document.querySelector('.print-button').style.background = '#10b981';
+          document.querySelector('.print-button').textContent = '🖨️ กำลังพิมพ์...';
+          
+          // Set flag and clear interval immediately
+          printExecuted = true;
+          clearInterval(dataCheckInterval);
+          
+          // Print once only
+          setTimeout(() => {
+            cleanPrint(true);
+          }, 800);
+          
+        } else if (loadAttempts < 20) {
+          loadAttempts++;
+          console.log(\`❌ Data incomplete (attempt \${loadAttempts}/20)\`);
+          console.log(\`   - Sections: \${sections.length}/\${expectedSections}\`);
+          console.log(\`   - Grid containers: \${gridContainers.length}/\${expectedSections}\`);
+          document.querySelector('.print-button').textContent = \`🖨️ โหลด... (\${loadAttempts}/20)\`;
+        } else {
+          console.log('⚠️ Max attempts reached - printing anyway');
+          document.querySelector('.print-button').textContent = '🖨️ กำลังพิมพ์...';
+          
+          // Set flag and clear interval
+          printExecuted = true;
+          clearInterval(dataCheckInterval);
+          
+          setTimeout(() => {
+            cleanPrint(true);
+          }, 500);
+        }
+      }
+      
+      // Start checking with single execution protection
+      setTimeout(() => {
+        cleanDocument();
+        if (!printExecuted) {
+          dataCheckInterval = setInterval(checkDataLoaded, 300);
+        }
+      }, 500);
+      
+      // Block external scripts
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) {
+              if (node.tagName === 'SCRIPT' && node.src && 
+                  (node.src.includes('ubersuggest') || node.src.includes('analytics'))) {
+                node.remove();
+              }
+              if (node.id && node.id.includes('ubersuggest')) {
+                node.remove();
+              }
+            }
+          });
+        });
+      });
+      
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+    })();
+  </script>
+</body>
+</html>`;
+      
+      // Write content in chunks to ensure it's fully loaded
+      try {
+        printWindow.document.open();
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        console.log('HTML content written, length:', htmlContent.length);
+        
+        // Force focus and wait for content to be ready
+        printWindow.focus();
+        
+        // Verify content was written correctly
+        setTimeout(() => {
+          const allSections = printWindow.document.querySelectorAll('.section');
+          const allCells = printWindow.document.querySelectorAll('.grid-cell');
+          const allContainers = printWindow.document.querySelectorAll('.grid-container');
+          
+          console.log('=== Content Verification ===');
+          console.log('HTML length:', htmlContent.length);
+          console.log('Sections found:', allSections.length);
+          console.log('Grid containers:', allContainers.length);
+          console.log('Grid cells:', allCells.length);
+          
+          // Log each section
+          allSections.forEach((section, index) => {
+            const sectionId = section.id || `section-${index}`;
+            const sectionCells = section.querySelectorAll('.grid-cell');
+            console.log(`${sectionId}: ${sectionCells.length} cells`);
+          });
+          
+          if (allSections.length < 14) {
+            console.error('❌ Missing sections! Expected 14, got', allSections.length);
+            console.log('HTML content preview:', htmlContent.substring(0, 1000));
+          } else {
+            console.log('✅ All sections loaded correctly');
+          }
+        }, 200);
+        
+      } catch (error) {
+        console.error('Error writing HTML content:', error);
+      }
+      
+      toast({
+        title: '📄 Export PDF สำเร็จ',
+        description: 'แสดงข้อมูลครบถ้วนเหมือนในรูปแล้ว',
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast({
+        title: '❌ Export PDF ล้มเหลว',
+        description: 'เกิดข้อผิดพลาดในการสร้าง PDF',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
+  // Export detailed inventory list to Excel
+  const exportInventoryToExcel = () => {
+    try {
+      // Create detailed inventory data
+      const inventoryData: any[][] = [];
+      
+      // Header row
+      const headerRow = [
+        'ตำแหน่ง',
+        'SKU',
+        'ชื่อสินค้า',
+        'Lot',
+        'MFD',
+        'จำนวนลัง',
+        'จำนวนกล่อง',
+        'จำนวนชิ้น',
+        'หน่วย',
+        'วันที่เพิ่ม'
+      ];
+      inventoryData.push(headerRow);
+      
+      // Data rows
+      items.forEach(item => {
+        const row = [
+          item.location,
+          item.sku || 'N/A',
+          getProductName(item.sku || ''),
+          item.lot || '-',
+          item.mfd || '-',
+          getCartonQty(item),
+          getBoxQty(item),
+          item.unit_level3_quantity || item.pieces_quantity_legacy || 0,
+          item.unit || '-',
+          new Date(item.created_at).toLocaleDateString('th-TH')
+        ];
+        inventoryData.push(row);
+      });
+      
+      // Convert to CSV format
+      const csvContent = inventoryData.map(row => 
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
+      
+      // Create and download file
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `inventory-details-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: '✅ Export รายละเอียดสำเร็จ',
+        description: 'ไฟล์รายละเอียดสินค้าถูกดาวน์โหลดแล้ว',
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('Inventory export error:', error);
+      toast({
+        title: '❌ Export ล้มเหลว',
+        description: 'เกิดข้อผิดพลาดในการ Export รายละเอียด',
+        variant: 'destructive',
+        duration: 3000,
+      });
+    }
+  };
+
   // Track changes for activity feed (only show when there are actual changes)
   useEffect(() => {
     // Don't track changes on initial load
@@ -505,6 +1171,16 @@ export function EnhancedOverview({
         </Tabs>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportInventoryToExcel()}
+            className="flex items-center gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export รายละเอียด
+          </Button>
+          
           <Badge variant="outline" className="flex items-center gap-1">
             <Palette className="h-3 w-3" />
             แยกสีตามประเภท
@@ -584,13 +1260,36 @@ export function EnhancedOverview({
             <TabsContent value="grid">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Grid3X3 className="h-5 w-5" />
-                    แผนผังคลัง
-                    <Badge variant="outline" className="text-xs">
-                      เรียลไทม์
-                    </Badge>
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Grid3X3 className="h-5 w-5" />
+                      แผนผังคลัง
+                      <Badge variant="outline" className="text-xs">
+                        เรียลไทม์
+                      </Badge>
+                    </CardTitle>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportGridToExcel()}
+                        className="flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Export Excel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportGridToPDF()}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export PDF
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {loading ? (
@@ -628,6 +1327,25 @@ export function EnhancedOverview({
                     </CardTitle>
 
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportGridToExcel()}
+                        className="flex items-center gap-2"
+                      >
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Export Excel
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportGridToPDF()}
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export PDF
+                      </Button>
+                      
                       <Dialog open={showAddRowDialog} onOpenChange={setShowAddRowDialog}>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="sm" className="flex items-center gap-2">

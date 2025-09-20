@@ -25,8 +25,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2 } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
@@ -56,6 +57,7 @@ const Index = memo(() => {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | undefined>();
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [showScanner, setShowScanner] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
@@ -72,7 +74,8 @@ const Index = memo(() => {
     importData,
     accessSummary,
     permissions,
-    refetch
+    refetch,
+    clearAllData
   } = useDepartmentInventory();
 
   // Memoized calculations for expensive operations
@@ -103,6 +106,27 @@ const Index = memo(() => {
   const showAdminFeatures = useMemo(() => {
     return user && user.role_level >= 4;
   }, [user]);
+
+  // Handle clear data with confirmation
+  const handleClearData = useCallback(async () => {
+    if (!showAdminFeatures) {
+      toast({
+        title: '⚠️ ไม่มีสิทธิ์',
+        description: 'คุณไม่มีสิทธิ์ในการล้างข้อมูล',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (clearAllData) {
+      await clearAllData();
+      setShowClearConfirm(false);
+      toast({
+        title: '🗑️ ล้างข้อมูลสำเร็จ',
+        description: 'ข้อมูลทั้งหมดได้ถูกล้างออกจากระบบแล้ว',
+      });
+    }
+  }, [clearAllData, showAdminFeatures, toast]);
 
   // Handle URL parameters from QR code scan
   useEffect(() => {
@@ -415,10 +439,19 @@ const Index = memo(() => {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     {showAdminFeatures && (
-                      <DropdownMenuItem onClick={() => setActiveTab('admin')}>
-                        <Users className="mr-2 h-4 w-4" />
-                        <span>Admin</span>
-                      </DropdownMenuItem>
+                      <>
+                        <DropdownMenuItem onClick={() => setActiveTab('admin')}>
+                          <Users className="mr-2 h-4 w-4" />
+                          <span>Admin</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setShowClearConfirm(true)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          <span>ล้างข้อมูลทั้งหมด</span>
+                        </DropdownMenuItem>
+                      </>
                     )}
                     <DropdownMenuItem onClick={() => setActiveTab('profile')}>
                       <User className="mr-2 h-4 w-4" />
@@ -784,6 +817,54 @@ const Index = memo(() => {
           onClose={() => setShowScanner(false)}
           onScanSuccess={handleShelfClick}
         />
+
+        {/* Clear Data Confirmation Dialog */}
+        <Dialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="text-red-600 flex items-center gap-2">
+                <Trash2 className="h-5 w-5" />
+                ยืนยันการล้างข้อมูล
+              </DialogTitle>
+              <DialogDescription className="text-gray-600">
+                คุณกำลังจะล้างข้อมูลสินค้าทั้งหมดออกจากระบบ การดำเนินการนี้
+                <span className="font-bold text-red-600"> ไม่สามารถย้อนกลับได้</span>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h4 className="font-semibold text-red-800 mb-2">ข้อมูลที่จะถูกลบ:</h4>
+                <ul className="text-sm text-red-700 space-y-1">
+                  <li>• ข้อมูลสินค้าทั้งหมด ({inventoryItems.length} รายการ)</li>
+                  <li>• ประวัติการเคลื่อนไหวสินค้า</li>
+                  <li>• ข้อมูล QR Code ที่เกี่ยวข้อง</li>
+                  <li>• ข้อมูลสถิติและรายงาน</li>
+                </ul>
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>หมายเหตุ:</strong> ข้อมูลสำรองจะถูกเก็บไว้หากได้ทำการ backup แล้ว
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowClearConfirm(false)}
+              >
+                ยกเลิก
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleClearData}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                ยืนยันล้างข้อมูล
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

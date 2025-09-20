@@ -25,6 +25,36 @@ export const formatInventoryForExport = (items: InventoryItem[]): ExportData[] =
     const level = parseInt(locationParts[1]) || 0;
     const position = parseInt(locationParts[2]) || 0;
 
+    // Use multi-level system if available, fallback to legacy
+    const extendedItem = item as any;
+    const level1Qty = extendedItem.unit_level1_quantity || 0;
+    const level2Qty = extendedItem.unit_level2_quantity || 0;
+    const level3Qty = extendedItem.unit_level3_quantity || 0;
+    const level1Rate = extendedItem.unit_level1_rate || 0;
+    const level2Rate = extendedItem.unit_level2_rate || 0;
+
+    let quantity_boxes = 0;
+    let quantity_loose = 0;
+    let total_quantity = 0;
+
+    if (level1Qty > 0 || level2Qty > 0 || level3Qty > 0) {
+      // Use multi-level data
+      quantity_boxes = level1Qty + level2Qty; // Combined higher levels as "boxes"
+      quantity_loose = level3Qty;
+
+      // Calculate total with conversion if rates available
+      if (level1Rate > 0 || level2Rate > 0) {
+        total_quantity = (level1Qty * level1Rate) + (level2Qty * level2Rate) + level3Qty;
+      } else {
+        total_quantity = level1Qty + level2Qty + level3Qty;
+      }
+    } else {
+      // Fallback to legacy data
+      quantity_boxes = extendedItem.carton_quantity_legacy || 0;
+      quantity_loose = extendedItem.box_quantity_legacy || 0;
+      total_quantity = quantity_boxes + quantity_loose;
+    }
+
     return {
       sku_code: item.sku,
       product_name: item.product_name,
@@ -34,9 +64,9 @@ export const formatInventoryForExport = (items: InventoryItem[]): ExportData[] =
       location: item.location,
       lot: item.lot || '',
       mfd: item.mfd || '',
-      quantity_boxes: (item as any).carton_quantity_legacy || 0,
-      quantity_loose: (item as any).box_quantity_legacy || 0,
-      total_quantity: ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0),
+      quantity_boxes,
+      quantity_loose,
+      total_quantity,
       created_at: new Date(item.created_at).toLocaleString('th-TH'),
       updated_at: new Date(item.updated_at).toLocaleString('th-TH')
     };
@@ -100,9 +130,9 @@ export const exportToCSV = (data: ExportData[], filename: string = 'inventory_ex
   URL.revokeObjectURL(url);
 };
 
-export const exportInventoryToCSV = (items: InventoryItem[]) => {
+export const exportInventoryToCSV = (items: InventoryItem[], filename?: string) => {
   const exportData = formatInventoryForExport(items);
-  exportToCSV(exportData, 'warehouse_inventory');
+  exportToCSV(exportData, filename || 'warehouse_inventory');
 };
 
 // Export summary by location
@@ -120,8 +150,21 @@ export const exportLocationSummary = (items: InventoryItem[]) => {
     }
 
     acc[key].items_count += 1;
-    acc[key].total_boxes += ((item as any).carton_quantity_legacy || 0);
-    acc[key].total_loose += ((item as any).box_quantity_legacy || 0);
+
+    // Use multi-level system if available, fallback to legacy
+    const extendedItem = item as any;
+    const level1Qty = extendedItem.unit_level1_quantity || 0;
+    const level2Qty = extendedItem.unit_level2_quantity || 0;
+    const level3Qty = extendedItem.unit_level3_quantity || 0;
+
+    if (level1Qty > 0 || level2Qty > 0 || level3Qty > 0) {
+      acc[key].total_boxes += level1Qty + level2Qty;
+      acc[key].total_loose += level3Qty;
+    } else {
+      acc[key].total_boxes += extendedItem.carton_quantity_legacy || 0;
+      acc[key].total_loose += extendedItem.box_quantity_legacy || 0;
+    }
+
     acc[key].products.push(item.product_name);
 
     return acc;

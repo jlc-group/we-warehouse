@@ -29,7 +29,7 @@ export function useInventory() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const { toast } = useToast();
 
-  const fetchItems = useCallback(async () => {
+  const fetchItems = useCallback(async (skipSampleData = false) => {
     try {
       setLoading(true);
       setConnectionStatus('connecting');
@@ -54,16 +54,17 @@ export function useInventory() {
       setItems(data || []);
       setConnectionStatus('connected');
 
-      // If no data, load sample data
-      if (!data || data.length === 0) {
-        console.log('📦 No data found, loading sample data...');
-        const { generateSampleInventoryData } = await import('@/data/sampleInventory');
-        const sampleData = generateSampleInventoryData();
-        setItems(sampleData.slice(0, 50)); // Load only first 50 items for performance
+      // If no data, load sample data (unless explicitly skipped)
+      if (!skipSampleData && (!data || data.length === 0)) {
+        console.log('📦 No data found, but sample data loading is temporarily disabled');
+        // Temporarily disable sample data loading
+        // const { generateSampleInventoryData } = await import('@/data/sampleInventory');
+        // const sampleData = generateSampleInventoryData();
+        // setItems(sampleData.slice(0, 50)); // Load only first 50 items for performance
 
         toast({
-          title: '📦 ข้อมูลตัวอย่าง',
-          description: 'ไม่พบข้อมูลในระบบ กำลังโหลดข้อมูลตัวอย่าง',
+          title: '📦 ไม่มีข้อมูลในระบบ',
+          description: 'ระบบพร้อมใช้งาน สามารถเพิ่มข้อมูลใหม่ได้',
         });
       }
 
@@ -71,25 +72,38 @@ export function useInventory() {
       console.error('Error fetching inventory items:', error);
       setConnectionStatus('disconnected');
 
-      // Fallback to sample data if connection fails
-      console.log('🔄 Connection failed, loading sample data...');
-      try {
-        const { generateSampleInventoryData } = await import('@/data/sampleInventory');
-        const sampleData = generateSampleInventoryData();
-        setItems(sampleData.slice(0, 50));
+      // Fallback to sample data if connection fails (unless explicitly skipped)
+      if (!skipSampleData) {
+        console.log('🔄 Connection failed, but sample data loading is temporarily disabled');
+        // Temporarily disable sample data loading
+        // try {
+        //   const { generateSampleInventoryData } = await import('@/data/sampleInventory');
+        //   const sampleData = generateSampleInventoryData();
+        //   setItems(sampleData.slice(0, 50));
 
+        //   toast({
+        //     title: '⚠️ โหลดข้อมูลตัวอย่าง',
+        //     description: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ใช้ข้อมูลตัวอย่างแทน',
+        //     variant: 'destructive',
+        //   });
+        // } catch (fallbackError) {
+        //   console.error('Failed to load sample data:', fallbackError);
+        //   toast({
+        //     title: 'เกิดข้อผิดพลาด',
+        //     description: 'ไม่สามารถโหลดข้อมูลได้',
+        //     variant: 'destructive',
+        //   });
+        // }
+
+        setItems([]);
         toast({
-          title: '⚠️ โหลดข้อมูลตัวอย่าง',
-          description: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ใช้ข้อมูลตัวอย่างแทน',
+          title: '⚠️ ไม่สามารถเชื่อมต่อฐานข้อมูลได้',
+          description: 'ระบบจะแสดงหน้าจอว่าง กรุณาตรวจสอบการเชื่อมต่อ',
           variant: 'destructive',
         });
-      } catch (fallbackError) {
-        console.error('Failed to load sample data:', fallbackError);
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถโหลดข้อมูลได้',
-          variant: 'destructive',
-        });
+      } else {
+        // If skipping sample data, just set empty array
+        setItems([]);
       }
     } finally {
       setLoading(false);
@@ -474,23 +488,39 @@ export function useInventory() {
     try {
       setLoading(true);
 
-      const { error } = await supabase
+      // First get all records to delete them properly
+      const { data: allItems, error: fetchError } = await supabase
         .from('inventory_items')
-        .delete()
-        .neq('id', ''); // Delete all rows
+        .select('id');
 
-      if (error) {
-        console.error('Clear data error:', error);
-        throw error;
+      if (fetchError) {
+        console.error('Fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      if (allItems && allItems.length > 0) {
+        // Delete all records using IN clause
+        const { error } = await supabase
+          .from('inventory_items')
+          .delete()
+          .in('id', allItems.map(item => item.id));
+
+        if (error) {
+          console.error('Clear data error:', error);
+          throw error;
+        }
       }
 
 
-      // Refresh the items
-      await fetchItems();
+      // Clear local state immediately
+      setItems([]);
+
+      // Refresh the items without loading sample data
+      await fetchItems(true);
 
       toast({
-        title: 'ล้างข้อมูลสำเร็จ',
-        description: 'ลบข้อมูลทั้งหมดแล้ว',
+        title: '🗑️ ล้างข้อมูลสำเร็จ',
+        description: 'ลบข้อมูลทั้งหมดออกจากระบบแล้ว ระบบพร้อมใช้งาน',
       });
 
     } catch (error) {

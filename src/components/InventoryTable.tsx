@@ -76,6 +76,19 @@ export function InventoryTable({ items }: InventoryTableProps) {
     exportLocationSummary(items);
   };
 
+  const handleExportLocationData = (location: string) => {
+    // Filter items for specific location
+    const locationItems = items.filter(item => item.location === location);
+
+    if (locationItems.length === 0) {
+      console.warn(`No items found for location: ${location}`);
+      return;
+    }
+
+    // Export with custom filename
+    exportInventoryToCSV(locationItems, `location-${location.replace(/\//g, '-')}-export`);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -138,6 +151,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                       <TableHead className="w-[200px]">หน่วยสินค้า</TableHead>
                       <TableHead className="text-right">รวมทั้งหมด</TableHead>
                       <TableHead>สถานะ</TableHead>
+                      <TableHead className="text-center">Export</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -327,6 +341,17 @@ export function InventoryTable({ items }: InventoryTableProps) {
                         </TableCell>
                         <TableCell>
                           {getStockBadge(item)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportLocationData(item.location)}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-3 w-3" />
+                            Export
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
