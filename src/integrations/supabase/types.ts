@@ -118,6 +118,47 @@ export interface Database {
           updated_at?: string | null
         }
       }
+      product_conversion_rates: {
+        Row: {
+          id: string
+          sku: string
+          product_name: string
+          unit_level1_name: string | null
+          unit_level2_name: string | null
+          unit_level3_name: string | null
+          unit_level1_rate: number | null
+          unit_level2_rate: number | null
+          created_at: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          sku: string
+          product_name: string
+          unit_level1_name?: string | null
+          unit_level2_name?: string | null
+          unit_level3_name?: string | null
+          unit_level1_rate?: number | null
+          unit_level2_rate?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          sku?: string
+          product_name?: string
+          unit_level1_name?: string | null
+          unit_level2_name?: string | null
+          unit_level3_name?: string | null
+          unit_level1_rate?: number | null
+          unit_level2_rate?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+      }
     }
     Views: {
       products_with_counts: {
@@ -164,3 +205,6 @@ export type ProductInsert = Database['public']['Tables']['products']['Insert']
 export type ProductUpdate = Database['public']['Tables']['products']['Update']
 export type ProductWithCounts = Database['public']['Views']['products_with_counts']['Row']
 export type InventoryItem = Database['public']['Tables']['inventory_items']['Row']
+export type ProductConversionRate = Database['public']['Tables']['product_conversion_rates']['Row']
+export type ProductConversionRateInsert = Database['public']['Tables']['product_conversion_rates']['Insert']
+export type ProductConversionRateUpdate = Database['public']['Tables']['product_conversion_rates']['Update']
