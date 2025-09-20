@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { throttle } from 'lodash';
+// Removed lodash import as it's not used
 import { normalizeLocation } from '@/utils/locationUtils';
 import type { Database } from '@/integrations/supabase/types';
 // Dynamic import for better code splitting
@@ -746,7 +746,7 @@ export function useInventory() {
         location_from: item.location,
         location_to: targetLocation,
         notes: notes || `ย้ายจาก ${item.location} ไป ${targetLocation}`,
-        user_id: userId,
+        user_id: null,
         movement_date: new Date().toISOString()
       }));
 
