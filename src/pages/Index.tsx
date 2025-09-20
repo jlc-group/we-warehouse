@@ -231,15 +231,15 @@ const Index = memo(() => {
 
     setSelectedLocation(normalizedLocation);
 
-    // If multiple items exist at this location, show the LocationItemSelector
-    if (itemsAtLocation.length > 1) {
-      console.log('📋 Multiple items detected - showing LocationItemSelector');
+    // If any items exist at this location, show the LocationItemSelector
+    if (itemsAtLocation.length >= 1) {
+      console.log('📋 Items detected - showing LocationItemSelector for location management');
       setLocationItems(itemsAtLocation);
       setIsLocationItemSelectorOpen(true);
     } else {
-      // Single item or empty location - use the existing modal
-      console.log('📝 Single/empty location - showing InventoryModalSimple');
-      setSelectedItem(item || itemsAtLocation[0]);
+      // Empty location - use the existing modal for adding new item
+      console.log('📝 Empty location - showing InventoryModalSimple for new item');
+      setSelectedItem(undefined); // Clear any selected item for new item creation
       setIsModalOpen(true);
     }
   }, [inventoryItems]);

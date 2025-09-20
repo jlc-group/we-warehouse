@@ -103,7 +103,7 @@ export function LocationItemSelector({
             จัดการสินค้าในตำแหน่ง {displayLocation(location)}
           </DialogTitle>
           <DialogDescription>
-            พบ {items.length} รายการสินค้าในตำแหน่งนี้ กรุณาเลือกการดำเนินการ
+            พบ {items.length} รายการสินค้าในตำแหน่งนี้ สามารถดู แก้ไข ลบ หรือเพิ่มรายการใหม่ได้
           </DialogDescription>
         </DialogHeader>
 
@@ -145,7 +145,7 @@ export function LocationItemSelector({
         {/* Items List */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">รายการสินค้าทั้งหมด</h3>
+            <h3 className="text-lg font-semibold">รายการสินค้าในตำแหน่งนี้</h3>
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
