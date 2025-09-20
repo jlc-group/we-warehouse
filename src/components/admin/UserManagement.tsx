@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,6 +76,33 @@ function UserManagement() {
     is_active: true
   });
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (user && user.role_level >= 4) {
+      fetchUsers();
+    }
+  }, [user, fetchUsers]);
+
   // ตรวจสอบสิทธิ์ Admin
   if (!user || user.role_level < 4) {
     return (
@@ -102,31 +129,6 @@ function UserManagement() {
     );
   }
 
-  // โหลดข้อมูล users
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setUsers(data || []);
-    } catch (error: any) {
-      console.error('Error fetching users:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลผู้ใช้ได้',
-        variant: 'destructive'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const resetForm = () => {
     setFormData({

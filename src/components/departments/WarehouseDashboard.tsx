@@ -61,6 +61,27 @@ function WarehouseDashboard() {
     totalValue: 0
   });
 
+  // คำนวณข้อมูลสรุป
+  useEffect(() => {
+    if (!items.length || !user || !['คลังสินค้า', 'ผู้บริหาร'].includes(user.department)) return;
+
+    const totalItems = items.length;
+    const lowStockItems = items.filter(item =>
+      (((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0)) < 10
+    ).length;
+    const outOfStockItems = items.filter(item =>
+      (((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0)) === 0
+    ).length;
+
+    setStockSummary({
+      totalItems,
+      lowStockItems,
+      outOfStockItems,
+      recentMovements: 0,
+      totalValue: 0
+    });
+  }, [items, user]);
+
   // ตรวจสอบสิทธิ์แผนกคลังสินค้า
   if (!user || !['คลังสินค้า', 'ผู้บริหาร'].includes(user.department)) {
     return (
@@ -86,34 +107,6 @@ function WarehouseDashboard() {
       </div>
     );
   }
-
-  // คำนวณข้อมูลสรุป
-  useEffect(() => {
-    if (!items.length) return;
-
-    const totalItems = items.length;
-    const lowStockItems = items.filter(item =>
-      (((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0)) < 10
-    ).length;
-    const outOfStockItems = items.filter(item =>
-      (((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0)) === 0
-    ).length;
-
-    // คำนวณมูลค่าประมาณ (ถ้ามีข้อมูลราคา)
-    const totalValue = items.reduce((sum, item) => {
-      const quantity = ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0);
-      // ใช้ราคาประมาณ 100 บาทต่อชิ้น (สามารถปรับได้)
-      return sum + (quantity * 100);
-    }, 0);
-
-    setStockSummary({
-      totalItems,
-      lowStockItems,
-      outOfStockItems,
-      recentMovements: Math.floor(totalItems * 0.1), // ประมาณ 10% ของสินค้า
-      totalValue
-    });
-  }, [items]);
 
   // หาสินค้าที่ต้องเติม
   const getLowStockItems = () => {
