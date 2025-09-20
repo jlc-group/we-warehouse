@@ -29,6 +29,7 @@ interface LocationItemSelectorProps {
   onSelectEdit: (item: InventoryItem) => void;
   onDeleteItem: (itemId: string) => void;
   onClearLocation: () => void;
+  onAddNewItem: () => void;
 }
 
 export function LocationItemSelector({
@@ -38,7 +39,8 @@ export function LocationItemSelector({
   items,
   onSelectEdit,
   onDeleteItem,
-  onClearLocation
+  onClearLocation,
+  onAddNewItem
 }: LocationItemSelectorProps) {
   const { toast } = useToast();
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -144,14 +146,27 @@ export function LocationItemSelector({
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">รายการสินค้าทั้งหมด</h3>
 
-            {/* Clear All Button */}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="flex items-center gap-2">
-                  <Trash2 className="h-4 w-4" />
-                  ลบทั้งหมด
-                </Button>
-              </AlertDialogTrigger>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-2">
+              {/* Add New Item Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAddNewItem}
+                className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
+              >
+                <Plus className="h-4 w-4" />
+                เพิ่มรายการใหม่
+              </Button>
+
+              {/* Clear All Button */}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" className="flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    ลบทั้งหมด
+                  </Button>
+                </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle className="flex items-center gap-2">
@@ -171,7 +186,8 @@ export function LocationItemSelector({
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
-            </AlertDialog>
+              </AlertDialog>
+            </div>
           </div>
 
           <ScrollArea className="h-[400px] w-full border rounded-lg">
@@ -283,7 +299,7 @@ export function LocationItemSelector({
         {/* Footer */}
         <div className="flex justify-between items-center pt-4 border-t">
           <div className="text-sm text-gray-600">
-            💡 เลือกรายการเพื่อแก้ไข หรือลบรายการที่ไม่ต้องการ
+            💡 เลือกรายการเพื่อแก้ไข เพิ่มรายการใหม่ หรือลบรายการที่ไม่ต้องการ
           </div>
           <Button variant="outline" onClick={onClose}>
             ปิด

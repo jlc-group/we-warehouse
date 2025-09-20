@@ -471,6 +471,14 @@ const Index = memo(() => {
     }
   }, [selectedLocation, locationItems, deleteItem, refetch]);
 
+  const handleAddNewItemAtLocation = useCallback(() => {
+    console.log('➕ Add new item at location:', selectedLocation);
+    // Close the LocationItemSelector and open the InventoryModalSimple for adding new item
+    setIsLocationItemSelectorOpen(false);
+    setSelectedItem(undefined); // Clear any selected item to indicate this is a new item
+    setIsModalOpen(true);
+  }, [selectedLocation]);
+
   const handleSetupQRTable = useCallback(async () => {
     setIsCreatingQRTable(true);
     try {
@@ -980,6 +988,7 @@ const Index = memo(() => {
           onSelectEdit={handleSelectEditItem}
           onDeleteItem={handleDeleteLocationItem}
           onClearLocation={handleClearLocationItems}
+          onAddNewItem={handleAddNewItemAtLocation}
         />
 
         {/* QR Scanner */}
