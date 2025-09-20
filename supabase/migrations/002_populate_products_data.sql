@@ -30,26 +30,4 @@ INSERT INTO products (sku_code, product_name, product_type, category, subcategor
 
 ON CONFLICT (sku_code) DO NOTHING;
 
--- Create a view for easy product queries
-CREATE OR REPLACE VIEW products_with_counts AS
-SELECT
-    p.*,
-    COALESCE(inv_count.total_items, 0) as inventory_items_count,
-    COALESCE(inv_count.total_quantity, 0) as total_stock_quantity
-FROM products p
-LEFT JOIN (
-    SELECT
-        sku,
-        COUNT(*) as total_items,
-        SUM(
-            COALESCE(carton_quantity_legacy, 0) +
-            COALESCE(box_quantity_legacy, 0) +
-            COALESCE(pieces_quantity_legacy, 0) +
-            COALESCE(unit_level1_quantity, 0) +
-            COALESCE(unit_level2_quantity, 0) +
-            COALESCE(unit_level3_quantity, 0)
-        ) as total_quantity
-    FROM inventory_items
-    GROUP BY sku
-) inv_count ON p.sku_code = inv_count.sku
-ORDER BY p.product_type, p.sku_code;
+-- Note: products_with_counts view will be created later when inventory_items table exists
