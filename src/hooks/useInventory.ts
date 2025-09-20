@@ -450,6 +450,9 @@ export function useInventory() {
     }
   };
 
+  // State for debouncing toast notifications
+  const [lastToastTime, setLastToastTime] = useState(0);
+
   useEffect(() => {
     fetchItems();
 
@@ -496,17 +499,20 @@ export function useInventory() {
               return filteredItems;
             });
           } else {
-            // Fallback to full refresh for complex operations
-            console.log('🔄 Real-time - Fallback to full refresh');
-            fetchItems();
+            // Fallback to full refresh for complex operations - but avoid infinite loop
+            console.log('🔄 Real-time - Complex operation detected, skipping full refresh to prevent loop');
           }
 
-          // Show toast notification for real-time updates (but not too frequently)
-          toast({
-            title: '🔄 อัปเดตแบบเรียลไทม์',
-            description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว (${payload.eventType})`,
-            duration: 2000,
-          });
+          // Debounced toast notification for real-time updates
+          const now = Date.now();
+          if (now - lastToastTime > 3000) { // Only show toast every 3 seconds max
+            setLastToastTime(now);
+            toast({
+              title: '🔄 อัปเดตแบบเรียลไทม์',
+              description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว (${payload.eventType})`,
+              duration: 2000,
+            });
+          }
         }
       )
       .subscribe();
@@ -514,7 +520,7 @@ export function useInventory() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchItems, toast]);
+  }, [toast]); // Removed fetchItems from dependency array to prevent infinite loop
 
   const loadSampleData = async () => {
     try {

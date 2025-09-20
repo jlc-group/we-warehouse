@@ -85,19 +85,22 @@ const Index = memo(() => {
   } = useDepartmentInventory();
 
   // Memoized calculations for expensive operations
+  const inventoryLocations = useMemo(() => {
+    return [...new Set(inventoryItems.map(item => item.location))];
+  }, [inventoryItems]);
+
+  // Cache all warehouse locations once (now cached in utility function)
+  const allWarehouseLocations = useMemo(() => {
+    return generateAllWarehouseLocations();
+  }, []); // Empty dependency - computed once
+
   const availableLocations = useMemo(() => {
-    // Get existing inventory locations
-    const inventoryLocations = [...new Set(inventoryItems.map(item => item.location))];
-
-    // Get all possible warehouse locations
-    const allWarehouseLocations = generateAllWarehouseLocations();
-
     // Combine existing inventory locations with all possible locations
     // This ensures bulk add has access to all locations, not just ones with inventory
     const combinedLocations = [...new Set([...inventoryLocations, ...allWarehouseLocations])];
 
     return combinedLocations.sort();
-  }, [inventoryItems]);
+  }, [inventoryLocations, allWarehouseLocations]);
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {

@@ -135,7 +135,15 @@ export function dbLocation(location: string): string {
  * Returns array of all valid locations (A/1/1 to N/4/20)
  * Total: 14 rows * 4 levels * 20 positions = 1,120 locations
  */
+// Cache for expensive location generation
+let _cachedWarehouseLocations: string[] | null = null;
+
 export function generateAllWarehouseLocations(): string[] {
+  // Return cached result if available
+  if (_cachedWarehouseLocations) {
+    return _cachedWarehouseLocations;
+  }
+
   const locations: string[] = [];
   const rows = 'ABCDEFGHIJKLMN'; // A-N (14 rows)
 
@@ -147,5 +155,7 @@ export function generateAllWarehouseLocations(): string[] {
     }
   }
 
-  return locations.sort();
+  // Cache the result and return
+  _cachedWarehouseLocations = locations.sort();
+  return _cachedWarehouseLocations;
 }
