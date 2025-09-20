@@ -129,8 +129,7 @@ export function useInventory() {
         .from('products')
         .insert({
           sku_code: productCode,
-          product_name: productName,
-          user_id: '00000000-0000-0000-0000-000000000000'
+          product_name: productName
         })
         .select()
         .single();
