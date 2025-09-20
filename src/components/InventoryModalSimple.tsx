@@ -8,6 +8,7 @@ import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDow
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeLocation } from '@/utils/locationUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -381,7 +382,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                 onKeyDown={handleProductCodeKeyDown}
                 onBlur={(e) => {
                   setTimeout(() => {
-                    if (!e.currentTarget.contains(document.activeElement)) {
+                    if (e.currentTarget && document.activeElement && !e.currentTarget.contains(document.activeElement)) {
                       setIsProductCodeOpen(false);
                     }
                   }, 150);

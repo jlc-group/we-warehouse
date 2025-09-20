@@ -4,7 +4,8 @@
 
 /**
  * Normalize location string to standard format
- * Ensures consistent format: "Row/Level/Position" (e.g., "A/1/01")
+ * Ensures consistent format: "Row/Level/Position" (e.g., "A/1/1", "A/1/20")
+ * Database constraint: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$
  */
 export function normalizeLocation(location: string): string {
   if (!location) return '';
@@ -12,8 +13,8 @@ export function normalizeLocation(location: string): string {
   // Remove extra whitespace and convert to uppercase
   const cleaned = location.trim().toUpperCase();
 
-  // If already in correct format with 2-digit position, return as-is
-  if (/^[A-Z]\/[1-4]\/\d{2}$/.test(cleaned)) {
+  // If already in correct format, return as-is
+  if (/^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/.test(cleaned)) {
     return cleaned;
   }
 
@@ -23,8 +24,8 @@ export function normalizeLocation(location: string): string {
   if (parts.length >= 3) {
     const [row, level, position] = parts;
 
-    // Validate row (should be A-Z)
-    if (!/^[A-Z]$/.test(row)) {
+    // Validate row (should be A-N only, database constraint)
+    if (!/^[A-N]$/.test(row)) {
       return location; // Return original if can't normalize
     }
 
@@ -33,14 +34,14 @@ export function normalizeLocation(location: string): string {
       return location;
     }
 
-    // Validate position (should be 1-99, pad with zero if needed)
+    // Validate position (should be 1-20, database constraint)
     const positionNum = parseInt(position);
-    if (isNaN(positionNum) || positionNum < 1 || positionNum > 99) {
+    if (isNaN(positionNum) || positionNum < 1 || positionNum > 20) {
       return location;
     }
 
-    // Format position with leading zero if needed
-    const formattedPosition = positionNum.toString().padStart(2, '0');
+    // Format position WITHOUT leading zero (database expects 1, not 01)
+    const formattedPosition = positionNum.toString();
 
     const normalized = `${row}/${level}/${formattedPosition}`;
     return normalized;
@@ -51,6 +52,7 @@ export function normalizeLocation(location: string): string {
 
 /**
  * Validate if location format is correct
+ * Database constraint: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$
  */
 export function isValidLocation(location: string): boolean {
   if (!location) {
@@ -58,7 +60,7 @@ export function isValidLocation(location: string): boolean {
   }
 
   const normalized = normalizeLocation(location);
-  const isValid = /^[A-Z]\/[1-4]\/\d{2}$/.test(normalized);
+  const isValid = /^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/.test(normalized);
 
   return isValid;
 }
@@ -77,10 +79,11 @@ export function locationsEqual(location1: string, location2: string): boolean {
 
 /**
  * Parse location into components
+ * Database constraint: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$
  */
 export function parseLocation(location: string): { row: string; level: number; position: number } | null {
   const normalized = normalizeLocation(location);
-  const match = normalized.match(/^([A-Z])\/([1-4])\/(\d{2})$/);
+  const match = normalized.match(/^([A-N])\/([1-4])\/([1-9]|1[0-9]|20)$/);
 
   if (!match) return null;
 
@@ -93,8 +96,15 @@ export function parseLocation(location: string): { row: string; level: number; p
 
 /**
  * Format location components into standard string
+ * Database constraint: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$
  */
 export function formatLocation(row: string, level: number, position: number): string {
-  const formattedPosition = position.toString().padStart(2, '0');
+  // Validate inputs match database constraints
+  if (!/^[A-N]$/.test(row.toUpperCase()) || level < 1 || level > 4 || position < 1 || position > 20) {
+    throw new Error(`Invalid location parameters: row=${row}, level=${level}, position=${position}`);
+  }
+
+  // Format WITHOUT leading zero (database expects 1, not 01)
+  const formattedPosition = position.toString();
   return `${row.toUpperCase()}/${level}/${formattedPosition}`;
 }

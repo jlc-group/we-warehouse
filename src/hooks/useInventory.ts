@@ -163,9 +163,9 @@ export function useInventory() {
       // Normalize location with comprehensive logging
       const originalLocation = itemData.location || '';
       const normalizedLocation = normalizeLocation(originalLocation);
-      const locationRegex = /^[A-Z]\/[1-4]\/\d{2}$/;
+      const locationRegex = /^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/;
       const isLocationValid = locationRegex.test(normalizedLocation);
-      const finalLocation = isLocationValid ? normalizedLocation : 'A/1/01';
+      const finalLocation = isLocationValid ? normalizedLocation : 'A/1/1';
 
       console.log('🔍 useInventory addItem - Comprehensive Location Debug:', {
         step1_original: originalLocation,
