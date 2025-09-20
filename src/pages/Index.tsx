@@ -37,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContextSimple';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
 import { UnitConversionSettings } from '@/components/UnitConversionSettings';
+import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -733,7 +734,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-9 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-10 bg-white border border-gray-200">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               <span className="hidden sm:inline">แผนผัง</span>
@@ -749,6 +750,10 @@ const Index = memo(() => {
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Analytics</span>
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">สรุปสินค้า</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -853,6 +858,14 @@ const Index = memo(() => {
                   </Suspense>
                 </TabsContent>
               </Tabs>
+            )}
+          </TabsContent>
+
+          <TabsContent value="products" className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+            ) : (
+              <ProductSummaryTable />
             )}
           </TabsContent>
 
