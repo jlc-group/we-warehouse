@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { QrCode, Download, Camera, Search } from 'lucide-react';
 import { InventoryModal } from './InventoryModal';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { normalizeLocation } from '@/utils/locationUtils';
 
 interface QRCodeManagerProps {
   items: InventoryItem[];
@@ -73,7 +74,7 @@ export function QRCodeManager({ items, onShelfClick, onSaveItem }: QRCodeManager
   };
 
   const handleScanLocation = (location: string) => {
-    setScanLocation(location);
+    setScanLocation(normalizeLocation(location));
     setIsScanning(true);
   };
 

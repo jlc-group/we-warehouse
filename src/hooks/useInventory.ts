@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { throttle } from 'lodash';
+import { normalizeLocation } from '@/utils/locationUtils';
 import type { Database } from '@/integrations/supabase/types';
 // Dynamic import for better code splitting
 import { createInventoryItems } from '@/data/userRecoveryData';
@@ -158,11 +160,33 @@ export function useInventory() {
         await ensureProductExists(productCode, itemData.product_name);
       }
 
+      // Normalize location with comprehensive logging
+      const originalLocation = itemData.location || '';
+      const normalizedLocation = normalizeLocation(originalLocation);
+      const locationRegex = /^[A-Z]\/[1-4]\/\d{2}$/;
+      const isLocationValid = locationRegex.test(normalizedLocation);
+      const finalLocation = isLocationValid ? normalizedLocation : 'A/1/01';
+
+      console.log('🔍 useInventory addItem - Comprehensive Location Debug:', {
+        step1_original: originalLocation,
+        step2_normalized: normalizedLocation,
+        step3_regex_test: locationRegex.test(normalizedLocation),
+        step4_final_location: finalLocation,
+        step5_final_validation: locationRegex.test(finalLocation),
+        debug_info: {
+          original_length: originalLocation.length,
+          normalized_length: normalizedLocation.length,
+          original_chars: originalLocation.split(''),
+          normalized_chars: normalizedLocation.split(''),
+          regex_pattern: locationRegex.toString()
+        }
+      });
+      
       // Support both old format (quantity_boxes) and new format (carton_quantity_legacy)
       const insertData = {
         product_name: itemData.product_name,
         sku: productCode,
-        location: itemData.location,
+        location: finalLocation,
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
         // Use ACTUAL database column names - support both formats

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
@@ -299,7 +300,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
     const dataToSave = {
       product_name: productName.trim(),
       product_code: productCode.trim(),
-      location,
+      location: location,
       lot: lot.trim() || undefined,
       mfd: mfd || undefined,
       // Legacy fields for backward compatibility

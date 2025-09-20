@@ -94,7 +94,7 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
 
     // Auto-redirect or handle the scan result
     if (data.action === 'add') {
-      onShelfClick(location);
+      onShelfClick(normalizeLocation(location));
     }
   }, [onShelfClick]);
 
@@ -154,8 +154,9 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
   }, [items, filters]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
-    setSelectedShelf(location);
-    onShelfClick(location, item);
+    const normalizedLocation = normalizeLocation(location);
+    setSelectedShelf(normalizedLocation);
+    onShelfClick(normalizedLocation, item);
   }, [onShelfClick]);
 
   const handleFilterChange = (type: 'lot' | 'productCode', value: string) => {

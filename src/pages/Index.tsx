@@ -13,7 +13,6 @@ import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
-import { normalizeLocation } from '@/utils/locationUtils';
 import { QRScanner } from '@/components/QRScanner';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -236,24 +235,17 @@ const Index = memo(() => {
 
       // Prepare update payload with proper null-safe defaults to prevent constraint violations
       // Updated to use ACTUAL database schema: carton_quantity_legacy, box_quantity_legacy
-      const normalizedLocation = normalizeLocation(itemData.location || '');
-
-      // If normalization fails, provide a default valid location
-      const finalLocation = /^[A-Z]\/[1-4]\/\d{2}$/.test(normalizedLocation)
-        ? normalizedLocation
-        : 'A/1/01'; // Default fallback location
-
-      console.log('🔍 Location normalization:', {
-        original: itemData.location,
-        normalized: normalizedLocation,
-        final: finalLocation,
-        passes_regex: /^[A-Z]\/[1-4]\/\d{2}$/.test(finalLocation)
+      // Location normalization is now handled in useInventory.ts - no need to duplicate here
+      console.log('🔍 Index.tsx - Raw item data before sending to addItem:', {
+        location: itemData.location,
+        product_name: itemData.product_name,
+        product_code: itemData.product_code
       });
 
       const dbItemData = {
         product_name: itemData.product_name || '',
         sku: itemData.product_code || '',
-        location: finalLocation,
+        location: itemData.location || '',
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
         unit: itemData.unit || 'กล่อง',
@@ -314,7 +306,7 @@ const Index = memo(() => {
       for (const location of locations) {
         await addItem({
           ...itemData,
-          location: normalizeLocation(location)
+          location: location
         });
       }
     } catch (error) {

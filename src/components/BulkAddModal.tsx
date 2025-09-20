@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Package, MapPin, Plus, Minus } from 'lucide-react';
+import { normalizeLocation } from '@/utils/locationUtils';
 
 interface BulkAddModalProps {
   isOpen: boolean;
@@ -66,7 +67,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
       return;
     }
 
-    onSave(Array.from(selectedLocations), {
+    onSave(Array.from(selectedLocations).map(loc => normalizeLocation(loc)), {
       product_name: productName.trim(),
       sku: productCode.trim(),
       lot: lot.trim() || undefined,

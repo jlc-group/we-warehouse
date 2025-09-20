@@ -2122,7 +2122,7 @@ export function EnhancedOverview({
                                             key={position}
                                             className="w-8 h-8 cursor-pointer hover:scale-105 transition-all duration-200 relative border-r border-gray-200 last:border-r-0"
                                             style={{ ...cellStyle, opacity }}
-                                            onClick={() => onShelfClick(location, originalItems[0])}
+                                            onClick={() => onShelfClick(normalizeLocation(location), originalItems[0])}
                                             title={
                                               itemCount === 0
                                                 ? `${location} - ว่าง`
@@ -2278,7 +2278,7 @@ export function EnhancedOverview({
                       <div
                         key={activity.id}
                         className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-slate-50 cursor-pointer transition-colors"
-                        onClick={() => onShelfClick(activity.location)}
+                        onClick={() => onShelfClick(normalizeLocation(activity.location))}
                       >
                         <div className="flex-shrink-0 mt-0.5">
                           {getActivityIcon(activity.type)}

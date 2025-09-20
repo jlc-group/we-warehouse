@@ -255,7 +255,7 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
                     <div
                       key={location.location}
                       className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      onClick={() => onLocationClick?.(location.location)}
+                      onClick={() => onLocationClick?.(normalizeLocation(location.location))}
                     >
                       <div className="flex items-center gap-3">
                         <MapPin className="h-4 w-4 text-blue-600" />
@@ -311,7 +311,7 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
                   <div
                     key={location.location}
                     className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => onLocationClick?.(location.location)}
+                    onClick={() => onLocationClick?.(normalizeLocation(location.location))}
                   >
                     <div className="flex items-center gap-4">
                       <div className="flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
