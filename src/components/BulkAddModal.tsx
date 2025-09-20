@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown } from 'lucide-react';
+import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import type { InventoryItem } from '@/hooks/useInventory';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -196,9 +197,10 @@ interface BulkAddModalProps {
     pieces_quantity: number;
   }) => void;
   availableLocations: string[];
+  inventoryItems: InventoryItem[];
 }
 
-export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: BulkAddModalProps) {
+export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inventoryItems }: BulkAddModalProps) {
   const [productName, setProductName] = useState('');
   const [productCode, setProductCode] = useState('');
   const [lot, setLot] = useState('');
@@ -209,6 +211,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set());
   const [customLocation, setCustomLocation] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState<'all' | 'empty' | 'occupied'>('all');
 
   // Product management states
   const [products, setProducts] = useState<Product[]>([]);
@@ -359,10 +362,41 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
     return !existsInMapping && !existsInDatabase;
   };
 
-  // Filter locations based on search
-  const filteredLocations = availableLocations.filter(location =>
-    location.toLowerCase().includes(locationSearch.toLowerCase())
-  );
+  // Helper function to get inventory count at location
+  const getLocationInventoryCount = useCallback((location: string) => {
+    return inventoryItems.filter(item =>
+      normalizeLocation(item.location) === normalizeLocation(location)
+    ).length;
+  }, [inventoryItems]);
+
+  // Helper function to check if location is empty
+  const isLocationEmpty = useCallback((location: string) => {
+    return getLocationInventoryCount(location) === 0;
+  }, [getLocationInventoryCount]);
+
+  // Enhanced location data with status
+  const locationsWithStatus = useMemo(() => {
+    return availableLocations.map(location => ({
+      location,
+      itemCount: getLocationInventoryCount(location),
+      isEmpty: isLocationEmpty(location)
+    }));
+  }, [availableLocations, getLocationInventoryCount, isLocationEmpty]);
+
+  // Filter locations based on search and filter type
+  const filteredLocations = useMemo(() => {
+    return locationsWithStatus.filter(locationData => {
+      // Apply search filter
+      const matchesSearch = locationData.location.toLowerCase().includes(locationSearch.toLowerCase());
+
+      // Apply type filter
+      const matchesFilter = locationFilter === 'all' ||
+        (locationFilter === 'empty' && locationData.isEmpty) ||
+        (locationFilter === 'occupied' && !locationData.isEmpty);
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [locationsWithStatus, locationSearch, locationFilter]);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -615,33 +649,68 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations }: Bu
                 </Badge>
               </div>
 
-              {/* Location Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="ค้นหาตำแหน่ง (เช่น A/1 หรือ A/1/1)"
-                  value={locationSearch}
-                  onChange={(e) => setLocationSearch(e.target.value)}
-                  className="pl-10"
-                />
+              {/* Location Search and Filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="ค้นหาตำแหน่ง (เช่น A/1 หรือ A/1/1)"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={locationFilter} onValueChange={(value: 'all' | 'empty' | 'occupied') => setLocationFilter(value)}>
+                  <SelectTrigger className="w-40">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">ทั้งหมด</SelectItem>
+                    <SelectItem value="empty">ตำแหน่งว่าง</SelectItem>
+                    <SelectItem value="occupied">มีสินค้าแล้ว</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="max-h-48 overflow-y-auto border rounded-lg p-3">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                   {filteredLocations.length > 0 ? (
-                    filteredLocations.map(location => (
-                      <div key={location} className="flex items-center space-x-2">
+                    filteredLocations.map(locationData => (
+                      <div key={locationData.location} className={`flex items-start space-x-2 p-2 rounded-lg border ${
+                        locationData.isEmpty
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-yellow-50 border-yellow-200'
+                      }`}>
                         <Checkbox
-                          id={location}
-                          checked={selectedLocations.has(location)}
-                          onCheckedChange={() => handleLocationToggle(location)}
+                          id={locationData.location}
+                          checked={selectedLocations.has(locationData.location)}
+                          onCheckedChange={() => handleLocationToggle(locationData.location)}
+                          className="mt-0.5"
                         />
-                        <Label
-                          htmlFor={location}
-                          className="text-sm font-mono cursor-pointer"
-                        >
-                          {location}
-                        </Label>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            {locationData.isEmpty ? (
+                              <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
+                            ) : (
+                              <AlertTriangle className="h-3 w-3 text-yellow-600 flex-shrink-0" />
+                            )}
+                            <Label
+                              htmlFor={locationData.location}
+                              className="text-sm font-mono cursor-pointer truncate"
+                            >
+                              {locationData.location}
+                            </Label>
+                          </div>
+                          <div className={`text-xs ${
+                            locationData.isEmpty ? 'text-green-600' : 'text-yellow-600'
+                          }`}>
+                            {locationData.isEmpty
+                              ? 'ว่าง'
+                              : `มี ${locationData.itemCount} รายการ`
+                            }
+                          </div>
+                        </div>
                       </div>
                     ))
                   ) : (

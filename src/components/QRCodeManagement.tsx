@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye, Archive, AlertCircle, Info, Scan, Grid3X3, Printer } from 'lucide-react';
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import { QRScanner } from './QRScanner';
+import { DatabaseTester } from './debug/DatabaseTester';
 import { supabase } from '@/integrations/supabase/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -35,7 +36,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
     startPosition: 1,
     endPosition: 10,
   });
-  const [activeTab, setActiveTab] = useState<'manage' | 'print'>('manage');
+  const [activeTab, setActiveTab] = useState<'manage' | 'print' | 'debug'>('manage');
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const { toast } = useToast();
@@ -289,8 +290,8 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
       </Card>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manage' | 'print')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manage' | 'print' | 'debug')} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="manage" className="flex items-center gap-2">
             <Grid3X3 className="h-4 w-4" />
             จัดการ QR Code
@@ -298,6 +299,10 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
           <TabsTrigger value="print" className="flex items-center gap-2">
             <Printer className="h-4 w-4" />
             พิมพ์ QR Code ({filteredQRCodes.length})
+          </TabsTrigger>
+          <TabsTrigger value="debug" className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            Debug & Test
           </TabsTrigger>
         </TabsList>
 
@@ -872,6 +877,11 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Debug & Test Tab */}
+        <TabsContent value="debug" className="space-y-6">
+          <DatabaseTester />
         </TabsContent>
       </Tabs>
     </div>

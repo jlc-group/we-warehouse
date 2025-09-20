@@ -525,13 +525,27 @@ export function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps
                                       <span className="text-xs text-blue-500">กำลังโหลด QR</span>
                                     </div>
                                   ) : (() => {
-                                    return getQRByLocation(location);
-                                  })() ? (
-                                    <div className="flex items-center gap-1">
-                                      <QrCode className="h-3 w-3 text-green-600" />
-                                      <span className="text-xs text-green-600">มี QR</span>
-                                    </div>
-                                  ) : (
+                                    const qrCode = getQRByLocation(location);
+                                    return qrCode;
+                                  })() ? (() => {
+                                    const qrCode = getQRByLocation(location);
+                                    return (
+                                      <div className="flex items-center gap-2">
+                                        {qrCode?.qr_image_url ? (
+                                          <div className="w-8 h-8 rounded border bg-white overflow-hidden">
+                                            <img
+                                              src={qrCode.qr_image_url}
+                                              alt={`QR Code for ${location}`}
+                                              className="w-full h-full object-contain"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <QrCode className="h-3 w-3 text-green-600" />
+                                        )}
+                                        <span className="text-xs text-green-600">มี QR</span>
+                                      </div>
+                                    );
+                                  })() : (
                                     <div className="flex items-center gap-1">
                                       <QrCode className="h-3 w-3 text-gray-400" />
                                       <span className="text-xs text-gray-500">ไม่มี QR</span>

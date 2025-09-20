@@ -15,6 +15,7 @@ import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
 import { LocationItemSelector } from '@/components/LocationItemSelector';
 import { QRScanner } from '@/components/QRScanner';
+import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -960,6 +961,7 @@ const Index = memo(() => {
           onClose={handleBulkModalClose}
           onSave={handleBulkSave}
           availableLocations={availableLocations}
+          inventoryItems={inventoryItems}
         />
 
         {/* Location QR Modal */}
@@ -1045,6 +1047,9 @@ const Index = memo(() => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Floating QR Scanner */}
+        <FloatingQRScanner onScanSuccess={handleShelfClick} />
       </div>
     </div>
   );
