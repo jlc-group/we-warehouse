@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Package, Search, MapPin, Hash, BarChart3, Grid3X3, List, ExternalLink } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useDebounce } from '@/hooks/useDebounce';
+import { displayLocation } from '@/utils/locationUtils';
 
 interface InventorySearchProps {
   items: InventoryItem[];
@@ -277,7 +278,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                           <div className="flex items-center gap-3">
                             <MapPin className="h-4 w-4 text-blue-600" />
                             <div>
-                              <div className="font-medium">{item.location}</div>
+                              <div className="font-medium">{displayLocation(item.location)}</div>
                               {item.lot && (
                                 <div className="text-sm text-muted-foreground">Lot: {item.lot}</div>
                               )}
@@ -316,7 +317,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                             <Hash className="h-3 w-3" />
                             <span>{item.sku}</span>
                             <MapPin className="h-3 w-3 ml-2" />
-                            <span>{item.location}</span>
+                            <span>{displayLocation(item.location)}</span>
                             {item.lot && (
                               <>
                                 <span className="mx-1">•</span>

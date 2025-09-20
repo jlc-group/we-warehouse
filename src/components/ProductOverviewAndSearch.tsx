@@ -10,6 +10,7 @@ import { PieChart, Package, MapPin, Search, Filter, X, Grid3X3, List, Hash, BarC
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useDebounce } from '@/hooks/useDebounce';
+import { displayLocation } from '@/utils/locationUtils';
 
 interface ProductOverviewAndSearchProps {
   items: InventoryItem[];
@@ -751,7 +752,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                         <div className="flex items-center gap-3">
                           <MapPin className="h-4 w-4 text-blue-600" />
                           <div>
-                            <div className="font-medium">{item.location}</div>
+                            <div className="font-medium">{displayLocation(item.location)}</div>
                             {item.lot && (
                               <div className="text-sm text-muted-foreground">Lot: {item.lot}</div>
                             )}
@@ -790,7 +791,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                             <Hash className="h-3 w-3" />
                             <span>{item.sku}</span>
                             <MapPin className="h-3 w-3 ml-2" />
-                            <span>{item.location}</span>
+                            <span>{displayLocation(item.location)}</span>
                             {item.lot && (
                               <>
                                 <span className="mx-1">•</span>

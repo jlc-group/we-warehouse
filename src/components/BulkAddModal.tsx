@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
-import { normalizeLocation } from '@/utils/locationUtils';
+import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
@@ -181,7 +181,12 @@ const PRODUCT_NAME_MAPPING: Record<string, string> = {
   'TB-L4-40G': 'หลอดบรรจุ ลองแกน เมลาสม่า โปร เซรั่ม 40G - เซรั่มลำไยใหม่',
   'TB-L6-40G': 'หลอดบรรจุ แครอท เอจจิ้ง เพอร์เฟค เซรั่ม 40 มล.-ครีมแครอทใหม่',
   'TB-L8A-30G_M1': 'หลอดบรรจุ วอเตอร์เมลอน อีอี คูชั่น แมตต์ SPF50PA+++(01 Light)',
-  'TB-L8B-30G_M1': 'หลอดบรรจุ วอเตอร์เมลอน อีอี คูชั่น แมตต์ SPF50PA+++(2 Natural)'
+  'TB-L8B-30G_M1': 'หลอดบรรจุ วอเตอร์เมลอน อีอี คูชั่น แมตต์ SPF50PA+++(2 Natural)',
+
+  // New soap products
+  'JH906-70G': 'จุฬาเฮิร์บ ลองแกน เมลาสม่า โซฟ 70 กรัม',
+  'JH904-70G': 'จุฬาเฮิร์บ แมริโกลด์ แอคเน่ โซฟ 70กรัม',
+  'JH905-70G': 'จุฬาเฮิร์บ วอเตอร์เมลอน ออร่า โซฟ 70กรัม'
 };
 
 interface BulkAddModalProps {
@@ -699,7 +704,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                               htmlFor={locationData.location}
                               className="text-sm font-mono cursor-pointer truncate"
                             >
-                              {locationData.location}
+                              {displayLocation(locationData.location)}
                             </Label>
                           </div>
                           <div className={`text-xs ${

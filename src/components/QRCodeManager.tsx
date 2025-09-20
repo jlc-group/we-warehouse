@@ -9,7 +9,7 @@ import { InventoryModal } from './InventoryModal';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
 import type { InventoryItem } from '@/hooks/useInventory';
-import { normalizeLocation } from '@/utils/locationUtils';
+import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 
 interface QRCodeManagerProps {
   items: InventoryItem[];
@@ -244,7 +244,7 @@ export function QRCodeManager({ items, onShelfClick, onSaveItem }: QRCodeManager
             <Card key={location} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg flex items-center justify-between">
-                  <span className="font-mono">{location}</span>
+                  <span className="font-mono">{displayLocation(location)}</span>
                   <div className="flex gap-2">
                     <Badge variant="secondary">{totalItems} รายการ</Badge>
                     {hasQRCode ? (

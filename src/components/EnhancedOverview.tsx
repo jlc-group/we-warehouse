@@ -1543,7 +1543,7 @@ export function EnhancedOverview({
                                   {locationOptionsForSku.map((locationOption) => (
                                     <SelectItem key={locationOption.location} value={locationOption.location}>
                                       <div className="flex flex-col">
-                                        <span className="font-medium">{locationOption.location}</span>
+                                        <span className="font-medium">{displayLocation(locationOption.location)}</span>
                                         <span className="text-xs text-gray-500">
                                           สต็อก: {locationOption.totalCarton} ลัง, {locationOption.totalBox} กล่อง, {locationOption.totalLoose} ชิ้น
                                         </span>

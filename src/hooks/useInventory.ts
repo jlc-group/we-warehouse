@@ -768,35 +768,34 @@ export function useInventory() {
   // Transfer items between locations
   const transferItems = useCallback(async (itemIds: string[], targetLocation: string, notes?: string) => {
     try {
+      console.log('🚛 Starting transfer:', { itemIds, targetLocation, notes });
       setLoading(true);
+
+      // Normalize target location to ensure consistent format
+      const normalizedTargetLocation = normalizeLocation(targetLocation);
+      console.log('🎯 Normalized target location:', normalizedTargetLocation);
 
       // Get current items to transfer
       const itemsToTransfer = items.filter(item => itemIds.includes(item.id));
+      console.log('📦 Items to transfer:', itemsToTransfer.map(item => ({ id: item.id, sku: item.sku, currentLocation: item.location })));
 
       if (itemsToTransfer.length === 0) {
         throw new Error('ไม่พบสินค้าที่ต้องการย้าย');
       }
 
-      // Use Supabase transaction with batch update
-      const updates = itemsToTransfer.map(item => ({
-        id: item.id,
-        location: targetLocation,
-        updated_at: new Date().toISOString()
-      }));
-
-      // Update all items in a single operation
+      // Update all items in a single operation - use update instead of upsert
       const { data, error } = await supabase
         .from('inventory_items')
-        .upsert(updates.map(update => ({
-          id: update.id,
-          location: update.location
-        })))
+        .update({ location: normalizedTargetLocation, updated_at: new Date().toISOString() })
+        .in('id', itemIds)
         .select();
 
       if (error) {
-        console.error('Transfer error:', error);
+        console.error('❌ Transfer error:', error);
         throw error;
       }
+
+      console.log('✅ Database update successful:', data?.length || 0, 'items updated');
 
       // Log movement for each transferred item
       const fixedUserId = '00000000-0000-0000-0000-000000000000';
@@ -807,8 +806,8 @@ export function useInventory() {
         box_quantity_change: 0,
         pieces_quantity_change: 0,
         location_from: item.location,
-        location_to: targetLocation,
-        notes: notes || `ย้ายจาก ${item.location} ไป ${targetLocation}`,
+        location_to: normalizedTargetLocation,
+        notes: notes || `ย้ายจาก ${item.location} ไป ${normalizedTargetLocation}`,
         user_id: null,
         movement_date: new Date().toISOString()
       }));
@@ -819,23 +818,30 @@ export function useInventory() {
         .insert(movementLogs);
 
       if (logError) {
-        console.warn('Failed to log movement:', logError);
+        console.warn('⚠️ Failed to log movement:', logError);
         // Don't fail the whole operation if logging fails
+      } else {
+        console.log('📝 Movement logs created:', movementLogs.length, 'entries');
       }
 
       // Update local state
-      setItems(prev => prev.map(item => {
-        if (itemIds.includes(item.id)) {
-          return { ...item, location: targetLocation, updated_at: new Date().toISOString() };
-        }
-        return item;
-      }));
+      setItems(prev => {
+        const updated = prev.map(item => {
+          if (itemIds.includes(item.id)) {
+            return { ...item, location: normalizedTargetLocation, updated_at: new Date().toISOString() };
+          }
+          return item;
+        });
+        console.log('🔄 Local state updated for', itemIds.length, 'items');
+        return updated;
+      });
 
       toast({
         title: '🚛 ย้ายสินค้าสำเร็จ',
-        description: `ย้ายสินค้า ${itemsToTransfer.length} รายการไป ${targetLocation} แล้ว`,
+        description: `ย้ายสินค้า ${itemsToTransfer.length} รายการไป ${normalizedTargetLocation} แล้ว`,
       });
 
+      console.log('🎉 Transfer completed successfully!');
       return true;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};

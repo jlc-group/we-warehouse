@@ -13,6 +13,7 @@ import {
   formatTotalQuantity,
   type MultiLevelInventoryItem
 } from '@/utils/unitCalculations';
+import { displayLocation } from '@/utils/locationUtils';
 
 interface InventoryTableProps {
   items: InventoryItem[];
@@ -186,7 +187,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <MapPin className="h-3 w-3 text-muted-foreground" />
-                            <span className="font-mono">{item.location}</span>
+                            <span className="font-mono">{displayLocation(item.location)}</span>
                           </div>
                         </TableCell>
                         <TableCell>
