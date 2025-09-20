@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { setupQRTable } from '@/utils/setupQRTable';
+import { generateAllWarehouseLocations } from '@/utils/locationUtils';
 import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2 } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
@@ -79,10 +80,19 @@ const Index = memo(() => {
   } = useDepartmentInventory();
 
   // Memoized calculations for expensive operations
-  const availableLocations = useMemo(
-    () => [...new Set(inventoryItems.map(item => item.location))].sort(),
-    [inventoryItems]
-  );
+  const availableLocations = useMemo(() => {
+    // Get existing inventory locations
+    const inventoryLocations = [...new Set(inventoryItems.map(item => item.location))];
+
+    // Get all possible warehouse locations
+    const allWarehouseLocations = generateAllWarehouseLocations();
+
+    // Combine existing inventory locations with all possible locations
+    // This ensures bulk add has access to all locations, not just ones with inventory
+    const combinedLocations = [...new Set([...inventoryLocations, ...allWarehouseLocations])];
+
+    return combinedLocations.sort();
+  }, [inventoryItems]);
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {

@@ -108,3 +108,23 @@ export function formatLocation(row: string, level: number, position: number): st
   const formattedPosition = position.toString();
   return `${row.toUpperCase()}/${level}/${formattedPosition}`;
 }
+
+/**
+ * Generate all possible warehouse locations
+ * Returns array of all valid locations (A/1/1 to N/4/20)
+ * Total: 14 rows * 4 levels * 20 positions = 1,120 locations
+ */
+export function generateAllWarehouseLocations(): string[] {
+  const locations: string[] = [];
+  const rows = 'ABCDEFGHIJKLMN'; // A-N (14 rows)
+
+  for (const row of rows) {
+    for (let level = 1; level <= 4; level++) {
+      for (let position = 1; position <= 20; position++) {
+        locations.push(formatLocation(row, level, position));
+      }
+    }
+  }
+
+  return locations.sort();
+}
