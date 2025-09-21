@@ -27,7 +27,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     if (debouncedSearchQuery) {
       const filteredItems = items.filter(item =>
         item.product_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        item.sku.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
       setSearchResults(filteredItems);
@@ -39,7 +39,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   const handleSearch = (query: string) => {
     const filteredItems = items.filter(item =>
       item.product_name.toLowerCase().includes(query.toLowerCase()) ||
-      item.sku.toLowerCase().includes(query.toLowerCase()) ||
+      (item as any).sku?.toLowerCase().includes(query.toLowerCase()) ||
       item.location.toLowerCase().includes(query.toLowerCase())
     );
     setSearchResults(filteredItems);
@@ -222,7 +222,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                               <div className="font-medium">{item.product_name}</div>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Hash className="h-3 w-3" />
-                                <span>{item.sku}</span>
+                                <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">{(item as any).sku || 'N/A'}</span>
                                 {item.lot && (
                                   <>
                                     <span className="mx-1">•</span>

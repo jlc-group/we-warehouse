@@ -22,6 +22,7 @@ import { LocationEditModal } from '@/components/location/LocationEditModal';
 import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
 import { LocationTransferModal } from '@/components/location/LocationTransferModal';
 import { LocationExportModal } from '@/components/location/LocationExportModal';
+import { convertUrlToDbFormat } from '@/utils/locationUtils';
 
 interface LocationInventory {
   id: string;
@@ -61,6 +62,14 @@ export function LocationDetail() {
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
+  // Debug logging
+  console.log('🔍 LocationDetail render:', {
+    locationId,
+    inventory: inventory.length,
+    loading,
+    locationInfo
+  });
+
   useEffect(() => {
     if (locationId) {
       loadLocationData();
@@ -70,6 +79,13 @@ export function LocationDetail() {
   const loadLocationData = async () => {
     try {
       setLoading(true);
+
+      // Convert URL format to database format for querying
+      const dbLocationId = convertUrlToDbFormat(locationId || '');
+      console.log('🔍 LocationDetail query conversion:', {
+        original: locationId,
+        converted: dbLocationId
+      });
 
       // Load inventory items for this location
       const { data: inventoryData, error: inventoryError } = await supabase
@@ -87,7 +103,7 @@ export function LocationDetail() {
           unit_level1_rate,
           unit_level2_rate
         `)
-        .eq('location', locationId)
+        .eq('location', dbLocationId)
         .order('sku');
 
       if (inventoryError) {
@@ -289,54 +305,92 @@ export function LocationDetail() {
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-center">🛠️ จัดการ Location</CardTitle>
+      {/* Action Buttons - Enhanced for Mobile */}
+      <Card className="sticky bottom-4 z-10 shadow-lg border-2 border-gray-300 bg-white">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-center text-lg">🛠️ จัดการ Location</CardTitle>
+          <p className="text-center text-sm text-gray-600">เลือกการดำเนินการ</p>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4">
+        <CardContent className="pt-2">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <Button
               variant="outline"
-              className="h-20 flex flex-col items-center gap-2"
-              onClick={() => setEditModalOpen(true)}
-              disabled={inventory.length === 0}
+              className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-blue-50 border-blue-300 hover:bg-blue-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              onClick={() => {
+                console.log('🔵 Edit button clicked');
+                setEditModalOpen(true);
+              }}
             >
-              <Edit3 className="h-6 w-6" />
-              <span>แก้ไข</span>
+              <Edit3 className="h-6 w-6 sm:h-5 sm:w-5 text-blue-600" />
+              <span className="text-blue-700 font-medium text-sm">แก้ไข</span>
+              <span className="text-xs text-blue-500">Edit</span>
             </Button>
 
             <Button
               variant="outline"
-              className="h-20 flex flex-col items-center gap-2"
-              onClick={() => setAddModalOpen(true)}
+              className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-green-50 border-green-300 hover:bg-green-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              onClick={() => {
+                setAddModalOpen(true);
+              }}
             >
-              <Plus className="h-6 w-6" />
-              <span>เพิ่มสินค้า</span>
+              <Plus className="h-6 w-6 sm:h-5 sm:w-5 text-green-600" />
+              <span className="text-green-700 font-medium text-sm">เพิ่มสินค้า</span>
+              <span className="text-xs text-green-500">Add Item</span>
             </Button>
 
             <Button
               variant="outline"
-              className="h-20 flex flex-col items-center gap-2"
-              onClick={() => setTransferModalOpen(true)}
-              disabled={inventory.length === 0}
+              className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-orange-50 border-orange-300 hover:bg-orange-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              onClick={() => {
+                console.log('🟠 Transfer button clicked');
+                setTransferModalOpen(true);
+              }}
             >
-              <ArrowLeftRight className="h-6 w-6" />
-              <span>ย้ายคลัง</span>
+              <ArrowLeftRight className="h-6 w-6 sm:h-5 sm:w-5 text-orange-600" />
+              <span className="text-orange-700 font-medium text-sm">ย้ายคลัง</span>
+              <span className="text-xs text-orange-500">Transfer</span>
             </Button>
 
             <Button
               variant="outline"
-              className="h-20 flex flex-col items-center gap-2"
-              onClick={() => setExportModalOpen(true)}
-              disabled={inventory.length === 0}
+              className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-red-50 border-red-300 hover:bg-red-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              onClick={() => {
+                console.log('🔴 Export button clicked', {
+                  locationId,
+                  inventoryCount: inventory.length,
+                  currentModalState: exportModalOpen
+                });
+                setExportModalOpen(true);
+                console.log('🔴 After setExportModalOpen(true)');
+              }}
             >
-              <Send className="h-6 w-6" />
-              <span>ส่งออก</span>
+              <Send className="h-6 w-6 sm:h-5 sm:w-5 text-red-600" />
+              <span className="text-red-700 font-medium text-sm">ส่งออก</span>
+              <span className="text-xs text-red-500">Export</span>
             </Button>
+          </div>
+
+          {/* Mobile hint */}
+          <div className="mt-3 text-center">
+            <p className="text-xs text-gray-500">👆 แตะปุ่มเพื่อเลือกการดำเนินการ</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Floating Quick Action Button - Visible on scroll */}
+      <div className="fixed bottom-20 right-4 sm:hidden z-20">
+        <Button
+          size="lg"
+          className="rounded-full h-14 w-14 bg-blue-600 hover:bg-blue-700 shadow-xl border-2 border-white"
+          onClick={() => {
+            // Scroll to action buttons
+            const actionCard = document.querySelector('.sticky.bottom-4');
+            actionCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }}
+        >
+          <Package className="h-6 w-6 text-white" />
+        </Button>
+      </div>
 
       {/* Modal Components */}
       {locationId && (

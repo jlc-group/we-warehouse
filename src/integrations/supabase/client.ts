@@ -14,9 +14,18 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
-  realtime: {
-    params: {
-      eventsPerSecond: 10,
+  // TEMPORARILY DISABLE REALTIME TO FIX WEBSOCKET CONFLICTS
+  // realtime: {
+  //   params: {
+  //     eventsPerSecond: 1,
+  //   },
+  // },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'x-client-info': 'warehouse-app@1.0.0',
     },
   },
 });

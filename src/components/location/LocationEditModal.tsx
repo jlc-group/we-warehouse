@@ -229,6 +229,7 @@ export function LocationEditModal({ isOpen, onClose, locationId, inventory, onSu
             <div className="text-center py-8 text-gray-500">
               <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>ไม่มีสินค้าใน Location นี้</p>
+              <p className="text-sm mt-2">กรุณาเพิ่มสินค้าก่อนจึงจะสามารถแก้ไขได้</p>
             </div>
           )}
         </div>

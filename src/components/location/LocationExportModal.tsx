@@ -1,34 +1,28 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Send, Save, X, Package, AlertTriangle, FileText } from 'lucide-react';
+import { X, Send, MapPin, Search, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
+import { generateAllWarehouseLocations } from '@/utils/locationUtils';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
-interface LocationInventory {
+interface InventoryItem {
   id: string;
-  sku: string;
   product_name: string;
-  unit_level1_quantity: number;
-  unit_level2_quantity: number;
-  unit_level3_quantity: number;
+  sku: string;
   unit_level1_name: string;
+  unit_level1_quantity: number;
   unit_level2_name: string;
+  unit_level2_quantity: number;
   unit_level3_name: string;
-  unit_level1_rate: number;
-  unit_level2_rate: number;
-  lot?: string;
-  mfd?: string;
+  unit_level3_quantity: number;
+  location: string;
 }
 
 interface ExportItem {
-  id: string;
   selected: boolean;
   exportQuantities: {
     level1: number;
@@ -40,82 +34,78 @@ interface ExportItem {
 interface LocationExportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  inventory: InventoryItem[];
   locationId: string;
-  inventory: LocationInventory[];
   onSuccess: () => void;
 }
 
-export function LocationExportModal({
+export const LocationExportModal: React.FC<LocationExportModalProps> = ({
   isOpen,
   onClose,
-  locationId,
   inventory,
+  locationId,
   onSuccess
-}: LocationExportModalProps) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [exportReason, setExportReason] = useState('sale');
+}) => {
+  const [exportItems, setExportItems] = useState<{ [itemId: string]: ExportItem }>({});
   const [destination, setDestination] = useState('');
-  const [notes, setNotes] = useState('');
-  const [exportItems, setExportItems] = useState<Record<string, ExportItem>>({});
+  const [loading, setLoading] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      // Initialize export items
-      const items: Record<string, ExportItem> = {};
-      inventory.forEach(item => {
-        items[item.id] = {
-          id: item.id,
+  // Generate all possible locations excluding current location
+  const filteredLocations = useMemo(() => {
+    const allLocations = generateAllWarehouseLocations();
+    const availableLocations = allLocations.filter(loc => loc !== locationId);
+
+    if (!locationSearch.trim()) {
+      return availableLocations.slice(0, 20); // Show first 20 by default
+    }
+
+    const searchTerm = locationSearch.toLowerCase();
+    const filtered = availableLocations.filter(location =>
+      location.toLowerCase().includes(searchTerm)
+    );
+
+    return filtered.slice(0, 50); // Max 50 results
+  }, [locationSearch, locationId]);
+
+  // Filter items for this location
+  const items = React.useMemo(() => {
+    return inventory.filter(item => item.location === locationId);
+  }, [inventory, locationId]);
+
+  // Initialize export items when modal opens
+  React.useEffect(() => {
+    if (isOpen && items.length > 0) {
+      const initialExportItems: { [itemId: string]: ExportItem } = {};
+      items.forEach(item => {
+        initialExportItems[item.id] = {
           selected: false,
           exportQuantities: {
-            level1: item.unit_level1_quantity,
-            level2: item.unit_level2_quantity,
-            level3: item.unit_level3_quantity
+            level1: 0,
+            level2: 0,
+            level3: 0
           }
         };
       });
-      setExportItems(items);
-
-      // Reset form
-      setExportReason('sale');
+      setExportItems(initialExportItems);
       setDestination('');
-      setNotes('');
+      setLocationSearch('');
     }
-  }, [isOpen, inventory]);
+  }, [isOpen, items]);
 
-  const calculateTotalPieces = (item: LocationInventory, quantities?: { level1: number; level2: number; level3: number }): number => {
-    const qty = quantities || {
-      level1: item.unit_level1_quantity,
-      level2: item.unit_level2_quantity,
-      level3: item.unit_level3_quantity
-    };
-
-    const level1Pieces = qty.level1 * (item.unit_level1_rate || 0);
-    const level2Pieces = qty.level2 * (item.unit_level2_rate || 0);
-    const level3Pieces = qty.level3 || 0;
-    return level1Pieces + level2Pieces + level3Pieces;
-  };
-
-  const handleItemToggle = (itemId: string) => {
+  const handleItemSelection = useCallback((itemId: string, selected: boolean) => {
     setExportItems(prev => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        selected: !prev[itemId].selected
+        selected
       }
     }));
-  };
+  }, []);
 
-  const handleQuantityChange = (itemId: string, level: 'level1' | 'level2' | 'level3', value: string) => {
-    const item = inventory.find(i => i.id === itemId);
-    if (!item) return;
-
+  const handleQuantityChange = useCallback((itemId: string, level: 'level1' | 'level2' | 'level3', value: string) => {
     const numValue = Math.max(0, parseInt(value) || 0);
-    const maxValue = level === 'level1' ? item.unit_level1_quantity :
-                     level === 'level2' ? item.unit_level2_quantity :
-                     item.unit_level3_quantity;
-
-    const finalValue = Math.min(numValue, maxValue);
 
     setExportItems(prev => ({
       ...prev,
@@ -123,41 +113,65 @@ export function LocationExportModal({
         ...prev[itemId],
         exportQuantities: {
           ...prev[itemId].exportQuantities,
-          [level]: finalValue
+          [level]: numValue
         }
       }
     }));
-  };
+  }, []);
 
-  const handleSelectAll = () => {
-    const allSelected = Object.values(exportItems).every(item => item.selected);
+  const handleLocationSelect = useCallback((location: string) => {
+    setDestination(location);
+    setLocationSearch(location);
+    setShowLocationDropdown(false);
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const allSelected = items.every(item => exportItems[item.id]?.selected);
+
     setExportItems(prev => {
       const updated = { ...prev };
-      Object.keys(updated).forEach(id => {
-        updated[id].selected = !allSelected;
+      items.forEach(item => {
+        updated[item.id] = {
+          ...updated[item.id],
+          selected: !allSelected
+        };
       });
       return updated;
     });
-  };
+  }, [items, exportItems]);
+
+  const selectedCount = useMemo(() => {
+    return items.filter(item => exportItems[item.id]?.selected).length;
+  }, [items, exportItems]);
 
   const handleExport = async () => {
-    const selectedItems = Object.values(exportItems).filter(item => item.selected);
+    const selectedItems = items.filter(item => exportItems[item.id]?.selected);
 
     if (selectedItems.length === 0) {
-      toast({
-        title: '⚠️ ไม่ได้เลือกสินค้า',
-        description: 'กรุณาเลือกสินค้าที่ต้องการส่งออก',
-        variant: 'destructive'
-      });
+      toast.error('กรุณาเลือกสินค้าที่ต้องการส่งออก');
       return;
     }
 
     if (!destination.trim()) {
-      toast({
-        title: '⚠️ ไม่ได้ระบุปลายทาง',
-        description: 'กรุณาระบุปลายทางการส่งออก',
-        variant: 'destructive'
-      });
+      toast.error('กรุณาเลือกจุดหมายปลายทาง');
+      return;
+    }
+
+    // Validate quantities
+    const hasInvalidQuantity = selectedItems.some(item => {
+      const exportItem = exportItems[item.id];
+      const total1 = exportItem.exportQuantities.level1;
+      const total2 = exportItem.exportQuantities.level2;
+      const total3 = exportItem.exportQuantities.level3;
+
+      return (total1 > item.unit_level1_quantity) ||
+             (total2 > item.unit_level2_quantity) ||
+             (total3 > item.unit_level3_quantity) ||
+             (total1 === 0 && total2 === 0 && total3 === 0);
+    });
+
+    if (hasInvalidQuantity) {
+      toast.error('กรุณาตรวจสอบจำนวนสินค้าที่ต้องการส่งออก');
       return;
     }
 
@@ -165,305 +179,372 @@ export function LocationExportModal({
       setLoading(true);
 
       // Process each selected item
-      for (const exportItem of selectedItems) {
-        const originalItem = inventory.find(item => item.id === exportItem.id);
-        if (!originalItem) continue;
+      const updates = [];
+      const movements = [];
 
+      for (const item of selectedItems) {
+        const exportItem = exportItems[item.id];
         const exportQty = exportItem.exportQuantities;
-        const remainingQty = {
-          level1: originalItem.unit_level1_quantity - exportQty.level1,
-          level2: originalItem.unit_level2_quantity - exportQty.level2,
-          level3: originalItem.unit_level3_quantity - exportQty.level3
-        };
 
-        // If exporting full quantity, delete the item
-        if (remainingQty.level1 === 0 && remainingQty.level2 === 0 && remainingQty.level3 === 0) {
-          const { error: deleteError } = await supabase
-            .from('inventory_items')
-            .delete()
-            .eq('id', originalItem.id);
+        // Calculate new quantities
+        const newLevel1 = item.unit_level1_quantity - exportQty.level1;
+        const newLevel2 = item.unit_level2_quantity - exportQty.level2;
+        const newLevel3 = item.unit_level3_quantity - exportQty.level3;
 
-          if (deleteError) throw deleteError;
-        } else {
-          // Update item with remaining quantities
-          const { error: updateError } = await supabase
-            .from('inventory_items')
-            .update({
-              unit_level1_quantity: remainingQty.level1,
-              unit_level2_quantity: remainingQty.level2,
-              unit_level3_quantity: remainingQty.level3,
-              carton_quantity_legacy: remainingQty.level1,
-              box_quantity_legacy: remainingQty.level2,
-              pieces_quantity_legacy: remainingQty.level3,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', originalItem.id);
+        // Update original item quantities
+        updates.push({
+          id: item.id,
+          unit_level1_quantity: newLevel1,
+          unit_level2_quantity: newLevel2,
+          unit_level3_quantity: newLevel3
+        });
 
-          if (updateError) throw updateError;
+        // Create new inventory item at destination if quantities > 0
+        if (exportQty.level1 > 0 || exportQty.level2 > 0 || exportQty.level3 > 0) {
+          updates.push({
+            product_name: item.product_name,
+            sku: item.sku,
+            location: destination,
+            unit_level1_name: item.unit_level1_name,
+            unit_level1_quantity: exportQty.level1,
+            unit_level1_rate: item.unit_level1_rate,
+            unit_level2_name: item.unit_level2_name,
+            unit_level2_quantity: exportQty.level2,
+            unit_level2_rate: item.unit_level2_rate,
+            unit_level3_name: item.unit_level3_name,
+            unit_level3_quantity: exportQty.level3,
+            lot: item.lot,
+            mfd: item.mfd,
+            user_id: crypto.randomUUID()
+          });
         }
 
-        // Log movement/export
-        const { error: logError } = await supabase
-          .from('inventory_movements')
-          .insert([{
-            item_id: originalItem.id,
-            movement_type: 'export',
-            from_location: locationId,
-            to_location: destination,
-            quantity_moved: calculateTotalPieces(originalItem, exportQty),
-            notes: `${getReasonText(exportReason)}: ${notes || 'ไม่ได้ระบุรายละเอียด'}`,
-            moved_by: 'system' // You might want to get this from auth context
-          }]);
-
-        if (logError) console.error('Error logging export:', logError);
+        // Record movement
+        movements.push({
+          inventory_item_id: item.id,
+          movement_type: 'export',
+          quantity_level1: exportQty.level1,
+          quantity_level2: exportQty.level2,
+          quantity_level3: exportQty.level3,
+          from_location: locationId,
+          to_location: destination,
+          notes: `ส่งออกไปยัง ${destination}`,
+          user_id: crypto.randomUUID()
+        });
       }
 
-      toast({
-        title: '✅ ส่งออกสินค้าสำเร็จ',
-        description: `ส่งออก ${selectedItems.length} รายการจาก ${locationId} แล้ว`,
-      });
+      // Update original items
+      for (const update of updates.filter(u => u.id)) {
+        const { error: updateError } = await supabase
+          .from('inventory_items')
+          .update({
+            unit_level1_quantity: update.unit_level1_quantity,
+            unit_level2_quantity: update.unit_level2_quantity,
+            unit_level3_quantity: update.unit_level3_quantity
+          })
+          .eq('id', update.id);
 
-      onSuccess();
+        if (updateError) throw updateError;
+      }
+
+      // Insert new items at destination
+      const newItems = updates.filter(u => !u.id);
+      if (newItems.length > 0) {
+        const { error: insertError } = await supabase
+          .from('inventory_items')
+          .insert(newItems);
+
+        if (insertError) throw insertError;
+      }
+
+      // Record movements
+      if (movements.length > 0) {
+        const { error: movementError } = await supabase
+          .from('inventory_movements')
+          .insert(movements);
+
+        if (movementError) console.warn('Movement logging failed:', movementError);
+      }
+
+      toast.success(`ส่งออกสินค้า ${selectedItems.length} รายการไปยัง ${destination} เรียบร้อยแล้ว`);
+      onSuccess(); // Refresh data
       onClose();
-
     } catch (error) {
-      console.error('Error exporting items:', error);
-      toast({
-        title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถส่งออกสินค้าได้',
-        variant: 'destructive'
-      });
+      console.error('Export error:', error);
+      toast.error('เกิดข้อผิดพลาดในการส่งออกสินค้า');
     } finally {
       setLoading(false);
     }
   };
 
-  const getReasonText = (reason: string): string => {
-    switch (reason) {
-      case 'sale': return 'ขายสินค้า';
-      case 'damaged': return 'สินค้าเสียหาย';
-      case 'expired': return 'สินค้าหมดอายุ';
-      case 'return': return 'คืนสินค้า';
-      case 'other': return 'อื่นๆ';
-      default: return 'ส่งออกสินค้า';
-    }
-  };
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showLocationDropdown) {
+        const target = event.target as Element;
+        if (!target.closest('.location-dropdown-container')) {
+          setShowLocationDropdown(false);
+        }
+      }
+    };
 
-  const selectedCount = Object.values(exportItems).filter(item => item.selected).length;
-  const totalExportPieces = Object.values(exportItems)
-    .filter(item => item.selected)
-    .reduce((total, exportItem) => {
-      const originalItem = inventory.find(item => item.id === exportItem.id);
-      if (!originalItem) return total;
-      return total + calculateTotalPieces(originalItem, exportItem.exportQuantities);
-    }, 0);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showLocationDropdown]);
+
+  // Debug logging
+  console.log('🚀 LocationExportModal render:', {
+    isOpen,
+    locationId,
+    inventoryCount: inventory.length,
+    filteredItemsCount: items.length
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center space-x-2 text-lg font-bold text-red-700">
             <Send className="h-5 w-5" />
-            ส่งออกสินค้าจาก Location {locationId}
+            <span>ส่งออกสินค้าจากตำแหน่ง {locationId}</span>
           </DialogTitle>
           <DialogDescription>
-            เลือกสินค้าที่ต้องการส่งออก ระบุเหตุผลและปลายทาง ระบบจะบันทึกประวัติการส่งออกโดยอัตโนมัติ
+            เลือกสินค้าและระบุจำนวนที่ต้องการส่งออกไปยังตำแหน่งใหม่
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Export Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                รายละเอียดการส่งออก
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="export-reason">เหตุผลการส่งออก</Label>
-                  <Select value={exportReason} onValueChange={setExportReason}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sale">ขายสินค้า</SelectItem>
-                      <SelectItem value="damaged">สินค้าเสียหาย</SelectItem>
-                      <SelectItem value="expired">สินค้าหมดอายุ</SelectItem>
-                      <SelectItem value="return">คืนสินค้า</SelectItem>
-                      <SelectItem value="other">อื่นๆ</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="destination">ปลายทาง</Label>
-                  <Input
-                    id="destination"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="ระบุปลายทาง เช่น ลูกค้า, ทำลาย, คลังกลาง"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">หมายเหตุ (ไม่บังคับ)</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="ระบุรายละเอียดเพิ่มเติม..."
-                  rows={3}
+        <div className="space-y-6">
+          {/* Destination Location Selector */}
+          <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+            <Label className="text-sm font-semibold text-blue-800 mb-2 block">
+              <MapPin className="h-4 w-4 inline mr-1" />
+              เลือกจุดหมายปลายทาง
+            </Label>
+            <div className="location-dropdown-container relative">
+              <div className="relative">
+                <Input
+                  value={locationSearch}
+                  onChange={(e) => {
+                    setLocationSearch(e.target.value);
+                    setDestination(e.target.value);
+                    setShowLocationDropdown(true);
+                  }}
+                  onFocus={() => setShowLocationDropdown(true)}
+                  placeholder="ค้นหาตำแหน่ง (เช่น A1/1, B2/3)"
+                  className="pr-10"
                 />
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
+                  <Search className="h-4 w-4 text-gray-400" />
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Item Selection */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  เลือกสินค้าที่ต้องการส่งออก
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <Button variant="outline" size="sm" onClick={handleSelectAll}>
-                    {Object.values(exportItems).every(item => item.selected) ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
-                  </Button>
-                  <div className="text-gray-500">
-                    เลือก {selectedCount} รายการ ({totalExportPieces.toLocaleString()} ชิ้น)
-                  </div>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {inventory.map((item) => {
-                const exportItem = exportItems[item.id];
-                if (!exportItem) return null;
-
-                return (
-                  <div key={item.id} className={`border rounded-lg p-4 ${exportItem.selected ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}>
-                    <div className="flex items-start gap-4">
-                      <Checkbox
-                        checked={exportItem.selected}
-                        onCheckedChange={() => handleItemToggle(item.id)}
-                        className="mt-1"
-                      />
-
-                      <div className="flex-1 space-y-3">
-                        <div>
-                          <div className="font-medium">{item.product_name}</div>
-                          <div className="text-sm text-gray-500 font-mono">{item.sku}</div>
-                          {item.lot && (
-                            <div className="text-xs text-gray-400">LOT: {item.lot}</div>
-                          )}
-                          {item.mfd && (
-                            <div className="text-xs text-gray-400">MFD: {item.mfd}</div>
-                          )}
-                        </div>
-
-                        {exportItem.selected && (
-                          <div className="grid grid-cols-3 gap-3 bg-white p-3 rounded border">
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level1_name} (สูงสุด: {item.unit_level1_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level1_quantity}
-                                value={exportItem.exportQuantities.level1}
-                                onChange={(e) => handleQuantityChange(item.id, 'level1', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level2_name} (สูงสุด: {item.unit_level2_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level2_quantity}
-                                value={exportItem.exportQuantities.level2}
-                                onChange={(e) => handleQuantityChange(item.id, 'level2', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level3_name} (สูงสุด: {item.unit_level3_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level3_quantity}
-                                value={exportItem.exportQuantities.level3}
-                                onChange={(e) => handleQuantityChange(item.id, 'level3', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-sm text-gray-500">ส่งออก</div>
-                        <div className="font-bold text-red-600">
-                          {calculateTotalPieces(item, exportItem.exportQuantities).toLocaleString()} ชิ้น
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          เหลือ: {(calculateTotalPieces(item) - calculateTotalPieces(item, exportItem.exportQuantities)).toLocaleString()} ชิ้น
-                        </div>
-                      </div>
+              {showLocationDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {filteredLocations.length > 0 ? (
+                    <div className="py-1">
+                      {filteredLocations.map((location) => (
+                        <button
+                          key={location}
+                          onClick={() => handleLocationSelect(location)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        >
+                          {location}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                );
-              })}
-
-              {inventory.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                  <p>ไม่มีสินค้าใน Location นี้</p>
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-gray-500">
+                      ไม่พบตำแหน่งที่ตรงกับการค้นหา
+                    </div>
+                  )}
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+            {destination && (
+              <div className="mt-2 text-sm text-green-600">
+                ✓ เลือก: <strong>{destination}</strong>
+              </div>
+            )}
+          </div>
 
-          {/* Warning */}
-          {selectedCount > 0 && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-red-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  <div className="text-sm">
-                    <strong>คำเตือน:</strong> การส่งออกสินค้าจะลดจำนวนสินค้าในคลัง การดำเนินการนี้ไม่สามารถยกเลิกได้ กรุณาตรวจสอบข้อมูลให้ถูกต้อง
+          {/* Item Selection Header */}
+          <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <Checkbox
+                checked={items.length > 0 && items.every(item => exportItems[item.id]?.selected)}
+                onCheckedChange={handleSelectAll}
+              />
+              <Label className="font-medium">เลือกทั้งหมด ({selectedCount}/{items.length})</Label>
+            </div>
+
+            {selectedCount > 0 && (
+              <div className="text-sm text-green-600 font-medium">
+                เลือกแล้ว {selectedCount} รายการ
+              </div>
+            )}
+          </div>
+
+          {/* Items List */}
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {items.map((item) => {
+              const exportItem = exportItems[item.id];
+              if (!exportItem) return null;
+
+              return (
+                <div key={item.id} className="border rounded-lg p-4 bg-white">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      checked={exportItem.selected}
+                      onCheckedChange={(checked) => handleItemSelection(item.id, !!checked)}
+                    />
+
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{item.product_name}</h4>
+                          <p className="text-sm text-gray-600">SKU: {item.sku}</p>
+                        </div>
+                      </div>
+
+                      {exportItem.selected && (
+                        <div className="bg-gray-50 p-4 rounded-lg border-2 border-blue-200">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Level 1 Quantity */}
+                            <div className="space-y-2">
+                              <Label className="text-xs font-medium text-blue-700">
+                                🔵 ส่งออก {item.unit_level1_name}
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={item.unit_level1_quantity}
+                                  value={exportItem.exportQuantities.level1}
+                                  onChange={(e) => handleQuantityChange(item.id, 'level1', e.target.value)}
+                                  className="text-center font-medium border-blue-300 focus:border-blue-500"
+                                  placeholder="0"
+                                />
+                                <div className="text-xs text-gray-500 mt-1 text-center">
+                                  สูงสุด: {item.unit_level1_quantity}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Level 2 Quantity */}
+                            <div className="space-y-2">
+                              <Label className="text-xs font-medium text-orange-700">
+                                🟠 ส่งออก {item.unit_level2_name}
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={item.unit_level2_quantity}
+                                  value={exportItem.exportQuantities.level2}
+                                  onChange={(e) => handleQuantityChange(item.id, 'level2', e.target.value)}
+                                  className="text-center font-medium border-orange-300 focus:border-orange-500"
+                                  placeholder="0"
+                                />
+                                <div className="text-xs text-gray-500 mt-1 text-center">
+                                  สูงสุด: {item.unit_level2_quantity}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Level 3 Quantity */}
+                            <div className="space-y-2">
+                              <Label className="text-xs font-medium text-red-700">
+                                🔴 ส่งออก {item.unit_level3_name}
+                              </Label>
+                              <div className="relative">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max={item.unit_level3_quantity}
+                                  value={exportItem.exportQuantities.level3}
+                                  onChange={(e) => handleQuantityChange(item.id, 'level3', e.target.value)}
+                                  className="text-center font-medium border-red-300 focus:border-red-500"
+                                  placeholder="0"
+                                />
+                                <div className="text-xs text-gray-500 mt-1 text-center">
+                                  สูงสุด: {item.unit_level3_quantity}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick action buttons */}
+                          <div className="mt-3 flex gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setExportItems(prev => ({
+                                  ...prev,
+                                  [item.id]: {
+                                    ...prev[item.id],
+                                    exportQuantities: {
+                                      level1: item.unit_level1_quantity,
+                                      level2: item.unit_level2_quantity,
+                                      level3: item.unit_level3_quantity
+                                    }
+                                  }
+                                }));
+                              }}
+                              className="text-xs flex-1"
+                            >
+                              ส่งออกทั้งหมด
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setExportItems(prev => ({
+                                  ...prev,
+                                  [item.id]: {
+                                    ...prev[item.id],
+                                    exportQuantities: {
+                                      level1: 0,
+                                      level2: 0,
+                                      level3: 0
+                                    }
+                                  }
+                                }));
+                              }}
+                              className="text-xs flex-1"
+                            >
+                              ล้าง
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              );
+            })}
+          </div>
 
-        <div className="flex justify-end space-x-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            <X className="h-4 w-4 mr-2" />
-            ยกเลิก
-          </Button>
-          <Button
-            onClick={handleExport}
-            disabled={loading || selectedCount === 0 || !destination.trim()}
-            className="bg-red-600 hover:bg-red-700"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            {loading ? 'กำลังส่งออก...' : `ส่งออกสินค้า (${selectedCount} รายการ)`}
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose} disabled={loading}>
+              <X className="h-4 w-4 mr-2" />
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleExport}
+              disabled={loading || selectedCount === 0 || !destination.trim()}
+              className="bg-red-600 hover:bg-red-700 disabled:bg-gray-400"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {loading ? 'กำลังส่งออก...' : `ส่งออกสินค้า (${selectedCount} รายการ)`}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
-}
+};

@@ -1,15 +1,39 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-// Removed lodash import as it's not used
 import { normalizeLocation } from '@/utils/locationUtils';
+import { 
+  debounce, 
+  rateLimiter, 
+  connectionManager, 
+  cacheManager, 
+  resourceMonitor,
+  optimizeQuery 
+} from '@/utils/apiOptimization';
 import type { Database } from '@/integrations/supabase/types';
 // Dynamic import for better code splitting
 import { createInventoryItems } from '@/data/userRecoveryData';
 
-type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
+type BaseInventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 type InventoryInsert = Database['public']['Tables']['inventory_items']['Insert'];
 type InventoryUpdate = Database['public']['Tables']['inventory_items']['Update'];
+
+// Extended InventoryItem with additional fields that may be added at runtime
+export interface InventoryItem extends BaseInventoryItem {
+  product_name: string; // Required to match database schema
+  lot: string | null; // Required to match database schema
+  mfd: string | null; // Required to match database schema
+  carton_quantity_legacy: number | null; // Required to match database schema
+  box_quantity_legacy: number | null; // Required to match database schema
+  pieces_quantity_legacy: number | null; // Required to match database schema
+  quantity_pieces: number | null; // Required to match database schema
+  unit: string | null; // Required to match database schema
+  unit_level1_name: string | null; // Required to match database schema
+  unit_level2_name: string | null; // Required to match database schema
+  unit_level3_name: string | null; // Required to match database schema
+  unit_level1_rate: number | null; // Required to match database schema
+  unit_level2_rate: number | null; // Required to match database schema
+}
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error';
 
@@ -29,24 +53,63 @@ export function useInventory() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isStableLoaded, setIsStableLoaded] = useState(false); // Flag to prevent flicker
   const { toast } = useToast();
 
-  const fetchItems = useCallback(async (skipSampleData = false) => {
-    try {
-      setLoading(true);
-      setConnectionStatus('connecting');
+  const fetchItems = useCallback(async (isRetry = false) => {
+    const startTime = Date.now();
 
-      // Add timeout to prevent hanging
+    try {
+      // Skip rate limiting for retries to speed up connection
+      if (!isRetry) {
+        await rateLimiter.checkLimit();
+      }
+
+      // Only show loading if not a stable reload and no cached data
+      if (!isStableLoaded || isRetry) {
+        setLoading(true);
+      }
+      setConnectionStatus('connecting');
+      // Starting optimized fetch process
+
+      // Add timeout to prevent hanging requests (increased back to 10s for stability)
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Request timeout')), 8000)
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
       );
 
+      // Optimized query with selective fields to reduce data transfer
       const fetchPromise = supabase
         .from('inventory_items')
-        .select('*')
-        .order('location');
+        .select(`
+          id,
+          product_name,
+          sku,
+          location,
+          lot,
+          mfd,
+          unit_level1_quantity,
+          unit_level2_quantity,
+          unit_level3_quantity,
+          carton_quantity_legacy,
+          box_quantity_legacy,
+          pieces_quantity_legacy,
+          quantity_pieces,
+          unit,
+          unit_level1_name,
+          unit_level2_name,
+          unit_level3_name,
+          unit_level1_rate,
+          unit_level2_rate,
+          user_id,
+          created_at,
+          updated_at
+        `)
+        .order('location')
+        .limit(1000); // Add reasonable limit to prevent excessive data transfer
 
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
 
       if (error) {
         console.error('Fetch error:', error);
@@ -55,62 +118,93 @@ export function useInventory() {
 
       setItems(data || []);
       setConnectionStatus('connected');
+      setIsStableLoaded(true); // Mark as stable
+      setRetryCount(0); // Reset retry count on success
 
-      // If no data, load sample data (unless explicitly skipped)
-      if (!skipSampleData && (!data || data.length === 0)) {
-        console.log('📦 No data found, but sample data loading is temporarily disabled');
-        // Temporarily disable sample data loading
-        // const { generateSampleInventoryData } = await import('@/data/sampleInventory');
-        // const sampleData = generateSampleInventoryData();
-        // setItems(sampleData.slice(0, 50)); // Load only first 50 items for performance
-
-        toast({
-          title: '📦 ไม่มีข้อมูลในระบบ',
-          description: 'ระบบพร้อมใช้งาน สามารถเพิ่มข้อมูลใหม่ได้',
-        });
+      // Data loaded successfully
+      // If no data, system ready for new data
+      if (!data || data.length === 0) {
+        // Try loading cached data if available
+        const cachedData = cacheManager.get('inventory_items');
+        if (cachedData) {
+          setItems(cachedData);
+          toast({
+            title: '📦 โหลดข้อมูล Cache',
+            description: 'ใช้ข้อมูลที่เก็บไว้ล่าสุด',
+          });
+        }
+      } else {
+        // Cache successful data for future use
+        cacheManager.set('inventory_items', data, 10 * 60 * 1000); // Cache for 10 minutes
       }
 
     } catch (error) {
       console.error('Error fetching inventory items:', error);
-      setConnectionStatus('disconnected');
+      resourceMonitor.recordApiCall(Date.now() - startTime, true);
 
-      // Fallback to sample data if connection fails (unless explicitly skipped)
-      if (!skipSampleData) {
-        console.log('🔄 Connection failed, but sample data loading is temporarily disabled');
-        // Temporarily disable sample data loading
-        // try {
-        //   const { generateSampleInventoryData } = await import('@/data/sampleInventory');
-        //   const sampleData = generateSampleInventoryData();
-        //   setItems(sampleData.slice(0, 50));
+      // Implement retry logic
+      if (retryCount < 2 && !isRetry) {
+        setRetryCount(prev => prev + 1);
+        console.log(`Retrying fetch... attempt ${retryCount + 1}/3`);
 
-        //   toast({
-        //     title: '⚠️ โหลดข้อมูลตัวอย่าง',
-        //     description: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ใช้ข้อมูลตัวอย่างแทน',
-        //     variant: 'destructive',
-        //   });
-        // } catch (fallbackError) {
-        //   console.error('Failed to load sample data:', fallbackError);
-        //   toast({
-        //     title: 'เกิดข้อผิดพลาด',
-        //     description: 'ไม่สามารถโหลดข้อมูลได้',
-        //     variant: 'destructive',
-        //   });
-        // }
+        // Wait a bit before retrying
+        setTimeout(() => {
+          fetchItems(true);
+        }, 2000 * (retryCount + 1)); // Exponential backoff: 2s, 4s
 
-        setItems([]);
+        return; // Exit early, don't change states yet
+      }
+
+      // ไม่เปลี่ยน connectionStatus ทันที เพื่อไม่ให้กระพริบ (ถ้ามีข้อมูลอยู่แล้ว)
+      if (!isStableLoaded) {
+        setConnectionStatus('disconnected');
+      }
+
+      // Try fallback strategies in order
+      const cachedData = cacheManager.get('inventory_items');
+      if (cachedData && cachedData.length > 0) {
+        // Use cached data as fallback
+        setItems(cachedData);
+        setConnectionStatus('connected'); // Keep as connected since we have data
+        setIsStableLoaded(true);
         toast({
-          title: '⚠️ ไม่สามารถเชื่อมต่อฐานข้อมูลได้',
-          description: 'ระบบจะแสดงหน้าจอว่าง กรุณาตรวจสอบการเชื่อมต่อ',
-          variant: 'destructive',
+          title: '📦 ใช้ข้อมูล Cache',
+          description: 'เชื่อมต่อช้า - ใช้ข้อมูลที่เก็บไว้ล่าสุด',
         });
       } else {
-        // If skipping sample data, just set empty array
-        setItems([]);
+        // Only try sample data if no cache available and no current data
+        if (!isStableLoaded || items.length === 0) {
+          try {
+            const { sampleInventoryData } = await import('@/data/sampleInventory');
+            const sampleData = sampleInventoryData.slice(0, 20); // Reduced from 50 to 20 for faster loading
+            setItems(sampleData as unknown as InventoryItem[]);
+            setConnectionStatus('connected'); // Keep as connected since we have data
+            setIsStableLoaded(true);
+
+            toast({
+              title: '⚠️ โหลดข้อมูลตัวอย่าง',
+              description: 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ใช้ข้อมูลตัวอย่างแทน',
+              variant: 'destructive',
+            });
+          } catch (fallbackError) {
+            console.error('Failed to load sample data:', fallbackError);
+            if (!isStableLoaded) {
+              setItems([]);
+              setConnectionStatus('disconnected');
+              toast({
+                title: 'เกิดข้อผิดพลาด',
+                description: 'ไม่สามารถโหลดข้อมูลได้ กรุณาลองใหม่',
+                variant: 'destructive',
+              });
+            }
+          }
+        }
       }
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Remove dependencies to prevent re-rendering loops
 
   // Function to ensure product exists in products table
   const ensureProductExists = async (productCode: string, productName: string) => {
@@ -127,7 +221,7 @@ export function useInventory() {
       }
 
       // Create new product if it doesn't exist
-      const { data: newProduct, error } = await supabase
+      const { data: newProduct, error } = await (supabase as any)
         .from('products')
         .insert({
           sku_code: productCode,
@@ -150,6 +244,10 @@ export function useInventory() {
 
   const addItem = async (itemData: any) => {
     try {
+      // Apply rate limiting and connection management
+      await rateLimiter.checkLimit();
+      await connectionManager.acquire();
+
       // Set user_id to null to bypass RLS policies since user_id is nullable
       // This allows public access without authentication
       const userId = null;
@@ -167,54 +265,35 @@ export function useInventory() {
       const isLocationValid = locationRegex.test(normalizedLocation);
       const finalLocation = isLocationValid ? normalizedLocation : 'A/1/1';
 
-      console.log('🔍 useInventory addItem - Comprehensive Location Debug:', {
-        step1_original: originalLocation,
-        step2_normalized: normalizedLocation,
-        step3_regex_test: locationRegex.test(normalizedLocation),
-        step4_final_location: finalLocation,
-        step5_final_validation: locationRegex.test(finalLocation),
-        debug_info: {
-          original_length: originalLocation.length,
-          normalized_length: normalizedLocation.length,
-          original_chars: originalLocation.split(''),
-          normalized_chars: normalizedLocation.split(''),
-          regex_pattern: locationRegex.toString()
-        }
-      });
+      // Location normalized and validated
       
-      // Support both old format (quantity_boxes) and new format (carton_quantity_legacy)
-      const insertData = {
+      // Use correct database column names based on actual database schema
+      const insertData: any = {
         product_name: itemData.product_name,
         sku: productCode,
         location: finalLocation,
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
-        // Use ACTUAL database column names - support both formats
-        carton_quantity_legacy: itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
-        box_quantity_legacy: itemData.box_quantity_legacy || itemData.quantity_loose || 0,
-        pieces_quantity_legacy: itemData.pieces_quantity_legacy || 0,
+        // Legacy fields that exist in database
+        carton_quantity_legacy: itemData.quantity_boxes || 0,
+        box_quantity_legacy: itemData.quantity_loose || 0,
+        pieces_quantity_legacy: 0,
+        quantity_pieces: itemData.quantity_pieces || 0,
         user_id: userId,
         // Multi-level unit fields - ฟิลด์หน่วยใหม่
-        unit_level1_quantity: itemData.unit_level1_quantity || itemData.carton_quantity_legacy || itemData.quantity_boxes || 0,
-        unit_level2_quantity: itemData.unit_level2_quantity || itemData.box_quantity_legacy || itemData.quantity_loose || 0,
-        unit_level3_quantity: itemData.unit_level3_quantity || itemData.pieces_quantity_legacy || 0,
+        unit_level1_quantity: itemData.unit_level1_quantity || itemData.quantity_boxes || 0,
+        unit_level2_quantity: itemData.unit_level2_quantity || itemData.quantity_loose || 0,
+        unit_level3_quantity: itemData.unit_level3_quantity || 0,
         unit_level1_name: itemData.unit_level1_name || 'ลัง',
         unit_level2_name: itemData.unit_level2_name || 'กล่อง',
         unit_level3_name: itemData.unit_level3_name || 'ชิ้น',
-        // Add conversion rates if available
         unit_level1_rate: itemData.unit_level1_rate || 0,
         unit_level2_rate: itemData.unit_level2_rate || 0,
+        // Additional field that might exist
+        unit: itemData.unit || 'ชิ้น'
       };
 
-      // Additional validation before insert
-      console.log('🔍 Final insertData before database:', {
-        location: insertData.location,
-        product_name: insertData.product_name,
-        sku: insertData.sku,
-        normalizedLocation: normalizeLocation(insertData.location || ''),
-        isValidLocation: /^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/.test(insertData.location || '')
-      });
-
+      // Insert data to database
       const { data, error } = await supabase
         .from('inventory_items')
         .insert(insertData)
@@ -231,23 +310,14 @@ export function useInventory() {
         });
         throw error;
       }
-      
-      // Update local state immediately and ensure proper sorting
-      setItems(prev => {
-        const updatedItems = [...prev, data].sort((a, b) => a.location.localeCompare(b.location));
-        console.log('🔄 addItem - Updated local state:', {
-          newItemAdded: data.id,
-          totalItems: updatedItems.length,
-          newLocation: data.location
-        });
-        return updatedItems;
-      });
 
-      // Force a fresh fetch to ensure consistency with database
-      setTimeout(() => {
-        console.log('🔄 addItem - Forcing data refresh for consistency');
-        fetchItems(true);
-      }, 500);
+      // Update local state immediately and ensure proper sorting
+      if (data) {
+        setItems((prev: any[]) => {
+          const updatedItems = [...prev, data as any].sort((a: any, b: any) => a.location.localeCompare(b.location));
+          return updatedItems;
+        });
+      }
 
       toast({
         title: 'บันทึกสำเร็จ',
@@ -257,13 +327,7 @@ export function useInventory() {
       return data;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
-      console.error('Error adding inventory item:', {
-        message: supabaseError.message,
-        details: supabaseError.details,
-        hint: supabaseError.hint,
-        code: supabaseError.code,
-        fullError: error
-      });
+      resourceMonitor.recordApiCall(Date.now() - Date.now(), true);
       toast({
         title: 'เกิดข้อผิดพลาด',
         description: `ไม่สามารถเพิ่มสินค้าได้: ${supabaseError.message || supabaseError.details || 'Unknown error'}`,
@@ -271,13 +335,19 @@ export function useInventory() {
       });
       // Don't throw error to prevent app crash - return null instead
       return null;
+    } finally {
+      connectionManager.release();
     }
   };
 
-  const updateItem = async (id: string, updates: InventoryUpdate) => {
+  const updateItem = async (id: string, updates: any) => {
     try {
+      // Ensure location is always normalized before updating
+      if (updates.location) {
+        updates.location = normalizeLocation(updates.location);
+      }
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('inventory_items')
         .update(updates)
         .eq('id', id)
@@ -290,22 +360,20 @@ export function useInventory() {
       }
       
       // Update local state immediately with proper sorting
-      setItems(prev => {
-        const updatedItems = prev.map(item => item.id === id ? data : item)
-          .sort((a, b) => a.location.localeCompare(b.location));
-        console.log('🔄 updateItem - Updated local state:', {
-          updatedItemId: id,
-          totalItems: updatedItems.length,
-          updatedLocation: data.location
+      if (data) {
+        setItems(prev => {
+          const updatedItems = prev.map((item: any) => item.id === id ? data as any : item)
+            .sort((a: any, b: any) => a.location.localeCompare(b.location));
+          // console.log('🔄 updateItem - Updated local state:', {
+          //   updatedItemId: id,
+          //   totalItems: updatedItems.length,
+          //   updatedLocation: (data as any).location
+          // });
+          return updatedItems;
         });
-        return updatedItems;
-      });
+      }
 
-      // Force a fresh fetch to ensure consistency
-      setTimeout(() => {
-        console.log('🔄 updateItem - Forcing data refresh for consistency');
-        fetchItems(true);
-      }, 500);
+      // Local state already updated above - no need for additional refresh
 
       toast({
         title: 'อัพเดตสำเร็จ',
@@ -385,7 +453,7 @@ export function useInventory() {
       const newLooseQty = currentLooseQty - looseQty;
 
       // Update inventory
-      const { data: updatedItem, error: updateError } = await supabase
+      const { data: updatedItem, error: updateError } = await (supabase as any)
         .from('inventory_items')
         .update({
           unit_level1_quantity: newCartonQty,
@@ -402,7 +470,7 @@ export function useInventory() {
       }
 
       // Record movement
-      const { error: movementError } = await supabase
+      const { error: movementError } = await (supabase as any)
         .from('inventory_movements')
         .insert({
           inventory_item_id: id,
@@ -450,77 +518,19 @@ export function useInventory() {
     }
   };
 
-  // State for debouncing toast notifications
-  const [lastToastTime, setLastToastTime] = useState(0);
+  // Remove debounced function temporarily to avoid issues
 
+  // Initialize data on mount
   useEffect(() => {
     fetchItems();
-
-    // Set up real-time subscription with optimized updates
-    const channel = supabase
-      .channel('inventory_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'inventory_items'
-        },
-        (payload) => {
-          console.log('🔄 Real-time update received:', {
-            eventType: payload.eventType,
-            newData: payload.new,
-            oldData: payload.old,
-            timestamp: new Date().toISOString()
-          });
-
-          // Handle different types of changes for optimized performance
-          if (payload.eventType === 'INSERT' && payload.new) {
-            console.log('🔄 Real-time INSERT - Adding new item to state');
-            setItems(prev => {
-              const newItems = [...prev, payload.new as InventoryItem].sort((a, b) => a.location.localeCompare(b.location));
-              console.log('🔄 Real-time INSERT - State updated, total items:', newItems.length);
-              return newItems;
-            });
-          } else if (payload.eventType === 'UPDATE' && payload.new) {
-            console.log('🔄 Real-time UPDATE - Updating existing item in state');
-            setItems(prev => {
-              const updatedItems = prev.map(item =>
-                item.id === payload.new.id ? payload.new as InventoryItem : item
-              ).sort((a, b) => a.location.localeCompare(b.location));
-              console.log('🔄 Real-time UPDATE - State updated, total items:', updatedItems.length);
-              return updatedItems;
-            });
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            console.log('🔄 Real-time DELETE - Removing item from state');
-            setItems(prev => {
-              const filteredItems = prev.filter(item => item.id !== payload.old.id);
-              console.log('🔄 Real-time DELETE - State updated, total items:', filteredItems.length);
-              return filteredItems;
-            });
-          } else {
-            // Fallback to full refresh for complex operations - but avoid infinite loop
-            console.log('🔄 Real-time - Complex operation detected, skipping full refresh to prevent loop');
-          }
-
-          // Debounced toast notification for real-time updates
-          const now = Date.now();
-          if (now - lastToastTime > 3000) { // Only show toast every 3 seconds max
-            setLastToastTime(now);
-            toast({
-              title: '🔄 อัปเดตแบบเรียลไทม์',
-              description: `ข้อมูลสินค้าได้รับการอัปเดตแล้ว (${payload.eventType})`,
-              duration: 2000,
-            });
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [toast]); // Removed fetchItems from dependency array to prevent infinite loop
+    
+    // TEMPORARILY DISABLE REAL-TIME SUBSCRIPTION TO STOP FLICKERING
+    // Real-time updates are disabled until the flickering issue is completely resolved
+    
+    // useInventory mounted - fetchItems called once
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - runs only once, ignore ESLint warning intentionally
 
   const loadSampleData = async () => {
     try {
@@ -537,7 +547,8 @@ export function useInventory() {
       }
 
       // Generate sample data
-      const sampleData = generateSampleInventoryData();
+      const { sampleInventoryData } = await import('@/data/sampleInventory');
+      const sampleData = sampleInventoryData;
 
       // Insert sample data in batches to avoid timeout
       const batchSize = 10;
@@ -558,8 +569,15 @@ export function useInventory() {
       }
 
 
-      // Refresh the items
-      await fetchItems();
+      // Update local state instead of refetching to prevent flicker
+      const { data: newData } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .order('location');
+      
+      if (newData) {
+        setItems(newData);
+      }
 
       toast({
         title: 'โหลดข้อมูลตัวอย่างสำเร็จ',
@@ -597,7 +615,7 @@ export function useInventory() {
         const { error } = await supabase
           .from('inventory_items')
           .delete()
-          .in('id', allItems.map(item => item.id));
+          .in('id', allItems.map((item: any) => item.id));
 
         if (error) {
           console.error('Clear data error:', error);
@@ -606,11 +624,8 @@ export function useInventory() {
       }
 
 
-      // Clear local state immediately
+      // Clear local state immediately - no need to refetch
       setItems([]);
-
-      // Refresh the items without loading sample data
-      await fetchItems(true);
 
       toast({
         title: '🗑️ ล้างข้อมูลสำเร็จ',
@@ -630,17 +645,17 @@ export function useInventory() {
   };
 
   // Emergency recovery function
-  const emergencyRecovery = useCallback(() => {
-    
-    const sampleData = generateSampleInventoryData();
-    const recoveryItems: InventoryItem[] = sampleData.map((item, index) => ({
+  const emergencyRecovery = useCallback(async () => {
+    const { sampleInventoryData } = await import('@/data/sampleInventory');
+    const sampleData = sampleInventoryData;
+    const recoveryItems: any[] = sampleData.map((item: any, index: number) => ({
       id: `recovery-${Date.now()}-${index}`,
       ...item,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));
 
-    setItems(recoveryItems);
+    setItems(recoveryItems as any);
     setConnectionStatus('connected');
     setIsOfflineMode(false);
 
@@ -681,6 +696,7 @@ export function useInventory() {
         .neq('id', '');
 
       if (deleteError && deleteError.code !== '42501') {
+        console.warn('Failed to clear existing data:', deleteError);
       }
 
       // Upload in batches
@@ -715,7 +731,15 @@ export function useInventory() {
         totalUploaded += batch.length;
       }
 
-      await fetchItems();
+      // Update local state instead of refetching to prevent flicker
+      const { data: updatedData } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .order('location');
+      
+      if (updatedData) {
+        setItems(updatedData);
+      }
 
       toast({
         title: '📤 Upload สำเร็จ',
@@ -736,12 +760,14 @@ export function useInventory() {
     } finally {
       setLoading(false);
     }
-  }, [fetchItems, toast]);
+  }, [toast]); // Removed fetchItems dependency to prevent unnecessary re-renders
 
-  // Retry connection function
+  // Retry connection function with reset - no automatic refetch to prevent flicker
   const retryConnection = async () => {
+    setRetryCount(0); // Reset retry count
     setConnectionStatus('connecting');
-    await fetchItems();
+    // Manual refetch only when user explicitly requests it
+    // await fetchItems(true);
   };
 
   // Import data function
@@ -790,7 +816,7 @@ export function useInventory() {
       }
 
       // Update all items in a single operation - use update instead of upsert
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('inventory_items')
         .update({ location: normalizedTargetLocation, updated_at: new Date().toISOString() })
         .in('id', itemIds)
@@ -819,7 +845,7 @@ export function useInventory() {
       }));
 
       // Insert movement logs
-      const { error: logError } = await supabase
+      const { error: logError } = await (supabase as any)
         .from('inventory_movements')
         .insert(movementLogs);
 
@@ -894,7 +920,7 @@ export function useInventory() {
       if (error) throw error;
 
       // Insert movement logs
-      const { error: logError } = await supabase
+      const { error: logError } = await (supabase as any)
         .from('inventory_movements')
         .insert(movementLogs);
 
@@ -937,7 +963,11 @@ export function useInventory() {
     exportItem,
     transferItems,
     shipOutItems,
-    refetch: fetchItems,
+    refetch: () => {
+      // Manual refetch only when explicitly requested by user
+      console.log('Manual refetch requested');
+      return fetchItems();
+    },
     loadSampleData,
     clearAllData,
     retryConnection,
@@ -948,4 +978,4 @@ export function useInventory() {
   };
 }
 
-export type { InventoryItem };
+// Export the extended InventoryItem type

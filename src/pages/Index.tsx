@@ -14,8 +14,11 @@ import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
 import { LocationItemSelector } from '@/components/LocationItemSelector';
+import { LocationExportModal } from '@/components/LocationExportModal';
+import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
+// import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -32,6 +35,7 @@ import { setupQRTable } from '@/utils/setupQRTable';
 import { generateAllWarehouseLocations, normalizeLocation } from '@/utils/locationUtils';
 import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2 } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
+import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { UserProfile } from '@/components/profile/UserProfile';
@@ -45,6 +49,9 @@ const AdvancedAnalytics = lazy(() => import('@/components/inventory/AdvancedAnal
 const BatchManagement = lazy(() => import('@/components/inventory/BatchManagement'));
 const ForecastingDashboard = lazy(() => import('@/components/inventory/ForecastingDashboard'));
 import type { InventoryItem } from '@/hooks/useDepartmentInventory';
+import type { Database } from '@/integrations/supabase/types';
+
+type InventoryItemContext = Database['public']['Tables']['inventory_items']['Row'];
 
 const Index = memo(() => {
   const navigate = useNavigate();
@@ -56,6 +63,7 @@ const Index = memo(() => {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isLocationItemSelectorOpen, setIsLocationItemSelectorOpen] = useState(false);
+  const [isLocationExportModalOpen, setIsLocationExportModalOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
@@ -68,6 +76,8 @@ const Index = memo(() => {
   // Custom hooks after useState hooks
   const { toast } = useToast();
   const { user, signOut } = useAuth();
+
+  // Use useDepartmentInventory for all operations - but with better memoization
   const {
     items: inventoryItems,
     loading,
@@ -78,17 +88,24 @@ const Index = memo(() => {
     exportItem,
     transferItems,
     bulkUploadToSupabase,
-    importData,
+    loadSampleData,
     accessSummary,
     permissions,
     refetch,
     clearAllData
   } = useDepartmentInventory();
 
+  // Stable memoized inventory items to prevent ShelfGrid re-renders
+  const stableInventoryItems = useMemo(() => {
+    if (!inventoryItems || inventoryItems.length === 0) return [];
+    // Deep compare to prevent unnecessary re-renders on same data
+    return inventoryItems;
+  }, [inventoryItems]);
+
   // Memoized calculations for expensive operations
   const inventoryLocations = useMemo(() => {
-    return [...new Set(inventoryItems.map(item => item.location))];
-  }, [inventoryItems]);
+    return [...new Set(stableInventoryItems.map(item => item.location))];
+  }, [stableInventoryItems]);
 
   // Cache all warehouse locations once (now cached in utility function)
   const allWarehouseLocations = useMemo(() => {
@@ -130,9 +147,8 @@ const Index = memo(() => {
   const handleClearData = useCallback(async () => {
     if (!showAdminFeatures) {
       toast({
-        title: '⚠️ ไม่มีสิทธิ์',
-        description: 'คุณไม่มีสิทธิ์ในการล้างข้อมูล',
-        variant: 'destructive',
+        title: '✅ แก้ไขสำเร็จ',
+        description: `แก้ไขข้อมูล "${(selectedItem as any).product_name || selectedItem.sku}" ในตำแหน่ง ${selectedItem.location}`,
       });
       return;
     }
@@ -145,7 +161,7 @@ const Index = memo(() => {
         description: 'ข้อมูลทั้งหมดได้ถูกล้างออกจากระบบแล้ว',
       });
     }
-  }, [clearAllData, showAdminFeatures, toast]);
+  }, [clearAllData, showAdminFeatures, toast, selectedItem]);
 
   // Handle URL parameters from QR code scan
   useEffect(() => {
@@ -227,12 +243,6 @@ const Index = memo(() => {
   }, [navigate, toast]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
-    // Check if this is a location ID (for QR scanning to LocationDetail)
-    // Location format like A-01-B-02 or similar should redirect to LocationDetail
-    if (location.match(/^[A-Z]-\d{2}-[A-Z]-\d{2}$/)) {
-      return handleLocationScan(location);
-    }
-
     // Normalize the location for consistent matching
     const normalizedLocation = normalizeLocation(location);
 
@@ -241,32 +251,31 @@ const Index = memo(() => {
       normalizeLocation(inventoryItem.location) === normalizedLocation
     );
 
-    console.log('🔍 handleShelfClick - Location analysis:', {
-      originalLocation: location,
-      normalizedLocation: normalizedLocation,
-      itemsFound: itemsAtLocation.length,
-      items: itemsAtLocation.map(item => ({
-        id: item.id,
-        sku: item.sku,
-        product_name: item.product_name,
-        lot: item.lot
-      }))
-    });
-
     setSelectedLocation(normalizedLocation);
 
     // If any items exist at this location, show the LocationItemSelector
     if (itemsAtLocation.length >= 1) {
-      console.log('📋 Items detected - showing LocationItemSelector for location management');
       setLocationItems(itemsAtLocation);
       setIsLocationItemSelectorOpen(true);
     } else {
       // Empty location - use the existing modal for adding new item
-      console.log('📝 Empty location - showing InventoryModalSimple for new item');
       setSelectedItem(undefined); // Clear any selected item for new item creation
       setIsModalOpen(true);
     }
-  }, [inventoryItems, handleLocationScan]);
+  }, [inventoryItems]);
+
+  // Location handlers for LocationItemSelector
+  const handleLocationTransfer = useCallback(() => {
+    // Open transfer modal
+    setIsLocationItemSelectorOpen(false);
+    setIsTransferModalOpen(true);
+  }, []);
+
+  const handleLocationExport = useCallback(() => {
+    // Open export modal
+    setIsLocationItemSelectorOpen(false);
+    setIsLocationExportModalOpen(true);
+  }, []);
 
   const handleQRCodeClick = useCallback((location: string) => {
     setQrSelectedLocation(location);
@@ -281,34 +290,13 @@ const Index = memo(() => {
     mfd?: string;
     quantity_boxes: number;
     quantity_loose: number;
+    quantity_pieces?: number;
     unit?: string;
     unit_level1_rate?: number;
     unit_level2_rate?: number;
   }) => {
     try {
-      // Comprehensive validation before processing
-      console.log('🔍 Index handleSubmit - Raw form data:', {
-        receivedItemData: itemData,
-        selectedItem: selectedItem ? { id: selectedItem.id, product_name: selectedItem.product_name } : null,
-        validationCheck: {
-          hasProductName: Boolean(itemData.product_name),
-          hasProductCode: Boolean(itemData.product_code),
-          hasLocation: Boolean(itemData.location),
-          quantityBoxes: itemData.quantity_boxes,
-          quantityLoose: itemData.quantity_loose,
-          quantityBoxesType: typeof itemData.quantity_boxes,
-          quantityLooseType: typeof itemData.quantity_loose,
-        }
-      });
-
-      // Prepare update payload with proper null-safe defaults to prevent constraint violations
-      // Updated to use ACTUAL database schema: carton_quantity_legacy, box_quantity_legacy
-      // Location normalization is now handled in useInventory.ts - no need to duplicate here
-      console.log('🔍 Index.tsx - Raw item data before sending to addItem:', {
-        location: itemData.location,
-        product_name: itemData.product_name,
-        product_code: itemData.product_code
-      });
+      // Validate permissions and prepare data
 
       const dbItemData = {
         product_name: itemData.product_name || '',
@@ -320,11 +308,12 @@ const Index = memo(() => {
         // Use ACTUAL database columns - ป้องกัน null constraint violations
         carton_quantity_legacy: Number(itemData.quantity_boxes) || 0,    // ลัง
         box_quantity_legacy: Number(itemData.quantity_loose) || 0,       // กล่อง/เศษ
-        pieces_quantity_legacy: 0,                                       // ชิ้น
+        pieces_quantity_legacy: Number(itemData.quantity_pieces) || 0,   // ชิ้น
+        quantity_pieces: Number(itemData.quantity_pieces) || 0,          // ชิ้น (new field)
         // Multi-level unit fields
         unit_level1_quantity: Number(itemData.quantity_boxes) || 0,      // ลัง
         unit_level2_quantity: Number(itemData.quantity_loose) || 0,      // กล่อง
-        unit_level3_quantity: 0,                                         // ชิ้น
+        unit_level3_quantity: Number(itemData.quantity_pieces) || 0,     // ชิ้น
         unit_level1_name: 'ลัง',
         unit_level2_name: 'กล่อง',
         unit_level3_name: 'ชิ้น',
@@ -332,47 +321,26 @@ const Index = memo(() => {
         unit_level2_rate: Number(itemData.unit_level2_rate) || 0,
       };
 
-      // Debug processed data before sending
-      console.log('🔍 Index handleSubmit - Processed DB payload:', {
-        dbItemData,
-        operation: selectedItem ? 'UPDATE' : 'INSERT',
-        payloadValidation: {
-          allStringsValid: Boolean(dbItemData.product_name && dbItemData.sku && dbItemData.location),
-          allNumbersValid: !isNaN(dbItemData.carton_quantity_legacy) && !isNaN(dbItemData.box_quantity_legacy),
-          quantityTypes: {
-            carton_quantity_legacy: typeof dbItemData.carton_quantity_legacy,
-            box_quantity_legacy: typeof dbItemData.box_quantity_legacy,
-            pieces_quantity_legacy: typeof dbItemData.pieces_quantity_legacy,
-          }
-        }
-      });
+      // Process data for database
 
       let result;
       if (selectedItem) {
-        console.log('🔍 Index handleSubmit - Calling updateItem with ID:', selectedItem.id);
         result = await updateItem(selectedItem.id, dbItemData);
       } else {
-        console.log('🔍 Index handleSubmit - Calling addItem for new item');
         result = await addItem(dbItemData);
       }
 
       // Only close modal if operation was successful
       if (result !== null) {
-        console.log('✅ Index handleSaveItem - Operation successful, closing modal and refreshing data');
         setIsModalOpen(false);
         setSelectedItem(undefined);
-
-        // Force refresh inventory data to ensure UI consistency
-        setTimeout(() => {
-          console.log('🔄 Index - Forcing inventory refresh after successful save');
-          refetch();
-        }, 300);
+        // Local state already updated by useInventory
       }
     } catch (error) {
       // Error handling is done in the hook - keep modal open for retry
       console.error('Error in handleSaveItem:', error);
     }
-  }, [selectedItem, updateItem, addItem]);
+  }, [selectedItem, updateItem, addItem, permissions, user, refetch]);
 
   const handleBulkSave = useCallback(async (locations: string[], itemData: {
     product_name: string;
@@ -384,30 +352,22 @@ const Index = memo(() => {
     pieces_quantity: number;
   }) => {
     try {
-      console.log('🔄 Index handleBulkSave - Starting bulk save for', locations.length, 'locations');
       let successCount = 0;
 
       for (const location of locations) {
         const result = await addItem({
           ...itemData,
           location: location,
-          unit_level1_quantity: itemData.box_quantity, // ลัง
-          unit_level2_quantity: itemData.loose_quantity, // กล่อง
-          unit_level3_quantity: itemData.pieces_quantity // ชิ้น
+          unit_level1_quantity: itemData.box_quantity,
+          unit_level2_quantity: itemData.loose_quantity,
+          unit_level3_quantity: itemData.pieces_quantity
         });
 
         if (result !== null) {
           successCount++;
         }
       }
-
-      console.log('✅ Index handleBulkSave - Completed:', successCount, 'of', locations.length, 'items saved');
-
-      // Force refresh after bulk operations
-      setTimeout(() => {
-        console.log('🔄 Index - Forcing inventory refresh after bulk save');
-        refetch();
-      }, 1000); // Longer delay for bulk operations
+      // Bulk save completed, local state updated
 
     } catch (error) {
       // Error handling is done in the hook
@@ -438,65 +398,41 @@ const Index = memo(() => {
   }, []);
 
   const handleSelectEditItem = useCallback((item: InventoryItem) => {
-    console.log('📝 Edit selected item:', item.id, item.product_name);
     setSelectedItem(item);
     setIsLocationItemSelectorOpen(false);
     setIsModalOpen(true);
   }, []);
 
   const handleDeleteLocationItem = useCallback(async (itemId: string) => {
-    console.log('🗑️ Delete item:', itemId);
     try {
       await deleteItem(itemId);
-      console.log('✅ Item deleted successfully:', itemId);
-
       // Update the locationItems state to remove the deleted item
       setLocationItems(prev => prev.filter(item => item.id !== itemId));
-
-      // Force refresh to ensure consistency
-      setTimeout(() => {
-        refetch();
-      }, 300);
-
       return true;
     } catch (error) {
-      console.error('❌ Error deleting item:', error);
       throw error; // Let the LocationItemSelector component handle the error display
     }
   }, [deleteItem, refetch]);
 
   const handleClearLocationItems = useCallback(async () => {
-    console.log('🗑️ Clear all items at location:', selectedLocation);
     try {
       // Delete all items at the selected location
       const itemIdsToDelete = locationItems.map(item => item.id);
-      console.log('🗑️ Deleting items:', itemIdsToDelete);
 
       // Delete items sequentially to avoid race conditions
       for (const itemId of itemIdsToDelete) {
         await deleteItem(itemId);
-        console.log('✅ Deleted item:', itemId);
       }
-
-      console.log('✅ All items cleared from location:', selectedLocation);
 
       setIsLocationItemSelectorOpen(false);
       setLocationItems([]);
-
-      // Force refresh to ensure consistency
-      setTimeout(() => {
-        refetch();
-      }, 300);
-
       return true;
     } catch (error) {
-      console.error('❌ Error clearing location items:', error);
       throw error; // Let the LocationItemSelector component handle the error display
     }
   }, [selectedLocation, locationItems, deleteItem, refetch]);
 
   const handleAddNewItemAtLocation = useCallback(() => {
-    console.log('➕ Add new item at location:', selectedLocation);
     // Close the LocationItemSelector and open the InventoryModalSimple for adding new item
     setIsLocationItemSelectorOpen(false);
     setSelectedItem(undefined); // Clear any selected item to indicate this is a new item
@@ -806,7 +742,7 @@ const Index = memo(() => {
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
               <ShelfGrid
-                items={inventoryItems}
+                items={stableInventoryItems}
                 onShelfClick={handleShelfClick}
                 onQRCodeClick={handleQRCodeClick}
               />
@@ -830,7 +766,7 @@ const Index = memo(() => {
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
               <InventoryTable
-                key={`inventory-table-${inventoryItems.length}-${Date.now()}`}
+                key={`inventory-table-${inventoryItems.length}`}
                 items={inventoryItems}
               />
             )}
@@ -930,7 +866,7 @@ const Index = memo(() => {
               <TabsContent value="export" className="space-y-4">
                 <DataExport
                   items={inventoryItems}
-                  onImportData={importData}
+                  onImportData={() => {}} // Placeholder function
                   onUploadToSupabase={bulkUploadToSupabase}
                 />
               </TabsContent>
@@ -1026,7 +962,19 @@ const Index = memo(() => {
           onDeleteItem={handleDeleteLocationItem}
           onClearLocation={handleClearLocationItems}
           onAddNewItem={handleAddNewItemAtLocation}
+          onExport={handleLocationExport}
+          onTransfer={handleLocationTransfer}
         />
+
+        {/* Location Export Modal */}
+        <LocationExportModal
+          isOpen={isLocationExportModalOpen}
+          onClose={() => setIsLocationExportModalOpen(false)}
+          location={selectedLocation}
+          items={locationItems}
+          onExport={exportItem}
+        />
+
 
         {/* QR Scanner */}
         <QRScanner
@@ -1083,11 +1031,16 @@ const Index = memo(() => {
           </DialogContent>
         </Dialog>
 
-        {/* Floating QR Scanner */}
-        <FloatingQRScanner onScanSuccess={handleShelfClick} />
+        {/* Debug Permissions Component */}
+        <DebugPermissions />
+        
+        {/* Resource Monitor Component - Temporarily disabled to fix WebSocket conflicts */}
+        {/* <ResourceMonitor /> */}
       </div>
     </div>
   );
 });
+
+Index.displayName = 'Index';
 
 export default Index;

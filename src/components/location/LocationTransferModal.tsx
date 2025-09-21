@@ -55,7 +55,6 @@ export function LocationTransferModal({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [toLocation, setToLocation] = useState('');
-  const [transferMode, setTransferMode] = useState<'partial' | 'full'>('partial');
   const [transferItems, setTransferItems] = useState<Record<string, TransferItem>>({});
   const [allLocations, setAllLocations] = useState<string[]>([]);
 
@@ -79,7 +78,6 @@ export function LocationTransferModal({
       // Generate all possible locations
       setAllLocations(generateAllWarehouseLocations());
       setToLocation('');
-      setTransferMode('partial');
     }
   }, [isOpen, inventory]);
 
@@ -170,6 +168,21 @@ export function LocationTransferModal({
       return;
     }
 
+    // Validate that selected items have transfer quantities
+    const hasValidQuantities = selectedItems.some(transferItem => {
+      const qty = transferItem.transferQuantities;
+      return qty.level1 > 0 || qty.level2 > 0 || qty.level3 > 0;
+    });
+
+    if (!hasValidQuantities) {
+      toast({
+        title: '⚠️ ไม่ได้ระบุจำนวน',
+        description: 'กรุณาระบุจำนวนที่ต้องการย้ายในรายการที่เลือก',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -185,9 +198,8 @@ export function LocationTransferModal({
           level3: originalItem.unit_level3_quantity - transferQty.level3
         };
 
-        // If transferring full quantity, delete the original item
-        if (transferMode === 'full' ||
-            (remainingQty.level1 === 0 && remainingQty.level2 === 0 && remainingQty.level3 === 0)) {
+        // If transferring full quantity, move the original item
+        if (remainingQty.level1 === 0 && remainingQty.level2 === 0 && remainingQty.level3 === 0) {
 
           // Update location of existing item
           const { error: updateError } = await supabase
@@ -332,26 +344,12 @@ export function LocationTransferModal({
                 </Select>
               </div>
 
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="partial"
-                    name="transfer-mode"
-                    checked={transferMode === 'partial'}
-                    onChange={() => setTransferMode('partial')}
-                  />
-                  <Label htmlFor="partial">ย้ายบางส่วน</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    id="full"
-                    name="transfer-mode"
-                    checked={transferMode === 'full'}
-                    onChange={() => setTransferMode('full')}
-                  />
-                  <Label htmlFor="full">ย้ายทั้งหมด</Label>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-blue-800">
+                  <Package className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    💡 เลือกสินค้าแล้วระบุจำนวนที่ต้องการย้าย สามารถย้ายบางส่วนหรือทั้งหมดได้
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -398,66 +396,215 @@ export function LocationTransferModal({
                           )}
                         </div>
 
-                        {transferItem.selected && transferMode === 'partial' && (
-                          <div className="grid grid-cols-3 gap-3 bg-white p-3 rounded border">
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level1_name} (สูงสุด: {item.unit_level1_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level1_quantity}
-                                value={transferItem.transferQuantities.level1}
-                                onChange={(e) => handleQuantityChange(item.id, 'level1', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
+                        {transferItem.selected && (
+                          <div className="bg-gray-50 p-4 rounded-lg border-2 border-blue-200">
+                            <div className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+                              <ArrowLeftRight className="h-4 w-4" />
+                              ระบุจำนวนที่ต้องการย้าย
+                              {(transferItem.transferQuantities.level1 > 0 || transferItem.transferQuantities.level2 > 0 || transferItem.transferQuantities.level3 > 0) && (
+                                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">✅ มีการกำหนดจำนวน</span>
+                              )}
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level2_name} (สูงสุด: {item.unit_level2_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level2_quantity}
-                                value={transferItem.transferQuantities.level2}
-                                onChange={(e) => handleQuantityChange(item.id, 'level2', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
+
+                            {/* สต็อกปัจจุบัน */}
+                            <div className="mb-4 p-3 bg-white rounded-lg border">
+                              <div className="text-xs text-gray-600 mb-2">📦 สต็อกปัจจุบันใน {fromLocationId}:</div>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="bg-blue-50 p-2 rounded text-center">
+                                  <div className="font-medium text-blue-800">{item.unit_level1_quantity}</div>
+                                  <div className="text-blue-600">{item.unit_level1_name}</div>
+                                </div>
+                                <div className="bg-green-50 p-2 rounded text-center">
+                                  <div className="font-medium text-green-800">{item.unit_level2_quantity}</div>
+                                  <div className="text-green-600">{item.unit_level2_name}</div>
+                                </div>
+                                <div className="bg-purple-50 p-2 rounded text-center">
+                                  <div className="font-medium text-purple-800">{item.unit_level3_quantity}</div>
+                                  <div className="text-purple-600">{item.unit_level3_name}</div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">
-                                {item.unit_level3_name} (สูงสุด: {item.unit_level3_quantity})
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.unit_level3_quantity}
-                                value={transferItem.transferQuantities.level3}
-                                onChange={(e) => handleQuantityChange(item.id, 'level3', e.target.value)}
-                                className="text-center text-xs h-8"
-                              />
+
+                            {/* ป้อนจำนวนที่ย้าย */}
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium text-blue-700">
+                                  🔵 ย้าย {item.unit_level1_name}
+                                </Label>
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level1_quantity}
+                                    value={transferItem.transferQuantities.level1}
+                                    onChange={(e) => handleQuantityChange(item.id, 'level1', e.target.value)}
+                                    className="text-center font-medium border-blue-300 focus:border-blue-500"
+                                    placeholder="0"
+                                  />
+                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                    สูงสุด: {item.unit_level1_quantity}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium text-green-700">
+                                  🟢 ย้าย {item.unit_level2_name}
+                                </Label>
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level2_quantity}
+                                    value={transferItem.transferQuantities.level2}
+                                    onChange={(e) => handleQuantityChange(item.id, 'level2', e.target.value)}
+                                    className="text-center font-medium border-green-300 focus:border-green-500"
+                                    placeholder="0"
+                                  />
+                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                    สูงสุด: {item.unit_level2_quantity}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-xs font-medium text-purple-700">
+                                  🟣 ย้าย {item.unit_level3_name}
+                                </Label>
+                                <div className="relative">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level3_quantity}
+                                    value={transferItem.transferQuantities.level3}
+                                    onChange={(e) => handleQuantityChange(item.id, 'level3', e.target.value)}
+                                    className="text-center font-medium border-purple-300 focus:border-purple-500"
+                                    placeholder="0"
+                                  />
+                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                    สูงสุด: {item.unit_level3_quantity}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Quick action buttons */}
+                            <div className="mt-3 flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setTransferItems(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      transferQuantities: {
+                                        level1: Math.floor(item.unit_level1_quantity * 0.5),
+                                        level2: Math.floor(item.unit_level2_quantity * 0.5),
+                                        level3: Math.floor(item.unit_level3_quantity * 0.5)
+                                      }
+                                    }
+                                  }));
+                                }}
+                                className="text-xs flex-1"
+                              >
+                                50%
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setTransferItems(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      transferQuantities: {
+                                        level1: item.unit_level1_quantity,
+                                        level2: item.unit_level2_quantity,
+                                        level3: item.unit_level3_quantity
+                                      }
+                                    }
+                                  }));
+                                }}
+                                className="text-xs flex-1"
+                              >
+                                ทั้งหมด
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setTransferItems(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      transferQuantities: {
+                                        level1: 0,
+                                        level2: 0,
+                                        level3: 0
+                                      }
+                                    }
+                                  }));
+                                }}
+                                className="text-xs flex-1"
+                              >
+                                ล้าง
+                              </Button>
                             </div>
                           </div>
                         )}
                       </div>
 
-                      <div className="text-right">
-                        <div className="text-sm text-gray-500">
-                          {transferMode === 'full' ? 'ย้ายทั้งหมด' : 'ย้าย'}
-                        </div>
-                        <div className="font-bold text-blue-600">
-                          {transferMode === 'full'
-                            ? calculateTotalPieces(item).toLocaleString()
-                            : calculateTotalPieces(item, transferItem.transferQuantities).toLocaleString()
-                          } ชิ้น
-                        </div>
-                        <div className="text-xs text-gray-400">
-                          เหลือ: {transferMode === 'full'
-                            ? '0'
-                            : (calculateTotalPieces(item) - calculateTotalPieces(item, transferItem.transferQuantities)).toLocaleString()
-                          } ชิ้น
+                      <div className="text-right min-w-[120px]">
+                        <div className="bg-white border rounded-lg p-3 space-y-2">
+                          <div className="text-xs text-gray-600 font-medium">📊 สรุป</div>
+
+                          {/* สต็อกปัจจุบัน */}
+                          <div className="text-sm">
+                            <div className="text-gray-500">มีทั้งหมด</div>
+                            <div className="font-bold text-gray-800">
+                              {calculateTotalPieces(item).toLocaleString()} ชิ้น
+                            </div>
+                          </div>
+
+                          {/* จำนวนที่ย้าย */}
+                          <div className="text-sm border-t pt-2">
+                            <div className="text-orange-600">จะย้าย</div>
+                            <div className="font-bold text-orange-800">
+                              {calculateTotalPieces(item, transferItem.transferQuantities).toLocaleString()} ชิ้น
+                            </div>
+                          </div>
+
+                          {/* จำนวนคงเหลือ */}
+                          <div className="text-sm border-t pt-2">
+                            <div className="text-green-600">คงเหลือ</div>
+                            <div className="font-bold text-green-800">
+                              {(calculateTotalPieces(item) - calculateTotalPieces(item, transferItem.transferQuantities)).toLocaleString()} ชิ้น
+                            </div>
+                          </div>
+
+                          {/* แสดงข้อมูลการย้ายแต่ละระดับ */}
+                          {transferItem.selected && (
+                            <div className="text-xs border-t pt-2 space-y-1">
+                              <div className="text-gray-600">รายละเอียด:</div>
+                              {transferItem.transferQuantities.level1 > 0 && (
+                                <div className="text-blue-700">
+                                  {item.unit_level1_name}: {transferItem.transferQuantities.level1}
+                                </div>
+                              )}
+                              {transferItem.transferQuantities.level2 > 0 && (
+                                <div className="text-green-700">
+                                  {item.unit_level2_name}: {transferItem.transferQuantities.level2}
+                                </div>
+                              )}
+                              {transferItem.transferQuantities.level3 > 0 && (
+                                <div className="text-purple-700">
+                                  {item.unit_level3_name}: {transferItem.transferQuantities.level3}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -469,6 +616,7 @@ export function LocationTransferModal({
                 <div className="text-center py-8 text-gray-500">
                   <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                   <p>ไม่มีสินค้าใน Location นี้</p>
+                  <p className="text-sm mt-2">กรุณาเพิ่มสินค้าก่อนจึงจะสามารถย้ายได้</p>
                 </div>
               )}
             </CardContent>

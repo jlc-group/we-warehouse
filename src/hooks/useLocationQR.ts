@@ -409,27 +409,29 @@ export function useLocationQR() {
   useEffect(() => {
     fetchQRCodes();
 
-    // Set up real-time subscription for QR codes
-    const subscription = supabase
-      .channel('location_qr_codes_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'location_qr_codes'
-        },
-        (payload) => {
+    // DISABLED: Real-time subscription for QR codes (to prevent flickering)
+    // Real-time updates disabled to improve performance and prevent UI flickering
+    // Data will be manually refreshed when needed
 
-          // Refetch QR codes when any change occurs
-          fetchQRCodes();
-        }
-      )
-      .subscribe();
+    // const subscription = supabase
+    //   .channel('location_qr_codes_changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+    //       schema: 'public',
+    //       table: 'location_qr_codes'
+    //     },
+    //     (payload) => {
+    //       // Refetch QR codes when any change occurs
+    //       fetchQRCodes();
+    //     }
+    //   )
+    //   .subscribe();
 
-    // Cleanup subscription on unmount
+    // Cleanup subscription on unmount (no subscription to clean)
     return () => {
-      supabase.removeChannel(subscription);
+      // supabase.removeChannel(subscription);
     };
   }, [fetchQRCodes]);
 

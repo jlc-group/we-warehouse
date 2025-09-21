@@ -114,6 +114,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                 id="email"
                 type="email"
                 placeholder="your.email@company.com"
+                autoComplete="email"
                 {...register('email')}
                 className={errors.email ? 'border-red-500' : ''}
                 disabled={isLoading}
@@ -130,6 +131,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   {...register('password')}
                   className={errors.password ? 'border-red-500 pr-10' : 'pr-10'}
                   disabled={isLoading}

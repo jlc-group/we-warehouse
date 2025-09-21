@@ -76,7 +76,7 @@ export function LocationTransferModal({
     rows.forEach(row => {
       levels.forEach(level => {
         positions.forEach(position => {
-          const location = formatLocation(row, level, position);
+          const location = formatLocation(row, position, level);
           allLocationSet.add(location);
         });
       });

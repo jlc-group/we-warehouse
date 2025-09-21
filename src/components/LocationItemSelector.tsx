@@ -5,17 +5,19 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import {
-  Package,
-  Edit,
-  Trash2,
-  Info,
-  MapPin,
   Hash,
-  Calendar,
   Archive,
+  Calendar,
+  Edit3,
+  Trash2,
+  Plus,
   AlertTriangle,
-  Eye,
-  Plus
+  Package,
+  Send,
+  ArrowLeftRight,
+  MapPin,
+  Info,
+  Edit
 } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -28,9 +30,11 @@ interface LocationItemSelectorProps {
   location: string;
   items: InventoryItem[];
   onSelectEdit: (item: InventoryItem) => void;
-  onDeleteItem: (itemId: string) => void;
-  onClearLocation: () => void;
+  onDeleteItem: (id: string) => void;
+  onClearLocation: (location: string) => void;
   onAddNewItem: () => void;
+  onExport?: () => void;
+  onTransfer?: () => void;
 }
 
 export function LocationItemSelector({
@@ -41,8 +45,12 @@ export function LocationItemSelector({
   onSelectEdit,
   onDeleteItem,
   onClearLocation,
-  onAddNewItem
+  onAddNewItem,
+  onExport,
+  onTransfer
 }: LocationItemSelectorProps) {
+  // console.log('🔍 LocationItemSelector rendered with:', { isOpen, location, itemsCount: items.length });
+  
   const { toast } = useToast();
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
@@ -75,16 +83,17 @@ export function LocationItemSelector({
 
   const handleClearLocationConfirm = async () => {
     try {
-      await onClearLocation();
+      await onClearLocation(location);
       toast({
         title: '🗑️ ลบทั้งหมดสำเร็จ',
         description: `ลบสินค้าทั้งหมดใน ${displayLocation(location)} แล้ว`,
       });
       onClose();
     } catch (error) {
+      console.error('Error clearing location:', error);
       toast({
-        title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถลบข้อมูลทั้งหมดได้',
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถลบสินค้าได้',
         variant: 'destructive',
       });
     }
@@ -134,7 +143,7 @@ export function LocationItemSelector({
               </div>
               <div className="text-center">
                 <div className="font-bold text-lg text-purple-600">
-                  {new Set(items.map(item => item.lot)).size}
+                  {new Set(items.map(item => (item as any).lot || 'N/A')).size}
                 </div>
                 <div className="text-muted-foreground">LOT ต่างกัน</div>
               </div>
@@ -149,7 +158,7 @@ export function LocationItemSelector({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-2">
-              {/* Add New Item Button */}
+              {/* Add Item Button */}
               <Button
                 variant="outline"
                 size="sm"
@@ -157,37 +166,30 @@ export function LocationItemSelector({
                 className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
               >
                 <Plus className="h-4 w-4" />
-                เพิ่มรายการใหม่
+                เพิ่มสินค้า
               </Button>
 
-              {/* Clear All Button */}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm" className="flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    ลบทั้งหมด
-                  </Button>
-                </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    ยืนยันการลบทั้งหมด
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    คุณต้องการลบสินค้าทั้งหมด {items.length} รายการใน {displayLocation(location)} หรือไม่?
-                    <br />
-                    <span className="font-bold text-red-600">การดำเนินการนี้ไม่สามารถย้อนกลับได้</span>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearLocationConfirm} className="bg-red-600 hover:bg-red-700">
-                    ลบทั้งหมด
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-              </AlertDialog>
+              {/* Export Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onExport}
+                className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+              >
+                <Send className="h-4 w-4" />
+                ส่งออก
+              </Button>
+
+              {/* Transfer Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onTransfer}
+                className="flex items-center gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                ย้าย
+              </Button>
             </div>
           </div>
 
@@ -205,23 +207,23 @@ export function LocationItemSelector({
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-semibold text-gray-900 truncate">
-                              {item.product_name}
+                              {(item as any).product_name || item.sku}
                             </h4>
                             <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
                               <div className="flex items-center gap-1">
                                 <Hash className="h-3 w-3" />
                                 <span className="font-mono">{item.sku}</span>
                               </div>
-                              {item.lot && (
+                              {(item as any).lot && (
                                 <div className="flex items-center gap-1">
                                   <Archive className="h-3 w-3" />
-                                  <span>LOT: {item.lot}</span>
+                                  <span>LOT: {(item as any).lot}</span>
                                 </div>
                               )}
-                              {item.mfd && (
+                              {(item as any).mfd && (
                                 <div className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  <span>MFD: {new Date(item.mfd).toLocaleDateString('th-TH')}</span>
+                                  <span>MFD: {new Date((item as any).mfd).toLocaleDateString('th-TH')}</span>
                                 </div>
                               )}
                             </div>
@@ -274,7 +276,7 @@ export function LocationItemSelector({
                             <AlertDialogHeader>
                               <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
                               <AlertDialogDescription>
-                                คุณต้องการลบ "{item.product_name}" ออกจาก {displayLocation(location)} หรือไม่?
+                                คุณต้องการลบ "{(item as any).product_name || item.sku}" ออกจาก {displayLocation(location)} หรือไม่?
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Save, X, Package, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { convertUrlToDbFormat } from '@/utils/locationUtils';
 
 interface Product {
   id: string;
@@ -107,10 +108,11 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.product_name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    product.sku_code.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+    const searchTerm = productSearch.toLowerCase();
+    return product.product_name.toLowerCase().includes(searchTerm) ||
+           product.sku_code.toLowerCase().includes(searchTerm);
+  });
 
   const handleProductSelect = (productId: string) => {
     const product = products.find(p => p.id === productId);
@@ -165,11 +167,18 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
     try {
       setLoading(true);
 
+      // Convert URL format to database format for storage
+      const dbLocationId = convertUrlToDbFormat(locationId);
+      console.log('🔄 Location conversion:', {
+        original: locationId,
+        converted: dbLocationId
+      });
+
       const rate = conversionRates[newItem.sku];
       const inventoryData = {
         sku: newItem.sku,
         product_name: newItem.product_name,
-        location: locationId,
+        location: dbLocationId,
         lot: newItem.lot || null,
         mfd: newItem.mfd || null,
         unit_level1_quantity: newItem.unit_level1_quantity,
@@ -211,6 +220,7 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
         mfd: ''
       });
       setProductSearch('');
+      setSelectedProductType('');
 
       onSuccess();
       onClose();
@@ -251,6 +261,7 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+
               <div className="space-y-2">
                 <Label htmlFor="product-search">ค้นหาสินค้า</Label>
                 <Input

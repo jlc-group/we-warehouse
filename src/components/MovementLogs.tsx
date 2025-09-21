@@ -61,24 +61,27 @@ export function MovementLogs() {
   useEffect(() => {
     fetchMovements();
 
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('movement_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'inventory_movements'
-        },
-        () => {
-          fetchMovements(); // Refresh data on new movement
-        }
-      )
-      .subscribe();
+    // DISABLED: Real-time subscription (to prevent flickering)
+    // Real-time updates disabled to improve performance and prevent UI flickering
+    // Data will be manually refreshed when needed
+
+    // const channel = supabase
+    //   .channel('movement_changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: 'INSERT',
+    //       schema: 'public',
+    //       table: 'inventory_movements'
+    //     },
+    //     () => {
+    //       fetchMovements(); // Refresh data on new movement
+    //     }
+    //   )
+    //   .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      // supabase.removeChannel(channel);
     };
   }, []);
 

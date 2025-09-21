@@ -158,7 +158,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
     // Filter database products to only include those matching the selected type
     const dbCodes = products
-      .filter(p => p.sku_code.startsWith(selectedProductType + '-') || p.sku_code.startsWith(selectedProductType))
+      .filter(p => p.product_type === selectedProductType)
       .map(p => p.sku_code);
 
     const allCodes = [...new Set([...typedCodes, ...dbCodes])];
