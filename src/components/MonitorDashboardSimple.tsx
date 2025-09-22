@@ -59,10 +59,31 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
   const getCartonQty = (item: any) => Number(item.unit_level1_quantity ?? item.carton_quantity_legacy ?? 0) || 0;
   const getBoxQty = (item: any) => Number(item.unit_level2_quantity ?? item.box_quantity_legacy ?? 0) || 0;
 
-  // Update time every second
+  // Update time efficiently with requestAnimationFrame
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    let animationId: number;
+    let lastUpdate = 0;
+
+    const updateTime = (timestamp: number) => {
+      // Update every second (1000ms) to reduce CPU usage
+      if (timestamp - lastUpdate >= 1000) {
+        try {
+          setCurrentTime(new Date());
+          lastUpdate = timestamp;
+        } catch (error) {
+          console.warn('Time update failed:', error);
+        }
+      }
+      animationId = requestAnimationFrame(updateTime);
+    };
+
+    animationId = requestAnimationFrame(updateTime);
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
   }, []);
 
   // Statistics by category
@@ -104,7 +125,7 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
       totalItems,
       occupiedLocations,
       totalQuantity,
-      availableLocations: 1120 - occupiedLocations, // A-N (14) * 4 levels * 20 positions
+      availableLocations: 2080 - occupiedLocations, // A-Z (26) * 4 levels * 20 positions
       categories: categoryStats.length
     };
   }, [items, categoryStats]);

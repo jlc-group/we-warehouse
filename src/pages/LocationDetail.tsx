@@ -383,9 +383,13 @@ export function LocationDetail() {
           size="lg"
           className="rounded-full h-14 w-14 bg-blue-600 hover:bg-blue-700 shadow-xl border-2 border-white"
           onClick={() => {
-            // Scroll to action buttons
+            // Scroll to action buttons (optimized to avoid forced reflow)
             const actionCard = document.querySelector('.sticky.bottom-4');
-            actionCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (actionCard) {
+              requestAnimationFrame(() => {
+                actionCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              });
+            }
           }}
         >
           <Package className="h-6 w-6 text-white" />

@@ -4,11 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+// Command components removed - using custom dropdown instead
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, Hash, Calendar, MapPin, Search, Calculator, Check, ChevronsUpDown, Plus } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
@@ -21,6 +21,7 @@ import {
   type MultiLevelInventoryItem
 } from '@/utils/unitCalculations';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
+import { useProducts } from '@/contexts/ProductsContext';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -30,6 +31,7 @@ interface InventoryModalProps {
   onSave: (itemData: {
     product_name: string;
     product_code: string;
+    product_type?: string;
     location: string;
     lot?: string;
     mfd?: string;
@@ -78,7 +80,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
   const [quantityLoose, setQuantityLoose] = useState(0);
   const [unit, setUnit] = useState('กล่อง');
 
-  const [products, setProducts] = useState<Product[]>([]);
+  const { products } = useProducts();
   const [productSearch, setProductSearch] = useState('');
   const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
   const [isNewProduct, setIsNewProduct] = useState(false);
@@ -87,12 +89,6 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
   // Product type selection state
   const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
 
-  // Load products from database
-  useEffect(() => {
-    if (isOpen) {
-      loadProducts();
-    }
-  }, [isOpen]);
 
   // Reset form when modal opens/closes or when existingItem changes
   useEffect(() => {
@@ -137,22 +133,6 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     }
   }, [isOpen, existingItem]);
 
-  const loadProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('sku_code');
-
-      if (error) {
-        console.error('Error loading products:', error);
-      } else {
-        setProducts(data || []);
-      }
-    } catch (error) {
-      console.error('Error loading products:', error);
-    }
-  };
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
@@ -179,7 +159,9 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
 
   // Filter product codes based on search
   const filteredProductCodes = useMemo(() => {
-    if (!productCodeInputValue) return allProductCodes;
+    if (!productCodeInputValue) {
+      return allProductCodes;
+    }
     return allProductCodes.filter(code =>
       code.toLowerCase().includes(productCodeInputValue.toLowerCase()) ||
       PRODUCT_NAME_MAPPING[code]?.toLowerCase().includes(productCodeInputValue.toLowerCase())
@@ -227,7 +209,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
   };
 
   // Handle selection from combobox
-  const handleProductCodeSelect = (value: string) => {
+  const handleProductCodeSelect = useCallback((value: string) => {
     setIsProductCodeOpen(false);
     setProductCodeInputValue(value);
     setProductCode(value);
@@ -248,7 +230,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     if (foundProduct) {
       setProductName(foundProduct.product_name);
     }
-  };
+  }, [products]);
 
   // Handle keyboard events for product code input
   const handleProductCodeKeyDown = (e: React.KeyboardEvent) => {
@@ -281,6 +263,12 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       return;
     }
 
+    // Require product type for new products
+    if (isNewProduct && !selectedProductType) {
+      console.error('Product type is required for new products');
+      return;
+    }
+
     // Validate unit data
     const validation = validateUnitData(multiLevelData);
     if (!validation.isValid) {
@@ -292,6 +280,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     onSave({
       product_name: productName.trim(),
       product_code: productCode.trim(),
+      product_type: selectedProductType || 'FG', // Default to FG if no type selected
       location,
       lot: lot.trim() || undefined,
       mfd: mfd || undefined,
@@ -422,12 +411,18 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                 onFocus={() => setIsProductCodeOpen(true)}
                 onKeyDown={handleProductCodeKeyDown}
                 onBlur={(e) => {
-                  // Delay closing to allow for clicks on dropdown items
+                  // Increase delay to allow for mouse events
                   setTimeout(() => {
-                    if (!e.currentTarget.contains(document.activeElement)) {
+                    const activeElement = document.activeElement;
+                    const currentTarget = e.currentTarget;
+                    const isClickingOnDropdown = activeElement &&
+                      (activeElement.closest('[role="option"]') ||
+                       activeElement.closest('.command-item'));
+
+                    if (!currentTarget.contains(activeElement) && !isClickingOnDropdown) {
                       setIsProductCodeOpen(false);
                     }
-                  }, 150);
+                  }, 200); // Balanced delay for onMouseDown
                 }}
                 placeholder="กรอกรหัสสินค้า (เช่น L8A-40G)"
                 className="font-mono pr-10"
@@ -443,59 +438,59 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                 <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
               </Button>
               {(isProductCodeOpen && (filteredProductCodes.length > 0 || productCodeInputValue)) && (
-                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-md">
-                  <Command shouldFilter={false}>
-                    <CommandList className="max-h-60 overflow-auto">
-                      {productCodeInputValue && filteredProductCodes.length === 0 && (
-                        <CommandEmpty>
-                          <div className="p-3">
-                            <div className="flex items-center gap-2 text-sm text-green-700">
-                              <Plus className="h-4 w-4" />
-                              สร้างรหัสสินค้าใหม่:
-                              <code className="font-mono font-bold bg-green-50 px-1 rounded">{productCodeInputValue}</code>
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              กด Enter เพื่อใช้รหัสนี้
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-md max-h-60 overflow-auto">
+                  {/* New Product Creation Option */}
+                  {productCodeInputValue && filteredProductCodes.length === 0 && (
+                    <div className="p-3 border-b">
+                      <div className="flex items-center gap-2 text-sm text-green-700">
+                        <Plus className="h-4 w-4" />
+                        สร้างรหัสสินค้าใหม่:
+                        <code className="font-mono font-bold bg-green-50 px-1 rounded">{productCodeInputValue}</code>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        กด Enter เพื่อใช้รหัสนี้
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Product List */}
+                  {filteredProductCodes.length > 0 && (
+                    <div>
+                      <div className="px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/50">
+                        รหัสสินค้าที่มีอยู่ ({filteredProductCodes.length} รายการ)
+                      </div>
+                      {filteredProductCodes.map((code) => {
+                        const productName = PRODUCT_NAME_MAPPING[code.toUpperCase()] ||
+                          products.find(p => p.sku_code.toLowerCase() === code.toLowerCase())?.product_name;
+
+                        return (
+                          <div
+                            key={code}
+                            className="px-3 py-2 cursor-pointer hover:bg-muted/50 flex items-center gap-2 border-b border-muted/30 last:border-b-0"
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleProductCodeSelect(code);
+                            }}
+                          >
+                            <Check
+                              className={`h-4 w-4 ${
+                                productCodeInputValue === code ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            <div className="flex flex-col flex-1 min-w-0">
+                              <span className="font-mono font-medium">{code}</span>
+                              {productName && (
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {productName}
+                                </span>
+                              )}
                             </div>
                           </div>
-                        </CommandEmpty>
-                      )}
-                      {filteredProductCodes.length > 0 && (
-                        <CommandGroup heading="รหัสสินค้าที่มีอยู่">
-                          {filteredProductCodes.map((code) => {
-                            const productName = PRODUCT_NAME_MAPPING[code.toUpperCase()] ||
-                              products.find(p => p.sku_code.toLowerCase() === code.toLowerCase())?.product_name;
-
-                            return (
-                              <CommandItem
-                                key={code}
-                                value={code}
-                                onSelect={() => {
-                                  handleProductCodeSelect(code);
-                                  setIsProductCodeOpen(false);
-                                }}
-                                className="cursor-pointer"
-                              >
-                                <Check
-                                  className={`mr-2 h-4 w-4 ${
-                                    productCodeInputValue === code ? "opacity-100" : "opacity-0"
-                                  }`}
-                                />
-                                <div className="flex flex-col">
-                                  <span className="font-mono font-medium">{code}</span>
-                                  {productName && (
-                                    <span className="text-xs text-muted-foreground truncate">
-                                      {productName}
-                                    </span>
-                                  )}
-                                </div>
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      )}
-                    </CommandList>
-                  </Command>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -738,10 +733,10 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
           <Button variant="outline" onClick={onClose} className="flex-1">
             ยกเลิก
           </Button>
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             className="flex-1"
-            disabled={!productName.trim() || !productCode.trim()}
+            disabled={!productName.trim() || !productCode.trim() || (isNewProduct && !selectedProductType)}
           >
             บันทึก
           </Button>

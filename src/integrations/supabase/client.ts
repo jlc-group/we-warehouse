@@ -26,6 +26,14 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   global: {
     headers: {
       'x-client-info': 'warehouse-app@1.0.0',
+      'Origin': window.location.origin,
+    },
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        mode: 'cors',
+        credentials: 'omit',
+      });
     },
   },
 });

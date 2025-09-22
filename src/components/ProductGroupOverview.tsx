@@ -345,8 +345,8 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
     }
   };
 
-  // Generate shelf grid (A-N rows, 4-1 levels from top to bottom, 1-20 positions)
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+  // Generate shelf grid (A-Z rows, 4-1 levels from top to bottom, 1-20 positions)
+  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
   const levels = [4, 3, 2, 1];
   const positions = Array.from({ length: 20 }, (_, i) => i + 1);
 

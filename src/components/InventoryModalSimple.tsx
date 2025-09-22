@@ -6,13 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus, AlertTriangle } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeLocation } from '@/utils/locationUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
+import { useProducts } from '@/contexts/ProductsContext';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -60,7 +61,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   const [productCode, setProductCode] = useState('');
   const [lot, setLot] = useState('');
   const [mfd, setMfd] = useState('');
-  const [products, setProducts] = useState<Product[]>([]);
+  const { products } = useProducts();
   const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
   const [isNewProduct, setIsNewProduct] = useState(false);
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
@@ -77,65 +78,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   // Product type selection state
   const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
 
-  // Load products from database
-  useEffect(() => {
-    if (isOpen) {
-      loadProducts();
-    }
-  }, [isOpen]);
-
-  // Reset form when modal opens/closes or when existingItem changes
-  useEffect(() => {
-    if (isOpen) {
-      if (existingItem) {
-        // Editing existing item
-        setProductName(existingItem.product_name);
-        setProductCode(existingItem.sku);
-        setProductCodeInputValue(existingItem.sku);
-        setLot(existingItem.lot || '');
-        setMfd(existingItem.mfd || '');
-
-        // Load quantities
-        const extendedItem = existingItem as any;
-        setLevel1Quantity(extendedItem.unit_level1_quantity || 0);
-        setLevel2Quantity(extendedItem.unit_level2_quantity || 0);
-        setLevel3Quantity(extendedItem.unit_level3_quantity || 0);
-
-        loadConversionRate(existingItem.sku);
-      } else {
-        // Adding new item
-        setProductName('');
-        setProductCode('');
-        setProductCodeInputValue('');
-        setLot('');
-        setMfd('');
-        setLevel1Quantity(0);
-        setLevel2Quantity(0);
-        setLevel3Quantity(0);
-        setConversionRate(null);
-        setSelectedProductType('');
-      }
-    }
-  }, [isOpen, existingItem]);
-
-  const loadProducts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('sku_code');
-
-      if (error) {
-        console.error('Error loading products:', error);
-      } else {
-        setProducts(data || []);
-      }
-    } catch (error) {
-      console.error('Error loading products:', error);
-    }
-  };
-
-  const loadConversionRate = async (sku: string) => {
+  const loadConversionRate = useCallback(async (sku: string, currentProductName = '') => {
     if (!sku.trim()) {
       setConversionRate(null);
       return;
@@ -146,7 +89,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       // For now, use a mock data structure since product_conversion_rates table doesn't exist
       const mockData: ConversionRate = {
         sku: sku.toUpperCase(),
-        product_name: productName || '',
+        product_name: currentProductName || '',
         unit_level1_name: 'ลัง',
         unit_level1_rate: 100,
         unit_level2_name: 'กล่อง',
@@ -166,7 +109,44 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
     } finally {
       setLoadingConversion(false);
     }
-  };
+  }, []); // Removed productName dependency to prevent unnecessary recreations
+
+
+  // Reset form when modal opens/closes or when existingItem changes
+  useEffect(() => {
+    if (isOpen) {
+      if (existingItem) {
+        // Editing existing item
+        setProductName(existingItem.product_name);
+        setProductCode(existingItem.sku);
+        setProductCodeInputValue(existingItem.sku);
+        setLot(existingItem.lot || '');
+        setMfd(existingItem.mfd || '');
+
+        // Load quantities
+        const extendedItem = existingItem as any;
+        setLevel1Quantity(extendedItem.unit_level1_quantity || 0);
+        setLevel2Quantity(extendedItem.unit_level2_quantity || 0);
+        setLevel3Quantity(extendedItem.unit_level3_quantity || 0);
+
+        loadConversionRate(existingItem.sku, existingItem.product_name);
+      } else {
+        // Adding new item
+        setProductName('');
+        setProductCode('');
+        setProductCodeInputValue('');
+        setLot('');
+        setMfd('');
+        setLevel1Quantity(0);
+        setLevel2Quantity(0);
+        setLevel3Quantity(0);
+        setConversionRate(null);
+        setSelectedProductType('');
+      }
+    }
+  }, [isOpen, existingItem]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note: loadConversionRate intentionally excluded to prevent unnecessary re-renders and duplicate calls
+
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
@@ -203,27 +183,23 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   // Auto-fill product name when product code changes
   const handleProductCodeChange = (value: string) => {
     setProductCode(value);
+    setProductCodeInputValue(value); // Ensure input value stays in sync
 
     // Load conversion rate
-    loadConversionRate(value);
+    if (value) {
+      loadConversionRate(value, productName);
+    } else {
+      setConversionRate(null);
+    }
 
-    // Find product name from mapping first
-    const mappedName = PRODUCT_NAME_MAPPING[value.toUpperCase()];
-    if (mappedName) {
+    // Auto-fill product name from mapping
+    const mappedName = PRODUCT_NAME_MAPPING[value];
+    if (mappedName && !productName) {
       setProductName(mappedName);
-      return;
     }
 
-    // Find from products database
-    const foundProduct = products.find(
-      product => product.sku_code.toLowerCase() === value.toLowerCase()
-    );
-
-    if (foundProduct) {
-      setProductName(foundProduct.product_name);
-    } else if (value === '') {
-      setProductName('');
-    }
+    // Check if it's a new product
+    setIsNewProduct(checkIfNewProduct(value));
   };
 
   // Check if product code is new (not in mapping or DB)
@@ -245,10 +221,13 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
   // Handle selecting a code from the suggestion list
   const handleProductCodeSelect = (value: string) => {
-    setIsProductCodeOpen(false);
+    console.log('🔍 handleProductCodeSelect called with:', value);
     setProductCodeInputValue(value);
+    setProductCode(value);
     handleProductCodeChange(value);
     setIsNewProduct(checkIfNewProduct(value));
+    setIsProductCodeOpen(false);
+    console.log('✅ handleProductCodeSelect completed, input value should be:', value);
   };
 
   // Keyboard handler for product code input
@@ -304,14 +283,18 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
     const dataToSave = {
       product_name: productName.trim(),
-      product_code: productCode.trim(),
+      product_code: productCode.trim(), // Keep for interface compatibility
+      sku: productCode.trim(), // Add for database compatibility
       location: location,
-      lot: lot.trim() || undefined,
-      mfd: mfd || undefined,
-      // Legacy fields for backward compatibility
-      quantity_boxes: level1Quantity,  // Map level1 (ลัง) to legacy carton
-      quantity_loose: level2Quantity,  // Map level2 (กล่อง) to legacy box
-      quantity_pieces: level3Quantity, // Map level3 (ชิ้น) to legacy pieces
+      lot: lot.trim() || null,
+      mfd: mfd || null,
+      // Legacy fields for backward compatibility - map to interface names
+      quantity_boxes: level1Quantity, // Interface expects this name
+      quantity_loose: level2Quantity, // Interface expects this name
+      carton_quantity_legacy: level1Quantity, // Database field
+      box_quantity_legacy: level2Quantity, // Database field
+      pieces_quantity_legacy: level3Quantity, // Database field
+      quantity_pieces: level3Quantity,
       unit: conversionRate?.unit_level3_name || 'ชิ้น',
       // Multi-level unit data - ข้อมูลหน่วยใหม่
       unit_level1_quantity: level1Quantity,
@@ -325,22 +308,6 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       unit_level2_rate: conversionRate?.unit_level2_rate || 0,
     };
 
-    // Debug: แสดงข้อมูลที่จะส่งไป
-    console.log('🔍 InventoryModalSimple Saving Data:', {
-      sku: productCode.trim(),
-      quantities: {
-        level1: level1Quantity,
-        level2: level2Quantity,
-        level3: level3Quantity,
-      },
-      rates: {
-        level1: conversionRate?.unit_level1_rate || 0,
-        level2: conversionRate?.unit_level2_rate || 0,
-      },
-      conversionRateFound: !!conversionRate,
-      conversionRateData: conversionRate,
-      finalDataToSave: dataToSave
-    });
 
     onSave(dataToSave);
 
@@ -446,10 +413,14 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                 type="text"
                 value={productCodeInputValue}
                 onChange={(e) => {
+                  console.log('📝 Input onChange:', e.target.value);
                   handleProductCodeInputChange(e.target.value);
                   setIsProductCodeOpen(true);
                 }}
-                onFocus={() => setIsProductCodeOpen(true)}
+                onFocus={() => {
+                  console.log('🎯 Input focused, current value:', productCodeInputValue);
+                  setIsProductCodeOpen(true);
+                }}
                 onKeyDown={handleProductCodeKeyDown}
                 onBlur={(e) => {
                   setTimeout(() => {
@@ -497,7 +468,6 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                               value={code}
                               onSelect={() => {
                                 handleProductCodeSelect(code);
-                                setIsProductCodeOpen(false);
                               }}
                               className="cursor-pointer"
                             >

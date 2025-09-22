@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContextSimple";
 import { InventoryProvider } from "@/contexts/InventoryContext";
+import { ProductsProvider } from "@/contexts/ProductsContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -33,8 +34,9 @@ const App = () => (
         }}
       >
         <AuthProvider>
-          <InventoryProvider>
-            <Routes>
+          <ProductsProvider>
+            <InventoryProvider>
+              <Routes>
               <Route
                 path="/"
                 element={
@@ -54,8 +56,9 @@ const App = () => (
               />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
-            </Routes>
-          </InventoryProvider>
+              </Routes>
+            </InventoryProvider>
+          </ProductsProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

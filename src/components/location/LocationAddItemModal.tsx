@@ -51,6 +51,7 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
   const [products, setProducts] = useState<Product[]>([]);
   const [conversionRates, setConversionRates] = useState<Record<string, ConversionRate>>({});
   const [productSearch, setProductSearch] = useState('');
+  const [selectedProductType, setSelectedProductType] = useState('');
   const [newItem, setNewItem] = useState<NewItemData>({
     product_id: '',
     sku: '',
@@ -169,10 +170,6 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
 
       // Convert URL format to database format for storage
       const dbLocationId = convertUrlToDbFormat(locationId);
-      console.log('🔄 Location conversion:', {
-        original: locationId,
-        converted: dbLocationId
-      });
 
       const rate = conversionRates[newItem.sku];
       const inventoryData = {

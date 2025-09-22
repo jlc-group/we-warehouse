@@ -5,14 +5,14 @@ console.log('🧪 Testing normalizeLocation function:');
 
 // Test cases
 const testCases = [
-  'A/1/1',     // Already correct format
-  'A1/1',      // Compact format
+  'A1/1',      // Target format
+  'A/1/1',     // Old database format
   'A11',       // Concatenated format
   'A101',      // Concatenated with leading zero
-  'a/1/1',     // Lowercase
-  'A/1/01',    // With leading zero
-  'B/2/15',    // Different values
-  'N/4/20',    // Max values
+  'a1/1',      // Lowercase
+  'A/1/01',    // Old format with leading zero
+  'B15/2',     // Different values
+  'Z20/4',     // Max values
 ];
 
 testCases.forEach(input => {
@@ -21,5 +21,5 @@ testCases.forEach(input => {
   console.log(`Input: "${input}" → Normalized: "${normalized}" → Valid: ${isValid}`);
 });
 
-console.log('\n🎯 Expected database format: A/1/1 to N/4/20');
-console.log('✅ All outputs should match: ^[A-N]/[1-4]/([1-9]|1[0-9]|20)$');
+console.log('\n🎯 Expected standard format: A1/1 to Z20/4');
+console.log('✅ All outputs should match: ^[A-Z]([1-9]|1[0-9]|20)/[1-4]$');

@@ -39,6 +39,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EnhancedOverviewProps {
   items: InventoryItem[];
@@ -72,6 +73,8 @@ export function EnhancedOverview({
   const [viewMode, setViewMode] = useState<'work' | 'monitor'>('work');
   const [selectedSkus, setSelectedSkus] = useState<string[]>([]);
   const [selectedMfds, setSelectedMfds] = useState<string[]>([]);
+  const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [customRows, setCustomRows] = useState<string[]>([]);
   const [newRowName, setNewRowName] = useState('');
   const [showAddRowDialog, setShowAddRowDialog] = useState(false);
@@ -91,6 +94,8 @@ export function EnhancedOverview({
   const [newGroupColor, setNewGroupColor] = useState('#3B82F6');
   const [skuSearchQuery, setSkuSearchQuery] = useState('');
   const [showSkuResults, setShowSkuResults] = useState(false);
+  const [products, setProducts] = useState<Array<{sku_code: string, product_type: string, category: string | null}>>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
 
   // Group items by SKU for export selection
   const skuOptions = useMemo(() => {
@@ -159,6 +164,41 @@ export function EnhancedOverview({
 
     return Array.from(locationMap.values()).sort((a, b) => a.location.localeCompare(b.location));
   }, [selectedSkuForExport, skuOptions]);
+
+  // Create products map for filtering
+  const productsMap = useMemo(() => {
+    const map = new Map<string, {product_type: string, category: string | null}>();
+    products.forEach(product => {
+      map.set(product.sku_code, {
+        product_type: product.product_type,
+        category: product.category
+      });
+    });
+    return map;
+  }, [products]);
+
+  // Get all available product types
+  const allProductTypes = useMemo(() => {
+    const types = new Set<string>();
+    products.forEach(product => {
+      if (product.product_type) {
+        types.add(product.product_type);
+      }
+    });
+    return Array.from(types).sort();
+  }, [products]);
+
+  // Get all available categories
+  const allCategories = useMemo(() => {
+    const categories = new Set<string>();
+    products.forEach(product => {
+      if (product.category) {
+        categories.add(product.category);
+      }
+    });
+    return Array.from(categories).sort();
+  }, [products]);
+
   const previousItemsRef = useRef<Map<string, InventoryItem>>(new Map());
   const { generateQRForLocation, bulkGenerateQR, getQRByLocation, loading: qrLoading } = useLocationQR();
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -274,8 +314,8 @@ export function EnhancedOverview({
     });
   }, [allSkus, skuSearchQuery, items]);
 
-  // รายการแถวทั้งหมด A-N และแถวที่เพิ่มเติม
-  const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+  // รายการแถวทั้งหมด A-Z และแถวที่เพิ่มเติม
+  const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
   const allRows = useMemo(() => [...defaultRows, ...customRows], [customRows, items]);
 
   // รายการ MFD ทั้งหมด
@@ -297,7 +337,7 @@ export function EnhancedOverview({
       totalItems,
       occupiedLocations,
       totalQuantity,
-      availableLocations: 1120 - occupiedLocations // A-N (14) * 4 levels * 20 positions
+      availableLocations: 2080 - occupiedLocations // A-Z (26) * 4 levels * 20 positions
     };
   }, [items]);
 
@@ -328,6 +368,33 @@ export function EnhancedOverview({
       }
     }
   }, []);
+
+  // Fetch products data for filtering
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('sku_code, product_type, category');
+
+        if (error) {
+          console.error('Error fetching products:', error);
+          return;
+        }
+
+        if (data) {
+          setProducts(data);
+          setProductsLoaded(true);
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    if (!productsLoaded) {
+      fetchProducts();
+    }
+  }, [productsLoaded]);
 
   // Save custom rows to localStorage when changed
   useEffect(() => {
@@ -409,7 +476,7 @@ export function EnhancedOverview({
       const headerRow = ['แถว/ชั้น', ...Array.from({length: 20}, (_, i) => String(i + 1).padStart(2, '0'))];
       gridData.push(headerRow);
       
-      // Data rows for each shelf (A-N) and levels (1-4)
+      // Data rows for each shelf (A-Z) and levels (1-4)
       allRows.forEach(row => {
         for (let level = 4; level >= 1; level--) {
           const rowData = [`${row}/${level}`];
@@ -506,7 +573,7 @@ export function EnhancedOverview({
         skuStyles += `.sku-${safeClass} { background: ${colors.bg} !important; border-left: 3px solid ${colors.border} !important; color: ${colors.text} !important; }\n`;
       });
 
-      // Create complete grid sections for all rows A-N
+      // Create complete grid sections for all rows A-Z
       const createSectionHTML = (sectionRows) => {
         console.log('Creating sections for rows:', sectionRows);
         let sectionHTML = '';
@@ -845,65 +912,115 @@ export function EnhancedOverview({
       
       // Wait for complete data loading before printing (single execution)
       let loadAttempts = 0;
-      let dataCheckInterval;
+      let dataCheckAnimationId;
       let printExecuted = false; // Flag to prevent multiple prints
-      
-      function checkDataLoaded() {
+      let lastDataCheck = 0;
+
+      // Cache DOM elements to avoid repeated queries (prevents forced reflows)
+      let cachedPrintButton = null;
+      let lastSectionCount = 0;
+      let lastContainerCount = 0;
+
+      function checkDataLoaded(timestamp) {
         if (printExecuted) return; // Exit if already printed
-        
-        const gridCells = document.querySelectorAll('.grid-cell');
-        const sections = document.querySelectorAll('.section');
-        const gridContainers = document.querySelectorAll('.grid-container');
-        
-        console.log('=== Data Check ===');
-        console.log('Sections found:', sections.length);
-        console.log('Grid containers:', gridContainers.length);
-        console.log('Grid cells:', gridCells.length);
-        
-        // We expect 14 sections (A-N), each with grid content
-        const expectedSections = 14;
-        const hasAllSections = sections.length >= expectedSections;
-        const hasGridContent = gridContainers.length >= expectedSections;
-        
-        if (hasAllSections && hasGridContent) {
-          console.log('✅ All sections and grids loaded - Auto printing!');
-          document.querySelector('.print-button').style.background = '#10b981';
-          document.querySelector('.print-button').textContent = '🖨️ กำลังพิมพ์...';
-          
-          // Set flag and clear interval immediately
-          printExecuted = true;
-          clearInterval(dataCheckInterval);
-          
-          // Print once only
-          setTimeout(() => {
-            cleanPrint(true);
-          }, 800);
-          
-        } else if (loadAttempts < 20) {
-          loadAttempts++;
-          console.log(\`❌ Data incomplete (attempt \${loadAttempts}/20)\`);
-          console.log(\`   - Sections: \${sections.length}/\${expectedSections}\`);
-          console.log(\`   - Grid containers: \${gridContainers.length}/\${expectedSections}\`);
-          document.querySelector('.print-button').textContent = \`🖨️ โหลด... (\${loadAttempts}/20)\`;
-        } else {
-          console.log('⚠️ Max attempts reached - printing anyway');
-          document.querySelector('.print-button').textContent = '🖨️ กำลังพิมพ์...';
-          
-          // Set flag and clear interval
-          printExecuted = true;
-          clearInterval(dataCheckInterval);
-          
-          setTimeout(() => {
-            cleanPrint(true);
-          }, 500);
+
+        // Only check every 500ms to reduce CPU usage (instead of 300ms)
+        if (timestamp - lastDataCheck < 500) {
+          dataCheckAnimationId = requestAnimationFrame(checkDataLoaded);
+          return;
+        }
+        lastDataCheck = timestamp;
+
+        try {
+          // Cache print button on first access to avoid repeated queries
+          if (!cachedPrintButton) {
+            cachedPrintButton = document.querySelector('.print-button');
+          }
+
+          // Use more efficient counting with minimal DOM queries
+          const sections = document.querySelectorAll('.section');
+          const gridContainers = document.querySelectorAll('.grid-container');
+
+          // Only query cells if needed for debugging (avoid frequent queries)
+          const sectionsCount = sections.length;
+          const containersCount = gridContainers.length;
+
+          // Only log if counts changed to reduce console spam
+          if (sectionsCount !== lastSectionCount || containersCount !== lastContainerCount) {
+            console.log('=== Data Check ===');
+            console.log('Sections found:', sectionsCount);
+            console.log('Grid containers:', containersCount);
+            lastSectionCount = sectionsCount;
+            lastContainerCount = containersCount;
+          }
+
+          // We expect 26 sections (A-Z), each with grid content
+          const expectedSections = 26;
+          const hasAllSections = sectionsCount >= expectedSections;
+          const hasGridContent = containersCount >= expectedSections;
+
+          if (hasAllSections && hasGridContent) {
+            console.log('✅ All sections and grids loaded - Auto printing!');
+            if (cachedPrintButton) {
+              cachedPrintButton.style.background = '#10b981';
+              cachedPrintButton.textContent = '🖨️ กำลังพิมพ์...';
+            }
+
+            // Set flag and clear animation immediately
+            printExecuted = true;
+            if (dataCheckAnimationId) {
+              cancelAnimationFrame(dataCheckAnimationId);
+            }
+
+            // Print once only
+            setTimeout(() => {
+              cleanPrint(true);
+            }, 800);
+
+          } else if (loadAttempts < 20) {
+            loadAttempts++;
+            // Only log progress every 5 attempts to reduce console spam
+            if (loadAttempts % 5 === 0) {
+              console.log(\`❌ Data incomplete (attempt \${loadAttempts}/20)\`);
+              console.log(\`   - Sections: \${sectionsCount}/\${expectedSections}\`);
+              console.log(\`   - Grid containers: \${containersCount}/\${expectedSections}\`);
+            }
+            if (cachedPrintButton) {
+              cachedPrintButton.textContent = \`🖨️ โหลด... (\${loadAttempts}/20)\`;
+            }
+
+            // Continue checking
+            dataCheckAnimationId = requestAnimationFrame(checkDataLoaded);
+          } else {
+            console.log('⚠️ Max attempts reached - printing anyway');
+            if (cachedPrintButton) {
+              cachedPrintButton.textContent = '🖨️ กำลังพิมพ์...';
+            }
+
+            // Set flag and clear animation
+            printExecuted = true;
+            if (dataCheckAnimationId) {
+              cancelAnimationFrame(dataCheckAnimationId);
+            }
+
+            setTimeout(() => {
+              cleanPrint(true);
+            }, 500);
+          }
+        } catch (error) {
+          console.warn('Data check failed:', error);
+          // Continue checking even if there's an error
+          if (!printExecuted && loadAttempts < 20) {
+            dataCheckAnimationId = requestAnimationFrame(checkDataLoaded);
+          }
         }
       }
-      
+
       // Start checking with single execution protection
       setTimeout(() => {
         cleanDocument();
         if (!printExecuted) {
-          dataCheckInterval = setInterval(checkDataLoaded, 300);
+          dataCheckAnimationId = requestAnimationFrame(checkDataLoaded);
         }
       }, 500);
       
@@ -1322,7 +1439,7 @@ export function EnhancedOverview({
                       <BarChart3 className="h-5 w-5" />
                       ตารางภาพรวมตำแหน่ง
                       <Badge variant="outline" className="text-xs">
-                        {stats.occupiedLocations}/{1120} ตำแหน่ง
+                        {stats.occupiedLocations}/{2080} ตำแหน่ง
                       </Badge>
                     </CardTitle>
 
@@ -1729,13 +1846,15 @@ export function EnhancedOverview({
                           <Filter className="h-4 w-4" />
                           ฟิลเตอร์
                         </h4>
-                        {(selectedSkus.length > 0 || selectedMfds.length > 0) && (
+                        {(selectedSkus.length > 0 || selectedMfds.length > 0 || selectedProductTypes.length > 0 || selectedCategories.length > 0) && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => {
                               setSelectedSkus([]);
                               setSelectedMfds([]);
+                              setSelectedProductTypes([]);
+                              setSelectedCategories([]);
                             }}
                             className="h-8 text-xs"
                           >
@@ -1745,7 +1864,7 @@ export function EnhancedOverview({
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* SKU Search */}
                         <div className="relative sku-search-container">
                           <label className="text-sm font-medium text-gray-700 mb-2 block">ค้นหา SKU / ชื่อสินค้า</label>
@@ -1871,10 +1990,93 @@ export function EnhancedOverview({
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {/* Product Type Filter */}
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">ประเภทสินค้า</label>
+                          <Select
+                            value=""
+                            onValueChange={(productType) => {
+                              if (productType && !selectedProductTypes.includes(productType)) {
+                                setSelectedProductTypes(prev => [...prev, productType]);
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="เลือกประเภท..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-48">
+                              {allProductTypes.map(productType => {
+                                const itemCount = items.filter(item => {
+                                  const product = productsMap.get(item.sku || '');
+                                  return product && product.product_type === productType;
+                                }).length;
+                                const isSelected = selectedProductTypes.includes(productType);
+                                const displayName = productType === 'FG' ? 'FG - สินค้าสำเร็จรูป' : 'PK - วัสดุบรรจุภัณฑ์';
+                                return (
+                                  <SelectItem
+                                    key={productType}
+                                    value={productType}
+                                    disabled={isSelected}
+                                    className="text-sm"
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{displayName}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        {itemCount} รายการ
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Category Filter */}
+                        <div>
+                          <label className="text-sm font-medium text-gray-700 mb-2 block">หมวดหมู่สินค้า</label>
+                          <Select
+                            value=""
+                            onValueChange={(category) => {
+                              if (category && !selectedCategories.includes(category)) {
+                                setSelectedCategories(prev => [...prev, category]);
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="เลือกหมวดหมู่..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-48">
+                              {allCategories.map(category => {
+                                const itemCount = items.filter(item => {
+                                  const product = productsMap.get(item.sku || '');
+                                  return product && product.category === category;
+                                }).length;
+                                const isSelected = selectedCategories.includes(category);
+                                return (
+                                  <SelectItem
+                                    key={category}
+                                    value={category}
+                                    disabled={isSelected}
+                                    className="text-sm"
+                                  >
+                                    <div className="flex items-center justify-between w-full">
+                                      <span>{category}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        {itemCount} รายการ
+                                      </span>
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
                       {/* Selected Filters */}
-                      {(selectedSkus.length > 0 || selectedMfds.length > 0) && (
+                      {(selectedSkus.length > 0 || selectedMfds.length > 0 || selectedProductTypes.length > 0 || selectedCategories.length > 0) && (
                         <div className="mt-4 space-y-2">
                           {selectedSkus.length > 0 && (
                             <div>
@@ -1912,6 +2114,48 @@ export function EnhancedOverview({
                                     <button
                                       onClick={() => setSelectedMfds(prev => prev.filter(m => m !== mfd))}
                                       className="hover:bg-green-200 rounded"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedProductTypes.length > 0 && (
+                            <div>
+                              <div className="text-xs text-gray-600 mb-1">ประเภทสินค้าที่เลือก:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {selectedProductTypes.map(productType => (
+                                  <span
+                                    key={productType}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs"
+                                  >
+                                    {productType === 'FG' ? 'FG - สินค้าสำเร็จรูป' : 'PK - วัสดุบรรจุภัณฑ์'}
+                                    <button
+                                      onClick={() => setSelectedProductTypes(prev => prev.filter(p => p !== productType))}
+                                      className="hover:bg-purple-200 rounded"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {selectedCategories.length > 0 && (
+                            <div>
+                              <div className="text-xs text-gray-600 mb-1">หมวดหมู่ที่เลือก:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {selectedCategories.map(category => (
+                                  <span
+                                    key={category}
+                                    className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs"
+                                  >
+                                    {category}
+                                    <button
+                                      onClick={() => setSelectedCategories(prev => prev.filter(c => c !== category))}
+                                      className="hover:bg-orange-200 rounded"
                                     >
                                       <X className="h-3 w-3" />
                                     </button>
@@ -1996,7 +2240,7 @@ export function EnhancedOverview({
                           return acc;
                         }, {} as Record<string, typeof items>);
 
-                        // ฟิลเตอร์รายการตาม SKU และ MFD ที่เลือก
+                        // ฟิลเตอร์รายการตาม SKU, MFD, Product Type และ Category ที่เลือก
                         const filteredItemsByLocation = Object.entries(itemsByLocation).reduce((acc, [location, locationItems]) => {
                           let filtered = locationItems;
 
@@ -2008,6 +2252,22 @@ export function EnhancedOverview({
                           // ฟิลเตอร์ตาม MFD
                           if (selectedMfds.length > 0) {
                             filtered = filtered.filter(item => selectedMfds.includes(item.mfd || ''));
+                          }
+
+                          // ฟิลเตอร์ตาม Product Type
+                          if (selectedProductTypes.length > 0) {
+                            filtered = filtered.filter(item => {
+                              const product = productsMap.get(item.sku || '');
+                              return product && selectedProductTypes.includes(product.product_type);
+                            });
+                          }
+
+                          // ฟิลเตอร์ตาม Category
+                          if (selectedCategories.length > 0) {
+                            filtered = filtered.filter(item => {
+                              const product = productsMap.get(item.sku || '');
+                              return product && product.category && selectedCategories.includes(product.category);
+                            });
                           }
 
                           if (filtered.length > 0) {
@@ -2085,7 +2345,7 @@ export function EnhancedOverview({
                                         const skusInLocation = [...new Set(locationItems.map(item => item.sku).filter(Boolean))];
 
                                         // ตรวจสอบว่าตำแหน่งนี้ควรแสดงหรือไม่
-                                        const shouldShow = (selectedSkus.length === 0 && selectedMfds.length === 0) ||
+                                        const shouldShow = (selectedSkus.length === 0 && selectedMfds.length === 0 && selectedProductTypes.length === 0 && selectedCategories.length === 0) ||
                                                           locationItems.length > 0;
 
                                         // กำหนดสีและรูปแบบ

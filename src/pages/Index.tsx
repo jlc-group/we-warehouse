@@ -33,7 +33,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { setupQRTable } from '@/utils/setupQRTable';
 import { generateAllWarehouseLocations, normalizeLocation } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2 } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +42,8 @@ import { UserProfile } from '@/components/profile/UserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
 import { UnitConversionSettings } from '@/components/UnitConversionSettings';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
+import { AddProductForm } from '@/components/AddProductForm';
+import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -460,10 +462,10 @@ const Index = memo(() => {
 
   const handleTestQRUrl = useCallback(() => {
     // Test the QR URL functionality
-    const testLocation = 'A/4/7';
+    const testLocation = 'A7/4';
 
     toast({
-      title: '🧪 Test QR URL สำหรับ A/4/7',
+      title: '🧪 Test QR URL สำหรับ A7/4',
       description: `จะเปิดหน้า QR Modal พร้อมข้อมูลจริง`,
       duration: 3000,
     });
@@ -689,7 +691,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-10 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-5 md:grid-cols-7 lg:grid-cols-11 bg-white border border-gray-200">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               <span className="hidden sm:inline">แผนผัง</span>
@@ -697,6 +699,10 @@ const Index = memo(() => {
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
+            </TabsTrigger>
+            <TabsTrigger value="add-product" className="flex items-center gap-2 bg-green-50 hover:bg-green-100">
+              <PackagePlus className="h-4 w-4 text-green-600" />
+              <span className="hidden sm:inline text-green-600 font-medium">จัดการสินค้า</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -760,6 +766,11 @@ const Index = memo(() => {
               loading={loading}
             />
           </TabsContent>
+
+          <TabsContent value="add-product" className="space-y-4">
+            <AddProductForm />
+          </TabsContent>
+
 
           <TabsContent value="table" className="space-y-4">
             {loading ? (

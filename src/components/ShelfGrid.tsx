@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw, Grid3X3 } from 'lucide-react';
 import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
@@ -139,7 +139,7 @@ const ShelfCard = memo(({
               </div>
 
               {itemCount === 1 && locationItems[0]?.lot && (
-                <div className="text-[8px] text-slate-500 mt-1 truncate px-1 bg-white/50 rounded px-1 py-0.5">
+                <div className="text-[8px] text-slate-500 mt-1 truncate bg-white/50 rounded px-1 py-0.5">
                   {locationItems[0]?.lot}
                 </div>
               )}
@@ -168,7 +168,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
   const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
-  const [visibleRowsCount, setVisibleRowsCount] = useState(4); // Start with only 4 rows visible to reduce initial render load
+  const [visibleRowsCount, setVisibleRowsCount] = useState(10); // Show more rows initially for better data visibility
   const [showScanner, setShowScanner] = useState(false);
   const [recentlyUpdatedLocations, setRecentlyUpdatedLocations] = useState<Set<string>>(new Set());
 
@@ -319,9 +319,9 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
   }, [filteredItems, filters]);
 
   // Generate shelf grid configuration
-  const { levels, positions } = useMemo(() => ({
+  const { levels, positionsPerRow } = useMemo(() => ({
     levels: [4, 3, 2, 1], // Display from top to bottom: 4, 3, 2, 1
-    positions: Array.from({ length: 20 }, (_, i) => i + 1)
+    positionsPerRow: 20 // Number of positions per row
   }), []);
 
   return (
@@ -432,8 +432,14 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
             )}
 
             {/* Results Summary */}
-            <div className="text-sm text-muted-foreground">
-              แสดงผล: {filteredItems.length} จาก {items.length} รายการ
+            <div className="text-sm text-muted-foreground space-y-1">
+              <div>แสดงผล: {filteredItems.length} จาก {items.length} รายการ</div>
+              <div className="flex flex-wrap gap-4 text-xs">
+                <span>📦 ตำแหน่งที่มีสินค้า: {Object.keys(itemsByLocation).length}</span>
+                <span>📋 แถวที่แสดง: {visibleRowsCount}/{availableRows.length}</span>
+                <span>🏗️ ตำแหน่งรวม: {availableRows.length * 4 * 20} ตำแหน่ง</span>
+                <span>💾 สถานะ: {loading ? 'กำลังโหลด...' : 'โหลดเสร็จ'}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -453,7 +459,8 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                 <div key={level} className="mb-3">
                   <div className="overflow-x-auto scroll-smooth">
                     <div className="flex gap-1.5 pb-2" style={{ minWidth: 'max-content' }}>
-                      {positions.map((position) => {
+                      {Array.from({ length: positionsPerRow }, (_, positionIndex) => {
+                        const position = positionIndex + 1; // Position within row (1-20)
                         const location = formatLocation(row, position, level);
                         const normalizedLocation = normalizeLocation(location);
                         const locationItems = itemsByLocation[normalizedLocation] || [];
@@ -576,7 +583,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
 
                                         {/* LOT for single item */}
                                         {itemCount === 1 && locationItems[0]?.lot && (
-                                          <div className="text-[8px] text-slate-500 mt-1 truncate px-1 bg-white/50 rounded px-1 py-0.5">
+                                          <div className="text-[8px] text-slate-500 mt-1 truncate bg-white/50 rounded px-1 py-0.5">
                                             {locationItems[0]?.lot}
                                           </div>
                                         )}
@@ -689,7 +696,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
 
         {/* Load More Rows Button */}
         {visibleRowsCount < availableRows.length && (
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-2">
             <Button
               onClick={() => setVisibleRowsCount(prev => Math.min(prev + 2, availableRows.length))}
               variant="outline"
@@ -697,6 +704,14 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
             >
               <Plus className="h-4 w-4" />
               โหลดแถวเพิ่มเติม ({availableRows.length - visibleRowsCount} แถวเหลือ)
+            </Button>
+            <Button
+              onClick={() => setVisibleRowsCount(availableRows.length)}
+              variant="secondary"
+              className="flex items-center gap-2"
+            >
+              <Grid3X3 className="h-4 w-4" />
+              แสดงทั้งหมด (แถว A-{availableRows[availableRows.length - 1]})
             </Button>
           </div>
         )}
@@ -760,7 +775,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
             </div>
 
             <div className="mt-3 text-xs text-muted-foreground space-y-1">
-              <p>• ระบบคลัง: 14 แถว (A-N) × 4 ชั้น × 20 ตำแหน่ง = {14 * 4 * 20} ตำแหน่งทั้งหมด</p>
+              <p>• ระบบคลัง: 26 แถว (A-Z) × 4 ชั้น × 20 ตำแหน่ง = {26 * 4 * 20} ตำแหน่งทั้งหมด</p>
               <p>• การแสดงผล: โหลดแบบค่อยเป็นค่อยไป {visibleRowsCount} แถวแรก (ประหยัดประสิทธิภาพ)</p>
               <p>• การเรียงชั้น: ชั้น 4 (บนสุด) → ชั้น 3 → ชั้น 2 → ชั้น 1 (ล่างสุด)</p>
               <p>• ตัวเลขในตำแหน่ง: จำนวนลัง+เศษ (เช่น 5+3 = 5 ลัง 3 เศษ)</p>

@@ -68,8 +68,8 @@ export function LocationTransferModal({
       });
     }
 
-    // 3. เพิ่มตำแหน่งตาม ShelfGrid pattern (A/4/1 ถึง N/1/20)
-    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+    // 3. เพิ่มตำแหน่งตาม ShelfGrid pattern (A1/4 ถึง Z20/1)
+    const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
     const levels = [4, 3, 2, 1];
     const positions = Array.from({ length: 20 }, (_, i) => i + 1);
 

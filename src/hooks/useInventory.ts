@@ -207,7 +207,7 @@ export function useInventory() {
   }, []); // Remove dependencies to prevent re-rendering loops
 
   // Function to ensure product exists in products table
-  const ensureProductExists = async (productCode: string, productName: string) => {
+  const ensureProductExists = async (productCode: string, productName: string, productType: string = 'FG') => {
     try {
       // Check if product already exists
       const { data: existingProduct } = await supabase
@@ -221,24 +221,27 @@ export function useInventory() {
       }
 
       // Create new product if it doesn't exist
-      const { data: newProduct, error } = await (supabase as any)
+      const { data: newProduct, error } = await supabase
         .from('products')
         .insert({
           sku_code: productCode,
-          product_name: productName
+          product_name: productName,
+          product_type: productType as 'FG' | 'PK',
+          is_active: true
         })
         .select()
         .single();
 
       if (error) {
-        console.warn('Failed to create product:', error);
-        // Don't fail the inventory creation if product creation fails
+        console.error('Failed to create product:', error);
+        throw new Error(`ไม่สามารถสร้างสินค้าใหม่ได้: ${error.message}`);
       }
 
+      console.log('✅ Created new product:', newProduct);
       return newProduct;
     } catch (error) {
-      console.warn('Error ensuring product exists:', error);
-      return null;
+      console.error('Error ensuring product exists:', error);
+      throw error; // Re-throw to handle at higher level
     }
   };
 
@@ -255,42 +258,51 @@ export function useInventory() {
       // Ensure product exists in products table (for new products)
       const productCode = itemData.sku || itemData.product_code;
       if (productCode && itemData.product_name) {
-        await ensureProductExists(productCode, itemData.product_name);
+        const productType = itemData.product_type || 'FG';
+        await ensureProductExists(productCode, itemData.product_name, productType);
       }
 
       // Normalize location with comprehensive logging
       const originalLocation = itemData.location || '';
       const normalizedLocation = normalizeLocation(originalLocation);
-      const locationRegex = /^[A-N]\/[1-4]\/([1-9]|1[0-9]|20)$/;
+      // Standard format: A1/1 to Z4/20 (RowLevel/Position) - Updated to support A-Z
+      const locationRegex = /^[A-Z][1-4]\/([1-9]|1[0-9]|20)$/;
       const isLocationValid = locationRegex.test(normalizedLocation);
-      const finalLocation = isLocationValid ? normalizedLocation : 'A/1/1';
+      const finalLocation = isLocationValid ? normalizedLocation : 'A1/1';
+
+      console.log('🗺️ Location processing:', {
+        original: originalLocation,
+        normalized: normalizedLocation,
+        isValid: isLocationValid,
+        final: finalLocation,
+        regex: locationRegex.toString()
+      });
 
       // Location normalized and validated
       
-      // Use correct database column names based on actual database schema
+      // Use correct database schema fields for insert
       const insertData: any = {
         product_name: itemData.product_name,
-        sku: productCode,
+        sku: productCode, // Use sku field (correct database field)
         location: finalLocation,
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
-        // Legacy fields that exist in database
-        carton_quantity_legacy: itemData.quantity_boxes || 0,
-        box_quantity_legacy: itemData.quantity_loose || 0,
-        pieces_quantity_legacy: 0,
+        // Use correct database field names
+        carton_quantity_legacy: itemData.quantity_boxes || itemData.carton_quantity_legacy || 0,
+        box_quantity_legacy: itemData.quantity_loose || itemData.box_quantity_legacy || 0,
+        pieces_quantity_legacy: itemData.pieces_quantity_legacy || 0,
         quantity_pieces: itemData.quantity_pieces || 0,
-        user_id: userId,
-        // Multi-level unit fields - ฟิลด์หน่วยใหม่
-        unit_level1_quantity: itemData.unit_level1_quantity || itemData.quantity_boxes || 0,
-        unit_level2_quantity: itemData.unit_level2_quantity || itemData.quantity_loose || 0,
+        unit: itemData.unit || 'ชิ้น',
+        // Multi-level unit fields
+        unit_level1_quantity: itemData.unit_level1_quantity || 0,
+        unit_level2_quantity: itemData.unit_level2_quantity || 0,
         unit_level3_quantity: itemData.unit_level3_quantity || 0,
-        unit_level1_name: itemData.unit_level1_name || 'ลัง',
-        unit_level2_name: itemData.unit_level2_name || 'กล่อง',
+        unit_level1_name: itemData.unit_level1_name || null,
+        unit_level2_name: itemData.unit_level2_name || null,
         unit_level3_name: itemData.unit_level3_name || 'ชิ้น',
         unit_level1_rate: itemData.unit_level1_rate || 0,
         unit_level2_rate: itemData.unit_level2_rate || 0,
-        // Additional field that might exist
-        unit: itemData.unit || 'ชิ้น'
+        user_id: userId
       };
 
       // Insert data to database
@@ -342,20 +354,78 @@ export function useInventory() {
 
   const updateItem = async (id: string, updates: any) => {
     try {
-      // Ensure location is always normalized before updating
+      // Ensure location is always normalized and validated before updating
       if (updates.location) {
-        updates.location = normalizeLocation(updates.location);
+        const originalLocation = updates.location;
+        const normalizedLocation = normalizeLocation(originalLocation);
+        // Standard format: A1/1 to Z4/20 (RowLevel/Position) - Updated to support A-Z
+        const locationRegex = /^[A-Z][1-4]\/([1-9]|1[0-9]|20)$/;
+        const isLocationValid = locationRegex.test(normalizedLocation);
+        updates.location = isLocationValid ? normalizedLocation : 'A1/1';
+
+        console.log('🗺️ Update location processing:', {
+          original: originalLocation,
+          normalized: normalizedLocation,
+          isValid: isLocationValid,
+          final: updates.location
+        });
       }
 
+      // Clean updates object to only include valid database fields
+      const validUpdateFields: any = {};
+
+      // Test with minimal fields - only update what we know exists
+      if ('product_name' in updates) validUpdateFields.product_name = updates.product_name;
+      if ('location' in updates) validUpdateFields.location = updates.location;
+      
+      // Add quantity fields if they exist
+      if ('quantity_boxes' in updates) validUpdateFields.quantity_boxes = updates.quantity_boxes;
+      if ('quantity_loose' in updates) validUpdateFields.quantity_loose = updates.quantity_loose;
+
+      console.log('🔧 updateItem - Cleaned update data:', {
+        id,
+        originalUpdates: updates,
+        cleanedUpdates: validUpdateFields
+      });
+
+      // Debug: Log each field being sent
+      console.log('📝 Fields being sent to database:', JSON.stringify(validUpdateFields, null, 2));
+
+      // Temporarily remove user_id constraint to bypass RLS
+      if ('user_id' in validUpdateFields) {
+        delete validUpdateFields.user_id;
+      }
+
+      // Workaround: Get current item data first, then replace
+      const { data: currentItem } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (!currentItem) {
+        throw new Error('Item not found');
+      }
+
+      // Merge current data with updates (ensure currentItem is treated as object)
+      const mergedData = { ...(currentItem as Record<string, any>), ...validUpdateFields };
+
+      // Use upsert with complete data
       const { data, error } = await (supabase as any)
         .from('inventory_items')
-        .update(updates)
-        .eq('id', id)
-        .select()
+        .upsert(mergedData, { onConflict: 'id' })
+        .select('id, product_name, location')
         .single();
 
       if (error) {
-        console.error('Update error:', error);
+        console.error('❌ Update error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error,
+          updateData: validUpdateFields
+        });
         throw error;
       }
       

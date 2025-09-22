@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { EditProductModal } from '@/components/EditProductModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,11 +21,19 @@ import {
   Package2,
   Hash,
   MapPin,
-  Box
+  Box,
+  Edit,
+  Trash2,
+  MoreHorizontal
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { ProductConversionRate } from '@/integrations/supabase/types';
+import { useProducts } from '@/hooks/useProducts';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import type { ProductConversionRate, Database } from '@/integrations/supabase/types';
+
+type Product = Database['public']['Tables']['products']['Row'];
 
 interface ProductSummaryData {
   id: string;
@@ -46,8 +55,17 @@ type SortField = 'sku_code' | 'product_name' | 'total_stock_quantity' | 'invento
 type SortDirection = 'asc' | 'desc';
 
 export function ProductSummaryTable() {
+  const { deleteProduct } = useProducts();
   const [products, setProducts] = useState<ProductSummaryData[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Edit modal state
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Delete confirmation state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<ProductSummaryData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('total_stock_quantity');
@@ -300,6 +318,136 @@ export function ProductSummaryTable() {
     });
   };
 
+  // Handler functions
+  const handleEdit = async (product: ProductSummaryData) => {
+    try {
+      // Fetch the full product data from the database
+      const { data: fullProduct, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', product.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching product:', error);
+        toast({
+          title: 'ข้อผิดพลาด',
+          description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      setSelectedProduct(fullProduct as Product);
+      setEditModalOpen(true);
+    } catch (error) {
+      console.error('Error in handleEdit:', error);
+      toast({
+        title: 'ข้อผิดพลาด',
+        description: 'เกิดข้อผิดพลาดในการเปิดหน้าแก้ไข',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleDeleteClick = (product: ProductSummaryData) => {
+    setProductToDelete(product);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!productToDelete) return;
+
+    try {
+      const success = await deleteProduct(productToDelete.id);
+      if (success) {
+        setDeleteConfirmOpen(false);
+        setProductToDelete(null);
+        // Refresh data by re-fetching
+        const fetchData = async () => {
+          try {
+            setLoading(true);
+            // Re-fetch products after deletion
+            const { data: productsData, error: productsError } = await supabase
+              .from('products')
+              .select('id, sku_code, product_name, product_type');
+
+            if (productsError) {
+              console.error('Error fetching products:', productsError);
+              return;
+            }
+
+            // Fetch all inventory items
+            const { data: inventoryData } = await supabase
+              .from('inventory_items')
+              .select('sku, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity');
+
+            // Process and update products
+            const inventoryMap = new Map();
+            inventoryData?.forEach(item => {
+              if (!inventoryMap.has(item.sku)) {
+                inventoryMap.set(item.sku, {
+                  totalL1: 0, totalL2: 0, totalL3: 0, locationCount: 0
+                });
+              }
+              const inv = inventoryMap.get(item.sku);
+              inv.totalL1 += item.unit_level1_quantity || 0;
+              inv.totalL2 += item.unit_level2_quantity || 0;
+              inv.totalL3 += item.unit_level3_quantity || 0;
+              inv.locationCount += 1;
+            });
+
+            const processedProducts = productsData?.map(product => {
+              const inventory = inventoryMap.get(product.sku_code);
+              const rate = conversionRates.get(product.sku_code);
+
+              let total_stock_quantity = 0;
+              let inventory_items_count = 0;
+
+              if (inventory) {
+                inventory_items_count = inventory.locationCount;
+
+                if (rate) {
+                  const level1Pieces = inventory.totalL1 * (rate.unit_level1_rate || 0);
+                  const level2Pieces = inventory.totalL2 * (rate.unit_level2_rate || 0);
+                  const level3Pieces = inventory.totalL3;
+                  total_stock_quantity = level1Pieces + level2Pieces + level3Pieces;
+                } else {
+                  total_stock_quantity = inventory.totalL1 + inventory.totalL2 + inventory.totalL3;
+                }
+              }
+
+              return {
+                id: product.id,
+                sku_code: product.sku_code,
+                product_name: product.product_name,
+                product_type: product.product_type,
+                total_stock_quantity,
+                inventory_items_count,
+                conversion_rates: rate
+              };
+            }) || [];
+
+            setProducts(processedProducts);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+    }
+  };
+
+  const handleEditSuccess = () => {
+    setEditModalOpen(false);
+    setSelectedProduct(null);
+    // Refresh data after successful edit
+    window.location.reload();
+  };
+
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
     const totalProducts = filteredAndSortedProducts.length;
@@ -473,6 +621,7 @@ export function ProductSummaryTable() {
                       {getSortIcon('inventory_items_count')}
                     </div>
                   </TableHead>
+                  <TableHead className="text-center w-24">จัดการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -508,11 +657,36 @@ export function ProductSummaryTable() {
                         {product.inventory_items_count}
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleEdit(product)}
+                            className="flex items-center gap-2"
+                          >
+                            <Edit className="h-4 w-4" />
+                            แก้ไข
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDeleteClick(product)}
+                            className="flex items-center gap-2 text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            ลบ
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {currentProducts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       ไม่พบข้อมูลสินค้าที่ตรงกับเงื่อนไข
                     </TableCell>
                   </TableRow>
@@ -552,6 +726,42 @@ export function ProductSummaryTable() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Product Modal */}
+      <EditProductModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+        onSuccess={handleEditSuccess}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการลบสินค้า</AlertDialogTitle>
+            <AlertDialogDescription>
+              คุณแน่ใจหรือไม่ที่จะลบสินค้า "{productToDelete?.product_name}" (SKU: {productToDelete?.sku_code})?
+              <br />
+              <span className="text-red-600 font-medium">
+                การลบจะไม่สามารถกู้คืนได้ และจะส่งผลต่อข้อมูล inventory ที่เกี่ยวข้อง
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              ลบสินค้า
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

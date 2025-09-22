@@ -21,12 +21,36 @@ export function ResourceMonitor() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMetrics(resourceMonitor.getMetrics());
-    }, 10000); // Reduced from 2s to 10s to save resources
+    // Use requestAnimationFrame for better performance
+    let animationId: number;
+    let lastUpdate = 0;
 
-    return () => clearInterval(interval);
-  }, []);
+    const updateMetrics = (timestamp: number) => {
+      // Only update every 15 seconds to reduce CPU usage
+      if (timestamp - lastUpdate >= 15000) {
+        try {
+          setMetrics(resourceMonitor.getMetrics());
+          lastUpdate = timestamp;
+        } catch (error) {
+          console.warn('ResourceMonitor update failed:', error);
+        }
+      }
+
+      if (isVisible) {
+        animationId = requestAnimationFrame(updateMetrics);
+      }
+    };
+
+    if (isVisible) {
+      animationId = requestAnimationFrame(updateMetrics);
+    }
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }, [isVisible]);
 
   const getStatusColor = (value: number, thresholds: { good: number; warning: number }) => {
     if (value <= thresholds.good) return 'text-green-600';

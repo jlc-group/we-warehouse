@@ -12,6 +12,7 @@ import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
+import { useProducts } from '@/hooks/useProducts';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
 
 type Product = Database['public']['Tables']['products']['Row'];
@@ -47,8 +48,8 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   const [locationFilter, setLocationFilter] = useState<'all' | 'empty' | 'occupied'>('all');
   const [rowFilter, setRowFilter] = useState<string>('all');
 
-  // Product management states
-  const [products, setProducts] = useState<Product[]>([]);
+  // Product management states - now using useProducts hook
+  const { products } = useProducts();
   const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
   const [isNewProduct, setIsNewProduct] = useState(false);
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
@@ -121,26 +122,8 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
     onClose();
   };
 
-  // Fetch products data on mount
-  useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('product_name');
-
-        if (error) throw error;
-        setProducts(data || []);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      }
-    };
-
-    if (isOpen) {
-      fetchProducts();
-    }
-  }, [isOpen]);
+  // Products are now fetched via useProducts hook
+  console.log('BulkAddModal: Using products from hook, count:', products?.length || 0);
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
@@ -533,7 +516,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
             {/* Custom Location Input */}
             <div className="flex gap-2">
               <Input
-                placeholder="เพิ่มตำแหน่งใหม่ (เช่น A/1/1)"
+                placeholder="เพิ่มตำแหน่งใหม่ (เช่น A1/1)"
                 value={customLocation}
                 onChange={(e) => setCustomLocation(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleAddCustomLocation()}
@@ -583,7 +566,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="ค้นหาตำแหน่ง (เช่น A/1 หรือ A/1/1)"
+                    placeholder="ค้นหาตำแหน่ง (เช่น A1 หรือ A1/1)"
                     value={locationSearch}
                     onChange={(e) => setLocationSearch(e.target.value)}
                     className="pl-10"
