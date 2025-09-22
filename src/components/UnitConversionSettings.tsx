@@ -61,6 +61,8 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [selectedProductType, setSelectedProductType] = useState<string>('');
+  const [tableProductTypeFilter, setTableProductTypeFilter] = useState<string>('');
   const { toast } = useToast();
 
   // Load conversion data and products
@@ -278,21 +280,32 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
               item.unit_level1_rate && item.unit_level1_rate > 0);
   };
 
-  // Filter conversion data based on search query
+  // Filter conversion data based on search query and product type
   const filteredConversionData = useMemo(() => {
-    if (!tableSearchQuery.trim()) {
-      return conversionData;
+    let filtered = conversionData;
+
+    // Filter by search query
+    if (tableSearchQuery.trim()) {
+      const query = tableSearchQuery.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.sku.toLowerCase().includes(query) ||
+        item.product_name.toLowerCase().includes(query) ||
+        item.unit_level1_name?.toLowerCase().includes(query) ||
+        item.unit_level2_name?.toLowerCase().includes(query) ||
+        item.unit_level3_name?.toLowerCase().includes(query)
+      );
     }
 
-    const query = tableSearchQuery.toLowerCase();
-    return conversionData.filter(item =>
-      item.sku.toLowerCase().includes(query) ||
-      item.product_name.toLowerCase().includes(query) ||
-      item.unit_level1_name?.toLowerCase().includes(query) ||
-      item.unit_level2_name?.toLowerCase().includes(query) ||
-      item.unit_level3_name?.toLowerCase().includes(query)
-    );
-  }, [conversionData, tableSearchQuery]);
+    // Filter by product type
+    if (tableProductTypeFilter) {
+      filtered = filtered.filter(item => {
+        const product = allProducts.find(p => p.sku_code === item.sku);
+        return product?.product_type === tableProductTypeFilter;
+      });
+    }
+
+    return filtered;
+  }, [conversionData, tableSearchQuery, tableProductTypeFilter, allProducts]);
 
   if (loading) {
     return (
@@ -356,20 +369,55 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
             รายการตั้งค่าแปลงหน่วย
           </CardTitle>
 
-          {/* Search box for table */}
-          <div className="mt-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="ค้นหา SKU, ชื่อสินค้า, หน่วย..."
-                value={tableSearchQuery}
-                onChange={(e) => setTableSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+          {/* Search box and filters for table */}
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="ค้นหา SKU, ชื่อสินค้า, หน่วย..."
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Product type filter buttons */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">ประเภทสินค้า:</span>
+                <Button
+                  variant={tableProductTypeFilter === '' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTableProductTypeFilter('')}
+                  className="text-xs"
+                >
+                  ทั้งหมด
+                </Button>
+                <Button
+                  variant={tableProductTypeFilter === 'FG' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTableProductTypeFilter('FG')}
+                  className="text-xs bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+                >
+                  FG
+                </Button>
+                <Button
+                  variant={tableProductTypeFilter === 'PK' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setTableProductTypeFilter('PK')}
+                  className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
+                >
+                  PK
+                </Button>
+              </div>
             </div>
-            {tableSearchQuery && (
-              <p className="text-sm text-gray-500 mt-2">
-                พบ {filteredConversionData.length} รายการจากการค้นหา "{tableSearchQuery}"
+
+            {(tableSearchQuery || tableProductTypeFilter) && (
+              <p className="text-sm text-gray-500">
+                พบ {filteredConversionData.length} รายการ
+                {tableSearchQuery && ` จากการค้นหา "${tableSearchQuery}"`}
+                {tableProductTypeFilter && ` ประเภท ${tableProductTypeFilter}`}
+                {(tableSearchQuery || tableProductTypeFilter) && ` จากทั้งหมด ${conversionData.length} รายการ`}
               </p>
             )}
           </div>
@@ -381,6 +429,7 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                 <TableRow>
                   <TableHead>SKU</TableHead>
                   <TableHead>ชื่อสินค้า</TableHead>
+                  <TableHead>ประเภท</TableHead>
                   <TableHead>หน่วยระดับ 1</TableHead>
                   <TableHead>หน่วยระดับ 2</TableHead>
                   <TableHead>หน่วยระดับ 3</TableHead>
@@ -391,15 +440,31 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredConversionData.map((item) => (
-                  <TableRow key={item.sku}>
-                    <TableCell className="font-mono font-medium">{item.sku}</TableCell>
-                    <TableCell className="max-w-xs truncate" title={item.product_name}>
-                      {item.product_name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{item.unit_level1_name || 'ไม่ได้ตั้งค่า'}</Badge>
-                    </TableCell>
+                {filteredConversionData.map((item) => {
+                  const product = allProducts.find(p => p.sku_code === item.sku);
+                  return (
+                    <TableRow key={item.sku}>
+                      <TableCell className="font-mono font-medium">{item.sku}</TableCell>
+                      <TableCell className="max-w-xs truncate" title={item.product_name}>
+                        {item.product_name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            product?.product_type === 'FG'
+                              ? 'bg-green-100 text-green-800 border-green-300'
+                              : product?.product_type === 'PK'
+                              ? 'bg-blue-100 text-blue-800 border-blue-300'
+                              : ''
+                          }
+                        >
+                          {product?.product_type || 'N/A'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{item.unit_level1_name || 'ไม่ได้ตั้งค่า'}</Badge>
+                      </TableCell>
                     <TableCell>
                       <Badge variant="outline">{item.unit_level2_name || 'ไม่ได้ตั้งค่า'}</Badge>
                     </TableCell>
@@ -432,23 +497,24 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                           ยังไม่ได้ตั้งค่า
                         </Badge>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditClick(item)}
-                        className="flex items-center gap-1"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                        แก้ไข
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditClick(item)}
+                          className="flex items-center gap-1"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                          แก้ไข
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {filteredConversionData.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       {tableSearchQuery
                         ? `ไม่พบรายการที่ตรงกับ "${tableSearchQuery}"`
                         : 'ยังไม่มีการตั้งค่าแปลงหน่วย'
@@ -637,17 +703,48 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
               </AlertDescription>
             </Alert>
 
-            <div className="space-y-2">
-              <Label htmlFor="product-search">ค้นหาสินค้า</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="product-search"
-                  placeholder="ค้นหาด้วย SKU หรือชื่อสินค้า..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="product-search">ค้นหาสินค้า</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="product-search"
+                    placeholder="ค้นหาด้วย SKU หรือชื่อสินค้า..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Product type filter for create dialog */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">ประเภทสินค้า:</span>
+                <Button
+                  variant={selectedProductType === '' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedProductType('')}
+                  className="text-xs"
+                >
+                  ทั้งหมด
+                </Button>
+                <Button
+                  variant={selectedProductType === 'FG' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedProductType('FG')}
+                  className="text-xs bg-green-100 hover:bg-green-200 text-green-800 border-green-300"
+                >
+                  FG
+                </Button>
+                <Button
+                  variant={selectedProductType === 'PK' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedProductType('PK')}
+                  className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
+                >
+                  PK
+                </Button>
               </div>
             </div>
 
@@ -662,10 +759,12 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                     {allProducts
                       .filter(product => {
                         const query = searchQuery.toLowerCase();
-                        return (
+                        const matchesSearch = (
                           product.sku_code.toLowerCase().includes(query) ||
                           product.product_name.toLowerCase().includes(query)
                         );
+                        const matchesType = selectedProductType === '' || product.product_type === selectedProductType;
+                        return matchesSearch && matchesType;
                       })
                       // Show all products - let user create new or edit existing
                       .map((product) => {
@@ -726,6 +825,7 @@ export function UnitConversionSettings({ onClose }: UnitConversionSettingsProps)
                   setShowCreateDialog(false);
                   setSelectedProductId('');
                   setSearchQuery('');
+                  setSelectedProductType('');
                 }}
               >
                 ยกเลิก

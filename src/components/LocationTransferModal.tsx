@@ -16,6 +16,7 @@ import { useState, useEffect, useMemo } from 'react';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
 import { formatLocation, normalizeLocation, displayLocation } from '@/utils/locationUtils';
+import { LocationConflictDialog } from './LocationConflictDialog';
 
 interface LocationTransferModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ interface LocationTransferModalProps {
   items: InventoryItem[];
   initialSourceLocation?: string;
   onRefreshData?: () => void; // เพิ่ม callback สำหรับ refresh ข้อมูล
+  getItemsAtLocation?: (location: string) => InventoryItem[]; // เพิ่มฟังก์ชันตรวจสอบสินค้าใน location
 }
 
 export function LocationTransferModal({
@@ -34,7 +36,8 @@ export function LocationTransferModal({
   onShipOut,
   items,
   initialSourceLocation,
-  onRefreshData
+  onRefreshData,
+  getItemsAtLocation
 }: LocationTransferModalProps) {
   const [activeTab, setActiveTab] = useState('transfer');
   const [sourceLocation, setSourceLocation] = useState(initialSourceLocation || '');
@@ -46,6 +49,12 @@ export function LocationTransferModal({
   const [sourceLocationOpen, setSourceLocationOpen] = useState(false);
   const [targetLocationOpen, setTargetLocationOpen] = useState(false);
   const [shipOutLocationOpen, setShipOutLocationOpen] = useState(false);
+  const [showConflictDialog, setShowConflictDialog] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    targetLocation: string;
+    itemsToMove: InventoryItem[];
+    existingItems: InventoryItem[];
+  } | null>(null);
 
   // Get warehouse locations data for empty locations
   const { locationsWithInventory: warehouseLocations, loading: warehouseLoading } = useWarehouseLocations('', 100);
@@ -193,11 +202,27 @@ export function LocationTransferModal({
       return;
     }
 
-    if (!isTargetLocationAvailable) {
-      setTransferStatus('error');
+
+    // ตรวจสอบว่า target location มีสินค้าอยู่แล้วหรือไม่
+    const existingItemsAtTarget = getItemsAtLocation ? getItemsAtLocation(targetLocation) : [];
+    const itemsToMove = items.filter(item => selectedItems.has(item.id));
+
+    // ถ้ามีสินค้าอยู่แล้ว แสดง confirmation dialog
+    if (existingItemsAtTarget.length > 0) {
+      setConflictData({
+        targetLocation,
+        itemsToMove,
+        existingItems: existingItemsAtTarget
+      });
+      setShowConflictDialog(true);
       return;
     }
 
+    // ถ้าไม่มีสินค้าอยู่ ดำเนินการย้ายทันที
+    await performTransfer();
+  };
+
+  const performTransfer = async () => {
     try {
       setIsTransferring(true);
       setTransferStatus('idle');
@@ -229,7 +254,18 @@ export function LocationTransferModal({
       setTransferStatus('error');
     } finally {
       setIsTransferring(false);
+      setShowConflictDialog(false);
+      setConflictData(null);
     }
+  };
+
+  const handleConfirmTransfer = () => {
+    performTransfer();
+  };
+
+  const handleCancelTransfer = () => {
+    setShowConflictDialog(false);
+    setConflictData(null);
   };
 
   // Handle ship out
@@ -282,7 +318,7 @@ export function LocationTransferModal({
     }), { level1: 0, level2: 0, level3: 0, items: 0 });
   }, [sourceItems, selectedItems]);
 
-  const canTransfer = selectedItems.size > 0 && targetLocation && sourceLocation && sourceLocation !== targetLocation && isTargetLocationAvailable;
+  const canTransfer = selectedItems.size > 0 && targetLocation && sourceLocation && sourceLocation !== targetLocation;
   const canShipOut = selectedItems.size > 0 && sourceLocation && onShipOut;
 
   return (
@@ -315,7 +351,6 @@ export function LocationTransferModal({
               <AlertDescription>
                 ❌ เกิดข้อผิดพลาดในการดำเนินการ กรุณาลองใหม่อีกครั้ง
                 {activeTab === 'transfer' && sourceLocation === targetLocation && ' (ตำแหน่งต้นทางและปลายทางต้องแตกต่างกัน)'}
-                {activeTab === 'transfer' && !isTargetLocationAvailable && targetLocation && ' (ตำแหน่งปลายทางมีสินค้าอยู่แล้ว ต้องเป็นตำแหน่งว่างเท่านั้น)'}
               </AlertDescription>
             </Alert>
           )}
@@ -425,7 +460,7 @@ export function LocationTransferModal({
                           variant="outline"
                           role="combobox"
                           aria-expanded={targetLocationOpen}
-                          className={`w-full justify-between ${!isTargetLocationAvailable && targetLocation ? 'border-red-500' : ''}`}
+                          className="w-full justify-between"
                         >
                           {targetLocation ? displayLocation(targetLocation) : "เลือกตำแหน่งปลายทาง"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -445,12 +480,9 @@ export function LocationTransferModal({
                                     <CommandItem
                                       key={location}
                                       value={location}
-                                      disabled={!locationInfo.isEmpty}
                                       onSelect={(currentValue) => {
-                                        if (locationInfo.isEmpty) {
-                                          setTargetLocation(currentValue === targetLocation ? "" : currentValue);
-                                          setTargetLocationOpen(false);
-                                        }
+                                        setTargetLocation(currentValue === targetLocation ? "" : currentValue);
+                                        setTargetLocationOpen(false);
                                       }}
                                     >
                                       <Check
@@ -472,7 +504,7 @@ export function LocationTransferModal({
                                             </Badge>
                                           )}
                                           <Badge
-                                            variant={locationInfo.isEmpty ? "outline" : "destructive"}
+                                            variant={locationInfo.isEmpty ? "outline" : "secondary"}
                                             className="ml-1 text-xs"
                                           >
                                             {locationInfo.isEmpty ? 'ว่าง - พร้อมรับ' : `มีสินค้า ${locationInfo.inventoryCount} รายการ`}
@@ -521,10 +553,10 @@ export function LocationTransferModal({
 
                   {/* Target Location Status */}
                   {targetLocation && (
-                    <Card className={`${isTargetLocationAvailable ? 'border-green-200' : 'border-red-200'}`}>
+                    <Card className={`${isTargetLocationAvailable ? 'border-green-200' : 'border-blue-200'}`}>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm flex items-center gap-2">
-                          <MapPin className={`h-4 w-4 ${isTargetLocationAvailable ? 'text-green-600' : 'text-red-600'}`} />
+                          <MapPin className={`h-4 w-4 ${isTargetLocationAvailable ? 'text-green-600' : 'text-blue-600'}`} />
                           ตำแหน่งปลายทาง: {displayLocation(targetLocation)}
                         </CardTitle>
                       </CardHeader>
@@ -532,13 +564,13 @@ export function LocationTransferModal({
                         <div className="text-sm">
                           <div className="flex items-center justify-between">
                             <span>สถานะ:</span>
-                            <Badge variant={isTargetLocationAvailable ? "outline" : "destructive"}>
+                            <Badge variant={isTargetLocationAvailable ? "outline" : "secondary"}>
                               {isTargetLocationAvailable ? 'ว่าง - พร้อมรับสินค้า' : `มีสินค้า ${targetItems.length} รายการ`}
                             </Badge>
                           </div>
                           {!isTargetLocationAvailable && (
-                            <div className="mt-2 text-xs text-red-600">
-                              ⚠️ ไม่สามารถย้ายได้ - ต้องเป็นตำแหน่งว่าง
+                            <div className="mt-2 text-xs text-blue-600">
+                              ℹ️ จะย้ายเข้าไปร่วมกับสินค้าที่มีอยู่แล้ว
                             </div>
                           )}
                           {isTargetLocationAvailable && (
@@ -888,6 +920,19 @@ export function LocationTransferModal({
           )}
         </div>
       </DialogContent>
+
+      {/* Location Conflict Dialog */}
+      {conflictData && (
+        <LocationConflictDialog
+          isOpen={showConflictDialog}
+          onClose={handleCancelTransfer}
+          onConfirm={handleConfirmTransfer}
+          targetLocation={conflictData.targetLocation}
+          itemsToMove={conflictData.itemsToMove}
+          existingItemsAtTarget={conflictData.existingItems}
+          isLoading={isTransferring}
+        />
+      )}
     </Dialog>
   );
 }

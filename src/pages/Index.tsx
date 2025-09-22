@@ -94,7 +94,8 @@ const Index = memo(() => {
     accessSummary,
     permissions,
     refetch,
-    clearAllData
+    clearAllData,
+    getItemsAtLocation
   } = useDepartmentInventory();
 
   // Stable memoized inventory items to prevent ShelfGrid re-renders
@@ -961,6 +962,7 @@ const Index = memo(() => {
           onTransfer={transferItems}
           items={inventoryItems}
           onRefreshData={refetch}
+          getItemsAtLocation={getItemsAtLocation}
         />
 
         {/* Location Item Selector Modal */}

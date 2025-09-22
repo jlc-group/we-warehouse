@@ -867,6 +867,12 @@ export function useInventory() {
     return timestampedItems;
   }, [items, toast]);
 
+  // Check items in target location
+  const getItemsAtLocation = useCallback((location: string): InventoryItem[] => {
+    const normalizedLocation = normalizeLocation(location);
+    return items.filter(item => normalizeLocation(item.location) === normalizedLocation);
+  }, [items]);
+
   // Transfer items between locations
   const transferItems = useCallback(async (itemIds: string[], targetLocation: string, notes?: string) => {
     try {
@@ -1033,6 +1039,7 @@ export function useInventory() {
     exportItem,
     transferItems,
     shipOutItems,
+    getItemsAtLocation,
     refetch: () => {
       // Manual refetch only when explicitly requested by user
       console.log('Manual refetch requested');
