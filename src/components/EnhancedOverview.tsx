@@ -35,6 +35,8 @@ import {
 } from 'lucide-react';
 import { ShelfGrid } from './ShelfGrid';
 import { MonitorDashboardSimple } from './MonitorDashboardSimple';
+import { SKUDisplay, SKUGrid } from './SKUDisplay';
+import { LotBadge, LotGroup } from './LotBadge';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
@@ -1312,60 +1314,7 @@ export function EnhancedOverview({
       {viewMode === 'monitor' ? (
         <MonitorDashboardSimple items={items} onLocationClick={onShelfClick} />
       ) : (
-        <div className="space-y-6">
-          {/* Quick Stats for Work Mode */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                  <Package className="h-8 w-8 text-blue-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{stats.totalItems}</p>
-                    <p className="text-xs text-muted-foreground">รายการสินค้า</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                  <MapPin className="h-8 w-8 text-green-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{stats.occupiedLocations}</p>
-                    <p className="text-xs text-muted-foreground">ตำแหน่งที่ใช้</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                  <Grid3X3 className="h-8 w-8 text-orange-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{stats.availableLocations}</p>
-                    <p className="text-xs text-muted-foreground">ตำแหน่งว่าง</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-2">
-                  <TrendingUp className="h-8 w-8 text-purple-600" />
-                  <div>
-                    <p className="text-2xl font-bold">{stats.totalQuantity}</p>
-                    <p className="text-xs text-muted-foreground">จำนวนรวม</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Visual Grid - Main Area */}
         <div className="lg:col-span-3">
           <Tabs defaultValue="grid" className="space-y-4">
@@ -2566,7 +2515,6 @@ export function EnhancedOverview({
           </Card>
         </div>
       </div>
-        </div>
       )}
     </div>
   );
