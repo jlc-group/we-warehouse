@@ -93,6 +93,7 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
 
   const loadConversionRates = async () => {
     try {
+      console.log('LocationAddItemModal: Loading conversion rates...');
       const { data, error } = await supabase
         .from('product_conversion_rates')
         .select('*');
@@ -104,6 +105,7 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
         ratesMap[rate.sku] = rate;
       });
       setConversionRates(ratesMap);
+      console.log('LocationAddItemModal: Loaded', Object.keys(ratesMap).length, 'conversion rates');
     } catch (error) {
       console.error('Error loading conversion rates:', error);
     }
@@ -172,6 +174,17 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
       const dbLocationId = convertUrlToDbFormat(locationId);
 
       const rate = conversionRates[newItem.sku];
+
+      // Warn user if no conversion rates are set
+      if (!rate && (newItem.unit_level1_quantity > 0 || newItem.unit_level2_quantity > 0)) {
+        console.warn('No conversion rates found for SKU:', newItem.sku);
+        toast({
+          title: '⚠️ ไม่พบอัตราแปลงหน่วย',
+          description: `SKU ${newItem.sku} ไม่มีการตั้งค่าอัตราแปลงหน่วย อาจจะมีปัญหาในการคำนวณ`,
+          variant: 'destructive'
+        });
+      }
+
       const inventoryData = {
         sku: newItem.sku,
         product_name: newItem.product_name,
@@ -184,14 +197,24 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
         unit_level1_name: rate?.unit_level1_name || 'ลัง',
         unit_level2_name: rate?.unit_level2_name || 'กล่อง',
         unit_level3_name: rate?.unit_level3_name || 'ชิ้น',
-        unit_level1_rate: rate?.unit_level1_rate || 0,
-        unit_level2_rate: rate?.unit_level2_rate || 0,
+        unit_level1_rate: rate?.unit_level1_rate || 1, // Use 1 instead of 0 as fallback
+        unit_level2_rate: rate?.unit_level2_rate || 1, // Use 1 instead of 0 as fallback
         // Legacy fields for compatibility
         carton_quantity_legacy: newItem.unit_level1_quantity,
         box_quantity_legacy: newItem.unit_level2_quantity,
         pieces_quantity_legacy: newItem.unit_level3_quantity,
         unit: 'กล่อง'
       };
+
+      console.log('Adding inventory with conversion rates:', {
+        sku: newItem.sku,
+        hasConversionRate: !!rate,
+        rates: rate,
+        finalRates: {
+          level1_rate: inventoryData.unit_level1_rate,
+          level2_rate: inventoryData.unit_level2_rate
+        }
+      });
 
       const { data, error } = await supabase
         .from('inventory_items')
@@ -292,9 +315,13 @@ export function LocationAddItemModal({ isOpen, onClose, locationId, onSuccess }:
                 <div className="p-3 bg-blue-50 rounded-lg">
                   <div className="font-medium text-blue-800">{newItem.product_name}</div>
                   <div className="text-sm text-blue-600">SKU: {newItem.sku}</div>
-                  {selectedRate && (
-                    <div className="text-xs text-blue-500 mt-1">
-                      มีการตั้งค่าอัตราแปลงหน่วย: {selectedRate.unit_level1_name} ({selectedRate.unit_level1_rate} ชิ้น), {selectedRate.unit_level2_name} ({selectedRate.unit_level2_rate} ชิ้น)
+                  {selectedRate ? (
+                    <div className="text-xs text-green-600 mt-1">
+                      ✅ มีการตั้งค่าอัตราแปลงหน่วย: {selectedRate.unit_level1_name} ({selectedRate.unit_level1_rate} ชิ้น), {selectedRate.unit_level2_name} ({selectedRate.unit_level2_rate} ชิ้น)
+                    </div>
+                  ) : newItem.sku && (
+                    <div className="text-xs text-amber-600 mt-1">
+                      ⚠️ ไม่มีการตั้งค่าอัตราแปลงหน่วย - จะใช้ค่า default (1:1)
                     </div>
                   )}
                 </div>

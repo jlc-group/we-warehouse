@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FilterButton } from '@/components/ui/filter-button';
 import { PieChart, Package, MapPin, Palette, BarChart3, Eye, EyeOff, Search, Filter, X, ChevronDown, ChevronUp, CheckSquare, Square, RotateCcw } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 
@@ -58,6 +59,7 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
     selectedProductCode: '',
     selectedRow: ''
   });
+  const [gridViewMode, setGridViewMode] = useState<'filtered' | 'all'>('filtered');
 
   // Get filter options
   const filterOptions = useMemo(() => {
@@ -578,15 +580,15 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
 
                   {/* Master Controls */}
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={showAllProducts} className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={showAllProducts} className="flex items-center gap-1 text-xs">
                       <CheckSquare className="h-3 w-3" />
                       แสดงทั้งหมด
                     </Button>
-                    <Button variant="outline" size="sm" onClick={hideAllProducts} className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={hideAllProducts} className="flex items-center gap-1 text-xs">
                       <Square className="h-3 w-3" />
                       ซ่อนทั้งหมด
                     </Button>
-                    <Button variant="outline" size="sm" onClick={invertSelection} className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={invertSelection} className="flex items-center gap-1 text-xs">
                       <RotateCcw className="h-3 w-3" />
                       กลับด้าน
                     </Button>
@@ -814,94 +816,268 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
           </TabsContent>
         </Tabs>
 
-        {/* Warehouse Grid */}
+        {/* Enhanced Warehouse Grid with Smart Filtering */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">แผนผังคลัง - {viewMode === 'product' ? 'ตามรหัสสินค้า' : viewMode === 'lot' ? 'ตาม Lot' : 'ความหนาแน่น'}</CardTitle>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>แผนผังคลัง - {viewMode === 'product' ? 'ตามรหัสสินค้า' : viewMode === 'lot' ? 'ตาม Lot' : 'ความหนาแน่น'}</span>
+              <div className="flex items-center gap-2">
+                {/* Grid View Mode Toggle */}
+                <div className="flex items-center gap-1 bg-gray-100 rounded-md p-1">
+                  <Button
+                    variant={gridViewMode === 'filtered' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setGridViewMode('filtered')}
+                    className="h-7 px-2 text-xs"
+                  >
+                    เฉพาะฟิลเตอร์
+                  </Button>
+                  <Button
+                    variant={gridViewMode === 'all' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setGridViewMode('all')}
+                    className="h-7 px-2 text-xs"
+                  >
+                    ทั้งหมด
+                  </Button>
+                </div>
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    แสดง: {statistics.totalLocations} ตำแหน่ง
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-xs">
+                  {Object.keys(itemsByLocation).length > 0 ? 'มีสินค้า' : 'ไม่มีสินค้า'}
+                </Badge>
+              </div>
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {rows.map((row) => (
-                <div key={row} className="space-y-1">
-                  <h3 className="text-md font-semibold text-primary flex items-center gap-2">
-                    <div className="w-5 h-5 bg-primary text-primary-foreground rounded flex items-center justify-center text-xs font-bold">
-                      {row}
-                    </div>
-                    แถว {row}
-                  </h3>
-
-                  {levels.map((level) => (
-                    <div key={level} className="mb-2">
-                      <div className="overflow-x-auto">
-                        <div className="flex gap-1 pb-2" style={{ minWidth: 'max-content' }}>
-                          {positions.map((position) => {
-                            const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
-                            const locationItems = itemsByLocation[location] || [];
-                            const locationColor = getLocationColor(location);
-                            const totalQuantity = locationItems.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0);
-
-                            return (
-                              <Tooltip key={location}>
-                                <TooltipTrigger asChild>
-                                  <div
-                                    className="w-20 h-16 border border-gray-300 rounded cursor-pointer hover:shadow-md transition-all duration-200 flex flex-col justify-between p-1"
-                                    style={{ backgroundColor: locationColor }}
-                                    onClick={() => handleShelfClick(location)}
-                                  >
-                                    <div className="text-[8px] font-mono text-gray-700 text-center leading-none">
-                                      {row}{position}/{level}
-                                    </div>
-
-                                    {locationItems.length > 0 && (
-                                      <div className="text-center">
-                                        <div className="text-[8px] font-bold text-gray-700">
-                                          {locationItems.length} รายการ
-                                        </div>
-                                        <div className="text-[7px] text-gray-600">
-                                          {totalQuantity} ชิ้น
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-80">
-                                  <div className="text-sm space-y-2">
-                                    <div className="font-bold text-primary">📍 ตำแหน่ง: {location}</div>
-                                    {locationItems.length > 0 ? (
-                                      <>
-                                        <div className="text-xs">รายการสินค้า: {locationItems.length}</div>
-                                        <div className="space-y-1">
-                                          {locationItems.slice(0, 3).map((item, idx) => (
-                                            <div key={idx} className="text-xs bg-background p-1 rounded border-l-2 border-l-primary/30">
-                                              <div className="font-medium">{item.product_name}</div>
-                                              <div className="text-muted-foreground">
-                                                 รหัส: {item.sku} {item.lot && `• Lot: ${item.lot}`}
-                                               </div>
-                                               <div>{((item as any).carton_quantity_legacy || 0)} ลัง + {((item as any).box_quantity_legacy || 0)} เศษ</div>
-                                            </div>
-                                          ))}
-                                          {locationItems.length > 3 && (
-                                            <div className="text-xs text-muted-foreground text-center">
-                                              และอีก {locationItems.length - 3} รายการ...
-                                            </div>
-                                          )}
-                                        </div>
-                                      </>
-                                    ) : (
-                                      <div className="text-muted-foreground">ตำแหน่งว่าง</div>
-                                    )}
-                                  </div>
-                                </TooltipContent>
-                              </Tooltip>
-                            );
-                          })}
-                        </div>
+            {Object.keys(itemsByLocation).length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Package className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                <h3 className="text-lg font-medium mb-2">ไม่พบสินค้าตามเงื่อนไขที่เลือก</h3>
+                <p className="text-sm">ลองปรับเปลี่ยนตัวกรองหรือล้างการค้นหาเพื่อดูสินค้าทั้งหมด</p>
+                <Button
+                  variant="outline"
+                  onClick={clearAllFilters}
+                  className="mt-4 flex items-center gap-2"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  ล้างตัวกรองทั้งหมด
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Filter Summary */}
+                {activeFilterCount > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <Filter className="h-4 w-4" />
+                        <span className="text-sm font-medium">
+                          ผลการฟิลเตอร์: แสดง {statistics.totalItems} รายการ ใน {statistics.totalLocations} ตำแหน่ง
+                        </span>
+                      </div>
+                      <div className="text-xs text-blue-600">
+                        โหมด: {gridViewMode === 'filtered' ? 'เฉพาะฟิลเตอร์' : 'ทั้งหมด'}
                       </div>
                     </div>
-                  ))}
+                    {statistics.totalItems !== items.length && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        (กรองจาก {items.length} รายการทั้งหมด)
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Grid Mode Explanation */}
+                {gridViewMode === 'filtered' && activeFilterCount > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                    <div className="text-xs text-green-700">
+                      💡 <strong>โหมดเฉพาะฟิลเตอร์:</strong> แสดงเฉพาะแถว/ชั้นที่มีสินค้าตามเงื่อนไขที่เลือก
+                    </div>
+                  </div>
+                )}
+                {gridViewMode === 'all' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    <div className="text-xs text-amber-700">
+                      📋 <strong>โหมดทั้งหมด:</strong> แสดงทุกตำแหน่งในคลัง (ตำแหน่งที่มีสินค้าตามฟิลเตอร์จะเด่นชัด)
+                    </div>
+                  </div>
+                )}
+
+                {/* Smart Grid Display - Show based on selected mode */}
+                <div className="space-y-3">
+                  {rows
+                    .filter(row => {
+                      if (gridViewMode === 'all') {
+                        return true; // Show all rows
+                      }
+                      // Only show rows that have items after filtering
+                      return levels.some(level =>
+                        positions.some(position => {
+                          const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                          return (itemsByLocation[location] || []).length > 0;
+                        })
+                      );
+                    })
+                    .map((row) => {
+                      // Count items in this row for display
+                      const rowItemCount = levels.reduce((rowSum, level) =>
+                        rowSum + positions.reduce((levelSum, position) => {
+                          const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                          return levelSum + (itemsByLocation[location] || []).length;
+                        }, 0), 0
+                      );
+
+                      return (
+                        <div key={row} className="space-y-1 border rounded-lg p-3 bg-gray-50/50">
+                          <h3 className="text-md font-semibold text-primary flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 bg-primary text-primary-foreground rounded flex items-center justify-center text-xs font-bold">
+                                {row}
+                              </div>
+                              <span>แถว {row}</span>
+                            </div>
+                            <Badge variant="secondary" className="text-xs">
+                              {rowItemCount} รายการ
+                            </Badge>
+                          </h3>
+
+                          {levels
+                            .filter(level => {
+                              if (gridViewMode === 'all') {
+                                return true; // Show all levels
+                              }
+                              // Only show levels that have items after filtering
+                              return positions.some(position => {
+                                const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                                return (itemsByLocation[location] || []).length > 0;
+                              });
+                            })
+                            .map((level) => {
+                              const levelItemCount = positions.reduce((sum, position) => {
+                                const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                                return sum + (itemsByLocation[location] || []).length;
+                              }, 0);
+
+                              return (
+                                <div key={level} className="mb-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm font-medium text-gray-600">ชั้น {level}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {levelItemCount} รายการ
+                                    </Badge>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <div className="flex gap-1 pb-2 min-w-max">
+                                      {positions
+                                        .filter(position => {
+                                          // Show all positions but highlight only those with filtered items
+                                          return true; // Show all for context
+                                        })
+                                        .map((position) => {
+                                          const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                                          const locationItems = itemsByLocation[location] || [];
+                                          const hasFilteredItems = locationItems.length > 0;
+                                          const locationColor = hasFilteredItems ? getLocationColor(location) : '#f8f9fa';
+                                          const totalQuantity = locationItems.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0) + ((item as any).box_quantity_legacy || 0), 0);
+
+                                          return (
+                                            <Tooltip key={location}>
+                                              <TooltipTrigger asChild>
+                                                <div
+                                                  className={`w-20 h-16 border rounded cursor-pointer transition-all duration-200 flex flex-col justify-between p-1 ${
+                                                    hasFilteredItems 
+                                                      ? 'border-gray-400 hover:shadow-md hover:scale-105' 
+                                                      : 'border-gray-200 opacity-30'
+                                                  }`}
+                                                  style={{ backgroundColor: locationColor }}
+                                                  onClick={() => handleShelfClick(location)}
+                                                >
+                                                  <div className={`text-[8px] font-mono text-center leading-none ${
+                                                    hasFilteredItems ? 'text-gray-700 font-bold' : 'text-gray-400'
+                                                  }`}>
+                                                    {row}{position}/{level}
+                                                  </div>
+
+                                                  {hasFilteredItems && (
+                                                    <div className="text-center">
+                                                      <div className="text-[8px] font-bold text-gray-700">
+                                                        {locationItems.length} รายการ
+                                                      </div>
+                                                      <div className="text-[7px] text-gray-600">
+                                                        {totalQuantity} ชิ้น
+                                                      </div>
+                                                    </div>
+                                                  )}
+
+                                                  {/* Highlight filtered items */}
+                                                  {hasFilteredItems && (
+                                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-white"></div>
+                                                  )}
+                                                </div>
+                                              </TooltipTrigger>
+                                              <TooltipContent className="max-w-80">
+                                                <div className="text-sm space-y-2">
+                                                  <div className="font-bold text-primary">📍 ตำแหน่ง: {location}</div>
+                                                  {hasFilteredItems ? (
+                                                    <>
+                                                      <div className="text-xs">รายการสินค้า: {locationItems.length}</div>
+                                                      <div className="space-y-1">
+                                                        {locationItems.slice(0, 3).map((item, idx) => (
+                                                          <div key={idx} className="text-xs bg-background p-1 rounded border-l-2 border-l-primary/30">
+                                                            <div className="font-medium">{item.product_name}</div>
+                                                            <div className="text-muted-foreground">
+                                                               รหัส: {item.sku} {item.lot && `• Lot: ${item.lot}`}
+                                                             </div>
+                                                             <div>{((item as any).carton_quantity_legacy || 0)} ลัง + {((item as any).box_quantity_legacy || 0)} เศษ</div>
+                                                          </div>
+                                                        ))}
+                                                        {locationItems.length > 3 && (
+                                                          <div className="text-xs text-muted-foreground text-center">
+                                                            และอีก {locationItems.length - 3} รายการ...
+                                                          </div>
+                                                        )}
+                                                      </div>
+                                                    </>
+                                                  ) : (
+                                                    <div className="text-muted-foreground">
+                                                      {activeFilterCount > 0 ? 'ไม่มีสินค้าตามเงื่อนไขที่เลือก' : 'ตำแหน่งว่าง'}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      );
+                    })}
                 </div>
-              ))}
-            </div>
+
+                {/* Show message if no rows have filtered items */}
+                {rows.every(row =>
+                  !levels.some(level =>
+                    positions.some(position => {
+                      const location = `${row}/${level}/${position.toString().padStart(2, '0')}`;
+                      return (itemsByLocation[location] || []).length > 0;
+                    })
+                  )
+                ) && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MapPin className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">ไม่พบตำแหน่งที่มีสินค้าตามเงื่อนไขที่เลือก</p>
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

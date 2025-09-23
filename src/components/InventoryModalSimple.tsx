@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeLocation } from '@/utils/locationUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, ProductConversionRate } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
 
@@ -86,24 +86,44 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
     try {
       setLoadingConversion(true);
-      // For now, use a mock data structure since product_conversion_rates table doesn't exist
-      const mockData: ConversionRate = {
-        sku: sku.toUpperCase(),
-        product_name: currentProductName || '',
-        unit_level1_name: 'ลัง',
-        unit_level1_rate: 100,
-        unit_level2_name: 'กล่อง',
-        unit_level2_rate: 10,
-        unit_level3_name: 'ชิ้น',
-      };
+      console.log('InventoryModalSimple: Loading conversion rates for SKU:', sku);
 
-      // For L-series products, use specific rates
-      if (sku.startsWith('L')) {
-        mockData.unit_level1_rate = 504; // 1 ลัง = 504 ชิ้น
-        mockData.unit_level2_rate = 6;   // 1 กล่อง = 6 ชิ้น
+      // Load from product_conversion_rates table
+      const { data, error } = await supabase
+        .from('product_conversion_rates')
+        .select('*')
+        .eq('sku', sku.toUpperCase())
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        throw error;
       }
 
-      setConversionRate(mockData);
+      if (data) {
+        console.log('InventoryModalSimple: Found conversion rate for', sku, ':', data);
+        const conversionData = data as ProductConversionRate;
+        setConversionRate({
+          sku: conversionData.sku,
+          product_name: conversionData.product_name || currentProductName || '',
+          unit_level1_name: conversionData.unit_level1_name || 'ลัง',
+          unit_level1_rate: conversionData.unit_level1_rate || 1,
+          unit_level2_name: conversionData.unit_level2_name || 'กล่อง',
+          unit_level2_rate: conversionData.unit_level2_rate || 1,
+          unit_level3_name: conversionData.unit_level3_name || 'ชิ้น',
+        });
+      } else {
+        console.log('InventoryModalSimple: No conversion rate found for', sku, 'using defaults');
+        // Use default values if no conversion rate found
+        setConversionRate({
+          sku: sku.toUpperCase(),
+          product_name: currentProductName || '',
+          unit_level1_name: 'ลัง',
+          unit_level1_rate: 1,
+          unit_level2_name: 'กล่อง',
+          unit_level2_rate: 1,
+          unit_level3_name: 'ชิ้น',
+        });
+      }
     } catch (error) {
       console.error('Error loading conversion rate:', error);
     } finally {

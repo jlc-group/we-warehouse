@@ -18,6 +18,7 @@ import { LocationExportModal } from '@/components/LocationExportModal';
 import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
+import { DatabaseDebug } from '@/components/DatabaseDebug';
 // import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -355,12 +356,24 @@ const Index = memo(() => {
     pieces_quantity: number;
   }) => {
     try {
+      console.log('🚀 handleBulkSave started:', {
+        locationCount: locations.length,
+        locations,
+        itemData
+      });
+
       let successCount = 0;
 
       for (const location of locations) {
+        console.log(`📍 Processing location: ${location}`);
+
         const result = await addItem({
           ...itemData,
           location: location,
+          // Map BulkAddModal data to addItem expected fields
+          quantity_boxes: itemData.box_quantity,
+          quantity_loose: itemData.loose_quantity,
+          pieces_quantity_legacy: itemData.pieces_quantity,
           unit_level1_quantity: itemData.box_quantity,
           unit_level2_quantity: itemData.loose_quantity,
           unit_level3_quantity: itemData.pieces_quantity
@@ -368,13 +381,18 @@ const Index = memo(() => {
 
         if (result !== null) {
           successCount++;
+          console.log(`✅ Successfully added item to ${location}`);
+        } else {
+          console.log(`❌ Failed to add item to ${location}`);
         }
       }
+
+      console.log(`🎯 Bulk save completed: ${successCount}/${locations.length} successful`);
       // Bulk save completed, local state updated
 
     } catch (error) {
       // Error handling is done in the hook
-      console.error('Error in handleBulkSave:', error);
+      console.error('❌ Error in handleBulkSave:', error);
     }
   }, [addItem, refetch]);
 
@@ -789,8 +807,9 @@ const Index = memo(() => {
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
               <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+                <TabsList className="grid w-full grid-cols-6 bg-white border border-gray-200">
                   <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
+                  <TabsTrigger value="debug">DB Debug</TabsTrigger>
                   <TabsTrigger value="advanced">ขั้นสูง</TabsTrigger>
                   <TabsTrigger value="alerts">แจ้งเตือน</TabsTrigger>
                   <TabsTrigger value="batch">Batch</TabsTrigger>
@@ -801,6 +820,10 @@ const Index = memo(() => {
                   <Suspense fallback={<ComponentLoadingFallback componentName="Analytics" />}>
                     <InventoryAnalytics items={inventoryItems} />
                   </Suspense>
+                </TabsContent>
+
+                <TabsContent value="debug" className="space-y-4">
+                  <DatabaseDebug />
                 </TabsContent>
 
                 <TabsContent value="advanced" className="space-y-4">

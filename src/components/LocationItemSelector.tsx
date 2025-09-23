@@ -59,6 +59,32 @@ export function LocationItemSelector({
   const getBoxQty = (item: any) => Number(item.unit_level2_quantity ?? item.box_quantity_legacy ?? 0) || 0;
   const getPiecesQty = (item: any) => Number(item.unit_level3_quantity ?? item.pieces_quantity_legacy ?? 0) || 0;
 
+  // Calculate total pieces with conversion rates
+  const calculateTotalPieces = (item: any) => {
+    const cartonQty = getCartonQty(item);
+    const boxQty = getBoxQty(item);
+    const piecesQty = getPiecesQty(item);
+    
+    // Get conversion rates (default to 1 if not available)
+    const cartonRate = Number(item.unit_level1_conversion_rate ?? 1) || 1;
+    const boxRate = Number(item.unit_level2_conversion_rate ?? 1) || 1;
+    
+    // Convert everything to base pieces
+    const totalFromCartons = cartonQty * cartonRate;
+    const totalFromBoxes = boxQty * boxRate;
+    const totalPieces = totalFromCartons + totalFromBoxes + piecesQty;
+    
+    return {
+      totalPieces,
+      hasConversion: cartonRate !== 1 || boxRate !== 1,
+      breakdown: {
+        fromCartons: totalFromCartons,
+        fromBoxes: totalFromBoxes,
+        fromPieces: piecesQty
+      }
+    };
+  };
+
   const handleDeleteConfirm = async (itemId: string) => {
     try {
       await onDeleteItem(itemId);
@@ -99,9 +125,17 @@ export function LocationItemSelector({
     }
   };
 
+  // Calculate total quantity with conversion rates
   const totalQuantity = items.reduce((sum, item) => {
+    const calculation = calculateTotalPieces(item);
+    return sum + calculation.totalPieces;
+  }, 0);
+
+  const totalWithoutConversion = items.reduce((sum, item) => {
     return sum + getCartonQty(item) + getBoxQty(item) + getPiecesQty(item);
   }, 0);
+
+  const hasAnyConversion = items.some(item => calculateTotalPieces(item).hasConversion);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -124,12 +158,19 @@ export function LocationItemSelector({
                 <Info className="h-4 w-4" />
                 สรุปข้อมูล
               </span>
-              <Badge variant="outline">
-                {totalQuantity} หน่วยรวม
-              </Badge>
+              <div className="flex flex-col items-end gap-1">
+                <Badge variant="outline">
+                  {totalQuantity.toLocaleString()} ชิ้นรวม
+                </Badge>
+                {hasAnyConversion && totalQuantity !== totalWithoutConversion && (
+                  <Badge variant="secondary" className="text-xs">
+                    (คำนวณจากอัตราแปลง)
+                  </Badge>
+                )}
+              </div>
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="pt-0 space-y-4">
             <div className="grid grid-cols-3 gap-4 text-sm">
               <div className="text-center">
                 <div className="font-bold text-lg text-blue-600">{items.length}</div>
@@ -148,6 +189,22 @@ export function LocationItemSelector({
                 <div className="text-muted-foreground">LOT ต่างกัน</div>
               </div>
             </div>
+            
+            {/* Calculation Details */}
+            {hasAnyConversion && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="text-sm text-blue-800">
+                  <div className="font-semibold mb-2">📊 รายละเอียดการคำนวณ:</div>
+                  <div className="space-y-1 text-xs">
+                    <div>• จำนวนรวมแบบง่าย: {totalWithoutConversion.toLocaleString()} หน่วย</div>
+                    <div>• จำนวนรวมจากอัตราแปลง: {totalQuantity.toLocaleString()} ชิ้น</div>
+                    <div className="text-blue-600 font-medium">
+                      💡 ระบบคำนวณด้วยอัตราแปลงที่ตั้งค่าไว้ (เช่น 1 ลัง = X ชิ้น)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -231,7 +288,8 @@ export function LocationItemSelector({
                         </div>
 
                         {/* Quantity Info */}
-                        <div className="bg-gray-50 rounded p-2 ml-11">
+                        <div className="bg-gray-50 rounded p-3 ml-11 space-y-2">
+                          {/* Individual Quantities */}
                           <div className="grid grid-cols-3 gap-2 text-sm">
                             <div className="text-center">
                               <div className="font-bold text-blue-600">{getCartonQty(item)}</div>
@@ -244,6 +302,21 @@ export function LocationItemSelector({
                             <div className="text-center">
                               <div className="font-bold text-purple-600">{getPiecesQty(item)}</div>
                               <div className="text-xs text-gray-500">ชิ้น</div>
+                            </div>
+                          </div>
+                          
+                          {/* Total Summary */}
+                          <div className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 py-2 px-3 rounded-md">
+                            <Package className="h-3 w-3 text-orange-600" />
+                            <div className="text-center">
+                              <div className="text-xs font-bold text-orange-800">
+                                รวมทั้งหมด: {calculateTotalPieces(item).totalPieces.toLocaleString()} ชิ้น
+                              </div>
+                              {calculateTotalPieces(item).hasConversion && (
+                                <div className="text-xs text-orange-600 mt-0.5">
+                                  (คำนวณจากอัตราแปลง)
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

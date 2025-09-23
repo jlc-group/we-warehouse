@@ -85,6 +85,12 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
       newSelected.delete(location);
     } else {
       newSelected.add(location);
+      // Check if location has existing items and show warning
+      const locationStatus = locationsWithStatus.find(l => l.location === location);
+      if (locationStatus && !locationStatus.isEmpty) {
+        console.log(`⚠️ Warning: Location ${location} already has ${locationStatus.itemCount} items`);
+        // You could add a toast notification here later
+      }
     }
     setSelectedLocations(newSelected);
   };
@@ -229,16 +235,22 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
   // Enhanced location data with status
   const locationsWithStatus = useMemo(() => {
-    return availableLocations.map(location => ({
+    const status = availableLocations.map(location => ({
       location,
       itemCount: getLocationInventoryCount(location),
       isEmpty: isLocationEmpty(location)
     }));
+
+    console.log('BulkAddModal: Total available locations:', availableLocations.length);
+    console.log('BulkAddModal: Empty locations:', status.filter(s => s.isEmpty).length);
+    console.log('BulkAddModal: Occupied locations:', status.filter(s => !s.isEmpty).length);
+
+    return status;
   }, [availableLocations, getLocationInventoryCount, isLocationEmpty]);
 
   // Filter locations based on search and filter type
   const filteredLocations = useMemo(() => {
-    return locationsWithStatus.filter(locationData => {
+    const filtered = locationsWithStatus.filter(locationData => {
       // Apply search filter
       const matchesSearch = locationData.location.toLowerCase().includes(locationSearch.toLowerCase());
 
@@ -248,10 +260,30 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
         (locationFilter === 'occupied' && !locationData.isEmpty);
 
       // Apply row filter
-      const matchesRow = rowFilter === 'all' || locationData.location.startsWith(rowFilter + '/');
+      const matchesRow = (() => {
+        if (rowFilter === 'all') return true;
+        if (rowFilter === 'A-M') {
+          const row = locationData.location.charAt(0);
+          return row >= 'A' && row <= 'M';
+        }
+        if (rowFilter === 'N-Z') {
+          const row = locationData.location.charAt(0);
+          return row >= 'N' && row <= 'Z';
+        }
+        return locationData.location.startsWith(rowFilter + '/');
+      })();
 
       return matchesSearch && matchesFilter && matchesRow;
     });
+
+    console.log('BulkAddModal: Filter applied -', {
+      search: locationSearch,
+      filter: locationFilter,
+      row: rowFilter,
+      resultCount: filtered.length
+    });
+
+    return filtered;
   }, [locationsWithStatus, locationSearch, locationFilter, rowFilter]);
 
   return (
@@ -556,9 +588,17 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>ตำแหน่งที่มีอยู่:</Label>
-                <Badge variant="outline">
-                  ทั้งหมด {availableLocations.length} ตำแหน่ง
-                </Badge>
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                    ว่าง {locationsWithStatus.filter(l => l.isEmpty).length}
+                  </Badge>
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                    มีสินค้า {locationsWithStatus.filter(l => !l.isEmpty).length}
+                  </Badge>
+                  <Badge variant="outline">
+                    ทั้งหมด {availableLocations.length}
+                  </Badge>
+                </div>
               </div>
 
               {/* Location Search and Filter */}
@@ -573,11 +613,13 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   />
                 </div>
                 <Select value={rowFilter} onValueChange={setRowFilter}>
-                  <SelectTrigger className="w-32">
+                  <SelectTrigger className="w-40">
                     <SelectValue placeholder="แถว" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">ทุกแถว</SelectItem>
+                  <SelectContent className="max-h-60 overflow-y-auto">
+                    <SelectItem value="all">ทุกแถว A-Z</SelectItem>
+                    <SelectItem value="A-M">แถว A-M</SelectItem>
+                    <SelectItem value="N-Z">แถว N-Z</SelectItem>
                     {availableRows.map(row => (
                       <SelectItem key={row} value={row}>แถว {row}</SelectItem>
                     ))}
@@ -596,8 +638,18 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                 </Select>
               </div>
 
-              <div className="max-h-48 overflow-y-auto border rounded-lg p-3">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="max-h-64 overflow-y-auto border rounded-lg p-3">
+                {filteredLocations.length > 200 && (
+                  <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-sm text-orange-700">
+                    ⚠️ แสดง {filteredLocations.length} ตำแหน่ง (จาก 2,080 ทั้งหมด) - แนะนำให้ใช้ filter หรือค้นหาเพื่อประสิทธิภาพที่ดีขึ้น
+                  </div>
+                )}
+                {filteredLocations.length > 100 && filteredLocations.length <= 200 && (
+                  <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                    💡 แสดง {filteredLocations.length} ตำแหน่ง - ใช้ filter หรือค้นหาเพื่อลดจำนวน
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                   {filteredLocations.length > 0 ? (
                     filteredLocations.map(locationData => (
                       <div key={locationData.location} className={`flex items-start space-x-2 p-2 rounded-lg border ${
@@ -630,7 +682,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                           }`}>
                             {locationData.isEmpty
                               ? 'ว่าง'
-                              : `มี ${locationData.itemCount} รายการ`
+                              : `มี ${locationData.itemCount} รายการ (จะเพิ่มเข้าไป)`
                             }
                           </div>
                         </div>

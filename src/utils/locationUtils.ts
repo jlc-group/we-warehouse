@@ -211,13 +211,16 @@ export function convertDbToUrlFormat(dbLocation: string): string {
 let _cachedWarehouseLocations: string[] | null = null;
 
 export function generateAllWarehouseLocations(): string[] {
+  // Clear cache to force regeneration with new A-Z range
+  _cachedWarehouseLocations = null;
+
   // Return cached result if available
   if (_cachedWarehouseLocations) {
     return _cachedWarehouseLocations;
   }
 
   const locations: string[] = [];
-  const rows = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; // A-Z (26 rows) - Updated to support A-Z
+  const rows = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; // A-Z (26 rows) - Full warehouse support including Z20/4
 
   for (const row of rows) {
     for (let level = 1; level <= 4; level++) {
@@ -229,5 +232,8 @@ export function generateAllWarehouseLocations(): string[] {
 
   // Cache the result and return
   _cachedWarehouseLocations = locations.sort();
+  console.log(`🏭 Generated ${_cachedWarehouseLocations.length} warehouse locations (A-Z, 1-20, 1-4)`);
+  console.log(`🔍 Sample locations: ${_cachedWarehouseLocations.slice(0, 5).join(', ')} ... ${_cachedWarehouseLocations.slice(-5).join(', ')}`);
+  console.log(`✅ Z20/4 support: ${_cachedWarehouseLocations.includes('Z20/4') ? 'YES' : 'NO'}`);
   return _cachedWarehouseLocations;
 }

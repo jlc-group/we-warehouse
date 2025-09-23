@@ -87,8 +87,36 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
 
   // Product type selection state
+  const [conversionRates, setConversionRates] = useState<any[]>([]);
   const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
 
+  // Load conversion rates from product_conversion_rates table
+  const loadConversionRates = async () => {
+    try {
+      console.log('InventoryModal: Loading conversion rates...');
+      const { data, error } = await supabase
+        .from('product_conversion_rates')
+        .select('*');
+
+      if (error) throw error;
+      setConversionRates(data || []);
+      console.log('InventoryModal: Loaded', data?.length || 0, 'conversion rates');
+    } catch (error) {
+      console.error('Error loading conversion rates:', error);
+    }
+  };
+
+  // Get conversion rate for current product code
+  const getCurrentConversionRate = useMemo(() => {
+    return conversionRates.find(rate => rate.sku === productCode);
+  }, [conversionRates, productCode]);
+
+  // Load conversion rates when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadConversionRates();
+    }
+  }, [isOpen]);
 
   // Reset form when modal opens/closes or when existingItem changes
   useEffect(() => {
@@ -104,16 +132,16 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
         setQuantityLoose(existingItem.unit_level2_quantity || (existingItem as any).box_quantity_legacy || 0);
         setUnit((existingItem as any).unit || 'กล่อง');
 
-        // Load multi-level data if available
+        // Load quantities only - unit names/rates will be loaded from conversion rates
         const extendedItem = existingItem as any;
         setMultiLevelData({
-          unit_level1_name: extendedItem.unit_level1_name || null,
+          unit_level1_name: null, // Will be set from conversion rates
           unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
-          unit_level1_conversion_rate: extendedItem.unit_level1_conversion_rate || 0,
-          unit_level2_name: extendedItem.unit_level2_name || null,
+          unit_level1_conversion_rate: 0, // Will be set from conversion rates
+          unit_level2_name: null, // Will be set from conversion rates
           unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
-          unit_level2_conversion_rate: extendedItem.unit_level2_conversion_rate || 0,
-          unit_level3_name: extendedItem.unit_level3_name || 'ชิ้น',
+          unit_level2_conversion_rate: 0, // Will be set from conversion rates
+          unit_level3_name: 'ชิ้น', // Will be set from conversion rates
           unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
         });
       } else {
@@ -132,6 +160,20 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       setProductSearch('');
     }
   }, [isOpen, existingItem]);
+
+  // Update unit names and rates when conversion rates are loaded or product code changes
+  useEffect(() => {
+    if (getCurrentConversionRate && productCode) {
+      setMultiLevelData(prev => ({
+        ...prev,
+        unit_level1_name: getCurrentConversionRate.unit_level1_name || 'ลัง',
+        unit_level1_conversion_rate: getCurrentConversionRate.unit_level1_rate || 1,
+        unit_level2_name: getCurrentConversionRate.unit_level2_name || 'กล่อง',
+        unit_level2_conversion_rate: getCurrentConversionRate.unit_level2_rate || 1,
+        unit_level3_name: getCurrentConversionRate.unit_level3_name || 'ชิ้น',
+      }));
+    }
+  }, [getCurrentConversionRate, productCode]);
 
 
   // Get all available product codes filtered by product type

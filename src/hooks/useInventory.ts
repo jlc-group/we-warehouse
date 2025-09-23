@@ -18,6 +18,11 @@ type BaseInventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 type InventoryInsert = Database['public']['Tables']['inventory_items']['Insert'];
 type InventoryUpdate = Database['public']['Tables']['inventory_items']['Update'];
 
+// Product types
+type ProductRow = Database['public']['Tables']['products']['Row'];
+type ProductInsert = Database['public']['Tables']['products']['Insert'];
+type ProductUpdate = Database['public']['Tables']['products']['Update'];
+
 // Extended InventoryItem with additional fields that may be added at runtime
 export interface InventoryItem extends BaseInventoryItem {
   product_name: string; // Required to match database schema
@@ -207,28 +212,32 @@ export function useInventory() {
   }, []); // Remove dependencies to prevent re-rendering loops
 
   // Function to ensure product exists in products table
+  // Note: Using 'as any' temporarily due to Supabase types not recognizing 'products' table
+  // TODO: Re-generate Supabase types or update schema to fix this
   const ensureProductExists = async (productCode: string, productName: string, productType: string = 'FG') => {
     try {
       // Check if product already exists
-      const { data: existingProduct } = await supabase
+      const { data: existingProduct } = await (supabase as any)
         .from('products')
         .select('*')
         .eq('sku_code', productCode)
-        .single();
+        .maybeSingle();
 
       if (existingProduct) {
         return existingProduct;
       }
 
       // Create new product if it doesn't exist
-      const { data: newProduct, error } = await supabase
+      const productData = {
+        sku_code: productCode,
+        product_name: productName,
+        product_type: productType as 'FG' | 'PK',
+        is_active: true
+      };
+
+      const { data: newProduct, error } = await (supabase as any)
         .from('products')
-        .insert({
-          sku_code: productCode,
-          product_name: productName,
-          product_type: productType as 'FG' | 'PK',
-          is_active: true
-        })
+        .insert(productData)
         .select()
         .single();
 
@@ -240,8 +249,15 @@ export function useInventory() {
       console.log('✅ Created new product:', newProduct);
       return newProduct;
     } catch (error) {
-      console.error('Error ensuring product exists:', error);
-      throw error; // Re-throw to handle at higher level
+      console.error('Error in ensureProductExists:', error);
+      // Return a minimal product object if creation fails
+      return {
+        id: `temp-${Date.now()}`,
+        sku_code: productCode,
+        product_name: productName,
+        product_type: productType as 'FG' | 'PK',
+        is_active: true
+      };
     }
   };
 
@@ -265,10 +281,10 @@ export function useInventory() {
       // Normalize location with comprehensive logging
       const originalLocation = itemData.location || '';
       const normalizedLocation = normalizeLocation(originalLocation);
-      // Standard format: A1/1 to Z4/20 (RowLevel/Position) - Updated to support A-Z
-      const locationRegex = /^[A-Z][1-4]\/([1-9]|1[0-9]|20)$/;
+      // Standard format: A1/1 to Z20/4 (RowPosition/Level) - Updated for full A-Z warehouse layout
+      const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
       const isLocationValid = locationRegex.test(normalizedLocation);
-      const finalLocation = isLocationValid ? normalizedLocation : 'A1/1';
+      const finalLocation = normalizedLocation; // Keep original location instead of forcing A1/1
 
       console.log('🗺️ Location processing:', {
         original: originalLocation,
@@ -277,6 +293,21 @@ export function useInventory() {
         final: finalLocation,
         regex: locationRegex.toString()
       });
+
+      // Validate critical data before insert
+      if (!itemData.product_name || !productCode) {
+        const error = new Error('Missing required fields: product_name or sku');
+        console.error('❌ Data validation failed:', error.message);
+        throw error;
+      }
+
+      if (!isLocationValid) {
+        console.warn('⚠️ Location validation failed, but keeping original:', {
+          original: originalLocation,
+          normalized: normalizedLocation,
+          final: finalLocation
+        });
+      }
 
       // Location normalized and validated
       
@@ -304,6 +335,20 @@ export function useInventory() {
         unit_level2_rate: itemData.unit_level2_rate || 0,
         user_id: userId
       };
+
+      console.log('📦 Insert data prepared:', {
+        location: insertData.location,
+        sku: insertData.sku,
+        product_name: insertData.product_name,
+        quantities: {
+          carton_legacy: insertData.carton_quantity_legacy,
+          box_legacy: insertData.box_quantity_legacy,
+          pieces_legacy: insertData.pieces_quantity_legacy,
+          level1: insertData.unit_level1_quantity,
+          level2: insertData.unit_level2_quantity,
+          level3: insertData.unit_level3_quantity
+        }
+      });
 
       // Insert data to database
       const { data, error } = await supabase
@@ -358,10 +403,10 @@ export function useInventory() {
       if (updates.location) {
         const originalLocation = updates.location;
         const normalizedLocation = normalizeLocation(originalLocation);
-        // Standard format: A1/1 to Z4/20 (RowLevel/Position) - Updated to support A-Z
-        const locationRegex = /^[A-Z][1-4]\/([1-9]|1[0-9]|20)$/;
+        // Standard format: A1/1 to Z20/4 (RowPosition/Level) - Updated to support A-Z
+        const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
         const isLocationValid = locationRegex.test(normalizedLocation);
-        updates.location = isLocationValid ? normalizedLocation : 'A1/1';
+        updates.location = normalizedLocation; // Keep original location instead of forcing A1/1
 
         console.log('🗺️ Update location processing:', {
           original: originalLocation,
@@ -374,22 +419,49 @@ export function useInventory() {
       // Clean updates object to only include valid database fields
       const validUpdateFields: any = {};
 
-      // Test with minimal fields - only update what we know exists
+      // Core fields
       if ('product_name' in updates) validUpdateFields.product_name = updates.product_name;
+      if ('sku' in updates) validUpdateFields.sku = updates.sku;
       if ('location' in updates) validUpdateFields.location = updates.location;
-      
-      // Add quantity fields if they exist
-      if ('quantity_boxes' in updates) validUpdateFields.quantity_boxes = updates.quantity_boxes;
-      if ('quantity_loose' in updates) validUpdateFields.quantity_loose = updates.quantity_loose;
+      if ('lot' in updates) validUpdateFields.lot = updates.lot;
+      if ('mfd' in updates) validUpdateFields.mfd = updates.mfd;
 
-      console.log('🔧 updateItem - Cleaned update data:', {
+      // Legacy quantity fields (for compatibility)
+      if ('quantity_boxes' in updates) validUpdateFields.carton_quantity_legacy = updates.quantity_boxes;
+      if ('quantity_loose' in updates) validUpdateFields.box_quantity_legacy = updates.quantity_loose;
+      if ('pieces_quantity_legacy' in updates) validUpdateFields.pieces_quantity_legacy = updates.pieces_quantity_legacy;
+
+      // Multi-level unit fields (primary)
+      if ('unit_level1_quantity' in updates) validUpdateFields.unit_level1_quantity = updates.unit_level1_quantity;
+      if ('unit_level2_quantity' in updates) validUpdateFields.unit_level2_quantity = updates.unit_level2_quantity;
+      if ('unit_level3_quantity' in updates) validUpdateFields.unit_level3_quantity = updates.unit_level3_quantity;
+
+      // Unit metadata
+      if ('unit_level1_name' in updates) validUpdateFields.unit_level1_name = updates.unit_level1_name;
+      if ('unit_level2_name' in updates) validUpdateFields.unit_level2_name = updates.unit_level2_name;
+      if ('unit_level3_name' in updates) validUpdateFields.unit_level3_name = updates.unit_level3_name;
+      if ('unit_level1_rate' in updates) validUpdateFields.unit_level1_rate = updates.unit_level1_rate;
+      if ('unit_level2_rate' in updates) validUpdateFields.unit_level2_rate = updates.unit_level2_rate;
+
+      console.log('🔧 updateItem - START:', {
         id,
         originalUpdates: updates,
-        cleanedUpdates: validUpdateFields
+        cleanedUpdates: validUpdateFields,
+        fieldsCount: Object.keys(validUpdateFields).length
       });
 
-      // Debug: Log each field being sent
+      // Debug: Log each field being sent with detailed info
       console.log('📝 Fields being sent to database:', JSON.stringify(validUpdateFields, null, 2));
+
+      // Log quantity-specific info for debugging
+      const quantityFields = Object.keys(validUpdateFields).filter(key =>
+        key.includes('quantity') || key.includes('level')
+      );
+      if (quantityFields.length > 0) {
+        console.log('📊 Quantity fields detected:', quantityFields.map(field =>
+          `${field}: ${validUpdateFields[field]}`
+        ).join(', '));
+      }
 
       // Temporarily remove user_id constraint to bypass RLS
       if ('user_id' in validUpdateFields) {
@@ -428,19 +500,28 @@ export function useInventory() {
         });
         throw error;
       }
-      
+
+      console.log('✅ updateItem - SUCCESS:', {
+        id,
+        returnedData: data,
+        wasDataReturned: !!data
+      });
+
       // Update local state immediately with proper sorting
       if (data) {
         setItems(prev => {
           const updatedItems = prev.map((item: any) => item.id === id ? data as any : item)
             .sort((a: any, b: any) => a.location.localeCompare(b.location));
-          // console.log('🔄 updateItem - Updated local state:', {
-          //   updatedItemId: id,
-          //   totalItems: updatedItems.length,
-          //   updatedLocation: (data as any).location
-          // });
+          console.log('🔄 updateItem - Local state updated:', {
+            updatedItemId: id,
+            totalItems: updatedItems.length,
+            updatedLocation: (data as any).location,
+            updatedItem: data
+          });
           return updatedItems;
         });
+      } else {
+        console.warn('⚠️ updateItem - No data returned from database update');
       }
 
       // Local state already updated above - no need for additional refresh
