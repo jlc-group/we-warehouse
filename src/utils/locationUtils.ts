@@ -13,8 +13,11 @@ export function normalizeLocation(location: string): string {
   // Remove extra whitespace and convert to uppercase
   const cleaned = location.trim().toUpperCase();
 
-  // If already in target format A1/1, return as-is
+  console.log('🗺️ normalizeLocation input:', location, '→ cleaned:', cleaned);
+
+  // If already in target format A1/1 to Z20/4, return as-is
   if (/^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/.test(cleaned)) {
+    console.log('✅ Already in correct format:', cleaned);
     return cleaned;
   }
 
@@ -22,69 +25,56 @@ export function normalizeLocation(location: string): string {
   if (/^[A-Z]\/[1-4]\/([0-9]|[01][0-9]|20)$/.test(cleaned)) {
     const [row, level, position] = cleaned.split('/');
     const positionNum = parseInt(position);
-    return `${row}${positionNum}/${level}`;
+    const normalized = `${row}${positionNum}/${level}`;
+    console.log('🔄 Converted old format A/L/P:', cleaned, '→', normalized);
+    return normalized;
   }
 
-  // Handle compact A01/4 format - convert to A1/1 (target format: RowPosition/Level)
-  if (/^[A-Z]([0-9]|[01][0-9]|20)\/[1-4]$/.test(cleaned)) {
-    const match = cleaned.match(/^([A-Z])([0-9]|[01][0-9]|20)\/([1-4])$/);
+  // Handle compact A01/4 format - convert to A1/4 (remove leading zeros)
+  if (/^[A-Z]([0][1-9]|[01][0-9]|20)\/[1-4]$/.test(cleaned)) {
+    const match = cleaned.match(/^([A-Z])([0][1-9]|[01][0-9]|20)\/([1-4])$/);
     if (match) {
       const [, row, position, level] = match;
       const positionNum = parseInt(position);
-      return `${row}${positionNum}/${level}`;
+      const normalized = `${row}${positionNum}/${level}`;
+      console.log('🔄 Removed leading zeros:', cleaned, '→', normalized);
+      return normalized;
     }
   }
 
-  // Try to parse different formats
+  // Try to parse 3-part formats like A-1-5, A.1.5, A 1 5
   const parts = cleaned.split(/[/\-\s.]+/);
-
-  if (parts.length >= 3) {
+  if (parts.length === 3) {
     const [row, level, position] = parts;
 
-    // Validate row (should be A-N only)
+    // Validate row (should be A-Z)
     if (!/^[A-Z]$/.test(row)) {
-      return location; // Return original if can't normalize
+      console.log('⚠️ Invalid row format:', row, '- returning original');
+      return cleaned; // Return cleaned version, not original
     }
 
     // Validate level (should be 1-4)
     if (!/^[1-4]$/.test(level)) {
-      return location;
+      console.log('⚠️ Invalid level format:', level, '- returning original');
+      return cleaned;
     }
 
     // Validate position (should be 1-20)
     const positionNum = parseInt(position);
     if (isNaN(positionNum) || positionNum < 1 || positionNum > 20) {
-      return location;
+      console.log('⚠️ Invalid position format:', position, '- returning original');
+      return cleaned;
     }
 
     // Format in target format: A1/1 (RowPosition/Level)
     const normalized = `${row}${positionNum}/${level}`;
+    console.log('🔄 Converted 3-part format:', cleaned, '→', normalized);
     return normalized;
   }
 
-  // Try to parse concatenated formats like A101, A11
-  if (/^[A-Z]\d{2,3}$/.test(cleaned)) {
-    const row = cleaned[0];
-    const numbers = cleaned.slice(1);
-
-    if (numbers.length === 2) {
-      // A14 -> A1/4 (position 1, level 4)
-      const position = parseInt(numbers[0]);
-      const level = parseInt(numbers[1]);
-      if (position >= 1 && position <= 20 && level >= 1 && level <= 4) {
-        return `${row}${position}/${level}`;
-      }
-    } else if (numbers.length === 3) {
-      // A014 -> A14/1 (position 14, level 1)
-      const position = parseInt(numbers.slice(0, 2));
-      const level = parseInt(numbers[2]);
-      if (position >= 1 && position <= 20 && level >= 1 && level <= 4) {
-        return `${row}${position}/${level}`;
-      }
-    }
-  }
-
-  return location;
+  // If no conversion patterns match, return the cleaned input as-is
+  console.log('🔄 No conversion pattern matched, returning cleaned:', cleaned);
+  return cleaned;
 }
 
 /**

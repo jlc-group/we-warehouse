@@ -281,17 +281,12 @@ export function useInventory() {
       // Normalize location with comprehensive logging
       const originalLocation = itemData.location || '';
       const normalizedLocation = normalizeLocation(originalLocation);
-      // Standard format: A1/1 to Z20/4 (RowPosition/Level) - Updated for full A-Z warehouse layout
-      const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
-      const isLocationValid = locationRegex.test(normalizedLocation);
-      const finalLocation = normalizedLocation; // Keep original location instead of forcing A1/1
+      const finalLocation = normalizedLocation; // Always use normalized location
 
-      console.log('🗺️ Location processing:', {
+      console.log('🗺️ AddItem - Location processing:', {
         original: originalLocation,
         normalized: normalizedLocation,
-        isValid: isLocationValid,
-        final: finalLocation,
-        regex: locationRegex.toString()
+        final: finalLocation
       });
 
       // Validate critical data before insert
@@ -301,12 +296,17 @@ export function useInventory() {
         throw error;
       }
 
+      // Optional validation warning (don't block save)
+      const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
+      const isLocationValid = locationRegex.test(normalizedLocation);
       if (!isLocationValid) {
-        console.warn('⚠️ Location validation failed, but keeping original:', {
-          original: originalLocation,
-          normalized: normalizedLocation,
-          final: finalLocation
+        console.warn('⚠️ Location format warning (not blocking):', {
+          location: finalLocation,
+          expectedFormat: 'A1/1 to Z20/4',
+          note: 'Proceeding with user input'
         });
+      } else {
+        console.log('✅ Location format is valid:', finalLocation);
       }
 
       // Location normalized and validated
@@ -399,21 +399,30 @@ export function useInventory() {
 
   const updateItem = async (id: string, updates: any) => {
     try {
-      // Ensure location is always normalized and validated before updating
+      // Ensure location is always normalized before updating
       if (updates.location) {
         const originalLocation = updates.location;
         const normalizedLocation = normalizeLocation(originalLocation);
-        // Standard format: A1/1 to Z20/4 (RowPosition/Level) - Updated to support A-Z
-        const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
-        const isLocationValid = locationRegex.test(normalizedLocation);
-        updates.location = normalizedLocation; // Keep original location instead of forcing A1/1
+        updates.location = normalizedLocation; // Always use normalized location
 
-        console.log('🗺️ Update location processing:', {
+        console.log('🗺️ UpdateItem - Location processing:', {
           original: originalLocation,
           normalized: normalizedLocation,
-          isValid: isLocationValid,
           final: updates.location
         });
+
+        // Optional validation warning (don't block update)
+        const locationRegex = /^[A-Z]([1-9]|1[0-9]|20)\/[1-4]$/;
+        const isLocationValid = locationRegex.test(normalizedLocation);
+        if (!isLocationValid) {
+          console.warn('⚠️ Location format warning (not blocking):', {
+            location: updates.location,
+            expectedFormat: 'A1/1 to Z20/4',
+            note: 'Proceeding with user input'
+          });
+        } else {
+          console.log('✅ Location format is valid:', updates.location);
+        }
       }
 
       // Clean updates object to only include valid database fields
