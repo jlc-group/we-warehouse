@@ -6,48 +6,8 @@ import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locat
 type InventoryItemRow = Database['public']['Tables']['inventory_items']['Row'];
 type WarehouseRow = Database['public']['Tables']['warehouses']['Row'];
 
-// Virtual warehouse location types (generated from inventory_items)
-export interface WarehouseLocation {
-  id: string;
-  location_code: string;
-  warehouse_id?: string;
-  zone?: string;
-  row?: string;
-  shelf?: string;
-  level?: string;
-  position?: string;
-  description?: string;
-  capacity?: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WarehouseLocationInsert {
-  location_code: string;
-  warehouse_id?: string;
-  zone?: string;
-  row?: string;
-  shelf?: string;
-  level?: string;
-  position?: string;
-  description?: string;
-  capacity?: number;
-  is_active?: boolean;
-}
-
-export interface WarehouseLocationUpdate {
-  location_code?: string;
-  warehouse_id?: string;
-  zone?: string;
-  row?: string;
-  shelf?: string;
-  level?: string;
-  position?: string;
-  description?: string;
-  capacity?: number;
-  is_active?: boolean;
-}
+// Use database types instead of custom interface
+export type { WarehouseLocation, WarehouseLocationInsert, WarehouseLocationUpdate } from '@/integrations/supabase/types';
 
 export interface WarehouseLocationServiceResult<T = any> {
   data: T | null;
@@ -121,15 +81,16 @@ export class WarehouseLocationService {
           locationMap.set(locationCode, {
             id: `virtual-${locationCode}`,
             location_code: locationCode,
-            warehouse_id: item.warehouse_id || undefined,
-            zone: parsed?.zone,
-            row: parsed?.row,
-            shelf: parsed?.shelf,
-            level: parsed?.level,
-            position: parsed?.position,
+            warehouse_id: item.warehouse_id || null,
+            row: parsed?.row || 'A',
+            level: parsed?.level || 1,
+            position: parsed?.position || 1,
+            location_type: 'shelf' as const,
+            capacity_boxes: 100,
+            capacity_loose: 1000,
             description: `Virtual location from inventory`,
-            capacity: 100,
             is_active: true,
+            user_id: null,
             created_at: item.created_at || new Date().toISOString(),
             updated_at: item.updated_at || new Date().toISOString()
           });
@@ -185,15 +146,16 @@ export class WarehouseLocationService {
           locationMap.set(locationCode, {
             id: `virtual-${locationCode}`,
             location_code: locationCode,
-            warehouse_id: item.warehouse_id || undefined,
-            zone: parsed?.zone,
-            row: parsed?.row,
-            shelf: parsed?.shelf,
-            level: parsed?.level,
-            position: parsed?.position,
+            warehouse_id: item.warehouse_id || null,
+            row: parsed?.row || 'A',
+            level: parsed?.level || 1,
+            position: parsed?.position || 1,
+            location_type: 'shelf' as const,
+            capacity_boxes: 100,
+            capacity_loose: 1000,
             description: `Virtual location from inventory`,
-            capacity: 100,
             is_active: true,
+            user_id: null,
             created_at: item.created_at || new Date().toISOString(),
             updated_at: item.updated_at || new Date().toISOString(),
             inventory_count: 0,
@@ -224,7 +186,7 @@ export class WarehouseLocationService {
 
       // คำนวณ utilization percentage
       Array.from(locationMap.values()).forEach(location => {
-        const totalCapacity = location.capacity || 100;
+        const totalCapacity = location.capacity_boxes || 100;
         location.utilization_percentage = Math.min((location.total_quantity_sum / totalCapacity) * 100, 100);
       });
 
@@ -286,7 +248,7 @@ export class WarehouseLocationService {
       const locations = Array.from(locationMap.entries()).map(([code, count]) => ({
         id: `virtual-${code}`,
         location_code: code,
-        capacity: 100
+        capacity_boxes: 100
       }));
 
       // คำนวณสถิติ
@@ -365,15 +327,16 @@ export class WarehouseLocationService {
       const newLocation: WarehouseLocation = {
         id: `virtual-${normalizedCode}`,
         location_code: normalizedCode,
-        warehouse_id: locationData.warehouse_id,
-        zone: locationData.zone || parsed?.zone,
-        row: locationData.row || parsed?.row,
-        shelf: locationData.shelf || parsed?.shelf,
-        level: locationData.level || parsed?.level,
-        position: locationData.position || parsed?.position,
+        warehouse_id: locationData.warehouse_id || null,
+        row: locationData.row || parsed?.row || 'A',
+        level: locationData.level || parsed?.level || 1,
+        position: locationData.position || parsed?.position || 1,
+        location_type: locationData.location_type || 'shelf',
+        capacity_boxes: locationData.capacity_boxes || 100,
+        capacity_loose: locationData.capacity_loose || 1000,
         description: locationData.description || `Virtual location`,
-        capacity: locationData.capacity || 100,
         is_active: locationData.is_active !== false,
+        user_id: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -406,15 +369,16 @@ export class WarehouseLocationService {
       const updatedLocation: WarehouseLocation = {
         id,
         location_code: locationCode,
-        warehouse_id: locationData.warehouse_id,
-        zone: locationData.zone || parsed?.zone,
-        row: locationData.row || parsed?.row,
-        shelf: locationData.shelf || parsed?.shelf,
-        level: locationData.level || parsed?.level,
-        position: locationData.position || parsed?.position,
+        warehouse_id: locationData.warehouse_id || null,
+        row: locationData.row || parsed?.row || 'A',
+        level: locationData.level || parsed?.level || 1,
+        position: locationData.position || parsed?.position || 1,
+        location_type: locationData.location_type || 'shelf',
+        capacity_boxes: locationData.capacity_boxes || 100,
+        capacity_loose: locationData.capacity_loose || 1000,
         description: locationData.description || `Virtual location`,
-        capacity: locationData.capacity || 100,
         is_active: locationData.is_active !== false,
+        user_id: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -519,15 +483,16 @@ export class WarehouseLocationService {
       const virtualLocation: WarehouseLocation = {
         id: `virtual-${normalizedCode}`,
         location_code: normalizedCode,
-        warehouse_id: item.warehouse_id || undefined,
-        zone: parsed?.zone,
-        row: parsed?.row,
-        shelf: parsed?.shelf,
-        level: parsed?.level,
-        position: parsed?.position,
+        warehouse_id: item.warehouse_id || null,
+        row: parsed?.row || 'A',
+        level: parsed?.level || 1,
+        position: parsed?.position || 1,
+        location_type: 'shelf' as const,
+        capacity_boxes: 100,
+        capacity_loose: 1000,
         description: `Virtual location from inventory`,
-        capacity: 100,
         is_active: true,
+        user_id: null,
         created_at: item.created_at || new Date().toISOString(),
         updated_at: item.updated_at || new Date().toISOString()
       };
@@ -581,11 +546,13 @@ export class WarehouseLocationService {
       // สร้าง virtual location ใหม่
       const newLocationData: WarehouseLocationInsert = {
         location_code: normalizedLocation,
-        row: parsed.row,
-        level: parsed.level,
-        position: parsed.position,
-        description: `Auto-created from inventory (${normalizedLocation})`,
-        capacity: 100
+        row: parsed.row || 'A',
+        level: parsed.level || 1,
+        position: parsed.position || 1,
+        location_type: 'shelf',
+        capacity_boxes: 100,
+        capacity_loose: 1000,
+        description: `Auto-created from inventory (${normalizedLocation})`
       };
 
       return await this.createLocation(newLocationData);
@@ -682,11 +649,8 @@ export class WarehouseLocationService {
 // สำหรับการใช้งานแบบ helper functions
 export const warehouseLocationService = WarehouseLocationService;
 
-// Export types for external use
+// Export additional types for external use
 export type {
-  WarehouseLocation,
-  WarehouseLocationInsert,
-  WarehouseLocationUpdate,
   LocationWithInventoryCount,
   LocationStatistics,
   InventoryItem

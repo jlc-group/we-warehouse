@@ -20,6 +20,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, userData?: any) => Promise<void>;
   signOut: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -166,6 +167,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Sign up function
+  const signUp = useCallback(async (email: string, password: string, userData?: any) => {
+    try {
+      setLoading(true);
+
+      // For demo purposes, we'll simulate signup
+      // In a real app, this would create a Supabase user and profile
+      const newUser: User = {
+        id: `user-${Date.now()}`,
+        email,
+        full_name: userData?.full_name || email.split('@')[0],
+        department: userData?.department_id || 'ทั่วไป',
+        role: 'พนักงาน',
+        role_level: 2,
+        employee_code: userData?.employee_code || null,
+        phone: userData?.phone || null,
+        is_active: true,
+        last_login: new Date().toISOString()
+      };
+
+      // Save to localStorage (in real app, would be saved to Supabase)
+      localStorage.setItem('warehouse_user', JSON.stringify(newUser));
+      setUser(newUser);
+
+    } catch (error: any) {
+      console.error('Sign up error:', error);
+      throw new Error(error.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Logout function
   const signOut = useCallback(() => {
     localStorage.removeItem('warehouse_user');
@@ -211,12 +244,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user,
     loading,
     signIn,
+    signUp,
     signOut,
     hasPermission,
     hasRole,
     hasMinimumRole,
     isInDepartment,
-  }), [user, loading, signIn, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment]);
+  }), [user, loading, signIn, signUp, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment]);
 
   return (
     <AuthContext.Provider value={value}>

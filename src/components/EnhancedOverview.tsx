@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useProducts } from '@/contexts/ProductsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,12 +43,15 @@ import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 import { supabase } from '@/integrations/supabase/client';
+import { ProductTypeBadge, ProductTypeFilter } from '@/components/ProductTypeBadge';
+import { getProductType } from '@/data/sampleInventory';
 
 interface EnhancedOverviewProps {
   items: InventoryItem[];
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onAddItem: () => void;
   onTransferItem: () => void;
+  onWarehouseTransfer: (items: any) => void;
   onExportItem: (id: string, cartonQty: number, boxQty: number, looseQty: number, destination: string, notes?: string) => Promise<void>;
   onScanQR: () => void;
   loading?: boolean;
@@ -67,6 +70,7 @@ export function EnhancedOverview({
   onShelfClick,
   onAddItem,
   onTransferItem,
+  onWarehouseTransfer,
   onExportItem,
   onScanQR,
   loading = false
@@ -79,6 +83,7 @@ export function EnhancedOverview({
   const [selectedMfds, setSelectedMfds] = useState<string[]>([]);
   const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [activeProductTypeFilter, setActiveProductTypeFilter] = useState<string[]>([]);
   const [customRows, setCustomRows] = useState<string[]>([]);
   const [newRowName, setNewRowName] = useState('');
   const [showAddRowDialog, setShowAddRowDialog] = useState(false);
@@ -126,7 +131,7 @@ export function EnhancedOverview({
       existing.items.push(item);
       existing.totalCarton += Number(item.unit_level1_quantity) || 0;
       existing.totalBox += Number(item.unit_level2_quantity) || 0;
-      existing.totalLoose += Number(item.pieces_quantity_legacy) || 0;
+      existing.totalLoose += Number(item.unit_level3_quantity) || 0;
 
       grouped.set(sku, existing);
     });
@@ -211,8 +216,8 @@ export function EnhancedOverview({
   const getCartonQty = (item: any) => Number(item.unit_level1_quantity ?? item.carton_quantity_legacy ?? 0) || 0;
   const getBoxQty = (item: any) => Number(item.unit_level2_quantity ?? item.box_quantity_legacy ?? 0) || 0;
 
-  // SKU to Product Name mapping
-  const skuProductMapping: Record<string, string> = {
+  // SKU to Product Name mapping - wrapped in useMemo for performance
+  const skuProductMapping = useMemo(() => ({
     'A1-40G': 'จุฬาเฮิร์บ บีบี บอดี้โลชั่น 40ก.รุ่นซอง',
     'L13-10G': 'จุฬาเฮิร์บ บลูโรส ไวท์เทนนิ่ง อันเดอร์อาร์มครีม10ก',
     'L8A-6G': 'จุฬาเฮิร์บ วอเตอร์เมลอน อีอี คูชั่น 01 6 ก.รุ่นซอง',
@@ -264,12 +269,12 @@ export function EnhancedOverview({
     'T1-2G': 'จุฬาเฮิร์บ วอเตอร์เมลอน เมจิก ลิป ทินท์ 01 โกเด้นท์ควีน 2ก',
     'T2-2G': 'จุฬาเฮิร์บ วอเตอร์เมลอน เมจิก ลิป ทินท์ 02 ชูก้าร์ เบบี้ 2ก',
     'T3-2G': 'จุฬาเฮิร์บ วอเตอร์เมลอน เมจิก ลิป ทินท์ 03 ซัน ออเรนท์ 2ก'
-  };
+  }), []);
 
   // Function to get product name from SKU
-  const getProductName = (sku: string): string => {
+  const getProductName = useCallback((sku: string): string => {
     return skuProductMapping[sku] || sku;
-  };
+  }, [skuProductMapping]);
 
   // Function to get display name (product name + SKU)
   const getDisplayName = (sku: string): string => {
@@ -316,11 +321,13 @@ export function EnhancedOverview({
       const productName = getProductName(sku).toLowerCase();
       return sku.toLowerCase().includes(query) || productName.includes(query);
     });
-  }, [allSkus, skuSearchQuery, items]);
+  }, [allSkus, skuSearchQuery, getProductName]);
 
   // รายการแถวทั้งหมด A-Z และแถวที่เพิ่มเติม
-  const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-  const allRows = useMemo(() => [...defaultRows, ...customRows], [customRows, items]);
+  const allRows = useMemo(() => {
+    const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+    return [...defaultRows, ...customRows];
+  }, [customRows]);
 
   // รายการ MFD ทั้งหมด
   const allMfds = useMemo(() => {
@@ -337,11 +344,26 @@ export function EnhancedOverview({
     const occupiedLocations = new Set(items.map(item => normalizeLocation(item.location))).size;
     const totalQuantity = items.reduce((sum, item) => sum + getCartonQty(item) + getBoxQty(item), 0);
 
+    // Count FG and PK items
+    let fgCount = 0;
+    let pkCount = 0;
+    let unknownCount = 0;
+
+    items.forEach(item => {
+      const productType = getProductType(item.sku || '');
+      if (productType === 'FG') fgCount++;
+      else if (productType === 'PK') pkCount++;
+      else unknownCount++;
+    });
+
     return {
       totalItems,
       occupiedLocations,
       totalQuantity,
-      availableLocations: 2080 - occupiedLocations // A-Z (26) * 4 levels * 20 positions
+      availableLocations: 2080 - occupiedLocations, // A-Z (26) * 4 levels * 20 positions
+      fgCount,
+      pkCount,
+      unknownCount
     };
   }, [items]);
 
@@ -599,7 +621,7 @@ export function EnhancedOverview({
                 const sku = item.sku || 'N/A';
                 const cartonQty = getCartonQty(item);
                 const boxQty = getBoxQty(item);
-                const looseQty = item.unit_level3_quantity || item.pieces_quantity_legacy || 0;
+                const looseQty = item.unit_level3_quantity || 0;
                 const skuClass = sku.replace(/[^a-zA-Z0-9]/g, '_');
                 
                 sectionHTML += `<div class="grid-cell sku-${skuClass}">
@@ -1131,8 +1153,8 @@ export function EnhancedOverview({
           item.mfd || '-',
           getCartonQty(item),
           getBoxQty(item),
-          item.unit_level3_quantity || item.pieces_quantity_legacy || 0,
-          item.unit || '-',
+          item.unit_level3_quantity || 0,
+          item.unit_level3_name || '-',
           new Date(item.created_at).toLocaleDateString('th-TH')
         ];
         inventoryData.push(row);
@@ -2453,6 +2475,66 @@ export function EnhancedOverview({
                 <RefreshCw className={`h-4 w-4 mr-2 ${qrLoading || bulkLoading ? 'animate-spin' : ''}`} />
                 สร้าง QR ให้ครบทุกตำแหน่ง
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Statistics Summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4" />
+                📊 สถิติภาพรวม
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 bg-blue-50 rounded-lg border">
+                    <div className="text-lg font-bold text-blue-700">{stats.totalItems}</div>
+                    <div className="text-xs text-blue-600">รายการทั้งหมด</div>
+                  </div>
+                  <div className="text-center p-3 bg-purple-50 rounded-lg border">
+                    <div className="text-lg font-bold text-purple-700">{stats.occupiedLocations}</div>
+                    <div className="text-xs text-purple-600">ตำแหน่งที่ใช้</div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h6 className="text-sm font-medium text-gray-700">ประเภทสินค้า</h6>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center p-3 bg-green-50 rounded-lg border">
+                      <div className="text-lg font-bold text-green-700">{stats.fgCount}</div>
+                      <div className="text-xs text-green-600">FG (สำเร็จรูป)</div>
+                    </div>
+                    <div className="text-center p-3 bg-blue-50 rounded-lg border">
+                      <div className="text-lg font-bold text-blue-700">{stats.pkCount}</div>
+                      <div className="text-xs text-blue-600">PK (บรรจุภัณฑ์)</div>
+                    </div>
+                  </div>
+                  {stats.unknownCount > 0 && (
+                    <div className="text-center p-2 bg-gray-50 rounded border">
+                      <div className="text-sm font-semibold text-gray-700">{stats.unknownCount}</div>
+                      <div className="text-xs text-gray-500">ไม่ระบุประเภท</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Product Type Filter */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Filter className="h-4 w-4" />
+                🏷️ ฟิลเตอร์ประเภทสินค้า
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProductTypeFilter
+                selectedTypes={activeProductTypeFilter}
+                onTypeChange={setActiveProductTypeFilter}
+              />
             </CardContent>
           </Card>
 

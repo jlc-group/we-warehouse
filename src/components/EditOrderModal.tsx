@@ -69,6 +69,9 @@ export function EditOrderModal({ isOpen, onClose, orderId }: EditOrderModalProps
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>กำลังโหลดข้อมูลใบสั่งซื้อ</DialogTitle>
+          </DialogHeader>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
@@ -81,6 +84,9 @@ export function EditOrderModal({ isOpen, onClose, orderId }: EditOrderModalProps
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>ไม่พบข้อมูลใบสั่งซื้อ</DialogTitle>
+          </DialogHeader>
           <div className="flex items-center justify-center h-64">
             <p className="text-gray-500">ไม่พบข้อมูลใบสั่งซื้อ</p>
           </div>

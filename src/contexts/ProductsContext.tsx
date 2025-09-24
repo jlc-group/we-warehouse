@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { performanceMonitor } from '@/utils/performanceMonitor';
 import type { Database } from '@/integrations/supabase/types';
+import { secureGatewayClient } from '@/utils/secureGatewayClient';
 
 type Product = Database['public']['Tables']['products']['Row'];
 type ProductInsert = Database['public']['Tables']['products']['Insert'];
@@ -82,11 +82,15 @@ const ProductsContext = createContext<ProductsContextType | null>(null);
 
 export function ProductsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(productsReducer, initialState);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const isFetchingRef = useRef<boolean>(false);
+  const stateRef = useRef(state);
   const { toast } = useToast();
 
-  const fetchProducts = async (force = false) => {
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
+  const fetchProducts = useCallback(async (force = false) => {
     const endpoint = 'products-fetch';
 
     // Rate limiting check
@@ -100,9 +104,10 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Cache check: Don't fetch if data is fresh (within 30 seconds)
+    const { lastFetchTime, products } = stateRef.current;
     const now = Date.now();
-    const timeSinceLastFetch = now - state.lastFetchTime;
-    if (!force && timeSinceLastFetch < 30000 && state.products.length > 0) {
+    const timeSinceLastFetch = now - lastFetchTime;
+    if (!force && timeSinceLastFetch < 30000 && products.length > 0) {
       return;
     }
 
@@ -113,67 +118,59 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      // Cancel previous request if exists
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      const response = await secureGatewayClient.get<Product[]>('products');
 
-      // Create new abort controller
-      abortControllerRef.current = new AbortController();
-
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, sku_code, product_name, product_type, category, subcategory, brand, description, unit_of_measure, is_active, created_at, updated_at')
-        .order('created_at', { ascending: false })
-        .abortSignal(abortControllerRef.current.signal);
-
-      if (error) {
-        throw error;
-      }
-
-      dispatch({ type: 'FETCH_SUCCESS', payload: data || [] });
+      // Transform data to match Product type - handle optional fields safely
+      const transformedData = (response.data ?? []).map(item => ({
+        ...item,
+        dimensions: (item as any).dimensions || null,
+        manufacturing_country: (item as any).manufacturing_country || 'Thailand',
+        max_stock_level: (item as any).max_stock_level || 100,
+        reorder_level: (item as any).reorder_level || 10,
+        subcategory: item.subcategory || null,
+        unit_cost: (item as any).unit_cost || null,
+        weight: (item as any).weight || null,
+        storage_conditions: (item as any).storage_conditions || 'อุณหภูมิห้อง'
+      }));
+      
+      dispatch({ type: 'FETCH_SUCCESS', payload: transformedData });
       success = true;
-      console.log('ProductsContext: Successfully loaded', data?.length || 0, 'products');
+      console.log('ProductsContext: Successfully loaded', response.data?.length || 0, 'products');
     } catch (err: any) {
       // Don't show error if request was aborted
       if (err.name === 'AbortError') {
         return;
       }
 
-      console.error('ProductsContext: Error loading products:', {
+      console.error('ProductsContext: Error loading products (fallback handled by secureGatewayClient):', {
         error: err,
         message: err?.message,
         code: err?.code,
         details: err?.details,
         hint: err?.hint
       });
-      dispatch({ type: 'FETCH_ERROR', payload: err?.message || 'Unknown error occurred' });
+
+      // Show user-friendly message since fallback should have been attempted
+      dispatch({ type: 'FETCH_ERROR', payload: 'Unable to load products. Please check your connection and try again.' });
     } finally {
       const duration = performance.now() - startTime;
       performanceMonitor.logRequest(endpoint, duration, success);
       isFetchingRef.current = false;
     }
-  };
+  }, []);
 
   const addProduct = async (productData: ProductInsert): Promise<Product | null> => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .insert(productData)
-        .select()
-        .single();
+      const response = await secureGatewayClient.mutate<Product>('createProduct', productData);
 
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        dispatch({ type: 'ADD_PRODUCT', payload: data });
+      if (response.data) {
+        const product = response.data as Product;
+        dispatch({ type: 'ADD_PRODUCT', payload: product });
         toast({
           title: '✅ เพิ่มสินค้าสำเร็จ',
-          description: `เพิ่มสินค้า "${data.product_name}" ลงในระบบแล้ว`,
+          description: `เพิ่มสินค้า "${product.product_name}" ลงในระบบแล้ว`,
         });
-        return data;
+        return product;
       }
 
       return null;
@@ -190,24 +187,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const updateProduct = async (id: string, updates: ProductUpdate): Promise<Product | null> => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single();
+      const response = await secureGatewayClient.mutate<Product>('updateProduct', { id, updates });
 
-      if (error) {
-        throw error;
-      }
-
-      if (data) {
-        dispatch({ type: 'UPDATE_PRODUCT', payload: data });
+      if (response.data) {
+        const product = response.data as Product;
+        dispatch({ type: 'UPDATE_PRODUCT', payload: product });
         toast({
           title: '✅ อัพเดตสินค้าสำเร็จ',
-          description: `อัพเดตข้อมูลสินค้า "${data.product_name}" เรียบร้อยแล้ว`,
+          description: `อัพเดตข้อมูลสินค้า "${product.product_name}" เรียบร้อยแล้ว`,
         });
-        return data;
+        return product;
       }
 
       return null;
@@ -227,14 +216,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       // Get product info before deletion for toast message
       const product = state.products.find(p => p.id === id);
 
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        throw error;
-      }
+      await secureGatewayClient.delete('products', { id });
 
       dispatch({ type: 'DELETE_PRODUCT', payload: id });
 
@@ -257,36 +239,12 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const checkSKUExists = async (sku: string, excludeId?: string): Promise<boolean> => {
     try {
-      // Create separate AbortController for this operation
-      const checkController = new AbortController();
-      const timeoutId = setTimeout(() => checkController.abort(), 5000); // 5 second timeout
+      const response = await secureGatewayClient.get<{ exists: boolean }>('skuExists', {
+        sku,
+        excludeId,
+      });
 
-      try {
-        let query = supabase
-          .from('products')
-          .select('id')
-          .eq('sku_code', sku)
-          .abortSignal(checkController.signal);
-
-        if (excludeId) {
-          query = query.neq('id', excludeId);
-        }
-
-        const { data, error } = await query;
-        clearTimeout(timeoutId);
-
-        if (error) {
-          throw error;
-        }
-
-        return (data && data.length > 0);
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          return false; // Treat timeout as "not exists"
-        }
-        throw err;
-      }
+      return response.data?.exists ?? false;
     } catch (err: any) {
       return false;
     }
@@ -294,31 +252,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const getProductBySKU = async (sku: string): Promise<Product | null> => {
     try {
-      // Create separate AbortController for this operation
-      const getController = new AbortController();
-      const timeoutId = setTimeout(() => getController.abort(), 5000); // 5 second timeout
+      const response = await secureGatewayClient.get<Product>('productBySku', { sku });
 
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, sku_code, product_name, product_type, category, subcategory, brand')
-          .eq('sku_code', sku)
-          .single();
-
-        clearTimeout(timeoutId);
-
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-          throw error;
-        }
-
-        return data || null;
-      } catch (err: any) {
-        clearTimeout(timeoutId);
-        if (err.name === 'AbortError') {
-          return null; // Treat timeout as "not found"
-        }
-        throw err;
-      }
+      return response.data ?? null;
     } catch (err: any) {
       return null;
     }
@@ -330,8 +266,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
     // Auto-refresh every 5 minutes if data is stale
     const refreshInterval = setInterval(() => {
+      const { lastFetchTime } = stateRef.current;
       const now = Date.now();
-      const timeSinceLastFetch = now - state.lastFetchTime;
+      const timeSinceLastFetch = now - lastFetchTime;
       const FIVE_MINUTES = 5 * 60 * 1000;
 
       if (timeSinceLastFetch > FIVE_MINUTES) {
@@ -343,12 +280,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     // Cleanup function
     return () => {
       clearInterval(refreshInterval);
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
       isFetchingRef.current = false;
     };
-  }, []); // Empty dependency array - only fetch once
+  }, [fetchProducts]);
 
   const contextValue: ProductsContextType = {
     ...state,

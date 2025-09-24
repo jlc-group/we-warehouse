@@ -6,6 +6,7 @@ import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModalSimple } from '@/components/InventoryModalSimple';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
+import { EnhancedEventLogs } from '@/components/EnhancedEventLogs';
 import { EnhancedOverview } from '@/components/EnhancedOverview';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
@@ -38,14 +39,13 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
-import { UnitConversionSettings } from '@/components/UnitConversionSettings';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
 import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
@@ -106,7 +106,7 @@ const Index = memo(() => {
     refetch,
     clearAllData,
     getItemsAtLocation
-  } = useDepartmentInventory(selectedWarehouseId);
+  } = useDepartmentInventory();
 
   // Stable memoized inventory items to prevent ShelfGrid re-renders
   const stableInventoryItems = useMemo(() => {
@@ -374,7 +374,7 @@ const Index = memo(() => {
       // Error handling is done in the hook - keep modal open for retry
       console.error('Error in handleSaveItem:', error);
     }
-  }, [selectedItem, updateItem, addItem, permissions, user, refetch]);
+  }, [selectedItem, updateItem, addItem]);
 
   const handleBulkSave = useCallback(async (locations: string[], itemData: {
     product_name: string;
@@ -427,7 +427,7 @@ const Index = memo(() => {
       // Error handling is done in the hook
       console.error('❌ Error in handleBulkSave:', error);
     }
-  }, [addItem, refetch]);
+  }, [addItem]);
 
   const handleModalClose = useCallback(() => {
     setIsModalOpen(false);
@@ -466,7 +466,7 @@ const Index = memo(() => {
     } catch (error) {
       throw error; // Let the LocationItemSelector component handle the error display
     }
-  }, [deleteItem, refetch]);
+  }, [deleteItem]);
 
   const handleClearLocationItems = useCallback(async () => {
     try {
@@ -484,14 +484,14 @@ const Index = memo(() => {
     } catch (error) {
       throw error; // Let the LocationItemSelector component handle the error display
     }
-  }, [selectedLocation, locationItems, deleteItem, refetch]);
+  }, [locationItems, deleteItem]);
 
   const handleAddNewItemAtLocation = useCallback(() => {
     // Close the LocationItemSelector and open the InventoryModalSimple for adding new item
     setIsLocationItemSelectorOpen(false);
     setSelectedItem(undefined); // Clear any selected item to indicate this is a new item
     setIsModalOpen(true);
-  }, [selectedLocation]);
+  }, []);
 
   const handleSetupQRTable = useCallback(async () => {
     setIsCreatingQRTable(true);
@@ -665,6 +665,10 @@ const Index = memo(() => {
                           <Users className="mr-2 h-4 w-4" />
                           <span>Admin</span>
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setActiveTab('management')}>
+                          <Archive className="mr-2 h-4 w-4" />
+                          <span>จัดการ</span>
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setShowClearConfirm(true)}
                           className="text-red-600 focus:text-red-600"
@@ -795,11 +799,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 md:grid-cols-7 lg:grid-cols-12 bg-white border border-gray-200">
-            <TabsTrigger value="grid" className="flex items-center gap-2">
-              <Grid3X3 className="h-4 w-4" />
-              <span className="hidden sm:inline">แผนผัง</span>
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-6 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -814,54 +814,23 @@ const Index = memo(() => {
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
-              <span className="hidden sm:inline">ตาราง</span>
+              <span className="hidden sm:inline">ตารางข้อมูล</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Analytics</span>
+              <span className="hidden sm:inline">Analytics & แผนก</span>
             </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              <span className="hidden sm:inline">สรุปสินค้า</span>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              <span className="hidden sm:inline">ประวัติ</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
-              <span className="hidden sm:inline">QR System</span>
-            </TabsTrigger>
-            <TabsTrigger value="management" className="flex items-center gap-2">
-              <Archive className="h-4 w-4" />
-              <span className="hidden sm:inline">จัดการ</span>
-            </TabsTrigger>
-            {showWarehouseTab && (
-              <TabsTrigger value="warehouse" className="flex items-center gap-2">
-                <Warehouse className="h-4 w-4" />
-                <span className="hidden sm:inline">แผนก</span>
-              </TabsTrigger>
-            )}
-            {showAdminFeatures && (
-              <TabsTrigger value="locations" className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span className="hidden sm:inline">ตำแหน่ง</span>
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="config" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              <span className="hidden sm:inline">ตั้งค่า</span>
+              <span className="hidden sm:inline">QR & ตำแหน่ง</span>
             </TabsTrigger>
             {/* Admin tab removed from navbar as requested */}
           </TabsList>
 
-          <TabsContent value="grid" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <ShelfGrid
-                items={stableInventoryItems}
-                onShelfClick={handleShelfClick}
-                onQRCodeClick={handleQRCodeClick}
-              />
-            )}
-          </TabsContent>
 
           <TabsContent value="overview" className="space-y-4">
             <EnhancedOverview
@@ -894,10 +863,29 @@ const Index = memo(() => {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <InventoryTable
-                key={`inventory-table-${inventoryItems.length}`}
-                items={inventoryItems}
-              />
+              <Tabs defaultValue="inventory" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                  <TabsTrigger value="inventory" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    รายการสต็อก
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex items-center gap-2">
+                    <Hash className="h-4 w-4" />
+                    สรุปสินค้า
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="inventory" className="space-y-4">
+                  <InventoryTable
+                    key={`inventory-table-${inventoryItems.length}`}
+                    items={inventoryItems}
+                  />
+                </TabsContent>
+
+                <TabsContent value="products" className="space-y-4">
+                  <ProductSummaryTable />
+                </TabsContent>
+              </Tabs>
             )}
           </TabsContent>
 
@@ -905,65 +893,88 @@ const Index = memo(() => {
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
-              <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-6 bg-white border border-gray-200">
-                  <TabsTrigger value="overview">ภาพรวม</TabsTrigger>
-                  <TabsTrigger value="debug">DB Debug</TabsTrigger>
-                  <TabsTrigger value="advanced">ขั้นสูง</TabsTrigger>
-                  <TabsTrigger value="alerts">แจ้งเตือน</TabsTrigger>
-                  <TabsTrigger value="batch">Batch</TabsTrigger>
-                  <TabsTrigger value="forecast">พยากรณ์</TabsTrigger>
+              <Tabs defaultValue="monitoring" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+                  <TabsTrigger value="monitoring">📊 ภาพรวมและการติดตาม</TabsTrigger>
+                  <TabsTrigger value="alerts">🔔 การแจ้งเตือนและควบคุม</TabsTrigger>
+                  <TabsTrigger value="analysis">📈 การวิเคราะห์และประสิทธิภาพ</TabsTrigger>
+                  <TabsTrigger value="forecasting">🔮 การพยากรณ์และวางแผน</TabsTrigger>
+                  <TabsTrigger value="technical">🛠️ เทคนิคและระบบ</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="overview" className="space-y-4">
-                  <Suspense fallback={<ComponentLoadingFallback componentName="Analytics" />}>
-                    <InventoryAnalytics items={inventoryItems} />
-                  </Suspense>
-                </TabsContent>
-
-                <TabsContent value="debug" className="space-y-4">
-                  <DatabaseDebug />
-                </TabsContent>
-
-                <TabsContent value="advanced" className="space-y-4">
-                  <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
-                    <AdvancedAnalytics />
-                  </Suspense>
+                <TabsContent value="monitoring" className="space-y-4">
+                  <div className="grid gap-4">
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
+                      <InventoryAnalytics items={inventoryItems} />
+                    </Suspense>
+                    {showWarehouseTab && (
+                      <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                        <WarehouseDashboard />
+                      </Suspense>
+                    )}
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="alerts" className="space-y-4">
                   <AlertsPanel />
                 </TabsContent>
 
-                <TabsContent value="batch" className="space-y-4">
-                  <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
-                    <BatchManagement />
+                <TabsContent value="analysis" className="space-y-4">
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
+                    <AdvancedAnalytics />
                   </Suspense>
                 </TabsContent>
 
-                <TabsContent value="forecast" className="space-y-4">
-                  <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
-                    <ForecastingDashboard />
-                  </Suspense>
+                <TabsContent value="forecasting" className="space-y-4">
+                  <div className="grid gap-4">
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
+                      <ForecastingDashboard />
+                    </Suspense>
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
+                      <BatchManagement />
+                    </Suspense>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="technical" className="space-y-4">
+                  <div className="space-y-4">
+                    <DatabaseDebug />
+                  </div>
                 </TabsContent>
               </Tabs>
             )}
           </TabsContent>
 
-          <TabsContent value="products" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <ProductSummaryTable />
-            )}
+
+          <TabsContent value="history" className="space-y-4">
+            <Tabs defaultValue="movement_logs" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="movement_logs">ประวัติการเคลื่อนไหวสต็อก</TabsTrigger>
+                <TabsTrigger value="system_events">ประวัติเหตุการณ์ระบบ</TabsTrigger>
+              </TabsList>
+              <TabsContent value="movement_logs">
+                <MovementLogs />
+              </TabsContent>
+              <TabsContent value="system_events">
+                <EnhancedEventLogs />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
             <Tabs defaultValue="scanner" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                <TabsTrigger value="scanner">Scanner</TabsTrigger>
-                <TabsTrigger value="management">จัดการ QR</TabsTrigger>
-                <TabsTrigger value="history">ประวัติ</TabsTrigger>
+                <TabsTrigger value="scanner" className="flex items-center gap-2">
+                  📱 QR Scanner
+                </TabsTrigger>
+                <TabsTrigger value="management" className="flex items-center gap-2">
+                  🏷️ จัดการ QR
+                </TabsTrigger>
+                {showAdminFeatures && (
+                  <TabsTrigger value="locations" className="flex items-center gap-2">
+                    📍 จัดการตำแหน่ง
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="scanner" className="space-y-4">
@@ -980,9 +991,14 @@ const Index = memo(() => {
                 </Suspense>
               </TabsContent>
 
-              <TabsContent value="history" className="space-y-4">
-                <MovementLogs />
-              </TabsContent>
+              {showAdminFeatures && (
+                <TabsContent value="locations" className="space-y-4">
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
+                    <LocationManagement userRoleLevel={user?.role_level || 0} />
+                  </Suspense>
+                </TabsContent>
+              )}
+
             </Tabs>
           </TabsContent>
 
@@ -1007,25 +1023,8 @@ const Index = memo(() => {
             </Tabs>
           </TabsContent>
 
-          {showWarehouseTab && (
-            <TabsContent value="warehouse" className="space-y-4">
-              <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
-                <WarehouseDashboard />
-              </Suspense>
-            </TabsContent>
-          )}
 
-          {showAdminFeatures && (
-            <TabsContent value="locations" className="space-y-4">
-              <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
-                <LocationManagement userRoleLevel={user?.role_level || 0} />
-              </Suspense>
-            </TabsContent>
-          )}
 
-          <TabsContent value="config" className="space-y-4">
-            <UnitConversionSettings />
-          </TabsContent>
           {showAdminFeatures && (
             <TabsContent value="admin" className="space-y-4">
               <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>

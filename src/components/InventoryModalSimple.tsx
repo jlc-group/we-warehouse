@@ -10,7 +10,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
-import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
+import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
 import { productHelpers } from '@/utils/productHelpers';
 
@@ -188,6 +188,11 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   }, [isOpen, existingItem]); // eslint-disable-line react-hooks/exhaustive-deps
   // Note: loadConversionRate intentionally excluded to prevent unnecessary re-renders and duplicate calls
 
+
+  // Get available product types from database
+  const availableProductTypes = useMemo(() => {
+    return productHelpers.getAvailableProductTypes(products);
+  }, [products]);
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
@@ -400,12 +405,13 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                 <SelectValue placeholder="เลือกประเภทสินค้า" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={PRODUCT_TYPES.FG}>
-                  🏷️ FG - สินค้าสำเร็จรูป (Finished Goods)
-                </SelectItem>
-                <SelectItem value={PRODUCT_TYPES.PK}>
-                  📦 PK - วัสดุบรรจุภัณฑ์ (Packaging)
-                </SelectItem>
+                {availableProductTypes.map(type => (
+                  <SelectItem key={type} value={type}>
+                    {type === 'FG' ? '🏷️ FG - สินค้าสำเร็จรูป (Finished Goods)' : 
+                     type === 'PK' ? '📦 PK - วัสดุบรรจุภัณฑ์ (Packaging)' : 
+                     `📋 ${type} - ประเภทสินค้า`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {selectedProductType && (

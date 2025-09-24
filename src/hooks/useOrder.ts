@@ -316,6 +316,18 @@ export function useCreateOrder() {
         // เพื่อป้องกันการขายซ้ำก่อนยืนยันคำสั่งซื้อ
         if (order.status === 'DRAFT') {
           await reserveStock(order.id, orderItems);
+        } else if (order.status === 'CONFIRMED') {
+          // ตัดสต็อกทันทีสำหรับใบสั่งซื้อที่ยืนยันแล้ว
+          console.log('📦 Order created as CONFIRMED, deducting stock immediately');
+          try {
+            await deductInventoryStock(order.id, queryClient);
+          } catch (stockError) {
+            console.error('❌ Stock deduction failed for confirmed order:', stockError);
+            // ยกเลิกใบสั่งซื้อที่สร้างไว้เพราะตัดสต็อกไม่สำเร็จ
+            await supabase.from('customer_orders').delete().eq('id', order.id);
+            await supabase.from('order_items').delete().eq('order_id', order.id);
+            throw new Error(`ไม่สามารถตัดสต็อกได้: ${stockError instanceof Error ? stockError.message : 'เกิดข้อผิดพลาด'}`);
+          }
         }
       }
 
@@ -339,7 +351,7 @@ export function useCreateOrder() {
 }
 
 // Hook สำหรับตัดสต็อกเมื่อยืนยันคำสั่งซื้อ - ใช้ระบบใหม่
-async function deductInventoryStock(orderId: string) {
+async function deductInventoryStock(orderId: string, queryClient?: any) {
   console.log('📦 Starting inventory deduction for order:', orderId);
 
   // ดึงรายการสินค้าในคำสั่งซื้อ
@@ -358,6 +370,8 @@ async function deductInventoryStock(orderId: string) {
     return;
   }
 
+  console.log(`📋 Found ${orderItems.length} items to deduct stock for order: ${orderId}`);
+
   // วนลูปตัดสต็อกแต่ละรายการ
   for (const item of orderItems) {
     if (!item.inventory_item_id) {
@@ -366,22 +380,53 @@ async function deductInventoryStock(orderId: string) {
     }
 
     const itemData = item as any; // Type assertion
-    
+    const quantitiesToDeduct = {
+      level1: itemData.ordered_quantity_level1 || 0,
+      level2: itemData.ordered_quantity_level2 || 0,
+      level3: itemData.ordered_quantity_level3 || 0
+    };
+
+    console.log(`📦 Deducting stock for item: ${item.product_name}`, quantitiesToDeduct);
+
     try {
-      await deductStock(item.inventory_item_id, {
-        level1: itemData.ordered_quantity_level1 || 0,
-        level2: itemData.ordered_quantity_level2 || 0,
-        level3: itemData.ordered_quantity_level3 || 0
-      });
-      
-      console.log('✅ Stock deducted successfully for:', item.product_name);
+      const result = await deductStock(item.inventory_item_id, quantitiesToDeduct);
+
+      if (result.success) {
+        if (result.isEmpty) {
+          console.log(`📦 Stock emptied for: ${item.product_name} (marked as empty instead of deleted)`);
+        } else {
+          console.log(`✅ Stock deducted successfully for: ${item.product_name}`, result);
+        }
+      } else {
+        throw new Error(`ตัดสต็อกไม่สำเร็จสำหรับ ${item.product_name}`);
+      }
     } catch (error) {
-      console.error('❌ Error deducting stock:', error);
-      throw error;
+      console.error(`❌ Error deducting stock for ${item.product_name}:`, error);
+
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('409')) {
+          throw new Error(`ข้อมูลสต็อกถูกใช้งานโดยระบบอื่น กรุณาลองใหม่อีกครั้ง: ${item.product_name}`);
+        } else if (error.message.includes('foreign key')) {
+          throw new Error(`ไม่สามารถอัพเดตสต็อกเพราะข้อมูลถูกอ้างอิงจากระบบอื่น: ${item.product_name}`);
+        } else if (error.message.includes('สต็อกไม่เพียงพอ')) {
+          throw new Error(`สต็อกไม่เพียงพอสำหรับ ${item.product_name}`);
+        }
+        throw new Error(`ไม่สามารถตัดสต็อกสำหรับ ${item.product_name}: ${error.message}`);
+      } else {
+        throw new Error(`ไม่สามารถตัดสต็อกสำหรับ ${item.product_name}: เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ`);
+      }
     }
   }
 
   console.log('✅ All inventory deductions completed for order:', orderId);
+
+  // CRITICAL: Invalidate inventory cache to refresh UI immediately
+  if (queryClient) {
+    console.log('🔄 Invalidating inventory cache to update UI...');
+    await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+    await queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+  }
 }
 
 // Hook สำหรับจองสต็อก (Stock Reservation) - ใช้ notes field แทน

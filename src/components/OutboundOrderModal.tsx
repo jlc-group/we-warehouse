@@ -4,7 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
+import type { Database } from '@/integrations/supabase/types';
+
+type CustomerOrderInsert = Database['public']['Tables']['customer_orders']['Insert'];
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -30,6 +33,10 @@ import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { formatUnitsDisplay } from '@/utils/unitCalculations';
 import { toast } from 'sonner';
+import { useProducts } from '@/contexts/ProductsContext';
+import { useInventoryContext } from '@/contexts/InventoryContext';
+import { productHelpers } from '@/utils/productHelpers';
+import { ProductTypeFilter, ProductTypeBadge } from '@/components/ProductTypeBadge';
 
 // Schema สำหรับ validation
 const orderSchema = z.object({
@@ -79,9 +86,13 @@ export function OutboundOrderModal({
   const [orderItems, setOrderItems] = useState<OrderItemData[]>([]);
   const [showInventorySearch, setShowInventorySearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
+  const [orderStatus, setOrderStatus] = useState<'DRAFT' | 'CONFIRMED'>('DRAFT');
 
   const createOrder = useCreateOrder();
   const { items: inventoryItems } = useInventory(preSelectedWarehouseId);
+  const { refetch: refetchInventory } = useInventoryContext();
+  const { products } = useProducts();
 
   const {
     register,
@@ -162,18 +173,33 @@ export function OutboundOrderModal({
 
       setShowInventorySearch(false);
       setSearchTerm('');
+      setSelectedProductTypes([]);
+      setOrderStatus('DRAFT');
     }
   }, [isOpen, reset, preSelectedItems, preSelectedCustomerId, preSelectedWarehouseId]);
 
   // Filter inventory สำหรับการค้นหา
   const filteredInventory = inventoryItems?.filter(item => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      item.product_name.toLowerCase().includes(search) ||
-      item.sku.toLowerCase().includes(search) ||
-      item.location.toLowerCase().includes(search)
-    );
+    // Search term filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch = (
+        item.product_name.toLowerCase().includes(search) ||
+        item.sku.toLowerCase().includes(search) ||
+        item.location.toLowerCase().includes(search)
+      );
+      if (!matchesSearch) return false;
+    }
+
+    // Product type filter
+    if (selectedProductTypes.length > 0) {
+      const productType = productHelpers.getProductType(products, item.sku);
+      if (!productType || !selectedProductTypes.includes(productType)) {
+        return false;
+      }
+    }
+
+    return true;
   }) || [];
 
   const addInventoryItem = (item: InventoryItem) => {
@@ -247,28 +273,19 @@ export function OutboundOrderModal({
     try {
       const totalAmount = calculateTotal();
 
-      // สร้าง order data
-      const orderData = {
+      // สร้าง order data - ใช้เฉพาะ fields ที่มีใน schema
+      const orderData: CustomerOrderInsert = {
         customer_id: data.customer_id,
-        warehouse_id: data.warehouse_id || null,
+        warehouse_id: data.warehouse_id,
         order_type: data.order_type,
         priority: data.priority,
-        status: 'DRAFT',
-        order_date: new Date().toISOString().split('T')[0], // เพิ่ม order_date ที่จำเป็น
+        status: orderStatus,
+        order_date: new Date().toISOString().split('T')[0],
         due_date: data.due_date || null,
         customer_po_number: data.customer_po_number || null,
-        payment_terms: data.payment_terms || 30,
-        notes: data.notes || null,
         total_amount: totalAmount,
         final_amount: totalAmount,
-        currency: 'THB', // เพิ่ม currency default
-        shipping_address_line1: data.shipping_address_line1 || null,
-        shipping_address_line2: data.shipping_address_line2 || null,
-        shipping_district: data.shipping_district || null,
-        shipping_province: data.shipping_province || null,
-        shipping_postal_code: data.shipping_postal_code || null,
-        shipping_contact_person: data.shipping_contact_person || null,
-        shipping_phone: data.shipping_phone || null,
+        currency: 'THB',
       };
 
       // สร้าง order items data
@@ -295,10 +312,22 @@ export function OutboundOrderModal({
         notes: item.notes || null,
       }));
 
-      await createOrder.mutateAsync({
+      const createdOrder = await createOrder.mutateAsync({
         orderData,
         orderItems: orderItemsData as any // Type assertion เพื่อหลีกเลี่ยง type conflict
       });
+
+      // ถ้าสถานะเป็น CONFIRMED ให้ตัดสต็อกผ่าน useUpdateOrderStatus hook
+      if (orderData.status === 'CONFIRMED') {
+        console.log('📦 Order created as CONFIRMED - stock deduction handled automatically');
+
+        // CRITICAL: Add small delay to ensure database operations complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // CRITICAL: Refresh inventory to update UI immediately
+      console.log('🔄 Order created successfully, refreshing inventory data...');
+      await refetchInventory(); // Refresh inventory data to show updated stock levels
 
       // Reset form และ clear items
       reset();
@@ -317,10 +346,10 @@ export function OutboundOrderModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-blue-600" />
-            สร้างใบสั่งซื้อใหม่
+            สร้างคำสั่งขายใหม่
           </DialogTitle>
           <DialogDescription>
-            สร้างใบสั่งซื้อสำหรับลูกค้า จัดการรายการสินค้าและข้อมูลการจัดส่ง
+            สร้างคำสั่งขายสำหรับลูกค้า จัดการรายการสินค้าและข้อมูลการจัดส่ง
           </DialogDescription>
         </DialogHeader>
 
@@ -395,6 +424,35 @@ export function OutboundOrderModal({
                 </div>
 
                 <div className="space-y-2">
+                  <Label>สถานะบิล</Label>
+                  <Select
+                    value={orderStatus}
+                    onValueChange={(value: 'DRAFT' | 'CONFIRMED') => setOrderStatus(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="DRAFT">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          แบบร่าง (จองสต็อก)
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="CONFIRMED">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          ยืนยัน (ตัดสต็อกทันที)
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    แบบร่าง: จองสต็อกไว้ก่อน | ยืนยัน: ตัดสต็อกจากคลังทันที
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="due_date">วันที่ต้องการ</Label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -463,6 +521,12 @@ export function OutboundOrderModal({
                       />
                     </div>
 
+                    {/* Product Type Filter */}
+                    <ProductTypeFilter
+                      selectedTypes={selectedProductTypes}
+                      onTypeChange={setSelectedProductTypes}
+                    />
+
                     <div className="max-h-60 overflow-y-auto space-y-2">
                       {filteredInventory.length === 0 ? (
                         <p className="text-center text-muted-foreground py-4">
@@ -476,7 +540,14 @@ export function OutboundOrderModal({
                             onClick={() => addInventoryItem(item)}
                           >
                             <div className="flex-1">
-                              <div className="font-medium">{item.product_name}</div>
+                              <div className="flex items-center gap-2">
+                                <div className="font-medium">{item.product_name}</div>
+                                <ProductTypeBadge 
+                                  sku={item.sku} 
+                                  showIcon={true}
+                                  productType={productHelpers.getProductType(products, item.sku) || undefined}
+                                />
+                              </div>
                               <div className="text-sm text-muted-foreground">
                                 {item.sku} • {item.location}
                               </div>

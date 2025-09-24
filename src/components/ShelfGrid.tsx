@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw, Grid3X3 } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw, Grid3X3, AlertTriangle } from 'lucide-react';
 import { QRScanner } from './QRScanner';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
@@ -23,10 +23,12 @@ interface FilterState {
   searchQuery: string;
   lotFilter: string;
   productCodeFilter: string;
+  locationStatusFilter: string;
   selectedFilters: {
     lot?: string;
     productCode?: string;
     name?: string;
+    locationStatus?: LocationStatus;
   };
 }
 
@@ -160,6 +162,18 @@ const ShelfCard = memo(({
 
 ShelfCard.displayName = 'ShelfCard';
 
+// Helper function to determine location status
+type LocationStatus = 'empty' | 'active';
+
+const getLocationStatus = (locationItems: InventoryItem[]): LocationStatus => {
+  if (locationItems.length === 0) {
+    return 'empty'; // No items at this location - available for new items
+  }
+
+  // If there are items, they must have stock (zero-quantity items are deleted)
+  return 'active'; // Has stock
+};
+
 export const ShelfGrid = memo(function ShelfGrid({
   items,
   onShelfClick,
@@ -172,6 +186,7 @@ export const ShelfGrid = memo(function ShelfGrid({
     searchQuery: '',
     lotFilter: '',
     productCodeFilter: '',
+    locationStatusFilter: '',
     selectedFilters: {}
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
@@ -274,17 +289,17 @@ export const ShelfGrid = memo(function ShelfGrid({
     onShelfClick(normalizedLocation, item);
   }, [onShelfClick]);
 
-  const handleFilterChange = (type: 'lot' | 'productCode', value: string) => {
+  const handleFilterChange = (type: 'lot' | 'productCode' | 'locationStatus', value: string) => {
     setFilters(prev => ({
       ...prev,
       selectedFilters: {
         ...prev.selectedFilters,
-        [type]: value === 'all' ? undefined : value
+        [type]: value === 'all' ? undefined : (value as any)
       }
     }));
   };
 
-  const clearFilter = (type: 'lot' | 'productCode' | 'name') => {
+  const clearFilter = (type: 'lot' | 'productCode' | 'name' | 'locationStatus') => {
     setFilters(prev => {
       const newFilters = { ...prev.selectedFilters };
       delete newFilters[type];
@@ -301,6 +316,7 @@ export const ShelfGrid = memo(function ShelfGrid({
       searchQuery: '',
       lotFilter: '',
       productCodeFilter: '',
+      locationStatusFilter: '',
       selectedFilters: {}
     });
     setHighlightedLocations([]);
@@ -393,8 +409,23 @@ export const ShelfGrid = memo(function ShelfGrid({
                 </Select>
               </div>
 
+              {/* Location Status Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">สถานะ:</span>
+                <Select value={filters.selectedFilters.locationStatus || 'all'} onValueChange={(value) => handleFilterChange('locationStatus', value)}>
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue placeholder="ทั้งหมด" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">ทั้งหมด</SelectItem>
+                    <SelectItem value="active">มีสินค้า</SelectItem>
+                    <SelectItem value="empty">ว่าง</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Clear Filters */}
-              {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode) && (
+              {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
                 <Button variant="outline" size="sm" onClick={clearAllFilters}>
                   <X className="h-3 w-3 mr-1" />
                   ล้างทั้งหมด
@@ -415,7 +446,7 @@ export const ShelfGrid = memo(function ShelfGrid({
             </div>
 
             {/* Active Filters Display */}
-            {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode) && (
+            {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
               <div className="flex gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">ตัวกรองที่ใช้:</span>
                 {filters.searchQuery && (
@@ -434,6 +465,12 @@ export const ShelfGrid = memo(function ShelfGrid({
                   <Badge variant="secondary" className="flex items-center gap-1">
                     รหัส: {filters.selectedFilters.productCode}
                     <X className="h-3 w-3 cursor-pointer" onClick={() => clearFilter('productCode')} />
+                  </Badge>
+                )}
+                {filters.selectedFilters.locationStatus && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    สถานะ: {filters.selectedFilters.locationStatus === 'active' ? 'มีสินค้า' : 'ว่าง'}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => clearFilter('locationStatus')} />
                   </Badge>
                 )}
               </div>
@@ -476,6 +513,7 @@ export const ShelfGrid = memo(function ShelfGrid({
                         const isHighlighted = highlightedLocations.includes(location);
                         const isRecentlyUpdated = false; // Disabled to prevent flickering
                         const itemCount = locationItems.length;
+                        const locationStatus = getLocationStatus(locationItems);
 
                         // Check if any items in this location are selected for order
                         const hasSelectedItems = isOrderMode && locationItems.some(item =>
@@ -513,8 +551,8 @@ export const ShelfGrid = memo(function ShelfGrid({
                                   ${isHighlighted ? 'ring-2 ring-amber-400 bg-amber-50 shadow-md border-amber-300' : ''}
                                   ${isRecentlyUpdated ? 'ring-2 ring-green-400 bg-green-100 shadow-lg animate-pulse border-green-400' : ''}
                                   ${allItemsSelected ? 'ring-2 ring-purple-500 bg-purple-100 border-purple-400 shadow-lg' : hasSelectedItems ? 'ring-2 ring-orange-400 bg-orange-50 border-orange-300' : ''}
-                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
-                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && itemCount === 0 ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && locationStatus === 'active' ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && locationStatus === 'empty' ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
                                 `}
                                 style={{ willChange: 'transform' }}
                               >
@@ -563,7 +601,7 @@ export const ShelfGrid = memo(function ShelfGrid({
 
                                   {/* Main Content */}
                                   <div className="flex-1 flex flex-col items-center justify-center">
-                                    {itemCount > 0 ? (
+                                    {locationStatus === 'active' ? (
                                       <div className="text-center w-full">
                                         {/* Status Indicator */}
                                         <div className={`w-4 h-4 rounded-full mx-auto mb-1 ${
@@ -662,7 +700,7 @@ export const ShelfGrid = memo(function ShelfGrid({
                                     </div>
                                   )}
                                 </div>
-                                {itemCount > 0 ? (
+                                {locationStatus === 'active' ? (
                                   <>
                                     <div className="text-sm">
                                       จำนวนรายการ: {itemCount}

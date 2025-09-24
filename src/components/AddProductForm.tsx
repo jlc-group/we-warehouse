@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useProducts } from '@/hooks/useProducts';
-import { Package, Hash, Save, RotateCcw } from 'lucide-react';
+import { Package, Hash, Save, RotateCcw, Settings } from 'lucide-react';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
+import { UnitConversionSettings } from '@/components/UnitConversionSettings';
 
 type ProductType = 'FG' | 'PK';
 
@@ -85,17 +87,34 @@ export function AddProductForm() {
 
   return (
     <div className="space-y-6">
-      {/* Add Product Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Package className="h-5 w-5 text-primary" />
-            เพิ่มสินค้าใหม่
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            กรอกข้อมูลพื้นฐานของสินค้าเพื่อเพิ่มเข้าระบบ
-          </p>
-        </CardHeader>
+      {/* Product Management Tabs */}
+      <Tabs defaultValue="add-product" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+          <TabsTrigger value="add-product" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            เพิ่มสินค้า
+          </TabsTrigger>
+          <TabsTrigger value="product-summary" className="flex items-center gap-2">
+            <Hash className="h-4 w-4" />
+            รหัสสินค้า
+          </TabsTrigger>
+          <TabsTrigger value="unit-conversion" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            การแปลงหน่วย
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="add-product" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Package className="h-5 w-5 text-primary" />
+                เพิ่มสินค้าใหม่
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                กรอกข้อมูลพื้นฐานของสินค้าเพื่อเพิ่มเข้าระบบ
+              </p>
+            </CardHeader>
 
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -201,9 +220,16 @@ export function AddProductForm() {
           </form>
         </CardContent>
       </Card>
+        </TabsContent>
 
-      {/* Product List Table */}
-      <ProductSummaryTable />
+        <TabsContent value="product-summary" className="space-y-4">
+          <ProductSummaryTable />
+        </TabsContent>
+
+        <TabsContent value="unit-conversion" className="space-y-4">
+          <UnitConversionSettings />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

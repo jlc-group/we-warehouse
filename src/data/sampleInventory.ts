@@ -466,6 +466,31 @@ export const getProductsByType = (type: ProductType) => {
   }
 };
 
+// Get product type by SKU/product code
+export const getProductType = (sku: string): ProductType | null => {
+  // Check if SKU exists in FG products
+  const fgProduct = fg_products.find(p => p.code === sku);
+  if (fgProduct) return PRODUCT_TYPES.FG;
+
+  // Check if SKU exists in PK products
+  const pkProduct = pk_products.find(p => p.code === sku);
+  if (pkProduct) return PRODUCT_TYPES.PK;
+
+  return null;
+};
+
+// Get product type display name
+export const getProductTypeDisplayName = (type: ProductType | null): string => {
+  switch (type) {
+    case PRODUCT_TYPES.FG:
+      return 'FG (สินค้าสำเร็จรูป)';
+    case PRODUCT_TYPES.PK:
+      return 'PK (วัสดุบรรจุภัณฑ์)';
+    default:
+      return 'ไม่ระบุประเภท';
+  }
+};
+
 // Combined product name mapping
 export const PRODUCT_NAME_MAPPING: { [key: string]: string } = {
   // FG Products

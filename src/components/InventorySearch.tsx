@@ -4,10 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Package, Search, MapPin, Hash, BarChart3, Grid3X3, List, ExternalLink } from 'lucide-react';
+import { Package, Search, MapPin, Hash, BarChart3, Grid3X3, List, ExternalLink, Filter } from 'lucide-react';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useDebounce } from '@/hooks/useDebounce';
 import { displayLocation } from '@/utils/locationUtils';
+import { ProductTypeBadge, ProductTypeFilter } from '@/components/ProductTypeBadge';
+import { getProductType } from '@/data/sampleInventory';
 
 interface InventorySearchProps {
   items: InventoryItem[];
@@ -20,26 +22,40 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('location');
+  const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     if (debouncedSearchQuery) {
-      const filteredItems = items.filter(item =>
-        item.product_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      );
+      const filteredItems = items.filter(item => {
+        // Text search filter
+        const matchesSearch = item.product_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+          item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+
+        if (!matchesSearch) return false;
+
+        // Product type filter
+        if (selectedProductTypes.length > 0) {
+          const productType = getProductType((item as any).sku || '');
+          return productType && selectedProductTypes.includes(productType);
+        }
+
+        return true;
+      });
 
       // Debug logging for search results
       console.log('🔍 Search results:', {
         query: debouncedSearchQuery,
+        selectedProductTypes,
         totalItems: items.length,
         filteredItems: filteredItems.length,
         sampleResults: filteredItems.slice(0, 3).map(item => ({
           sku: (item as any).sku,
           product_name: item.product_name,
-          location: item.location
+          location: item.location,
+          productType: getProductType((item as any).sku || '')
         }))
       });
 
@@ -47,7 +63,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     } else {
       setSearchResults([]);
     }
-  }, [debouncedSearchQuery, items]);
+  }, [debouncedSearchQuery, items, selectedProductTypes]);
 
   const handleSearch = (query: string) => {
     const filteredItems = items.filter(item =>
@@ -73,12 +89,27 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     const totalBoxes = searchResults.reduce((sum, item) => sum + ((item as any).carton_quantity_legacy || 0), 0);
     const totalLoose = searchResults.reduce((sum, item) => sum + ((item as any).box_quantity_legacy || 0), 0);
 
+    // Count FG and PK products
+    let fgCount = 0;
+    let pkCount = 0;
+    let unknownCount = 0;
+
+    searchResults.forEach(item => {
+      const productType = getProductType((item as any).sku || '');
+      if (productType === 'FG') fgCount++;
+      else if (productType === 'PK') pkCount++;
+      else unknownCount++;
+    });
+
     return {
       totalItems: searchResults.length,
       uniqueLocations: uniqueLocations.size,
       uniqueProducts: uniqueProducts.size,
       totalBoxes,
-      totalLoose
+      totalLoose,
+      fgCount,
+      pkCount,
+      unknownCount
     };
   }, [searchResults]);
 
@@ -133,21 +164,35 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="ค้นหาตามชื่อสินค้า รหัสสินค้า หรือตำแหน่ง..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="pl-10"
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="ค้นหาตามชื่อสินค้า รหัสสินค้า หรือตำแหน่ง..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="pl-10"
+                />
+              </div>
+              <Button onClick={() => handleSearch(searchQuery)}>
+                <Search className="h-4 w-4 mr-2" />
+                ค้นหา
+              </Button>
+            </div>
+
+            {/* Product Type Filter */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium text-muted-foreground">กรองตามประเภทสินค้า:</span>
+              </div>
+              <ProductTypeFilter
+                selectedTypes={selectedProductTypes}
+                onTypeChange={setSelectedProductTypes}
               />
             </div>
-            <Button onClick={() => handleSearch(searchQuery)}>
-              <Search className="h-4 w-4 mr-2" />
-              ค้นหา
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -165,17 +210,25 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary">{searchSummary.totalItems}</div>
                     <div className="text-sm text-muted-foreground">รายการทั้งหมด</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{searchSummary.uniqueLocations}</div>
+                    <div className="text-2xl font-bold text-green-600">{searchSummary.fgCount}</div>
+                    <div className="text-sm text-muted-foreground">FG (สำเร็จรูป)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">{searchSummary.pkCount}</div>
+                    <div className="text-sm text-muted-foreground">PK (บรรจุภัณฑ์)</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-indigo-600">{searchSummary.uniqueLocations}</div>
                     <div className="text-sm text-muted-foreground">จุดที่พบ</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{searchSummary.uniqueProducts}</div>
+                    <div className="text-2xl font-bold text-teal-600">{searchSummary.uniqueProducts}</div>
                     <div className="text-sm text-muted-foreground">สินค้าต่างชนิด</div>
                   </div>
                   <div className="text-center">
@@ -236,6 +289,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                               <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                                 <Hash className="h-3 w-3 flex-shrink-0" />
                                 <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs" title={(item as any).sku || 'N/A'}>{(item as any).sku || 'N/A'}</span>
+                                <ProductTypeBadge sku={(item as any).sku || ''} showIcon={true} />
                                 {item.lot && (
                                   <>
                                     <span className="mx-1">•</span>
@@ -269,7 +323,10 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                         <Package className="h-5 w-5 text-green-600" />
                         <div className="flex-1 min-w-0">
                           <div className="break-words" title={productGroup.product_name}>{productGroup.product_name}</div>
-                          <div className="text-sm font-normal text-muted-foreground" title={`รหัส: ${productGroup.product_code}`}>รหัส: {productGroup.product_code}</div>
+                          <div className="flex items-center gap-2 text-sm font-normal text-muted-foreground flex-wrap" title={`รหัส: ${productGroup.product_code}`}>
+                            <span>รหัส: {productGroup.product_code}</span>
+                            <ProductTypeBadge sku={productGroup.product_code} showIcon={true} />
+                          </div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -329,6 +386,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                           <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                             <Hash className="h-3 w-3 flex-shrink-0" />
                             <span title={item.sku}>{item.sku}</span>
+                            <ProductTypeBadge sku={item.sku} showIcon={true} />
                             <MapPin className="h-3 w-3 ml-2 flex-shrink-0" />
                             <span title={displayLocation(item.location)}>{displayLocation(item.location)}</span>
                             {item.lot && (

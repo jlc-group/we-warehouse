@@ -10,6 +10,7 @@ import { useWarehouses } from '@/hooks/useWarehouse';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { formatUnitsDisplay } from '@/utils/unitCalculations';
 import { toast } from 'sonner';
+import { ProductTypeBadge } from '@/components/ProductTypeBadge';
 
 interface WarehouseTransferModalProps {
   isOpen: boolean;
@@ -164,7 +165,10 @@ export function WarehouseTransferModal({
               {selectedItems.map((item, index) => (
                 <div key={item.id} className="flex items-center justify-between text-sm">
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{item.product_name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium truncate">{item.product_name}</div>
+                      <ProductTypeBadge sku={item.sku} showIcon={true} />
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {item.sku} • {item.location}
                     </div>

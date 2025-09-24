@@ -250,9 +250,9 @@ export function OrdersTab({ selectedWarehouseId, preSelectedItems = [] }: Orders
       {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">จัดการใบสั่งซื้อ & การส่งออก</h2>
+          <h2 className="text-2xl font-bold text-gray-900">จัดการใบสั่งซื้อจากลูกค้า</h2>
           <p className="text-muted-foreground">
-            จัดการใบสั่งซื้อของลูกค้า และเลือกสินค้าจากตำแหน่งต่างๆ เพื่อการส่งออก
+            จัดการคำสั่งขายจากลูกค้า เลือกสินค้าจากคลัง และตัดสต็อก
           </p>
         </div>
 
@@ -363,7 +363,7 @@ export function OrdersTab({ selectedWarehouseId, preSelectedItems = [] }: Orders
                   <span className="font-medium">โหมดเลือกจากแผนผังคลัง</span>
                 </div>
                 <p className="text-sm text-blue-700 mt-1">
-                  ไปที่แท็บ "แผนผังคลัง" แล้วคลิกที่ตำแหน่งที่มีสินค้าเพื่อเลือกสินค้าสำหรับใบสั่งซื้อ
+                  ไปที่แท็บ "แผนผังคลัง" แล้วคลิกที่ตำแหน่งที่มีสินค้าเพื่อเลือกสินค้าสำหรับคำสั่งขาย
                   รายการที่เลือกแล้ว: <span className="font-medium">{selectedItemsForOrder.length}</span> รายการ
                 </p>
               </div>
@@ -376,7 +376,7 @@ export function OrdersTab({ selectedWarehouseId, preSelectedItems = [] }: Orders
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
           <TabsTrigger value="orders">รายการใบสั่งซื้อ</TabsTrigger>
-          <TabsTrigger value="warehouse">สร้างใบสั่งซื้อใหม่</TabsTrigger>
+          <TabsTrigger value="warehouse">สร้างคำสั่งขายใหม่</TabsTrigger>
         </TabsList>
 
         {/* Orders Tab */}
@@ -588,7 +588,7 @@ export function OrdersTab({ selectedWarehouseId, preSelectedItems = [] }: Orders
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ShoppingCart className="h-5 w-5" />
-                    สร้างใบสั่งซื้อใหม่
+                    สร้างคำสั่งขายใหม่
                     {selectedWarehouseId && warehouses && (
                       <Badge variant="outline">
                         {warehouses.find(w => w.id === selectedWarehouseId)?.name || 'คลังหลัก'}

@@ -11,6 +11,8 @@ import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useDebounce } from '@/hooks/useDebounce';
 import { displayLocation } from '@/utils/locationUtils';
+import { ProductTypeBadge, ProductTypeFilter } from '@/components/ProductTypeBadge';
+import { getProductType } from '@/data/sampleInventory';
 
 interface ProductOverviewAndSearchProps {
   items: InventoryItem[];
@@ -25,6 +27,7 @@ interface FilterState {
   selectedLot: string;
   selectedProductCode: string;
   selectedRow: string;
+  selectedProductTypes: string[];
 }
 
 // Color palette for different products (colorblind-friendly)
@@ -46,14 +49,15 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
     searchQuery: '',
     selectedLot: '',
     selectedProductCode: '',
-    selectedRow: ''
+    selectedRow: '',
+    selectedProductTypes: []
   });
 
   const debouncedSearchQuery = useDebounce(filters.searchQuery, 300);
   const debouncedFilters = useMemo(() => ({
     ...filters,
     searchQuery: debouncedSearchQuery
-  }), [filters.selectedLot, filters.selectedProductCode, filters.selectedRow, debouncedSearchQuery]);
+  }), [filters, debouncedSearchQuery]);
 
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
@@ -130,12 +134,20 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
         }
       }
 
+      // Product type filter
+      if (debouncedFilters.selectedProductTypes.length > 0) {
+        const productType = getProductType(item.sku || '');
+        if (!productType || !debouncedFilters.selectedProductTypes.includes(productType)) {
+          return false;
+        }
+      }
+
       return true;
     });
   }, [items, debouncedFilters]);
 
   // Update filter state
-  const updateFilter = (key: keyof FilterState, value: string) => {
+  const updateFilter = (key: keyof FilterState, value: string | string[]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -145,13 +157,20 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
       searchQuery: '',
       selectedLot: '',
       selectedProductCode: '',
-      selectedRow: ''
+      selectedRow: '',
+      selectedProductTypes: []
     });
   };
 
   // Get active filter count
   const activeFilterCount = useMemo(() => {
-    return Object.values(debouncedFilters).filter(value => value !== '').length;
+    let count = 0;
+    if (debouncedFilters.searchQuery) count++;
+    if (debouncedFilters.selectedLot) count++;
+    if (debouncedFilters.selectedProductCode) count++;
+    if (debouncedFilters.selectedRow) count++;
+    if (debouncedFilters.selectedProductTypes.length > 0) count++;
+    return count;
   }, [debouncedFilters]);
 
   // Get unique products and assign colors
@@ -418,6 +437,14 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                  </SelectContent>
               </Select>
 
+              {/* Product Type Filter */}
+              <div className="col-span-2">
+                <ProductTypeFilter
+                  selectedTypes={filters.selectedProductTypes}
+                  onTypeChange={(types) => updateFilter('selectedProductTypes', types)}
+                />
+              </div>
+
               <Button
                 variant="outline"
                 onClick={clearAllFilters}
@@ -484,6 +511,19 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                     </Button>
                   </Badge>
                 )}
+                {debouncedFilters.selectedProductTypes.length > 0 && debouncedFilters.selectedProductTypes.map(type => (
+                  <Badge key={type} variant="secondary" className="flex items-center gap-1">
+                    {type === 'FG' ? 'FG (สำเร็จรูป)' : type === 'PK' ? 'PK (บรรจุภัณฑ์)' : type}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0 hover:bg-transparent"
+                      onClick={() => updateFilter('selectedProductTypes', debouncedFilters.selectedProductTypes.filter(t => t !== type))}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </Badge>
+                ))}
               </div>
             )}
           </CardContent>
@@ -790,6 +830,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <Hash className="h-3 w-3" />
                             <span>{item.sku}</span>
+                            <ProductTypeBadge sku={item.sku} showIcon={true} />
                             <MapPin className="h-3 w-3 ml-2" />
                             <span>{displayLocation(item.location)}</span>
                             {item.lot && (

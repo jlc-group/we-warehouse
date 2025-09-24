@@ -17,6 +17,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
 import { formatLocation, normalizeLocation, displayLocation } from '@/utils/locationUtils';
 import { LocationConflictDialog } from './LocationConflictDialog';
+import { ProductTypeBadge } from '@/components/ProductTypeBadge';
 
 interface LocationTransferModalProps {
   isOpen: boolean;
@@ -714,7 +715,10 @@ export function LocationTransferModal({
                         onChange={() => toggleItemSelection(item.id)}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{item.product_name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium truncate">{item.product_name}</div>
+                          <ProductTypeBadge sku={item.sku} showIcon={true} />
+                        </div>
                         <div className="text-sm text-muted-foreground">
                           <span className="font-mono">{item.sku}</span>
                           {item.sku && item.product_name && <span className="mx-1">-</span>}
@@ -833,7 +837,10 @@ export function LocationTransferModal({
                   {targetItems.map(item => (
                     <div key={item.id} className="flex items-center justify-between p-2 border rounded bg-red-50">
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{item.product_name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-sm truncate">{item.product_name}</div>
+                          <ProductTypeBadge sku={item.sku} showIcon={true} />
+                        </div>
                         <div className="text-xs text-gray-500 font-mono">{item.sku}</div>
                       </div>
                       <div className="text-right text-xs">

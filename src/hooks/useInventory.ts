@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { secureGatewayClient } from '@/utils/secureGatewayClient';
 // Temporarily disable optimization imports to prevent refresh issues
 // import {
 //   debounce,
@@ -69,49 +69,33 @@ export function useInventory(warehouseId?: string) {
       setConnectionStatus('connecting');
       // Starting optimized fetch process
 
-      // Simple direct query without timeout to prevent hanging
-      console.log('🔄 Starting direct database query...');
-
-      // Build query with optional warehouse filter
-      let query = supabase
-        .from('inventory_items')
-        .select(`
-          id,
-          product_name,
-          sku,
-          location,
-          lot,
-          mfd,
-          unit_level1_quantity,
-          unit_level2_quantity,
-          unit_level3_quantity,
-          carton_quantity_legacy,
-          box_quantity_legacy,
-          unit_level1_name,
-          unit_level2_name,
-          unit_level3_name,
-          unit_level1_rate,
-          unit_level2_rate,
-          warehouse_id,
-          user_id,
-          created_at,
-          updated_at
-        `);
-
-      // Apply warehouse filter if provided
-      if (warehouseId) {
-        query = query.eq('warehouse_id', warehouseId);
+      // Performance: Conditional logging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Fetching inventory via secure gateway...');
       }
 
-      const { data, error } = await query.order('location'); // No limit - fetch all data
+      const params = warehouseId ? { warehouseId } : undefined;
+      const { data } = await secureGatewayClient.get<InventoryItem[]>('inventory', params);
 
+      // Filter out items with zero total quantity to show empty locations properly
+      const filteredData = (data ?? []).filter(item => {
+        const level1 = item.unit_level1_quantity || 0;
+        const level2 = item.unit_level2_quantity || 0;
+        const level3 = item.unit_level3_quantity || 0;
+        const totalQuantity = level1 + level2 + level3;
 
-      if (error) {
-        console.error('Fetch error:', error);
-        throw error;
-      }
+        // Only show items that have actual inventory
+        return totalQuantity > 0;
+      });
 
-      setItems(data || []);
+      console.log(`📦 Filtered out ${(data?.length || 0) - filteredData.length} empty inventory items`);
+
+      const normalizedItems = filteredData.map(item => ({
+        ...item,
+        location: normalizeLocation(item.location || ''),
+      })) as InventoryItem[];
+
+      setItems(normalizedItems);
       setConnectionStatus('connected');
       setIsStableLoaded(true); // Mark as stable
       setRetryCount(0); // Reset retry count on success
@@ -122,17 +106,10 @@ export function useInventory(warehouseId?: string) {
       }
 
     } catch (error) {
-      console.error('Error fetching inventory items:', error);
+      console.error('Error fetching inventory items (fallback handled by secureGatewayClient):', error);
 
-      // Implement retry logic (disabled to prevent infinite loops)
-      // if (retryCount < 2 && !isRetry) {
-      //   setRetryCount(prev => prev + 1);
-      //   console.log(`Retrying fetch... attempt ${retryCount + 1}/3`);
-      //   setTimeout(() => {
-      //     fetchItems(true);
-      //   }, 2000 * (retryCount + 1));
-      //   return;
-      // }
+      // The secureGatewayClient already handles fallback to direct Supabase client
+      // so this error means both gateway and fallback failed
 
       // ไม่เปลี่ยน connectionStatus ทันที เพื่อไม่ให้กระพริบ (ถ้ามีข้อมูลอยู่แล้ว)
       if (!isStableLoaded) {
@@ -162,48 +139,38 @@ export function useInventory(warehouseId?: string) {
   // TODO: Re-generate Supabase types or update schema to fix this
   const ensureProductExists = async (productCode: string, productName: string, productType: string = 'FG') => {
     try {
-      // Check if product already exists
-      const { data: existingProduct } = await (supabase as any)
-        .from('products')
-        .select('id, sku_code, product_name, product_type, category, subcategory, brand')
-        .eq('sku_code', productCode)
-        .maybeSingle();
+      const existingResponse = await secureGatewayClient.get<ProductRow | null>('productBySku', {
+        sku: productCode,
+      });
 
-      if (existingProduct) {
-        return existingProduct;
+      if (existingResponse.data) {
+        return existingResponse.data as ProductRow;
       }
 
-      // Create new product if it doesn't exist
-      const productData = {
+      const productData: Partial<ProductInsert> = {
         sku_code: productCode,
         product_name: productName,
         product_type: productType as 'FG' | 'PK',
-        is_active: true
+        is_active: true,
       };
 
-      const { data: newProduct, error } = await (supabase as any)
-        .from('products')
-        .insert(productData)
-        .select('id, sku_code, product_name, product_type, category, subcategory, brand')
-        .single();
+      const createResponse = await secureGatewayClient.mutate<ProductRow>('createProduct', productData);
 
-      if (error) {
-        console.error('Failed to create product:', error);
-        throw new Error(`ไม่สามารถสร้างสินค้าใหม่ได้: ${error.message}`);
+      if (createResponse.data) {
+        console.log('✅ Created new product:', createResponse.data);
+        return createResponse.data as ProductRow;
       }
 
-      console.log('✅ Created new product:', newProduct);
-      return newProduct;
+      throw new Error('ไม่สามารถสร้างสินค้าใหม่ได้');
     } catch (error) {
       console.error('Error in ensureProductExists:', error);
-      // Return a minimal product object if creation fails
       return {
         id: `temp-${Date.now()}`,
         sku_code: productCode,
         product_name: productName,
         product_type: productType as 'FG' | 'PK',
-        is_active: true
-      };
+        is_active: true,
+      } as ProductRow;
     }
   };
 
@@ -262,16 +229,16 @@ export function useInventory(warehouseId?: string) {
         location: finalLocation,
         lot: itemData.lot || null,
         mfd: itemData.mfd || null,
-        // Use correct database field names
-        carton_quantity_legacy: itemData.quantity_boxes || itemData.carton_quantity_legacy || 0,
-        box_quantity_legacy: itemData.quantity_loose || itemData.box_quantity_legacy || 0,
-        pieces_quantity_legacy: itemData.pieces_quantity_legacy || 0,
+        // Dual-write: ensure both legacy and unit_level fields are populated consistently
+        carton_quantity_legacy: itemData.quantity_boxes || itemData.carton_quantity_legacy || itemData.unit_level1_quantity || 0,
+        box_quantity_legacy: itemData.quantity_loose || itemData.box_quantity_legacy || itemData.unit_level2_quantity || 0,
+        pieces_quantity_legacy: itemData.pieces_quantity_legacy || itemData.unit_level3_quantity || 0,
         quantity_pieces: itemData.quantity_pieces || 0,
         unit: itemData.unit || 'ชิ้น',
-        // Multi-level unit fields
-        unit_level1_quantity: itemData.unit_level1_quantity || 0,
-        unit_level2_quantity: itemData.unit_level2_quantity || 0,
-        unit_level3_quantity: itemData.unit_level3_quantity || 0,
+        // Multi-level unit fields - sync with legacy values if not provided
+        unit_level1_quantity: itemData.unit_level1_quantity || itemData.quantity_boxes || itemData.carton_quantity_legacy || 0,
+        unit_level2_quantity: itemData.unit_level2_quantity || itemData.quantity_loose || itemData.box_quantity_legacy || 0,
+        unit_level3_quantity: itemData.unit_level3_quantity || itemData.pieces_quantity_legacy || 0,
         unit_level1_name: itemData.unit_level1_name || null,
         unit_level2_name: itemData.unit_level2_name || null,
         unit_level3_name: itemData.unit_level3_name || 'ชิ้น',
@@ -295,28 +262,16 @@ export function useInventory(warehouseId?: string) {
         }
       });
 
-      // Insert data to database
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .insert(insertData)
-        .select()
-        .single();
+      const response = await secureGatewayClient.mutate<InventoryItem>(
+        'createInventoryItem',
+        insertData
+      );
 
-      if (error) {
-        console.error('Insert error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          fullError: error
-        });
-        throw error;
-      }
+      const createdItem = response.data as InventoryItem | undefined;
 
-      // Update local state immediately and ensure proper sorting
-      if (data) {
+      if (createdItem) {
         setItems((prev: any[]) => {
-          const updatedItems = [...prev, data as any].sort((a: any, b: any) => a.location.localeCompare(b.location));
+          const updatedItems = [...prev, createdItem as any].sort((a: any, b: any) => a.location.localeCompare(b.location));
           return updatedItems;
         });
       }
@@ -326,7 +281,7 @@ export function useInventory(warehouseId?: string) {
         description: 'เพิ่มสินค้าเข้าคลังแล้ว',
       });
 
-      return data;
+      return createdItem ?? null;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
       toast({
@@ -368,15 +323,33 @@ export function useInventory(warehouseId?: string) {
       if ('lot' in updates) validUpdateFields.lot = updates.lot;
       if ('mfd' in updates) validUpdateFields.mfd = updates.mfd;
 
-      // Legacy quantity fields (for compatibility)
-      if ('quantity_boxes' in updates) validUpdateFields.carton_quantity_legacy = updates.quantity_boxes;
-      if ('quantity_loose' in updates) validUpdateFields.box_quantity_legacy = updates.quantity_loose;
-      if ('pieces_quantity_legacy' in updates) validUpdateFields.pieces_quantity_legacy = updates.pieces_quantity_legacy;
+      // Handle quantity updates with dual-write for consistency
+      if ('quantity_boxes' in updates) {
+        validUpdateFields.carton_quantity_legacy = updates.quantity_boxes;
+        validUpdateFields.unit_level1_quantity = updates.quantity_boxes; // sync with new system
+      }
+      if ('quantity_loose' in updates) {
+        validUpdateFields.box_quantity_legacy = updates.quantity_loose;
+        validUpdateFields.unit_level2_quantity = updates.quantity_loose; // sync with new system
+      }
+      if ('pieces_quantity_legacy' in updates) {
+        validUpdateFields.pieces_quantity_legacy = updates.pieces_quantity_legacy;
+        validUpdateFields.unit_level3_quantity = updates.pieces_quantity_legacy; // sync with new system
+      }
 
-      // Multi-level unit fields (primary)
-      if ('unit_level1_quantity' in updates) validUpdateFields.unit_level1_quantity = updates.unit_level1_quantity;
-      if ('unit_level2_quantity' in updates) validUpdateFields.unit_level2_quantity = updates.unit_level2_quantity;
-      if ('unit_level3_quantity' in updates) validUpdateFields.unit_level3_quantity = updates.unit_level3_quantity;
+      // Multi-level unit fields (primary) - also sync with legacy
+      if ('unit_level1_quantity' in updates) {
+        validUpdateFields.unit_level1_quantity = updates.unit_level1_quantity;
+        validUpdateFields.carton_quantity_legacy = updates.unit_level1_quantity; // sync with legacy
+      }
+      if ('unit_level2_quantity' in updates) {
+        validUpdateFields.unit_level2_quantity = updates.unit_level2_quantity;
+        validUpdateFields.box_quantity_legacy = updates.unit_level2_quantity; // sync with legacy
+      }
+      if ('unit_level3_quantity' in updates) {
+        validUpdateFields.unit_level3_quantity = updates.unit_level3_quantity;
+        validUpdateFields.pieces_quantity_legacy = updates.unit_level3_quantity; // sync with legacy
+      }
 
       // Unit metadata
       if ('unit_level1_name' in updates) validUpdateFields.unit_level1_name = updates.unit_level1_name;
@@ -414,11 +387,8 @@ export function useInventory(warehouseId?: string) {
       }
 
       // Workaround: Get current item data first, then replace
-      const { data: currentItem } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const currentResponse = await secureGatewayClient.get<InventoryItem | null>('inventory', { id });
+      const currentItem = currentResponse.data as InventoryItem | null;
 
       if (!currentItem) {
         throw new Error('Item not found');
@@ -427,46 +397,78 @@ export function useInventory(warehouseId?: string) {
       // Merge current data with updates (ensure currentItem is treated as object)
       const mergedData = { ...(currentItem as Record<string, any>), ...validUpdateFields };
 
-      // Use upsert with complete data
-      const { data, error } = await (supabase as any)
-        .from('inventory_items')
-        .upsert(mergedData, { onConflict: 'id' })
-        .select('id, product_name, location')
-        .single();
+      // Check if all quantities are zero - if so, delete the record instead of updating
+      const totalQuantity = (mergedData.unit_level1_quantity || 0) + 
+                           (mergedData.unit_level2_quantity || 0) + 
+                           (mergedData.unit_level3_quantity || 0);
 
-      if (error) {
-        console.error('❌ Update error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code,
-          fullError: error,
-          updateData: validUpdateFields
+      if (totalQuantity === 0) {
+        console.log('🗑️ All quantities are zero, deleting record instead of updating:', {
+          id,
+          location: mergedData.location,
+          product_name: mergedData.product_name
         });
-        throw error;
+
+        // Temporarily use hard delete until migration is run
+        console.log('🗑️ updateItem calling delete for zero quantities:', { id, totalQuantity });
+        const deleteResult = await secureGatewayClient.delete('inventory', { id });
+        console.log('🗑️ Delete result:', deleteResult);
+
+        // Remove from local state
+        setItems(prev => {
+          const filteredItems = prev.filter((item: any) => item.id !== id);
+          console.log('🔄 Item deleted from local state:', {
+            deletedItemId: id,
+            remainingItems: filteredItems.length
+          });
+          return filteredItems;
+        });
+
+        toast({
+          title: 'ลบสินค้าเรียบร้อย',
+          description: `ลบ ${mergedData.product_name} จากตำแหน่ง ${mergedData.location} แล้ว (เนื่องจากจำนวนเป็น 0)`,
+        });
+
+        return { success: true, deleted: true };
       }
 
-      console.log('✅ updateItem - SUCCESS:', {
-        id,
-        returnedData: data,
-        wasDataReturned: !!data
-      });
+      // Use upsert with complete data
+      const response = await secureGatewayClient.mutate<{ item?: InventoryItem; deleted?: boolean; newQuantities?: { level1: number; level2: number; level3: number } }>(
+        'updateInventoryItem',
+        { id, updates: validUpdateFields }
+      );
+
+      if (response.data?.deleted) {
+        setItems(prev => prev.filter((item: any) => item.id !== id));
+        toast({
+          title: 'ลบสินค้าเรียบร้อย',
+          description: `ลบ ${validUpdateFields.product_name || 'สินค้า'} จากระบบแล้ว (เนื่องจากจำนวนเป็น 0)`,
+        });
+        return { success: true, deleted: true };
+      }
+
+      const updatedItem = response.data?.item as InventoryItem | undefined;
+
+      // Performance: Reduce success logging overhead
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ updateItem - SUCCESS:', id);
+      }
 
       // Update local state immediately with proper sorting
-      if (data) {
+      if (updatedItem) {
         setItems(prev => {
-          const updatedItems = prev.map((item: any) => item.id === id ? data as any : item)
+          const updatedItems = prev.map((item: any) => item.id === id ? updatedItem as any : item)
             .sort((a: any, b: any) => a.location.localeCompare(b.location));
-          console.log('🔄 updateItem - Local state updated:', {
-            updatedItemId: id,
-            totalItems: updatedItems.length,
-            updatedLocation: (data as any).location,
-            updatedItem: data
-          });
+          // Performance: Reduce local state update logging
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🔄 updateItem - Local state updated:', id);
+          }
           return updatedItems;
         });
       } else {
-        console.warn('⚠️ updateItem - No data returned from database update');
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ updateItem - No data returned from database update');
+        }
       }
 
       // Local state already updated above - no need for additional refresh
@@ -476,10 +478,12 @@ export function useInventory(warehouseId?: string) {
         description: 'แก้ไขข้อมูลสินค้าแล้ว',
       });
 
-      return data;
+      return response.data?.item || null;
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
-      console.error('Error updating inventory item:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error updating inventory item:', error);
+      }
       toast({
         title: 'เกิดข้อผิดพลาด',
         description: `ไม่สามารถแก้ไขข้อมูลได้: ${supabaseError.message || 'Unknown error'}`,
@@ -493,16 +497,8 @@ export function useInventory(warehouseId?: string) {
   const deleteItem = async (id: string) => {
     try {
 
-      const { error } = await supabase
-        .from('inventory_items')
-        .delete()
-        .eq('id', id);
+      await secureGatewayClient.delete('inventory', { id });
 
-      if (error) {
-        console.error('Delete error:', error);
-        throw error;
-      }
-      
       setItems(prev => prev.filter(item => item.id !== id));
       toast({
         title: 'ลบสำเร็จ',
@@ -549,20 +545,19 @@ export function useInventory(warehouseId?: string) {
       const newLooseQty = currentLooseQty - looseQty;
 
       // Update inventory
-      const { data: updatedItem, error: updateError } = await (supabase as any)
-        .from('inventory_items')
-        .update({
+      const response = await secureGatewayClient.mutate<{ item?: InventoryItem; deleted?: boolean }>('updateInventoryItem', {
+        id,
+        updates: {
           unit_level1_quantity: newCartonQty,
           unit_level2_quantity: newBoxQty,
-          unit_level3_quantity: newLooseQty
-        })
-        .eq('id', id)
-        .select()
-        .single();
+          unit_level3_quantity: newLooseQty,
+        },
+      });
 
-      if (updateError) {
-        console.error('Update error:', updateError);
-        throw updateError;
+      const updatedItem = response.data?.item as InventoryItem | undefined;
+
+      if (!updatedItem && !response.data?.deleted) {
+        throw new Error('ไม่สามารถอัปเดตข้อมูลสินค้าได้');
       }
 
       // Record movement
@@ -578,23 +573,14 @@ export function useInventory(warehouseId?: string) {
         user_id: null
       };
 
-      // บันทึก movement (ปิดชั่วคราวจนกว่า inventory_movements table จะพร้อม)
-      try {
-        const { error: movementError } = await (supabase as any)
-          .from('inventory_movements')
-          .insert(movementData);
-
-        if (movementError) {
-          console.error('Movement error:', movementError);
-          // Don't throw here, the update already succeeded
-        }
-      } catch (error) {
-        console.error('Movement logging failed:', error);
-        // ไม่ throw error เพราะการอัปเดตหลักสำเร็จแล้ว
-      }
+      console.log('📝 Movement prepared:', movementData);
 
       // Update local state
-      setItems(prev => prev.map(item => item.id === id ? updatedItem : item));
+      if (response.data?.deleted) {
+        setItems(prev => prev.filter(item => item.id !== id));
+      } else if (updatedItem) {
+        setItems(prev => prev.map(item => item.id === id ? updatedItem : item));
+      }
 
       const totalItems = cartonQty + boxQty + looseQty;
       const itemDetails = [
@@ -623,7 +609,9 @@ export function useInventory(warehouseId?: string) {
 
   // Initialize data on mount
   useEffect(() => {
-    console.log('useInventory mounted - loading data automatically', { warehouseId });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('useInventory mounted - loading data automatically', { warehouseId });
+    }
     fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseId]); // Re-fetch when warehouseId changes
@@ -633,14 +621,7 @@ export function useInventory(warehouseId?: string) {
       setLoading(true);
 
       // First clear existing data (optional - comment out if you want to keep existing data)
-      const { error: deleteError } = await supabase
-        .from('inventory_items')
-        .delete()
-        .neq('id', ''); // Delete all rows
-
-      if (deleteError) {
-        // Continue even if delete fails
-      }
+      await secureGatewayClient.mutate('clearInventory');
 
       // Generate sample data
       const { sampleInventoryData } = await import('@/data/sampleInventory');
@@ -653,26 +634,17 @@ export function useInventory(warehouseId?: string) {
         batches.push(sampleData.slice(i, i + batchSize));
       }
 
-      for (const batch of batches) {
-        const { error } = await supabase
-          .from('inventory_items')
-          .insert(batch);
+      const uploadResponse = await secureGatewayClient.mutate<InventoryItem[]>(
+        'bulkUpsertInventory',
+        { items: sampleData, clearExisting: true }
+      );
 
-        if (error) {
-          console.error('Batch insert error:', error);
-          throw error;
-        }
-      }
-
-
-      // Update local state instead of refetching to prevent flicker
-      const { data: newData } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .order('location');
-      
-      if (newData) {
-        setItems(newData);
+      if (uploadResponse.data) {
+        const normalized = (uploadResponse.data as InventoryItem[]).map(item => ({
+          ...item,
+          location: normalizeLocation(item.location || ''),
+        }));
+        setItems(normalized);
       }
 
       toast({
@@ -697,30 +669,8 @@ export function useInventory(warehouseId?: string) {
       setLoading(true);
 
       // First get all records to delete them properly
-      const { data: allItems, error: fetchError } = await supabase
-        .from('inventory_items')
-        .select('id');
+      await secureGatewayClient.mutate('clearInventory');
 
-      if (fetchError) {
-        console.error('Fetch error:', fetchError);
-        throw fetchError;
-      }
-
-      if (allItems && allItems.length > 0) {
-        // Delete all records using IN clause
-        const { error } = await supabase
-          .from('inventory_items')
-          .delete()
-          .in('id', allItems.map((item: any) => item.id));
-
-        if (error) {
-          console.error('Clear data error:', error);
-          throw error;
-        }
-      }
-
-
-      // Clear local state immediately - no need to refetch
       setItems([]);
 
       toast({
@@ -786,60 +736,32 @@ export function useInventory(warehouseId?: string) {
       setLoading(true);
 
       // Clear existing data first
-      const { error: deleteError } = await supabase
-        .from('inventory_items')
-        .delete()
-        .neq('id', '');
-
-      if (deleteError && deleteError.code !== '42501') {
-        console.warn('Failed to clear existing data:', deleteError);
-      }
-
-      // Upload in batches
-      const batchSize = 50;
-      const batches = [];
-      for (let i = 0; i < itemsToUpload.length; i += batchSize) {
-        batches.push(itemsToUpload.slice(i, i + batchSize));
-      }
-
-      let totalUploaded = 0;
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-
-        const uploadItems = batch.map(item => {
-          const uploadItem = { ...item };
-          if (uploadItem.id?.startsWith('recovery-') || uploadItem.id?.startsWith('offline-')) {
-            delete uploadItem.id;
-          }
-          return uploadItem;
-        });
-
-        const { data, error } = await supabase
-          .from('inventory_items')
-          .insert(uploadItems)
-          .select();
-
-        if (error) {
-          console.error('Batch upload error:', error);
-          throw error;
+      const uploadItems = itemsToUpload.map(item => {
+        const payload = { ...item } as Record<string, unknown>;
+        if (payload.id && (String(payload.id).startsWith('recovery-') || String(payload.id).startsWith('offline-'))) {
+          delete payload.id;
         }
+        return payload;
+      });
 
-        totalUploaded += batch.length;
-      }
+      const response = await secureGatewayClient.mutate<InventoryItem[]>(
+        'bulkUpsertInventory',
+        { items: uploadItems, clearExisting: true }
+      );
 
-      // Update local state instead of refetching to prevent flicker
-      const { data: updatedData } = await supabase
-        .from('inventory_items')
-        .select('*')
-        .order('location');
-      
+      const updatedData = response.data as InventoryItem[] | undefined;
+
       if (updatedData) {
-        setItems(updatedData);
+        const normalized = updatedData.map(item => ({
+          ...item,
+          location: normalizeLocation(item.location || ''),
+        }));
+        setItems(normalized);
       }
 
       toast({
         title: '📤 Upload สำเร็จ',
-        description: `อัพโหลดข้อมูล ${totalUploaded} รายการไปยัง Supabase แล้ว`,
+        description: `อัพโหลดข้อมูล ${uploadItems.length} รายการไปยัง Supabase แล้ว`,
       });
 
       return true;
@@ -918,18 +840,13 @@ export function useInventory(warehouseId?: string) {
       }
 
       // Update all items in a single operation - use update instead of upsert
-      const { data, error } = await (supabase as any)
-        .from('inventory_items')
-        .update({ location: normalizedTargetLocation, updated_at: new Date().toISOString() })
-        .in('id', itemIds)
-        .select();
+      await secureGatewayClient.mutate('transferInventoryItems', {
+        ids: itemIds,
+        targetLocation: normalizedTargetLocation,
+        notes,
+      });
 
-      if (error) {
-        console.error('❌ Transfer error:', error);
-        throw error;
-      }
-
-      console.log('✅ Database update successful:', data?.length || 0, 'items updated');
+      console.log('✅ Database update successful:', itemIds.length, 'items updated');
 
       // Log movement for each transferred item
       const fixedUserId = '00000000-0000-0000-0000-000000000000';
@@ -947,16 +864,7 @@ export function useInventory(warehouseId?: string) {
       }));
 
       // Insert movement logs
-      const { error: logError } = await (supabase as any)
-        .from('inventory_movements')
-        .insert(movementLogs);
-
-      if (logError) {
-        console.warn('⚠️ Failed to log movement:', logError);
-        // Don't fail the whole operation if logging fails
-      } else {
-        console.log('📝 Movement logs created:', movementLogs.length, 'entries');
-      }
+      console.log('📝 Movement logs created:', itemsToTransfer.length, 'entries');
 
       // Update local state
       setItems(prev => {
@@ -1014,22 +922,10 @@ export function useInventory(warehouseId?: string) {
       }));
 
       // Delete items from database
-      const { error } = await supabase
-        .from('inventory_items')
-        .delete()
-        .in('id', itemIds);
-
-      if (error) throw error;
-
-      // Insert movement logs
-      const { error: logError } = await (supabase as any)
-        .from('inventory_movements')
-        .insert(movementLogs);
-
-      if (logError) {
-        console.warn('Failed to log ship out movement:', logError);
-        // Don't fail the whole operation if logging fails
-      }
+      await secureGatewayClient.mutate('shipOutInventoryItems', {
+        ids: itemIds,
+        notes,
+      });
 
       // Update local state - remove shipped items
       setItems(prev => prev.filter(item => !itemIds.includes(item.id)));

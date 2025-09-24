@@ -203,10 +203,10 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     return productHelpers.getFilteredProductCodes(products, productCodeInputValue, selectedProductType);
   }, [products, productCodeInputValue, selectedProductType]);
 
-  // Check if product code exists
-  const checkIfNewProduct = (code: string) => {
+  // Check if product code exists - wrapped in useCallback to prevent recreation
+  const checkIfNewProduct = useCallback((code: string) => {
     return productHelpers.isNewProduct(products, code);
-  };
+  }, [products]);
 
   // Handle input value change for product code search
   const handleProductCodeInputChange = (value: string) => {
@@ -255,7 +255,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     if (foundProduct) {
       setProductName(foundProduct.product_name);
     }
-  }, [products]);
+  }, [products, checkIfNewProduct]);
 
   // Handle keyboard events for product code input
   const handleProductCodeKeyDown = (e: React.KeyboardEvent) => {

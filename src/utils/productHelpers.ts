@@ -36,7 +36,7 @@ export const productHelpers = {
    * Get all available product codes from database and mapping combined
    */
   getAllProductCodes(products: Product[], productType?: string): string[] {
-    // Get codes from database
+    // Get codes from database (prioritize database over mapping)
     let dbCodes = products.map(p => p.sku_code);
 
     // Filter by product type if specified
@@ -46,10 +46,10 @@ export const productHelpers = {
         .map(p => p.sku_code);
     }
 
-    // Get codes from mapping as fallback
-    const mappingCodes = Object.keys(PRODUCT_NAME_MAPPING);
+    // Get codes from mapping as fallback (only if not filtering by type)
+    const mappingCodes = productType ? [] : Object.keys(PRODUCT_NAME_MAPPING);
 
-    // Combine and deduplicate
+    // Combine and deduplicate, prioritizing database codes
     const allCodes = [...new Set([...dbCodes, ...mappingCodes])];
     return allCodes.sort();
   },
@@ -98,9 +98,9 @@ export const productHelpers = {
     const filteredProducts = this.filterProducts(products, searchQuery, productType);
     const dbCodes = filteredProducts.map(p => p.sku_code);
 
-    // Also include mapping codes that match
+    // Include mapping codes only if not filtering by product type
     const query = searchQuery.toLowerCase();
-    const mappingCodes = Object.keys(PRODUCT_NAME_MAPPING).filter(code => {
+    const mappingCodes = productType ? [] : Object.keys(PRODUCT_NAME_MAPPING).filter(code => {
       const name = PRODUCT_NAME_MAPPING[code]?.toLowerCase();
       return code.toLowerCase().includes(query) || name?.includes(query);
     });
@@ -175,5 +175,41 @@ export const productHelpers = {
       name: '',
       source: 'unknown'
     };
+  },
+
+  /**
+   * Get product type from database (prioritize over static data)
+   */
+  getProductType(products: Product[], skuCode: string): string | null {
+    if (!skuCode?.trim()) return null;
+
+    const dbProduct = this.getProductBySkuCode(products, skuCode);
+    if (dbProduct?.product_type) {
+      return dbProduct.product_type;
+    }
+
+    return null;
+  },
+
+  /**
+   * Get products by type from database
+   */
+  getProductsByType(products: Product[], productType: string): Product[] {
+    return products.filter(p => p.product_type === productType);
+  },
+
+  /**
+   * Get available product types from database
+   */
+  getAvailableProductTypes(products: Product[]): string[] {
+    const types = [...new Set(products.map(p => p.product_type).filter(Boolean))];
+    return types.sort();
+  },
+
+  /**
+   * Check if product type exists in database
+   */
+  isValidProductType(products: Product[], productType: string): boolean {
+    return products.some(p => p.product_type === productType);
   }
 };

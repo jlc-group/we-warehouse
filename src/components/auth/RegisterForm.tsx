@@ -67,15 +67,38 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const { data, error } = await supabase
-          .from('departments')
-          .select('*')
-          .eq('is_active', true)
-          .order('name_thai');
+        // For demo purposes, use mock departments since table doesn't exist yet
+        const mockDepartments: Department[] = [
+          {
+            id: '1',
+            name: 'Warehouse',
+            name_thai: 'คลังสินค้า',
+            color: '#3b82f6',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '2',
+            name: 'Quality Control',
+            name_thai: 'ควบคุมคุณภาพ',
+            color: '#10b981',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '3',
+            name: 'Management',
+            name_thai: 'ผู้บริหาร',
+            color: '#f59e0b',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ];
 
-        if (error) throw error;
-
-        setDepartments(data || []);
+        setDepartments(mockDepartments);
       } catch (error) {
         console.error('Error fetching departments:', error);
         setError('ไม่สามารถโหลดข้อมูลแผนกได้');
@@ -92,16 +115,8 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
       setIsLoading(true);
       setError('');
 
-      // Get default staff role
-      const { data: staffRole, error: roleError } = await supabase
-        .from('roles')
-        .select('id')
-        .eq('name', 'staff')
-        .single();
-
-      if (roleError) {
-        throw new Error('ไม่สามารถกำหนดสิทธิ์เริ่มต้นได้');
-      }
+      // For demo purposes, use default staff role ID
+      const staffRole = { id: 'staff-role-001' };
 
       const userData = {
         full_name: data.full_name,

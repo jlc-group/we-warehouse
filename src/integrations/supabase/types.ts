@@ -26,6 +26,134 @@ export type Database = {
   }
   public: {
     Tables: {
+      departments: {
+        Row: {
+          id: string
+          name: string
+          name_thai: string
+          description: string | null
+          color: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          name_thai: string
+          description?: string | null
+          color: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          name_thai?: string
+          description?: string | null
+          color?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      roles: {
+        Row: {
+          id: string
+          name: string
+          name_thai: string
+          description: string | null
+          permissions: string[]
+          level: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          name_thai: string
+          description?: string | null
+          permissions?: string[]
+          level: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          name_thai?: string
+          description?: string | null
+          permissions?: string[]
+          level?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      warehouse_locations: {
+        Row: {
+          id: string
+          location_code: string
+          row: string
+          level: number
+          position: number
+          location_type: "shelf" | "floor" | "special"
+          capacity_boxes: number
+          capacity_loose: number
+          description: string | null
+          warehouse_id: string | null
+          is_active: boolean
+          user_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          location_code: string
+          row: string
+          level: number
+          position: number
+          location_type: "shelf" | "floor" | "special"
+          capacity_boxes: number
+          capacity_loose: number
+          description?: string | null
+          warehouse_id?: string | null
+          is_active?: boolean
+          user_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          location_code?: string
+          row?: string
+          level?: number
+          position?: number
+          location_type?: "shelf" | "floor" | "special"
+          capacity_boxes?: number
+          capacity_loose?: number
+          description?: string | null
+          warehouse_id?: string | null
+          is_active?: boolean
+          user_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warehouse_locations_warehouse_id_fkey"
+            columns: ["warehouse_id"]
+            isOneToOne: false
+            referencedRelation: "warehouses"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       customer_orders: {
         Row: {
           confirmed_at: string | null
@@ -605,3 +733,15 @@ export type InventoryItemUpdate = TablesUpdate<'inventory_items'>
 export type Product = Tables<'products'>
 export type ProductInsert = TablesInsert<'products'>
 export type ProductUpdate = TablesUpdate<'products'>
+
+export type Department = Tables<'departments'>
+export type DepartmentInsert = TablesInsert<'departments'>
+export type DepartmentUpdate = TablesUpdate<'departments'>
+
+export type Role = Tables<'roles'>
+export type RoleInsert = TablesInsert<'roles'>
+export type RoleUpdate = TablesUpdate<'roles'>
+
+export type WarehouseLocation = Tables<'warehouse_locations'>
+export type WarehouseLocationInsert = TablesInsert<'warehouse_locations'>
+export type WarehouseLocationUpdate = TablesUpdate<'warehouse_locations'>
