@@ -129,3 +129,148 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Print-specific styles for warehouse grid layout */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0.5in;
+  }
+
+  /* Make all background colors lighter for printing */
+  .bg-blue-50 {
+    background-color: #f8fafc !important; /* Very light gray instead of blue */
+  }
+
+  .bg-blue-100 {
+    background-color: #f1f5f9 !important; /* Light gray */
+  }
+
+  .bg-green-50 {
+    background-color: #f8fafc !important; /* Very light gray instead of green */
+  }
+
+  .bg-green-100 {
+    background-color: #f1f5f9 !important; /* Light gray */
+  }
+
+  .bg-amber-50 {
+    background-color: #fefce8 !important; /* Very light yellow */
+  }
+
+  .bg-gray-50 {
+    background-color: #fafafa !important; /* Very light gray */
+  }
+
+  .bg-gray-100 {
+    background-color: #f5f5f5 !important; /* Light gray */
+  }
+
+  /* Make borders lighter for printing */
+  .border-blue-400 {
+    border-color: #cbd5e1 !important; /* Light gray border */
+  }
+
+  .border-emerald-400 {
+    border-color: #cbd5e1 !important; /* Light gray border */
+  }
+
+  .border-amber-300 {
+    border-color: #d1d5db !important; /* Light gray border */
+  }
+
+  .border-green-400 {
+    border-color: #cbd5e1 !important; /* Light gray border */
+  }
+
+  /* Make text colors more print-friendly */
+  .text-blue-700 {
+    color: #334155 !important; /* Dark gray instead of blue */
+  }
+
+  .text-emerald-800 {
+    color: #1e293b !important; /* Dark gray instead of green */
+  }
+
+  .text-blue-500 {
+    color: #64748b !important; /* Gray instead of blue */
+  }
+
+  .text-emerald-500 {
+    color: #64748b !important; /* Gray instead of green */
+  }
+
+  /* Hide interactive elements when printing */
+  .group-hover\\:opacity-100 {
+    opacity: 0 !important;
+  }
+
+  /* Remove shadows for cleaner print */
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Remove animations for print */
+  .animate-pulse {
+    animation: none !important;
+  }
+
+  /* Ensure proper spacing for print */
+  .grid {
+    gap: 0.25rem !important;
+  }
+
+  /* Make cards more compact for printing */
+  .p-2 {
+    padding: 0.25rem !important;
+  }
+
+  /* Additional background color overrides for warehouse grid */
+  .bg-blue-500 {
+    background-color: #9ca3af !important; /* Medium gray dot */
+  }
+
+  .bg-emerald-500 {
+    background-color: #9ca3af !important; /* Medium gray dot */
+  }
+
+  /* White/transparent backgrounds for better printing */
+  .bg-white\\/95,
+  .bg-white\\/70,
+  .bg-white\\/50 {
+    background-color: #ffffff !important;
+  }
+
+  /* Make ring colors lighter */
+  .ring-amber-400 {
+    --tw-ring-color: #e5e7eb !important;
+  }
+
+  .ring-green-400 {
+    --tw-ring-color: #e5e7eb !important;
+  }
+
+  /* Print optimization for grid container */
+  .grid-cols-10,
+  .grid-cols-12,
+  .grid-cols-15,
+  .grid-cols-20 {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Ensure text is readable on light backgrounds */
+  .text-slate-600,
+  .text-slate-700,
+  .text-slate-500 {
+    color: #374151 !important; /* Dark gray for better readability */
+  }
+
+  /* Hide QR scanner and floating buttons when printing */
+  [data-role="qr-scanner"],
+  .fixed {
+    display: none !important;
+  }
+}
