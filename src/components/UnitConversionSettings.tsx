@@ -1,16 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FilterButton } from '@/components/ui/filter-button';
-import { InventorySyncConfirmDialog } from '@/components/InventorySyncConfirmDialog';
 import {
   Settings,
   Save,
@@ -24,22 +23,10 @@ import {
   Plus,
   Search
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import type { InventoryItem } from '@/hooks/useInventory';
-
-interface UnitConversionData {
-  sku: string;
-  product_name: string;
-  unit_level1_name: string | null;
-  unit_level2_name: string | null;
-  unit_level3_name: string | null;
-  unit_level1_rate: number | null;
-  unit_level2_rate: number | null;
-  sample_quantity_1: number;
-  sample_quantity_2: number;
-  sample_quantity_3: number;
-}
+import { productHelpers } from '@/utils/productHelpers';
+import { useProducts } from '@/contexts/ProductsContext';
+import { useConversionRates, conversionRateHelpers } from '@/hooks/useConversionRates';
+import type { ConversionRateData, ConversionRateInput } from '@/services/conversionRateService';
 
 interface Product {
   id: string;
@@ -54,11 +41,20 @@ interface UnitConversionSettingsProps {
 }
 
 export function UnitConversionSettings({ onClose, onConversionRateUpdate }: UnitConversionSettingsProps) {
-  const [conversionData, setConversionData] = useState<UnitConversionData[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editingItem, setEditingItem] = useState<UnitConversionData | null>(null);
+  const { products: allProducts, isLoading: productsLoading } = useProducts();
+  const {
+    conversionRates,
+    isLoading,
+    createConversionRate,
+    updateConversionRate,
+    syncInventoryItems,
+    refetch,
+    isCreating,
+    isUpdating,
+    isSyncing
+  } = useConversionRates();
+
+  const [editingItem, setEditingItem] = useState<ConversionRateData | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
@@ -66,147 +62,16 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
   const [tableSearchQuery, setTableSearchQuery] = useState('');
   const [productTypeFilter, setProductTypeFilter] = useState<string>('');
   const [dialogProductTypeFilter, setDialogProductTypeFilter] = useState<string>('');
-  const [showSyncConfirmDialog, setShowSyncConfirmDialog] = useState(false);
-  const [affectedItemsCount, setAffectedItemsCount] = useState(0);
-  const [pendingSyncData, setPendingSyncData] = useState<{
-    sku: string;
-    productName: string;
-    rates: {
-      unit_level1_name: string | null;
-      unit_level2_name: string | null;
-      unit_level3_name: string | null;
-      unit_level1_rate: number | null;
-      unit_level2_rate: number | null;
-    };
-  } | null>(null);
-  const { toast } = useToast();
 
-  // Load conversion data and products
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-
-      // Load existing conversion rates from product_conversion_rates table
-      const { data: conversionRates, error: conversionError } = await supabase
-        .from('product_conversion_rates')
-        .select('*')
-        .order('sku');
-
-      if (conversionError) {
-        console.error('Error loading conversion rates:', conversionError);
-      }
-
-      // Load all products from products table
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, sku_code, product_name, product_type')
-        .order('sku_code');
-
-      if (productsError) {
-        console.error('Error loading products:', productsError);
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      setAllProducts(products || []);
-
-      // Convert conversion rates to display format
-      const conversionMap = conversionRates?.map(rate => ({
-        sku: rate.sku,
-        product_name: rate.product_name || '',
-        unit_level1_name: rate.unit_level1_name,
-        unit_level2_name: rate.unit_level2_name,
-        unit_level3_name: rate.unit_level3_name,
-        unit_level1_rate: rate.unit_level1_rate,
-        unit_level2_rate: rate.unit_level2_rate,
-        sample_quantity_1: 0,
-        sample_quantity_2: 0,
-        sample_quantity_3: 0,
-      })) || [];
-
-      setConversionData(conversionMap);
-
-      // Debug: Log product types distribution
-      const productTypeCounts = (products || []).reduce((acc: Record<string, number>, product) => {
-        const type = product.product_type || 'NULL';
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-      }, {});
-      console.log('Product types in database:', productTypeCounts);
-      console.log('Total products:', products?.length);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลได้',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+  // Refresh ข้อมูลเมื่อมีการเปลี่ยนแปลง
+  const handleRefresh = () => {
+    refetch();
+    if (onConversionRateUpdate) {
+      onConversionRateUpdate();
     }
   };
 
-  const loadConversionData = loadData;
-
-  // Sync inventory items with updated conversion rates
-  const syncInventoryRates = async (sku: string, rates: {
-    unit_level1_name: string | null;
-    unit_level2_name: string | null;
-    unit_level3_name: string | null;
-    unit_level1_rate: number | null;
-    unit_level2_rate: number | null;
-  }) => {
-    try {
-      console.log('Syncing inventory rates for SKU:', sku, rates);
-
-      // First, get count of affected items
-      const { count } = await supabase
-        .from('inventory_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('sku', sku);
-
-      if (!count || count === 0) {
-        console.log('No inventory items found for SKU:', sku);
-        return { affectedItems: 0, error: null };
-      }
-
-      // Update all inventory items with this SKU
-      const { data, error } = await supabase
-        .from('inventory_items')
-        .update({
-          unit_level1_name: rates.unit_level1_name,
-          unit_level2_name: rates.unit_level2_name,
-          unit_level3_name: rates.unit_level3_name,
-          unit_level1_rate: rates.unit_level1_rate,
-          unit_level2_rate: rates.unit_level2_rate,
-        })
-        .eq('sku', sku)
-        .select('id');
-
-      console.log(`Successfully synced ${data?.length || 0} inventory items for SKU ${sku}`);
-
-      return {
-        affectedItems: data?.length || 0,
-        error: error
-      };
-    } catch (error) {
-      console.error('Error syncing inventory rates:', error);
-      return {
-        affectedItems: 0,
-        error: error as any
-      };
-    }
-  };
-
-  const handleEditClick = (item: UnitConversionData) => {
+  const handleEditClick = (item: ConversionRateData) => {
     setEditingItem({ ...item });
     setShowEditDialog(true);
   };
@@ -215,250 +80,74 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
     if (!editingItem) return;
 
     try {
-      setSaving(true);
-      console.log('Preparing to save conversion rate for:', editingItem.sku, editingItem);
-
-      // First, count how many inventory items will be affected
-      const { count } = await supabase
-        .from('inventory_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('sku', editingItem.sku);
-
-      const syncData = {
+      // เตรียมข้อมูลสำหรับบันทึก
+      const inputData: ConversionRateInput = {
         sku: editingItem.sku,
-        productName: editingItem.product_name,
-        rates: {
-          unit_level1_name: editingItem.unit_level1_name,
-          unit_level2_name: editingItem.unit_level2_name,
-          unit_level3_name: editingItem.unit_level3_name,
-          unit_level1_rate: editingItem.unit_level1_rate,
-          unit_level2_rate: editingItem.unit_level2_rate,
-        }
+        product_name: editingItem.product_name,
+        unit_level1_name: editingItem.unit_level1_name || 'ลัง',
+        unit_level1_rate: editingItem.unit_level1_rate || 1,
+        unit_level2_name: editingItem.unit_level2_name || 'กล่อง',
+        unit_level2_rate: editingItem.unit_level2_rate || 1,
+        unit_level3_name: editingItem.unit_level3_name || 'ชิ้น'
       };
 
-      // Show confirmation dialog
-      setAffectedItemsCount(count || 0);
-      setPendingSyncData(syncData);
-      setShowSyncConfirmDialog(true);
-      setSaving(false); // Reset saving state here since we're showing confirmation
-    } catch (error) {
-      console.error('Error preparing save operation:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถตรวจสอบข้อมูลได้',
-        variant: 'destructive',
-      });
-      setSaving(false);
-    }
-  };
-
-  const handleConfirmSync = async () => {
-    if (!pendingSyncData || !editingItem) return;
-
-    // Store original data for rollback if needed
-    let originalConversionRate: any = null;
-    let conversionRateOperation: 'create' | 'update' | null = null;
-    let rollbackRequired = false;
-
-    try {
-      console.log('Saving conversion rate for:', pendingSyncData.sku);
-
-      // Check if conversion rate exists and store original for potential rollback
-      const { data: existingRate } = await supabase
-        .from('product_conversion_rates')
-        .select('*')
-        .eq('sku', pendingSyncData.sku)
-        .single();
+      // ตรวจสอบว่าเป็นการสร้างใหม่หรืออัปเดต
+      const existingRate = conversionRates.find(rate => rate.sku === editingItem.sku);
+      let success = false;
 
       if (existingRate) {
-        // Store original data for rollback
-        originalConversionRate = { ...existingRate };
-        conversionRateOperation = 'update';
-
-        // Update existing conversion rate
-        console.log('Updating existing conversion rate:', existingRate.id);
-        const { error } = await supabase
-          .from('product_conversion_rates')
-          .update({
-            product_name: editingItem.product_name,
-            unit_level1_name: pendingSyncData.rates.unit_level1_name,
-            unit_level2_name: pendingSyncData.rates.unit_level2_name,
-            unit_level3_name: pendingSyncData.rates.unit_level3_name,
-            unit_level1_rate: pendingSyncData.rates.unit_level1_rate,
-            unit_level2_rate: pendingSyncData.rates.unit_level2_rate,
-          })
-          .eq('sku', pendingSyncData.sku);
-
-        if (error) {
-          console.error('Update error:', error);
-          throw new Error(`Failed to update conversion rate: ${error.message}`);
-        }
-        console.log('Successfully updated conversion rate');
+        // อัปเดต conversion rate ที่มีอยู่
+        success = await updateConversionRate(editingItem.sku, inputData);
       } else {
-        // Create new conversion rate
-        conversionRateOperation = 'create';
-        console.log('Creating new conversion rate for SKU:', pendingSyncData.sku);
-        const { error } = await supabase
-          .from('product_conversion_rates')
-          .insert({
-            sku: pendingSyncData.sku,
-            product_name: editingItem.product_name,
-            unit_level1_name: pendingSyncData.rates.unit_level1_name,
-            unit_level2_name: pendingSyncData.rates.unit_level2_name,
-            unit_level3_name: pendingSyncData.rates.unit_level3_name,
-            unit_level1_rate: pendingSyncData.rates.unit_level1_rate,
-            unit_level2_rate: pendingSyncData.rates.unit_level2_rate,
-          });
-
-        if (error) {
-          console.error('Insert error:', error);
-          throw new Error(`Failed to create conversion rate: ${error.message}`);
-        }
-        console.log('Successfully created new conversion rate');
+        // สร้าง conversion rate ใหม่
+        success = await createConversionRate(inputData);
       }
 
-      // Mark rollback as potentially required if inventory sync fails
-      rollbackRequired = true;
+      if (success) {
+        // ซิงค์ข้อมูลกับ inventory items
+        const syncResult = await syncInventoryItems(editingItem.sku, editingItem);
 
-      // Now sync inventory items if there are any
-      if (affectedItemsCount > 0) {
-        console.log(`Starting inventory sync for ${affectedItemsCount} items...`);
-        const syncResult = await syncInventoryRates(pendingSyncData.sku, pendingSyncData.rates);
+        // ปิด dialogs และ reset state
+        setShowEditDialog(false);
+        setEditingItem(null);
 
-        if (syncResult.error) {
-          throw new Error(`Failed to sync inventory items: ${syncResult.error.message}`);
-        }
-
-        if (syncResult.affectedItems !== affectedItemsCount) {
-          console.warn(
-            `Warning: Expected to sync ${affectedItemsCount} items but only synced ${syncResult.affectedItems}`
-          );
-        }
-
-        console.log(`Successfully synced ${syncResult.affectedItems} inventory items`);
-      }
-
-      // Success - no rollback needed
-      rollbackRequired = false;
-
-      // Update local state
-      setConversionData(prev => {
-        const existing = prev.find(item => item.sku === editingItem.sku);
-        if (existing) {
-          return prev.map(item =>
-            item.sku === editingItem.sku ? editingItem : item
-          );
-        } else {
-          return [...prev, editingItem];
-        }
-      });
-
-      // Close dialogs and reset state
-      setShowSyncConfirmDialog(false);
-      setShowEditDialog(false);
-      setEditingItem(null);
-      setPendingSyncData(null);
-
-      toast({
-        title: 'บันทึกสำเร็จ',
-        description: affectedItemsCount > 0
-          ? `อัปเดตการตั้งค่าแปลงหน่วยสำหรับ ${pendingSyncData.sku} และซิงค์ข้อมูล ${affectedItemsCount} รายการแล้ว`
-          : `สร้างการตั้งค่าแปลงหน่วยสำหรับ ${pendingSyncData.sku} แล้ว`,
-      });
-
-      // Notify other components about the update
-      if (onConversionRateUpdate) {
-        onConversionRateUpdate();
+        // รีเฟรชข้อมูล
+        handleRefresh();
       }
     } catch (error) {
-      console.error('Error saving conversion:', error);
-
-      // Attempt rollback if needed
-      if (rollbackRequired && conversionRateOperation) {
-        console.log('Attempting rollback due to error...');
-        try {
-          if (conversionRateOperation === 'update' && originalConversionRate) {
-            // Rollback to original values
-            const { error: rollbackError } = await supabase
-              .from('product_conversion_rates')
-              .update({
-                product_name: originalConversionRate.product_name,
-                unit_level1_name: originalConversionRate.unit_level1_name,
-                unit_level2_name: originalConversionRate.unit_level2_name,
-                unit_level3_name: originalConversionRate.unit_level3_name,
-                unit_level1_rate: originalConversionRate.unit_level1_rate,
-                unit_level2_rate: originalConversionRate.unit_level2_rate,
-              })
-              .eq('sku', pendingSyncData.sku);
-
-            if (rollbackError) {
-              console.error('Rollback failed:', rollbackError);
-            } else {
-              console.log('Successfully rolled back conversion rate changes');
-            }
-          } else if (conversionRateOperation === 'create') {
-            // Remove the newly created record
-            const { error: rollbackError } = await supabase
-              .from('product_conversion_rates')
-              .delete()
-              .eq('sku', pendingSyncData.sku);
-
-            if (rollbackError) {
-              console.error('Rollback delete failed:', rollbackError);
-            } else {
-              console.log('Successfully rolled back new conversion rate creation');
-            }
-          }
-        } catch (rollbackError) {
-          console.error('Rollback operation failed:', rollbackError);
-        }
-      }
-
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: `ไม่สามารถบันทึกการตั้งค่าได้: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: 'destructive',
-      });
-
-      // Reset dialog states but keep edit dialog open for user to try again
-      setShowSyncConfirmDialog(false);
-      setPendingSyncData(null);
+      console.error('Error saving conversion rate:', error);
     }
   };
+
 
   const handleCreateConversion = async () => {
     const selectedProduct = allProducts.find(p => p.id === selectedProductId);
     if (!selectedProduct) return;
 
+    // Use productHelpers to get display info
+    const productDisplayInfo = productHelpers.getProductDisplayInfo(allProducts, selectedProduct.sku_code);
+
     // Check if conversion rate already exists
-    const existingConversion = conversionData.find(item => item.sku === selectedProduct.sku_code);
+    const existingConversion = conversionRates.find(item => item.sku === selectedProduct.sku_code);
 
     if (existingConversion) {
-      // Edit existing conversion
-      setEditingItem({ ...existingConversion });
-      toast({
-        title: 'แก้ไขการตั้งค่าที่มีอยู่',
-        description: `${selectedProduct.sku_code} มีการตั้งค่าแล้ว จะเปิดหน้าแก้ไข`,
+      // Edit existing conversion with updated product name from database
+      setEditingItem({
+        ...existingConversion,
+        product_name: productDisplayInfo.name || existingConversion.product_name
       });
     } else {
-      // Create new conversion
-      const newConversion: UnitConversionData = {
+      // Create new conversion with current product name from database
+      const newConversion: ConversionRateData = {
         sku: selectedProduct.sku_code,
-        product_name: selectedProduct.product_name,
+        product_name: productDisplayInfo.name || selectedProduct.product_name,
         unit_level1_name: 'ลัง',
         unit_level2_name: 'กล่อง',
         unit_level3_name: 'ชิ้น',
-        unit_level1_rate: null,
-        unit_level2_rate: null,
-        sample_quantity_1: 0,
-        sample_quantity_2: 0,
-        sample_quantity_3: 0,
+        unit_level1_rate: 1,
+        unit_level2_rate: 1,
       };
       setEditingItem(newConversion);
-      toast({
-        title: 'สร้างการตั้งค่าใหม่',
-        description: `กำลังสร้างการตั้งค่าสำหรับ ${selectedProduct.sku_code}`,
-      });
     }
 
     setShowCreateDialog(false);
@@ -466,37 +155,19 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
     setSelectedProductId('');
   };
 
-  // Calculate conversion preview
-  const calculateConversion = (item: UnitConversionData, baseValue: number, fromLevel: number, toLevel: number): string => {
-    if (fromLevel === toLevel) return baseValue.toString();
-
-    let result = baseValue;
-
-    if (fromLevel === 1 && toLevel === 2) {
-      result = baseValue * (item.unit_level1_rate || 1);
-    } else if (fromLevel === 1 && toLevel === 3) {
-      result = baseValue * (item.unit_level1_rate || 1) * (item.unit_level2_rate || 1);
-    } else if (fromLevel === 2 && toLevel === 3) {
-      result = baseValue * (item.unit_level2_rate || 1);
-    } else if (fromLevel === 2 && toLevel === 1) {
-      result = baseValue / (item.unit_level1_rate || 1);
-    } else if (fromLevel === 3 && toLevel === 1) {
-      result = baseValue / ((item.unit_level1_rate || 1) * (item.unit_level2_rate || 1));
-    } else if (fromLevel === 3 && toLevel === 2) {
-      result = baseValue / (item.unit_level2_rate || 1);
-    }
-
+  // Calculate conversion preview using helper
+  const calculateConversion = (item: ConversionRateData, baseValue: number, fromLevel: 1 | 2 | 3, toLevel: 1 | 2 | 3): string => {
+    const result = conversionRateHelpers.calculateConversion(item, baseValue, fromLevel, toLevel);
     return result.toFixed(2);
   };
 
-  const hasValidConversion = (item: UnitConversionData): boolean => {
-    return !!(item.unit_level1_name && item.unit_level2_name &&
-              item.unit_level1_rate && item.unit_level1_rate > 0);
+  const hasValidConversion = (item: ConversionRateData): boolean => {
+    return conversionRateHelpers.hasValidConversion(item);
   };
 
   // Filter conversion data based on search query and product type
   const filteredConversionData = useMemo(() => {
-    let filtered = conversionData;
+    let filtered = conversionRates;
 
     // Filter by search query
     if (tableSearchQuery.trim()) {
@@ -519,9 +190,9 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
     }
 
     return filtered;
-  }, [conversionData, tableSearchQuery, productTypeFilter, allProducts]);
+  }, [conversionRates, tableSearchQuery, productTypeFilter, allProducts]);
 
-  if (loading) {
+  if (isLoading || productsLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -542,7 +213,7 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
           </div>
           <Badge variant="outline" className="px-3 py-1">
             <Package className="h-4 w-4 mr-1" />
-            {tableSearchQuery ? `${filteredConversionData.length}/${conversionData.length}` : conversionData.length} SKU
+            {tableSearchQuery ? `${filteredConversionData.length}/${conversionRates.length}` : conversionRates.length} SKU
           </Badge>
         </div>
 
@@ -551,12 +222,13 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
             variant="default"
             onClick={() => setShowCreateDialog(true)}
             className="flex items-center gap-2"
+            disabled={isCreating}
           >
             <Plus className="h-4 w-4" />
             สร้าง SKU ใหม่
           </Button>
-          <Button variant="outline" onClick={loadConversionData} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+          <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
             รีเฟรช
           </Button>
           {onClose && (
@@ -628,7 +300,7 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
                 พบ {filteredConversionData.length} รายการ
                 {tableSearchQuery && ` จากการค้นหา "${tableSearchQuery}"`}
                 {productTypeFilter && ` ประเภท ${productTypeFilter}`}
-                {(tableSearchQuery || productTypeFilter) && ` จากทั้งหมด ${conversionData.length} รายการ`}
+                {(tableSearchQuery || productTypeFilter) && ` จากทั้งหมด ${conversionRates.length} รายการ`}
               </p>
             )}
           </div>
@@ -875,9 +547,9 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
                 </Button>
                 <Button
                   onClick={handleSaveConversion}
-                  disabled={saving || !editingItem.unit_level1_name || !editingItem.unit_level2_name || !editingItem.unit_level1_rate}
+                  disabled={isUpdating || isCreating || !editingItem.unit_level1_name || !editingItem.unit_level2_name || !editingItem.unit_level1_rate}
                 >
-                  {saving ? (
+                  {(isUpdating || isCreating) ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
                       กำลังบันทึก...
@@ -964,19 +636,12 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
                 </SelectTrigger>
                 <SelectContent>
                   <ScrollArea className="h-64">
-                    {allProducts
-                      .filter(product => {
-                        const query = searchQuery.toLowerCase();
-                        const matchesSearch = (
-                          product.sku_code.toLowerCase().includes(query) ||
-                          product.product_name.toLowerCase().includes(query)
-                        );
-                        const matchesType = dialogProductTypeFilter === '' || product.product_type === dialogProductTypeFilter;
-                        return matchesSearch && matchesType;
-                      })
-                      // Show all products - let user create new or edit existing
+                    {productHelpers
+                      .filterProducts(allProducts, searchQuery, dialogProductTypeFilter || undefined)
                       .map((product) => {
-                        const hasConversion = conversionData.find(c => c.sku === product.sku_code);
+                        const hasConversion = conversionRates.find(c => c.sku === product.sku_code);
+                        const displayInfo = productHelpers.getProductDisplayInfo(allProducts, product.sku_code);
+
                         return (
                           <SelectItem key={product.id} value={product.id}>
                             <div className="flex flex-col items-start w-full">
@@ -990,7 +655,7 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
                                 )}
                               </div>
                               <span className="text-sm text-gray-600 truncate max-w-xs">
-                                {product.product_name}
+                                {displayInfo.name}
                               </span>
                             </div>
                           </SelectItem>
@@ -1050,16 +715,6 @@ export function UnitConversionSettings({ onClose, onConversionRateUpdate }: Unit
         </DialogContent>
       </Dialog>
 
-      {/* Sync Confirmation Dialog */}
-      <InventorySyncConfirmDialog
-        open={showSyncConfirmDialog}
-        onOpenChange={setShowSyncConfirmDialog}
-        sku={pendingSyncData?.sku || ''}
-        productName={pendingSyncData?.productName || ''}
-        affectedItemsCount={affectedItemsCount}
-        onConfirm={handleConfirmSync}
-        isProcessing={saving}
-      />
     </div>
   );
 }

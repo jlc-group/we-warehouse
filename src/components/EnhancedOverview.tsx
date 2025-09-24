@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useProducts } from '@/contexts/ProductsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +72,7 @@ export function EnhancedOverview({
   loading = false
 }: EnhancedOverviewProps) {
   const { toast } = useToast();
+  const { products: productsFromContext, loading: productsLoading } = useProducts();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [viewMode, setViewMode] = useState<'work' | 'monitor'>('work');
   const [selectedSkus, setSelectedSkus] = useState<string[]>([]);
@@ -371,32 +373,19 @@ export function EnhancedOverview({
     }
   }, []);
 
-  // Fetch products data for filtering
+  // Use products data from context for filtering
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('products')
-          .select('sku_code, product_type, category');
-
-        if (error) {
-          console.error('Error fetching products:', error);
-          return;
-        }
-
-        if (data) {
-          setProducts(data);
-          setProductsLoaded(true);
-        }
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      }
-    };
-
-    if (!productsLoaded) {
-      fetchProducts();
+    if (productsFromContext && productsFromContext.length > 0) {
+      const productsForFiltering = productsFromContext.map(p => ({
+        sku_code: p.sku_code,
+        product_type: p.product_type,
+        category: p.category
+      }));
+      setProducts(productsForFiltering);
+      setProductsLoaded(true);
+      console.log('EnhancedOverview: Using products from context:', productsForFiltering.length);
     }
-  }, [productsLoaded]);
+  }, [productsFromContext]);
 
   // Save custom rows to localStorage when changed
   useEffect(() => {
@@ -1315,9 +1304,9 @@ export function EnhancedOverview({
         <MonitorDashboardSimple items={items} onLocationClick={onShelfClick} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Visual Grid - Main Area */}
-        <div className="lg:col-span-3">
-          <Tabs defaultValue="grid" className="space-y-4">
+          {/* Visual Grid - Main Area */}
+          <div className="lg:col-span-3">
+            <Tabs defaultValue="grid" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="grid">แผนผังคลัง</TabsTrigger>
               <TabsTrigger value="table">ตารางรายการ</TabsTrigger>

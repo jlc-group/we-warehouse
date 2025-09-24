@@ -15,6 +15,8 @@ interface ShelfGridProps {
   items: InventoryItem[];
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onQRCodeClick?: (location: string) => void;
+  selectedItems?: InventoryItem[];
+  isOrderMode?: boolean;
 }
 
 interface FilterState {
@@ -127,7 +129,7 @@ const ShelfCard = memo(({
               )}
 
               {itemCount === 1 && (
-                <div className="text-[9px] font-semibold text-emerald-800 leading-tight mb-1 truncate px-1">
+                <div className="text-xs font-semibold text-emerald-800 leading-snug mb-1 px-1 break-words" title={locationItems[0]?.product_name}>
                   {locationItems[0]?.product_name}
                 </div>
               )}
@@ -139,7 +141,7 @@ const ShelfCard = memo(({
               </div>
 
               {itemCount === 1 && locationItems[0]?.lot && (
-                <div className="text-[8px] text-slate-500 mt-1 truncate bg-white/50 rounded px-1 py-0.5">
+                <div className="text-[10px] text-slate-500 mt-1 bg-white/50 rounded px-1 py-0.5 break-words" title={locationItems[0]?.lot}>
                   {locationItems[0]?.lot}
                 </div>
               )}
@@ -158,7 +160,13 @@ const ShelfCard = memo(({
 
 ShelfCard.displayName = 'ShelfCard';
 
-export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCodeClick }: ShelfGridProps) {
+export const ShelfGrid = memo(function ShelfGrid({
+  items,
+  onShelfClick,
+  onQRCodeClick,
+  selectedItems = [],
+  isOrderMode = false
+}: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
@@ -468,6 +476,15 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                         const isHighlighted = highlightedLocations.includes(location);
                         const isRecentlyUpdated = false; // Disabled to prevent flickering
                         const itemCount = locationItems.length;
+
+                        // Check if any items in this location are selected for order
+                        const hasSelectedItems = isOrderMode && locationItems.some(item =>
+                          selectedItems.some(selectedItem => selectedItem.id === item.id)
+                        );
+                        const allItemsSelected = isOrderMode && locationItems.length > 0 &&
+                          locationItems.every(item =>
+                            selectedItems.some(selectedItem => selectedItem.id === item.id)
+                          );
                         
                         // Multiple items handling
                          // Null-safe calculation using consistent quantity helpers
@@ -495,8 +512,9 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                                   ${isSelected ? 'ring-2 ring-primary shadow-lg scale-[1.02] z-10 border-primary/50' : ''}
                                   ${isHighlighted ? 'ring-2 ring-amber-400 bg-amber-50 shadow-md border-amber-300' : ''}
                                   ${isRecentlyUpdated ? 'ring-2 ring-green-400 bg-green-100 shadow-lg animate-pulse border-green-400' : ''}
-                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
-                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && itemCount === 0 ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
+                                  ${allItemsSelected ? 'ring-2 ring-purple-500 bg-purple-100 border-purple-400 shadow-lg' : hasSelectedItems ? 'ring-2 ring-orange-400 bg-orange-50 border-orange-300' : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && itemCount > 0 ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
+                                  ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && itemCount === 0 ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
                                 `}
                                 style={{ willChange: 'transform' }}
                               >
@@ -533,8 +551,14 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
 
                                 <CardContent className="p-2 h-full flex flex-col justify-between">
                                   {/* Location Label */}
-                                  <div className="text-[10px] font-mono text-slate-600 font-bold text-center leading-none">
+                                  <div className="text-[10px] font-mono text-slate-600 font-bold text-center leading-none flex items-center justify-center gap-1">
                                     {displayLocation(location)}
+                                    {isOrderMode && allItemsSelected && (
+                                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                    )}
+                                    {isOrderMode && hasSelectedItems && !allItemsSelected && (
+                                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                                    )}
                                   </div>
 
                                   {/* Main Content */}
@@ -555,14 +579,14 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
 
                                         {/* Product Name for Single Item */}
                                         {itemCount === 1 && (
-                                          <div className="text-[9px] font-semibold text-emerald-800 leading-tight mb-1 truncate px-1">
+                                          <div className="text-xs font-semibold text-emerald-800 leading-snug mb-1 px-1 break-words" title={locationItems[0]?.product_name}>
                                             {locationItems[0]?.product_name}
                                           </div>
                                         )}
 
                                         {/* Product Summary for Multiple Items */}
                                         {itemCount > 1 && (
-                                          <div className="text-[8px] text-blue-800 leading-tight mb-1 px-1">
+                                          <div className="text-[10px] text-blue-800 leading-snug mb-1 px-1 break-words">
                                             {(() => {
                                               const uniqueProducts = new Set(locationItems.map(item => item.product_name));
                                               if (uniqueProducts.size === 1) {
@@ -583,7 +607,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
 
                                         {/* LOT for single item */}
                                         {itemCount === 1 && locationItems[0]?.lot && (
-                                          <div className="text-[8px] text-slate-500 mt-1 truncate bg-white/50 rounded px-1 py-0.5">
+                                          <div className="text-[10px] text-slate-500 mt-1 bg-white/50 rounded px-1 py-0.5 break-words" title={locationItems[0]?.lot}>
                                             {locationItems[0]?.lot}
                                           </div>
                                         )}
@@ -663,7 +687,7 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                                         <div className="space-y-1 max-h-32 overflow-y-auto">
                                           {locationItems.map((item) => (
                                             <div key={item.id} className="text-xs bg-gray-50 p-1 rounded">
-                                              <div className="font-medium text-gray-800 truncate">{item.product_name}</div>
+                                              <div className="font-medium text-gray-800 break-words">{item.product_name}</div>
                                               <div className="text-gray-600">
                                                 รหัส: {item.sku} | ลัง: {getCartonQty(item)} กล่อง: {getBoxQty(item)}
                                               </div>
@@ -752,6 +776,18 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                   <div className="w-4 h-4 border-2 border-dashed border-gray-300 bg-gray-50"></div>
                   <span>ตำแหน่งว่าง</span>
                 </div>
+                {isOrderMode && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-purple-400 bg-purple-100"></div>
+                      <span>เลือกครบทุกรายการ</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 border-2 border-orange-400 bg-orange-50"></div>
+                      <span>เลือกบางรายการ</span>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -771,6 +807,9 @@ export const ShelfGrid = memo(function ShelfGrid({ items, onShelfClick, onQRCode
                 <div><strong>ตัวเลขแสดง:</strong> ลัง+เศษ</div>
                 <div><strong>5+3</strong> = 5 ลัง 3 เศษ</div>
                 <div><strong>10</strong> = 10 ลัง</div>
+                {isOrderMode && (
+                  <div className="text-blue-700"><strong>โหมดเลือกสินค้า:</strong> คลิกเพื่อเลือก</div>
+                )}
               </div>
             </div>
 

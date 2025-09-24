@@ -1,5 +1,6 @@
 /**
  * Utility functions for location standardization and validation
+ * Supports both single warehouse (A1/1) and multi-warehouse (WH001-A1/1) formats
  */
 
 /**
@@ -236,4 +237,182 @@ export function generateAllWarehouseLocations(): string[] {
   console.log(`🔍 Sample locations: ${_cachedWarehouseLocations.slice(0, 5).join(', ')} ... ${_cachedWarehouseLocations.slice(-5).join(', ')}`);
   console.log(`✅ Z20/4 support: ${_cachedWarehouseLocations.includes('Z20/4') ? 'YES' : 'NO'}`);
   return _cachedWarehouseLocations;
+}
+
+/**
+ * Multi-Warehouse Location Functions
+ * Added for multi-warehouse support while maintaining backward compatibility
+ */
+
+/**
+ * Parse multi-warehouse location format
+ * Supports: "WH001-A1/1", "MAIN-B5/3", or legacy "A1/1"
+ */
+export function parseMultiWarehouseLocation(location: string): {
+  warehouseCode: string;
+  location: string;
+  row: string;
+  position: number;
+  level: number;
+} | null {
+  if (!location) return null;
+
+  const cleaned = location.trim().toUpperCase();
+
+  // Check if it has warehouse prefix (WH001-A1/1)
+  const warehousePrefixMatch = cleaned.match(/^([A-Z0-9]+)-(.+)$/);
+
+  let warehouseCode = 'MAIN'; // Default warehouse for legacy format
+  let locationPart = cleaned;
+
+  if (warehousePrefixMatch) {
+    warehouseCode = warehousePrefixMatch[1];
+    locationPart = warehousePrefixMatch[2];
+  }
+
+  // Parse the location part
+  const locationData = parseLocation(locationPart);
+  if (!locationData) return null;
+
+  return {
+    warehouseCode,
+    location: locationPart,
+    row: locationData.row,
+    position: locationData.position,
+    level: locationData.level
+  };
+}
+
+/**
+ * Format multi-warehouse location
+ * Creates: "WH001-A1/1" format
+ */
+export function formatMultiWarehouseLocation(
+  warehouseCode: string,
+  row: string,
+  position: number,
+  level: number
+): string {
+  const location = formatLocation(row, position, level);
+
+  // For default warehouse, use legacy format for backward compatibility
+  if (warehouseCode === 'MAIN') {
+    return location;
+  }
+
+  return `${warehouseCode.toUpperCase()}-${location}`;
+}
+
+/**
+ * Extract warehouse code from location
+ * Returns 'MAIN' for legacy format locations
+ */
+export function extractWarehouseCode(location: string): string {
+  const parsed = parseMultiWarehouseLocation(location);
+  return parsed ? parsed.warehouseCode : 'MAIN';
+}
+
+/**
+ * Extract location part without warehouse prefix
+ * "WH001-A1/1" -> "A1/1"
+ * "A1/1" -> "A1/1"
+ */
+export function extractLocationPart(location: string): string {
+  const parsed = parseMultiWarehouseLocation(location);
+  return parsed ? parsed.location : location;
+}
+
+/**
+ * Convert legacy location to multi-warehouse format
+ * "A1/1" -> "MAIN-A1/1" (or keep as "A1/1" for default warehouse)
+ */
+export function convertToMultiWarehouseFormat(location: string, warehouseCode: string = 'MAIN'): string {
+  const locationPart = extractLocationPart(location);
+  return formatMultiWarehouseLocation(warehouseCode,
+    parseLocation(locationPart)?.row || 'A',
+    parseLocation(locationPart)?.position || 1,
+    parseLocation(locationPart)?.level || 1
+  );
+}
+
+/**
+ * Validate multi-warehouse location format
+ */
+export function isValidMultiWarehouseLocation(location: string): boolean {
+  const parsed = parseMultiWarehouseLocation(location);
+  return parsed !== null && isValidLocation(parsed.location);
+}
+
+/**
+ * Generate all locations for a specific warehouse
+ */
+export function generateWarehouseLocations(
+  warehouseCode: string,
+  rowStart: string = 'A',
+  rowEnd: string = 'Z',
+  maxPositions: number = 20,
+  maxLevels: number = 4
+): string[] {
+  const locations: string[] = [];
+  const startCharCode = rowStart.charCodeAt(0);
+  const endCharCode = rowEnd.charCodeAt(0);
+
+  for (let charCode = startCharCode; charCode <= endCharCode; charCode++) {
+    const row = String.fromCharCode(charCode);
+    for (let level = 1; level <= maxLevels; level++) {
+      for (let position = 1; position <= maxPositions; position++) {
+        locations.push(formatMultiWarehouseLocation(warehouseCode, row, position, level));
+      }
+    }
+  }
+
+  return locations.sort();
+}
+
+/**
+ * Compare locations across warehouses
+ * Handles both single and multi-warehouse formats
+ */
+export function compareMultiWarehouseLocations(location1: string, location2: string): boolean {
+  const parsed1 = parseMultiWarehouseLocation(location1);
+  const parsed2 = parseMultiWarehouseLocation(location2);
+
+  if (!parsed1 || !parsed2) return false;
+
+  return parsed1.warehouseCode === parsed2.warehouseCode &&
+         parsed1.location === parsed2.location;
+}
+
+/**
+ * Generate QR Code data for multi-warehouse location
+ * Format: "WH001-A1/1" or "A1/1" for MAIN warehouse
+ */
+export function generateWarehouseLocationQR(warehouseCode: string, location: string): string {
+  const normalizedLocation = normalizeLocation(location);
+
+  if (warehouseCode === 'MAIN') {
+    // For main warehouse, use legacy format for backward compatibility
+    return normalizedLocation;
+  }
+
+  return `${warehouseCode.toUpperCase()}-${normalizedLocation}`;
+}
+
+/**
+ * Parse QR Code data to extract warehouse and location
+ * Supports both legacy and multi-warehouse QR formats
+ */
+export function parseWarehouseLocationQR(qrData: string): {
+  warehouseCode: string;
+  location: string;
+  fullLocation: string;
+} | null {
+  const parsed = parseMultiWarehouseLocation(qrData);
+  if (!parsed) return null;
+
+  return {
+    warehouseCode: parsed.warehouseCode,
+    location: parsed.location,
+    fullLocation: qrData
+  };
 }

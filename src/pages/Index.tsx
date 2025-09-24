@@ -14,7 +14,6 @@ import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
 import { LocationTransferModal } from '@/components/LocationTransferModal';
 import { LocationItemSelector } from '@/components/LocationItemSelector';
-import { LocationExportModal } from '@/components/LocationExportModal';
 import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
@@ -33,8 +32,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { setupQRTable } from '@/utils/setupQRTable';
-import { generateAllWarehouseLocations, normalizeLocation } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus } from 'lucide-react';
+import {
+  generateAllWarehouseLocations,
+  normalizeLocation,
+  parseWarehouseLocationQR,
+  generateWarehouseLocationQR
+} from '@/utils/locationUtils';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
@@ -45,6 +49,9 @@ import { UnitConversionSettings } from '@/components/UnitConversionSettings';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
 import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
+import { WarehouseSelector } from '@/components/WarehouseSelector';
+import { WarehouseTransferModal } from '@/components/WarehouseTransferModal';
+import { OrdersTab } from '@/components/OrdersTab';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -65,8 +72,8 @@ const Index = memo(() => {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isWarehouseTransferModalOpen, setIsWarehouseTransferModalOpen] = useState(false);
   const [isLocationItemSelectorOpen, setIsLocationItemSelectorOpen] = useState(false);
-  const [isLocationExportModalOpen, setIsLocationExportModalOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
@@ -75,6 +82,8 @@ const Index = memo(() => {
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [showScanner, setShowScanner] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
+  const [selectedItemsForTransfer, setSelectedItemsForTransfer] = useState<InventoryItem[]>([]);
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
@@ -97,7 +106,7 @@ const Index = memo(() => {
     refetch,
     clearAllData,
     getItemsAtLocation
-  } = useDepartmentInventory();
+  } = useDepartmentInventory(selectedWarehouseId);
 
   // Stable memoized inventory items to prevent ShelfGrid re-renders
   const stableInventoryItems = useMemo(() => {
@@ -236,15 +245,36 @@ const Index = memo(() => {
   const handleLocationScan = useCallback((locationId: string) => {
     console.log('🏗️ Location QR scanned:', locationId);
 
-    // Navigate to LocationDetailPage for this location
-    navigate(`/location/${encodeURIComponent(locationId)}`);
+    // Parse QR data to extract warehouse and location
+    const qrData = parseWarehouseLocationQR(locationId);
 
-    toast({
-      title: `📍 กำลังเปิดหน้า Location`,
-      description: `ตำแหน่ง: ${locationId}`,
-      duration: 3000,
-    });
-  }, [navigate, toast]);
+    if (qrData) {
+      // If warehouse is different from current selection, update warehouse filter
+      if (selectedWarehouseId !== qrData.warehouseCode) {
+        // Find warehouse ID by code
+        // For now, navigate with full location - warehouse switching will be handled in LocationDetail
+        console.log('📍 QR contains warehouse info:', qrData.warehouseCode, 'Current:', selectedWarehouseId);
+      }
+
+      // Navigate to LocationDetailPage with full location including warehouse
+      navigate(`/location/${encodeURIComponent(qrData.fullLocation)}`);
+
+      toast({
+        title: `📍 กำลังเปิดหน้า Location`,
+        description: `${qrData.warehouseCode === 'MAIN' ? '' : qrData.warehouseCode + ' - '}${qrData.location}`,
+        duration: 3000,
+      });
+    } else {
+      // Fallback for invalid QR codes
+      navigate(`/location/${encodeURIComponent(locationId)}`);
+
+      toast({
+        title: `📍 กำลังเปิดหน้า Location`,
+        description: `ตำแหน่ง: ${locationId}`,
+        duration: 3000,
+      });
+    }
+  }, [navigate, toast, selectedWarehouseId]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     // Normalize the location for consistent matching
@@ -278,7 +308,7 @@ const Index = memo(() => {
   const handleLocationExport = useCallback(() => {
     // Open export modal
     setIsLocationItemSelectorOpen(false);
-    setIsLocationExportModalOpen(true);
+    // Export functionality removed
   }, []);
 
   const handleQRCodeClick = useCallback((location: string) => {
@@ -376,7 +406,10 @@ const Index = memo(() => {
           pieces_quantity_legacy: itemData.pieces_quantity,
           unit_level1_quantity: itemData.box_quantity,
           unit_level2_quantity: itemData.loose_quantity,
-          unit_level3_quantity: itemData.pieces_quantity
+          unit_level3_quantity: itemData.pieces_quantity,
+          // Add warehouse and user information
+          warehouse_id: 'c6f43c5a-3949-46fd-9165-a3cd6e0b7509', // Default to main warehouse
+          user_id: '00000000-0000-0000-0000-000000000000' // Default user ID for system
         });
 
         if (result !== null) {
@@ -505,6 +538,48 @@ const Index = memo(() => {
     setIsTransferModalOpen(true);
   }, []);
 
+  // Warehouse transfer handlers
+  const handleWarehouseTransfer = useCallback(async (targetWarehouseId: string, notes?: string) => {
+    if (selectedItemsForTransfer.length === 0) {
+      toast({
+        title: 'ไม่มีสินค้าที่จะย้าย',
+        description: 'กรุณาเลือกสินค้าที่ต้องการย้าย',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    try {
+      const itemIds = selectedItemsForTransfer.map(item => item.id);
+
+      // Update warehouse_id for all selected items
+      const success = await Promise.all(
+        selectedItemsForTransfer.map(item =>
+          updateItem(item.id, { warehouse_id: targetWarehouseId })
+        )
+      );
+
+      if (success.every(result => result !== null)) {
+        setSelectedItemsForTransfer([]);
+        toast({
+          title: '✅ ย้ายสินค้าสำเร็จ',
+          description: `ย้ายสินค้า ${selectedItemsForTransfer.length} รายการเรียบร้อยแล้ว`,
+        });
+        return true;
+      } else {
+        throw new Error('Some items failed to transfer');
+      }
+    } catch (error) {
+      console.error('Warehouse transfer error:', error);
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถย้ายสินค้าได้',
+        variant: 'destructive',
+      });
+      return false;
+    }
+  }, [selectedItemsForTransfer, updateItem, toast]);
+
   return (
     <div className="min-h-screen bg-white">
       <div className="container mx-auto px-4 py-8 space-y-8">
@@ -512,10 +587,20 @@ const Index = memo(() => {
         <Card className="bg-white border border-gray-200">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-6 w-6" />
-                ระบบจัดการคลัง Inventory Warehouse
-              </CardTitle>
+              <div className="flex items-center gap-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-6 w-6" />
+                  ระบบจัดการคลัง Inventory Warehouse
+                </CardTitle>
+
+                {/* Warehouse Selector */}
+                <WarehouseSelector
+                  selectedWarehouseId={selectedWarehouseId}
+                  onWarehouseChange={setSelectedWarehouseId}
+                  showAddButton={true}
+                  className="min-w-0"
+                />
+              </div>
 
               {/* User Profile Section */}
               <div className="flex items-center gap-4">
@@ -710,7 +795,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 md:grid-cols-7 lg:grid-cols-11 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-5 md:grid-cols-7 lg:grid-cols-12 bg-white border border-gray-200">
             <TabsTrigger value="grid" className="flex items-center gap-2">
               <Grid3X3 className="h-4 w-4" />
               <span className="hidden sm:inline">แผนผัง</span>
@@ -722,6 +807,10 @@ const Index = memo(() => {
             <TabsTrigger value="add-product" className="flex items-center gap-2 bg-green-50 hover:bg-green-100">
               <PackagePlus className="h-4 w-4 text-green-600" />
               <span className="hidden sm:inline text-green-600 font-medium">จัดการสินค้า</span>
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
+              <ShoppingCart className="h-4 w-4 text-blue-600" />
+              <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งซื้อ</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -780,6 +869,10 @@ const Index = memo(() => {
               onShelfClick={handleShelfClick}
               onAddItem={() => setIsModalOpen(true)}
               onTransferItem={() => setIsTransferModalOpen(true)}
+              onWarehouseTransfer={(items) => {
+                setSelectedItemsForTransfer(items);
+                setIsWarehouseTransferModalOpen(true);
+              }}
               onExportItem={exportItem}
               onScanQR={() => setShowScanner(true)}
               loading={loading}
@@ -790,6 +883,12 @@ const Index = memo(() => {
             <AddProductForm />
           </TabsContent>
 
+          <TabsContent value="orders" className="space-y-4">
+            <OrdersTab
+              selectedWarehouseId={selectedWarehouseId}
+              preSelectedItems={selectedItemsForTransfer}
+            />
+          </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
             {loading ? (
@@ -1002,14 +1101,7 @@ const Index = memo(() => {
           onTransfer={handleLocationTransfer}
         />
 
-        {/* Location Export Modal */}
-        <LocationExportModal
-          isOpen={isLocationExportModalOpen}
-          onClose={() => setIsLocationExportModalOpen(false)}
-          location={selectedLocation}
-          items={locationItems}
-          onExport={exportItem}
-        />
+        {/* Location Export Modal - Removed */}
 
 
         {/* QR Scanner */}
@@ -1067,9 +1159,20 @@ const Index = memo(() => {
           </DialogContent>
         </Dialog>
 
+        {/* Warehouse Transfer Modal */}
+        <WarehouseTransferModal
+          isOpen={isWarehouseTransferModalOpen}
+          onClose={() => {
+            setIsWarehouseTransferModalOpen(false);
+            setSelectedItemsForTransfer([]);
+          }}
+          onTransfer={handleWarehouseTransfer}
+          selectedItems={selectedItemsForTransfer}
+        />
+
         {/* Debug Permissions Component */}
         <DebugPermissions />
-        
+
         {/* Resource Monitor Component - Temporarily disabled to fix WebSocket conflicts */}
         {/* <ResourceMonitor /> */}
       </div>

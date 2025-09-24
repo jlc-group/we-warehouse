@@ -22,6 +22,9 @@ import {
 } from '@/utils/unitCalculations';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
+import { productHelpers } from '@/utils/productHelpers';
+import { CompactWarehouseSelector } from '@/components/WarehouseSelector';
+import { useDefaultWarehouse } from '@/hooks/useWarehouse';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -48,6 +51,8 @@ interface InventoryModalProps {
     unit_level2_conversion_rate?: number;
     unit_level3_name?: string | null;
     unit_level3_quantity?: number;
+    warehouse_id?: string | null;
+    user_id?: string | null;
   }) => void;
   location: string;
   existingItem?: InventoryItem;
@@ -90,13 +95,18 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
   const [conversionRates, setConversionRates] = useState<any[]>([]);
   const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
 
-  // Load conversion rates from product_conversion_rates table
+  // Warehouse selection state
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
+  const { data: defaultWarehouse } = useDefaultWarehouse();
+
+  // Load conversion rates from products table
   const loadConversionRates = async () => {
     try {
       console.log('InventoryModal: Loading conversion rates...');
+      // Use products table instead of product_conversion_rates
       const { data, error } = await supabase
-        .from('product_conversion_rates')
-        .select('*');
+        .from('products')
+        .select('id, sku_code, product_name, unit_of_measure');
 
       if (error) throw error;
       setConversionRates(data || []);
@@ -158,8 +168,15 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
         setSelectedProductType('');
       }
       setProductSearch('');
+
+      // Set default warehouse for new items
+      if (!existingItem && defaultWarehouse) {
+        setSelectedWarehouseId(defaultWarehouse.id);
+      } else if (existingItem) {
+        setSelectedWarehouseId(existingItem.warehouse_id || defaultWarehouse?.id);
+      }
     }
-  }, [isOpen, existingItem]);
+  }, [isOpen, existingItem, defaultWarehouse]);
 
   // Update unit names and rates when conversion rates are loaded or product code changes
   useEffect(() => {
@@ -178,48 +195,17 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
-    if (!selectedProductType) {
-      // If no product type selected, show all products
-      const mappingCodes = Object.keys(PRODUCT_NAME_MAPPING);
-      const dbCodes = products.map(p => p.sku_code);
-      const allCodes = [...new Set([...mappingCodes, ...dbCodes])];
-      return allCodes.sort();
-    }
-
-    // Filter products by selected type
-    const typedProducts = getProductsByType(selectedProductType);
-    const typedCodes = typedProducts.map(p => p.code);
-
-    // Filter database products to only include those matching the selected type
-    const dbCodes = products
-      .filter(p => p.product_type === selectedProductType)
-      .map(p => p.sku_code);
-
-    const allCodes = [...new Set([...typedCodes, ...dbCodes])];
-    return allCodes.sort();
+    return productHelpers.getAllProductCodes(products, selectedProductType);
   }, [products, selectedProductType]);
 
   // Filter product codes based on search
   const filteredProductCodes = useMemo(() => {
-    if (!productCodeInputValue) {
-      return allProductCodes;
-    }
-    return allProductCodes.filter(code =>
-      code.toLowerCase().includes(productCodeInputValue.toLowerCase()) ||
-      PRODUCT_NAME_MAPPING[code]?.toLowerCase().includes(productCodeInputValue.toLowerCase())
-    );
-  }, [allProductCodes, productCodeInputValue]);
+    return productHelpers.getFilteredProductCodes(products, productCodeInputValue, selectedProductType);
+  }, [products, productCodeInputValue, selectedProductType]);
 
   // Check if product code exists
   const checkIfNewProduct = (code: string) => {
-    if (!code.trim()) return false;
-
-    const existsInMapping = !!PRODUCT_NAME_MAPPING[code.toUpperCase()];
-    const existsInDatabase = products.some(
-      product => product.sku_code.toLowerCase() === code.toLowerCase()
-    );
-
-    return !existsInMapping && !existsInDatabase;
+    return productHelpers.isNewProduct(products, code);
   };
 
   // Handle input value change for product code search
@@ -237,13 +223,10 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       return;
     }
 
-    // ค้นหาจาก products database
-    const foundProduct = products.find(
-      product => product.sku_code.toLowerCase() === value.toLowerCase()
-    );
-
-    if (foundProduct) {
-      setProductName(foundProduct.product_name);
+    // ค้นหาจาก products database using helper
+    const displayName = productHelpers.getProductDisplayName(products, value);
+    if (displayName) {
+      setProductName(displayName);
     } else if (value === '') {
       // ถ้าลบรหัสสินค้าออกหมด ให้ลบชื่อสินค้าด้วย
       setProductName('');
@@ -339,6 +322,8 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       unit_level2_conversion_rate: multiLevelData.unit_level2_conversion_rate,
       unit_level3_name: multiLevelData.unit_level3_name,
       unit_level3_quantity: multiLevelData.unit_level3_quantity,
+      warehouse_id: selectedWarehouseId,
+      user_id: '00000000-0000-0000-0000-000000000000' // Default user ID for system
     });
 
     onClose();
@@ -362,6 +347,19 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
           <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
             <MapPin className="h-4 w-4 text-primary" />
             <span className="font-mono font-medium">ตำแหน่ง: {location}</span>
+          </div>
+
+          {/* Warehouse Selection */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Warehouse *
+            </Label>
+            <CompactWarehouseSelector
+              selectedWarehouseId={selectedWarehouseId}
+              onWarehouseChange={setSelectedWarehouseId}
+              showAllOption={false}
+            />
           </div>
 
           {/* Product Name */}
@@ -502,8 +500,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                         รหัสสินค้าที่มีอยู่ ({filteredProductCodes.length} รายการ)
                       </div>
                       {filteredProductCodes.map((code) => {
-                        const productName = PRODUCT_NAME_MAPPING[code.toUpperCase()] ||
-                          products.find(p => p.sku_code.toLowerCase() === code.toLowerCase())?.product_name;
+                        const productInfo = productHelpers.getProductDisplayInfo(products, code);
 
                         return (
                           <div
@@ -522,10 +519,15 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                             />
                             <div className="flex flex-col flex-1 min-w-0">
                               <span className="font-mono font-medium">{code}</span>
-                              {productName && (
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {productName}
-                                </span>
+                              {productInfo.name && (
+                                <div className="flex flex-col text-xs text-muted-foreground">
+                                  <span className="truncate">{productInfo.name}</span>
+                                  {productInfo.brand && productInfo.category && (
+                                    <span className="text-xs opacity-60">
+                                      {productInfo.brand} • {productInfo.category}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>

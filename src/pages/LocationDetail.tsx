@@ -21,7 +21,6 @@ import { useToast } from '@/hooks/use-toast';
 import { LocationEditModal } from '@/components/location/LocationEditModal';
 import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
 import { LocationTransferModal } from '@/components/location/LocationTransferModal';
-import { LocationExportModal } from '@/components/location/LocationExportModal';
 import { convertUrlToDbFormat } from '@/utils/locationUtils';
 
 interface LocationInventory {
@@ -60,7 +59,6 @@ export function LocationDetail() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Debug logging
   console.log('🔍 LocationDetail render:', {
@@ -354,19 +352,14 @@ export function LocationDetail() {
             <Button
               variant="outline"
               className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-red-50 border-red-300 hover:bg-red-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
+              disabled
               onClick={() => {
-                console.log('🔴 Export button clicked', {
-                  locationId,
-                  inventoryCount: inventory.length,
-                  currentModalState: exportModalOpen
-                });
-                setExportModalOpen(true);
-                console.log('🔴 After setExportModalOpen(true)');
+                // Export functionality removed
               }}
             >
               <Send className="h-6 w-6 sm:h-5 sm:w-5 text-red-600" />
               <span className="text-red-700 font-medium text-sm">ส่งออก</span>
-              <span className="text-xs text-red-500">Export</span>
+              <span className="text-xs text-gray-400">Disabled</span>
             </Button>
           </div>
 
@@ -422,13 +415,7 @@ export function LocationDetail() {
             onSuccess={loadLocationData}
           />
 
-          <LocationExportModal
-            isOpen={exportModalOpen}
-            onClose={() => setExportModalOpen(false)}
-            locationId={locationId}
-            inventory={inventory}
-            onSuccess={loadLocationData}
-          />
+          {/* LocationExportModal removed */}
         </>
       )}
     </div>

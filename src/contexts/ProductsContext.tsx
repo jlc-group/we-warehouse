@@ -123,7 +123,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, sku_code, product_name, product_type, category, subcategory, brand, description, unit_of_measure, is_active, created_at, updated_at')
         .order('created_at', { ascending: false })
         .abortSignal(abortControllerRef.current.signal);
 
@@ -133,13 +133,21 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'FETCH_SUCCESS', payload: data || [] });
       success = true;
+      console.log('ProductsContext: Successfully loaded', data?.length || 0, 'products');
     } catch (err: any) {
       // Don't show error if request was aborted
       if (err.name === 'AbortError') {
         return;
       }
 
-      dispatch({ type: 'FETCH_ERROR', payload: err.message });
+      console.error('ProductsContext: Error loading products:', {
+        error: err,
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        hint: err?.hint
+      });
+      dispatch({ type: 'FETCH_ERROR', payload: err?.message || 'Unknown error occurred' });
     } finally {
       const duration = performance.now() - startTime;
       performanceMonitor.logRequest(endpoint, duration, success);
@@ -293,9 +301,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select('id, sku_code, product_name, product_type, category, subcategory, brand')
           .eq('sku_code', sku)
-          .abortSignal(getController.signal)
           .single();
 
         clearTimeout(timeoutId);
@@ -317,12 +324,25 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Fetch products once when provider mounts
+  // Fetch products once when provider mounts and setup auto-refresh
   useEffect(() => {
     fetchProducts();
 
+    // Auto-refresh every 5 minutes if data is stale
+    const refreshInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastFetch = now - state.lastFetchTime;
+      const FIVE_MINUTES = 5 * 60 * 1000;
+
+      if (timeSinceLastFetch > FIVE_MINUTES) {
+        console.log('ProductsContext: Auto-refreshing products data');
+        fetchProducts();
+      }
+    }, 60000); // Check every minute
+
     // Cleanup function
     return () => {
+      clearInterval(refreshInterval);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }

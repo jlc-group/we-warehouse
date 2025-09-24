@@ -37,23 +37,66 @@ export function calculateTotalBaseQuantity(item: MultiLevelInventoryItem): numbe
  * Format unit display for UI
  * Returns a human-readable string like "10 ลัง + 2 กล่อง + 5 ชิ้น"
  */
-export function formatUnitsDisplay(item: MultiLevelInventoryItem): string {
+// Overload for interface parameter
+export function formatUnitsDisplay(item: MultiLevelInventoryItem): string;
+// Overload for separate parameters
+export function formatUnitsDisplay(
+  level1Qty: number,
+  level2Qty: number,
+  level3Qty: number,
+  level1Name: string,
+  level2Name: string,
+  level3Name: string
+): string;
+// Implementation
+export function formatUnitsDisplay(
+  itemOrLevel1Qty: MultiLevelInventoryItem | number,
+  level2Qty?: number,
+  level3Qty?: number,
+  level1Name?: string,
+  level2Name?: string,
+  level3Name?: string
+): string {
   const parts: string[] = [];
 
-  // Level 1 display
-  if ((item.unit_level1_quantity || 0) > 0 && item.unit_level1_name) {
-    parts.push(`${item.unit_level1_quantity} ${item.unit_level1_name}`);
-  }
+  // Handle interface parameter
+  if (typeof itemOrLevel1Qty === 'object') {
+    const item = itemOrLevel1Qty;
 
-  // Level 2 display
-  if ((item.unit_level2_quantity || 0) > 0 && item.unit_level2_name) {
-    parts.push(`${item.unit_level2_quantity} ${item.unit_level2_name}`);
-  }
+    // Level 1 display
+    if ((item.unit_level1_quantity || 0) > 0 && item.unit_level1_name) {
+      parts.push(`${item.unit_level1_quantity} ${item.unit_level1_name}`);
+    }
 
-  // Level 3 display
-  if ((item.unit_level3_quantity || 0) > 0) {
-    const unit3Name = item.unit_level3_name || 'ชิ้น';
-    parts.push(`${item.unit_level3_quantity} ${unit3Name}`);
+    // Level 2 display
+    if ((item.unit_level2_quantity || 0) > 0 && item.unit_level2_name) {
+      parts.push(`${item.unit_level2_quantity} ${item.unit_level2_name}`);
+    }
+
+    // Level 3 display
+    if ((item.unit_level3_quantity || 0) > 0) {
+      const unit3Name = item.unit_level3_name || 'ชิ้น';
+      parts.push(`${item.unit_level3_quantity} ${unit3Name}`);
+    }
+  } else {
+    // Handle separate parameters
+    const level1Qty = itemOrLevel1Qty;
+
+    // Level 1 display
+    if ((level1Qty || 0) > 0 && level1Name) {
+      parts.push(`${level1Qty} ${level1Name}`);
+    }
+
+    // Level 2 display
+    if ((level2Qty || 0) > 0 && level2Name) {
+      parts.push(`${level2Qty} ${level2Name}`);
+    }
+
+    // Level 3 display
+    if ((level3Qty || 0) > 0) {
+      const unit3Name = level3Name || 'ชิ้น';
+      parts.push(`${level3Qty} ${unit3Name}`);
+    }
   }
 
   return parts.length > 0 ? parts.join(' + ') : '0';

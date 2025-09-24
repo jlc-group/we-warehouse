@@ -7,13 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus, AlertTriangle } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { normalizeLocation } from '@/utils/locationUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
-import type { Database, ProductConversionRate } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
+import { productHelpers } from '@/utils/productHelpers';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -48,6 +47,8 @@ interface InventoryModalSimpleProps {
     unit_level3_name?: string;
     unit_level1_rate?: number;
     unit_level2_rate?: number;
+    warehouse_id?: string | null;
+    user_id?: string | null;
   }) => void;
   location: string;
   existingItem?: InventoryItem;
@@ -78,30 +79,26 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   // Product type selection state
   const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
 
-  const loadConversionRate = useCallback(async (sku: string, currentProductName = '') => {
-    if (!sku.trim()) {
-      setConversionRate(null);
-      return;
-    }
+  const loadConversionRate = useCallback(async (sku: string, currentProductName?: string) => {
+    if (!sku) return;
 
+    setLoadingConversion(true);
     try {
-      setLoadingConversion(true);
-      console.log('InventoryModalSimple: Loading conversion rates for SKU:', sku);
+      console.log('InventoryModalSimple: Loading conversion rate for SKU:', sku);
 
-      // Load from product_conversion_rates table
-      const { data, error } = await supabase
+      // First, try to get conversion rate from product_conversion_rates table
+      const { data: conversionData, error: conversionError } = await (supabase as any)
         .from('product_conversion_rates')
         .select('*')
-        .eq('sku', sku.toUpperCase())
-        .single();
+        .eq('sku', sku)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-        throw error;
+      if (conversionError) {
+        console.error('Error loading conversion rate:', conversionError);
       }
 
-      if (data) {
-        console.log('InventoryModalSimple: Found conversion rate for', sku, ':', data);
-        const conversionData = data as ProductConversionRate;
+      if (conversionData) {
+        console.log('InventoryModalSimple: Found conversion rate for', sku, ':', conversionData);
         setConversionRate({
           sku: conversionData.sku,
           product_name: conversionData.product_name || currentProductName || '',
@@ -112,17 +109,41 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
           unit_level3_name: conversionData.unit_level3_name || 'ชิ้น',
         });
       } else {
-        console.log('InventoryModalSimple: No conversion rate found for', sku, 'using defaults');
-        // Use default values if no conversion rate found
-        setConversionRate({
-          sku: sku.toUpperCase(),
-          product_name: currentProductName || '',
-          unit_level1_name: 'ลัง',
-          unit_level1_rate: 1,
-          unit_level2_name: 'กล่อง',
-          unit_level2_rate: 1,
-          unit_level3_name: 'ชิ้น',
-        });
+        // Fallback: Try to get product data from products table
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('sku_code', sku)
+          .maybeSingle();
+
+        if (productError) {
+          console.error('Error loading product data:', productError);
+        }
+
+        if (productData) {
+          console.log('InventoryModalSimple: Found product data for', sku, ', using default conversion rates');
+          setConversionRate({
+            sku: productData.sku_code || '',
+            product_name: productData.product_name || currentProductName || '',
+            unit_level1_name: 'ลัง',
+            unit_level1_rate: 1,
+            unit_level2_name: 'กล่อง',
+            unit_level2_rate: 1,
+            unit_level3_name: 'ชิ้น',
+          });
+        } else {
+          console.log('InventoryModalSimple: No data found for', sku, ', using defaults');
+          // Use default values if no data found
+          setConversionRate({
+            sku: sku.toUpperCase(),
+            product_name: currentProductName || '',
+            unit_level1_name: 'ลัง',
+            unit_level1_rate: 1,
+            unit_level2_name: 'กล่อง',
+            unit_level2_rate: 1,
+            unit_level3_name: 'ชิ้น',
+          });
+        }
       }
     } catch (error) {
       console.error('Error loading conversion rate:', error);
@@ -170,35 +191,13 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
-    if (!selectedProductType) {
-      // If no product type selected, show all products
-      const mappingCodes = Object.keys(PRODUCT_NAME_MAPPING);
-      const dbCodes = products.map(p => p.sku_code);
-      const allCodes = [...new Set([...mappingCodes, ...dbCodes])];
-      return allCodes.sort();
-    }
-
-    // Filter products by selected type
-    const typedProducts = getProductsByType(selectedProductType);
-    const typedCodes = typedProducts.map(p => p.code);
-
-    // Filter database products to only include those matching the selected type
-    const dbCodes = products
-      .filter(p => p.product_type === selectedProductType)
-      .map(p => p.sku_code);
-
-    const allCodes = [...new Set([...typedCodes, ...dbCodes])];
-    return allCodes.sort();
+    return productHelpers.getAllProductCodes(products, selectedProductType);
   }, [products, selectedProductType]);
 
   // Filter product codes based on search
   const filteredProductCodes = useMemo(() => {
-    if (!productCodeInputValue) return allProductCodes;
-    return allProductCodes.filter(code =>
-      code.toLowerCase().includes(productCodeInputValue.toLowerCase()) ||
-      PRODUCT_NAME_MAPPING[code]?.toLowerCase().includes(productCodeInputValue.toLowerCase())
-    );
-  }, [allProductCodes, productCodeInputValue]);
+    return productHelpers.getFilteredProductCodes(products, productCodeInputValue, selectedProductType);
+  }, [products, productCodeInputValue, selectedProductType]);
 
   // Auto-fill product name when product code changes
   const handleProductCodeChange = (value: string) => {
@@ -212,24 +211,19 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       setConversionRate(null);
     }
 
-    // Auto-fill product name from mapping
-    const mappedName = PRODUCT_NAME_MAPPING[value];
-    if (mappedName && !productName) {
-      setProductName(mappedName);
+    // Auto-fill product name from database first, then mapping
+    const displayName = productHelpers.getProductDisplayName(products, value);
+    if (displayName && !productName) {
+      setProductName(displayName);
     }
 
     // Check if it's a new product
-    setIsNewProduct(checkIfNewProduct(value));
+    setIsNewProduct(productHelpers.isNewProduct(products, value));
   };
 
-  // Check if product code is new (not in mapping or DB)
+  // Check if product code is new (not in mapping or DB) - Legacy function, now uses helper
   const checkIfNewProduct = (code: string) => {
-    if (!code.trim()) return false;
-    const existsInMapping = !!PRODUCT_NAME_MAPPING[code.toUpperCase()];
-    const existsInDatabase = products.some(
-      product => product.sku_code.toLowerCase() === code.toLowerCase()
-    );
-    return !existsInMapping && !existsInDatabase;
+    return productHelpers.isNewProduct(products, code);
   };
 
   // Handle free typing in product code input
@@ -326,6 +320,9 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       // Add conversion rates for calculation
       unit_level1_rate: conversionRate?.unit_level1_rate || 0,
       unit_level2_rate: conversionRate?.unit_level2_rate || 0,
+      // Add warehouse and user information
+      warehouse_id: 'c6f43c5a-3949-46fd-9165-a3cd6e0b7509', // Default to main warehouse
+      user_id: '00000000-0000-0000-0000-000000000000', // Default user ID for system
     };
 
 
@@ -498,11 +495,19 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                               />
                               <div className="flex flex-col">
                                 <span className="font-mono font-medium">{code}</span>
-                                {PRODUCT_NAME_MAPPING[code] && (
-                                  <span className="text-xs text-muted-foreground">
-                                    {PRODUCT_NAME_MAPPING[code]}
-                                  </span>
-                                )}
+                                {(() => {
+                                  const productInfo = productHelpers.getProductDisplayInfo(products, code);
+                                  return productInfo.name && (
+                                    <div className="flex flex-col text-xs text-muted-foreground">
+                                      <span>{productInfo.name}</span>
+                                      {productInfo.brand && productInfo.category && (
+                                        <span className="text-xs opacity-60">
+                                          {productInfo.brand} • {productInfo.category}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </CommandItem>
                           ))}

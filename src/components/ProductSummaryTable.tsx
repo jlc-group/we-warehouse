@@ -55,7 +55,7 @@ type SortField = 'sku_code' | 'product_name' | 'total_stock_quantity' | 'invento
 type SortDirection = 'asc' | 'desc';
 
 export function ProductSummaryTable() {
-  const { deleteProduct } = useProducts();
+  const { deleteProduct, products: productsFromContext, loading: productsLoading } = useProducts();
   const [products, setProducts] = useState<ProductSummaryData[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,26 +76,20 @@ export function ProductSummaryTable() {
 
   const itemsPerPage = 50;
 
-  // Fetch raw data and calculate quantities correctly
+  // Use products from context and calculate quantities
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
 
-        // Fetch products
-        const { data: productsData, error: productsError } = await supabase
-          .from('products')
-          .select('id, sku_code, product_name, product_type');
-
-        if (productsError) {
-          console.error('Error fetching products:', productsError);
-          toast({
-            title: 'ข้อผิดพลาด',
-            description: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
-            variant: 'destructive'
-          });
+        // Use products from context instead of fetching directly
+        if (!productsFromContext || productsFromContext.length === 0) {
+          console.log('ProductSummaryTable: No products available from context');
+          setLoading(false);
           return;
         }
+
+        const productsData = productsFromContext;
 
         // Fetch all inventory items
         const { data: inventoryData, error: inventoryError } = await supabase
@@ -228,7 +222,7 @@ export function ProductSummaryTable() {
     };
 
     fetchData();
-  }, [toast]);
+  }, [productsFromContext, toast]);
 
   // Filter and sort products
   const filteredAndSortedProducts = useMemo(() => {
@@ -324,7 +318,7 @@ export function ProductSummaryTable() {
       // Fetch the full product data from the database
       const { data: fullProduct, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, sku_code, product_name, product_type, category, subcategory, brand, description, unit_of_measure, storage_conditions, manufacturing_country, reorder_level, max_stock_level, unit_cost, is_active')
         .eq('id', product.id)
         .single();
 
@@ -367,15 +361,8 @@ export function ProductSummaryTable() {
         const fetchData = async () => {
           try {
             setLoading(true);
-            // Re-fetch products after deletion
-            const { data: productsData, error: productsError } = await supabase
-              .from('products')
-              .select('id, sku_code, product_name, product_type');
-
-            if (productsError) {
-              console.error('Error fetching products:', productsError);
-              return;
-            }
+            // Use products from context after deletion
+            const productsData = productsFromContext;
 
             // Fetch all inventory items
             const { data: inventoryData } = await supabase

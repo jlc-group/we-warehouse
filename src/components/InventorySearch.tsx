@@ -30,6 +30,19 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
         (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
         item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       );
+
+      // Debug logging for search results
+      console.log('🔍 Search results:', {
+        query: debouncedSearchQuery,
+        totalItems: items.length,
+        filteredItems: filteredItems.length,
+        sampleResults: filteredItems.slice(0, 3).map(item => ({
+          sku: (item as any).sku,
+          product_name: item.product_name,
+          location: item.location
+        }))
+      });
+
       setSearchResults(filteredItems);
     } else {
       setSearchResults([]);
@@ -218,15 +231,15 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                         >
                           <div className="flex items-center gap-3">
                             <Package className="h-4 w-4 text-primary" />
-                            <div>
-                              <div className="font-medium">{item.product_name}</div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Hash className="h-3 w-3" />
-                                <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">{(item as any).sku || 'N/A'}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium break-words" title={item.product_name}>{item.product_name}</div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                                <Hash className="h-3 w-3 flex-shrink-0" />
+                                <span className="font-mono bg-gray-100 px-2 py-1 rounded text-xs" title={(item as any).sku || 'N/A'}>{(item as any).sku || 'N/A'}</span>
                                 {item.lot && (
                                   <>
                                     <span className="mx-1">•</span>
-                                    <span>Lot: {item.lot}</span>
+                                    <span title={`Lot: ${item.lot}`}>Lot: {item.lot}</span>
                                   </>
                                 )}
                               </div>
@@ -254,9 +267,9 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                     <CardTitle className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Package className="h-5 w-5 text-green-600" />
-                        <div>
-                          <div>{productGroup.product_name}</div>
-                          <div className="text-sm font-normal text-muted-foreground">รหัส: {productGroup.product_code}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="break-words" title={productGroup.product_name}>{productGroup.product_name}</div>
+                          <div className="text-sm font-normal text-muted-foreground" title={`รหัส: ${productGroup.product_code}`}>รหัส: {productGroup.product_code}</div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -311,17 +324,17 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <Package className="h-5 w-5 text-primary" />
-                        <div>
-                          <h3 className="font-medium">{item.product_name}</h3>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Hash className="h-3 w-3" />
-                            <span>{item.sku}</span>
-                            <MapPin className="h-3 w-3 ml-2" />
-                            <span>{displayLocation(item.location)}</span>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium break-words" title={item.product_name}>{item.product_name}</h3>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                            <Hash className="h-3 w-3 flex-shrink-0" />
+                            <span title={item.sku}>{item.sku}</span>
+                            <MapPin className="h-3 w-3 ml-2 flex-shrink-0" />
+                            <span title={displayLocation(item.location)}>{displayLocation(item.location)}</span>
                             {item.lot && (
                               <>
                                 <span className="mx-1">•</span>
-                                <span>Lot: {item.lot}</span>
+                                <span title={`Lot: ${item.lot}`}>Lot: {item.lot}</span>
                               </>
                             )}
                           </div>

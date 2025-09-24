@@ -1,47 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { Database } from '@/integrations/supabase/types';
+import {
+  WarehouseLocationService,
+  type WarehouseLocation,
+  type WarehouseLocationInsert,
+  type WarehouseLocationUpdate,
+  type LocationWithInventoryCount,
+  type LocationStatistics,
+  type InventoryItem
+} from '@/services/warehouseLocationService';
 import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locationUtils';
 
-type WarehouseLocation = Database['public']['Tables']['warehouse_locations']['Row'];
-type WarehouseLocationInsert = Database['public']['Tables']['warehouse_locations']['Insert'];
-type WarehouseLocationUpdate = Database['public']['Tables']['warehouse_locations']['Update'];
+// Types are now imported from warehouseLocationService
 
-interface LocationWithInventoryCount extends WarehouseLocation {
-  inventory_count: number;
-  total_boxes: number;
-  total_loose: number;
-  total_cartons: number;
-  total_pieces: number;
-  total_sheets: number;
-  total_bottles: number;
-  total_sachets: number;
-  total_quantity_sum: number;
-  product_list: string | null;
-  detailed_inventory: InventoryItem[] | null;
-  utilization_percentage: number;
-}
+// LocationWithInventoryCount is now imported from warehouseLocationService
 
-interface InventoryItem {
-  sku_code: string;
-  product_name: string;
-  unit: string;
-  box_quantity: number;
-  loose_quantity: number;
-  total_quantity: number;
-  unit_display: string;
-}
+// InventoryItem is now imported from warehouseLocationService
 
-interface LocationStatistics {
-  total_locations: number;
-  total_with_inventory: number;
-  high_utilization_count: number;
-  medium_utilization_count: number;
-  low_utilization_count: number;
-  empty_locations: number;
-  average_utilization: number;
-}
+// LocationStatistics is now imported from warehouseLocationService
 
 // Debounce utility
 function useDebounce<T>(value: T, delay: number): T {
@@ -72,25 +48,30 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
   // Debounce search term to avoid too many API calls
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Fetch optimized locations using RPC function
+  // Fetch optimized locations using service layer
   const fetchLocationsOptimized = useCallback(async (loadMore: boolean = false) => {
     try {
       setLoading(true);
 
       const currentPage = loadMore ? page : 0;
 
-      // Use the optimized RPC function
-      const { data, error } = await supabase.rpc('get_warehouse_locations_optimized', {
-        search_term: debouncedSearchTerm,
-        limit_count: pageSize,
-        offset_count: currentPage * pageSize,
-        order_by: 'location_code',
-        order_direction: 'ASC'
-      });
+      // Use the service layer instead of RPC
+      const result = await WarehouseLocationService.getLocationsWithInventory(
+        debouncedSearchTerm,
+        pageSize,
+        currentPage * pageSize
+      );
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถโหลดข้อมูลตำแหน่งคลังได้',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      const typedData = data as LocationWithInventoryCount[];
+      const typedData = result.data || [];
 
       if (loadMore) {
         setLocationsWithInventory(prev => [...prev, ...typedData]);
@@ -118,31 +99,27 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
     }
   }, [debouncedSearchTerm, pageSize, page, toast]);
 
-  // Fetch location statistics using RPC function
+  // Fetch location statistics using service layer
   const fetchStatistics = useCallback(async () => {
     try {
-      const { data, error } = await supabase.rpc('get_location_statistics');
+      const result = await WarehouseLocationService.getLocationStatistics();
 
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        setStatistics(data[0] as LocationStatistics);
+      if (result.success && result.data) {
+        setStatistics(result.data);
       }
     } catch (error) {
       console.error('Error fetching statistics:', error);
     }
   }, []);
 
-  // Legacy function for backward compatibility
+  // Fetch all locations using service layer
   const fetchLocations = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('warehouse_locations')
-        .select('*')
-        .order('location_code');
+      const result = await WarehouseLocationService.getAllLocations();
 
-      if (error) throw error;
-      setLocations(data || []);
+      if (result.success) {
+        setLocations(result.data || []);
+      }
     } catch (error) {
       console.error('Error fetching warehouse locations:', error);
     }
@@ -153,16 +130,19 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
     await fetchLocationsOptimized(false);
   }, [fetchLocationsOptimized]);
 
-  // Create new warehouse location
+  // Create new warehouse location using service layer
   const createLocation = useCallback(async (locationData: WarehouseLocationInsert) => {
     try {
-      const { data, error } = await supabase
-        .from('warehouse_locations')
-        .insert([locationData])
-        .select()
-        .single();
+      const result = await WarehouseLocationService.createLocation(locationData);
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถสร้างตำแหน่งได้',
+          variant: 'destructive',
+        });
+        throw new Error(result.error || 'Failed to create location');
+      }
 
       // Refresh data
       await fetchLocations();
@@ -173,38 +153,26 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
         description: `ตำแหน่ง ${locationData.location_code} ถูกสร้างแล้ว`,
       });
 
-      return data;
+      return result.data;
     } catch (error: any) {
       console.error('Error creating location:', error);
-
-      if (error.code === '23505') {
-        toast({
-          title: 'ตำแหน่งนี้มีอยู่แล้ว',
-          description: `ตำแหน่ง ${locationData.location_code} ถูกสร้างไว้แล้ว`,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถสร้างตำแหน่งได้',
-          variant: 'destructive',
-        });
-      }
       throw error;
     }
   }, [fetchLocations, fetchLocationsWithInventory, toast]);
 
-  // Update warehouse location
+  // Update warehouse location using service layer
   const updateLocation = useCallback(async (id: string, locationData: WarehouseLocationUpdate) => {
     try {
-      const { data, error } = await supabase
-        .from('warehouse_locations')
-        .update(locationData)
-        .eq('id', id)
-        .select()
-        .single();
+      const result = await WarehouseLocationService.updateLocation(id, locationData);
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถแก้ไขตำแหน่งได้',
+          variant: 'destructive',
+        });
+        throw new Error(result.error || 'Failed to update location');
+      }
 
       // Refresh data
       await fetchLocations();
@@ -215,27 +183,26 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
         description: `ตำแหน่ง ${locationData.location_code || ''} ถูกแก้ไขแล้ว`,
       });
 
-      return data;
+      return result.data;
     } catch (error) {
       console.error('Error updating location:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถแก้ไขตำแหน่งได้',
-        variant: 'destructive',
-      });
       throw error;
     }
   }, [fetchLocations, fetchLocationsWithInventory, toast]);
 
-  // Delete warehouse location
+  // Delete warehouse location using service layer
   const deleteLocation = useCallback(async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('warehouse_locations')
-        .delete()
-        .eq('id', id);
+      const result = await WarehouseLocationService.deleteLocation(id);
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถลบตำแหน่งได้',
+          variant: 'destructive',
+        });
+        throw new Error(result.error || 'Failed to delete location');
+      }
 
       // Refresh data
       await fetchLocations();
@@ -247,25 +214,11 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
       });
     } catch (error: any) {
       console.error('Error deleting location:', error);
-
-      if (error.code === '23503') {
-        toast({
-          title: 'ไม่สามารถลบได้',
-          description: 'ตำแหน่งนี้มีสินค้าคงคลังอยู่ กรุณาย้ายสินค้าก่อนลบ',
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถลบตำแหน่งได้',
-          variant: 'destructive',
-        });
-      }
       throw error;
     }
   }, [fetchLocations, fetchLocationsWithInventory, toast]);
 
-  // Get location by location_code
+  // Get location by location_code (client-side search)
   const getLocationByCode = useCallback((location_code: string) => {
     return locations.find(loc => loc.location_code === location_code);
   }, [locations]);
@@ -275,57 +228,40 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
     return locations.filter(loc => loc.row === row);
   }, [locations]);
 
-  // Auto-create location from inventory location
+  // Auto-create location from inventory location using service layer
   const autoCreateLocationFromInventory = useCallback(async (location: string) => {
     try {
-      const normalizedLocation = normalizeLocation(location);
+      const result = await WarehouseLocationService.autoCreateLocationFromInventory(location);
 
-      if (!isValidLocation(normalizedLocation)) {
-        console.warn('Invalid location format:', location);
-        return null;
+      if (result.success) {
+        // Refresh data if location was created
+        if (result.data) {
+          await fetchLocations();
+          await fetchLocationsWithInventory();
+        }
+        return result.data;
       }
 
-      // Check if location already exists
-      const existingLocation = getLocationByCode(normalizedLocation);
-      if (existingLocation) {
-        return existingLocation;
-      }
-
-      // Parse location components
-      const parsed = parseLocation(normalizedLocation);
-      if (!parsed) {
-        console.warn('Could not parse location:', normalizedLocation);
-        return null;
-      }
-
-      // Create new location
-      const newLocationData: WarehouseLocationInsert = {
-        location_code: normalizedLocation,
-        row: parsed.row,
-        level: parsed.level,
-        position: parsed.position,
-        location_type: 'shelf',
-        capacity_boxes: 100,
-        capacity_loose: 1000,
-        description: `Auto-created from inventory (${normalizedLocation})`,
-        user_id: '00000000-0000-0000-0000-000000000000'
-      };
-
-      return await createLocation(newLocationData);
+      return null;
     } catch (error) {
       console.error('Error auto-creating location:', error);
       return null;
     }
-  }, [getLocationByCode, createLocation]);
+  }, [fetchLocations, fetchLocationsWithInventory]);
 
-  // Sync existing inventory locations to warehouse_locations
+  // Sync existing inventory locations to warehouse_locations using service layer
   const syncInventoryLocations = useCallback(async () => {
     try {
-      // Call the database function to sync
-      const { data, error } = await supabase
-        .rpc('sync_inventory_to_warehouse_locations');
+      const result = await WarehouseLocationService.syncInventoryLocations();
 
-      if (error) throw error;
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถซิงค์ข้อมูลตำแหน่งได้',
+          variant: 'destructive',
+        });
+        throw new Error(result.error || 'Failed to sync inventory locations');
+      }
 
       // Refresh data
       await fetchLocations();
@@ -333,32 +269,31 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
 
       toast({
         title: 'ซิงค์ข้อมูลสำเร็จ',
-        description: `ผลลัพธ์: ${data}`,
+        description: result.data || 'ซิงค์ข้อมูลตำแหน่งเรียบร้อย',
       });
 
-      return data;
+      return result.data;
     } catch (error) {
       console.error('Error syncing inventory locations:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถซิงค์ข้อมูลตำแหน่งได้',
-        variant: 'destructive',
-      });
       throw error;
     }
   }, [fetchLocations, fetchLocationsWithInventory, toast]);
 
-  // Get detailed inventory for a specific location
+  // Get detailed inventory for a specific location using service layer
   const getLocationInventoryDetails = useCallback(async (locationCode: string) => {
     try {
-      const { data, error } = await supabase
-        .rpc('get_location_inventory_details', {
-          location_code_param: locationCode
+      const result = await WarehouseLocationService.getLocationInventoryDetails(locationCode);
+
+      if (!result.success) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.error || 'ไม่สามารถโหลดรายละเอียดสินค้าได้',
+          variant: 'destructive',
         });
+        return [];
+      }
 
-      if (error) throw error;
-
-      return data as InventoryItem[];
+      return result.data || [];
     } catch (error) {
       console.error('Error fetching location inventory details:', error);
       toast({

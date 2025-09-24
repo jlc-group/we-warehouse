@@ -13,18 +13,35 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       port: 8081, // HMR port should match server port
       overlay: false, // Disable error overlay that might cause WebSocket issues
-      // ลด HMR frequency เพื่อประหยัด resources
       clientPort: 8081,
+      timeout: 120000, // Increase timeout to prevent frequent reconnections
     },
-    // ลด file watching เพื่อประหยัด CPU
+    // Optimize file watching to reduce refreshes significantly
     watch: {
-      ignored: ['**/node_modules/**', '**/dist/**', '**/.git/**'],
-      usePolling: false, // ปิด polling เพื่อประหยัด CPU
+      ignored: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/.git/**',
+        '**/.*/**',
+        '**/coverage/**',
+        '**/temp/**',
+        '**/tmp/**',
+        '**/*.log',
+        '**/*.md',
+        '**/*.test.*',
+        '**/*.spec.*'
+      ],
+      usePolling: false, // Use native file watching instead of polling
+      interval: 3000, // Check files every 3 seconds to reduce sensitivity
+      binaryInterval: 5000, // Check binary files less frequently
     },
     // Fix WebSocket connection issues
     fs: {
       strict: false,
     },
+    // Reduce memory usage and prevent frequent refreshes
+    open: false, // Don't auto-open browser
+    cors: true, // Enable CORS to prevent refresh issues
   },
   build: {
     outDir: "dist",

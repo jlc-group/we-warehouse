@@ -15,7 +15,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
@@ -40,15 +48,19 @@ export type Database = {
           final_amount: number | null
           id: string
           internal_notes: string | null
-          order_date: string | null
+          notes: string | null
+          order_date: string
           order_number: string
           order_type: string | null
+          payment_terms: number | null
           priority: string | null
           shipped_at: string | null
           shipping_address_line1: string | null
           shipping_address_line2: string | null
-          shipping_city: string | null
+          shipping_contact_person: string | null
+          shipping_country: string | null
           shipping_district: string | null
+          shipping_phone: string | null
           shipping_postal_code: string | null
           shipping_province: string | null
           status: string | null
@@ -71,15 +83,19 @@ export type Database = {
           final_amount?: number | null
           id?: string
           internal_notes?: string | null
-          order_date?: string | null
-          order_number?: string
+          notes?: string | null
+          order_date?: string
+          order_number: string
           order_type?: string | null
+          payment_terms?: number | null
           priority?: string | null
           shipped_at?: string | null
           shipping_address_line1?: string | null
           shipping_address_line2?: string | null
-          shipping_city?: string | null
+          shipping_contact_person?: string | null
+          shipping_country?: string | null
           shipping_district?: string | null
+          shipping_phone?: string | null
           shipping_postal_code?: string | null
           shipping_province?: string | null
           status?: string | null
@@ -102,15 +118,19 @@ export type Database = {
           final_amount?: number | null
           id?: string
           internal_notes?: string | null
-          order_date?: string | null
+          notes?: string | null
+          order_date?: string
           order_number?: string
           order_type?: string | null
+          payment_terms?: number | null
           priority?: string | null
           shipped_at?: string | null
           shipping_address_line1?: string | null
           shipping_address_line2?: string | null
-          shipping_city?: string | null
+          shipping_contact_person?: string | null
+          shipping_country?: string | null
           shipping_district?: string | null
+          shipping_phone?: string | null
           shipping_postal_code?: string | null
           shipping_province?: string | null
           status?: string | null
@@ -141,9 +161,11 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
-          country: string | null
+          business_type: string | null
           contact_person: string | null
+          country: string | null
           created_at: string | null
+          created_by: string | null
           credit_limit: number | null
           customer_code: string
           customer_name: string
@@ -157,15 +179,19 @@ export type Database = {
           phone: string | null
           postal_code: string | null
           province: string | null
+          tags: string[] | null
           tax_id: string | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
-          country?: string | null
+          business_type?: string | null
           contact_person?: string | null
+          country?: string | null
           created_at?: string | null
+          created_by?: string | null
           credit_limit?: number | null
           customer_code: string
           customer_name: string
@@ -179,15 +205,19 @@ export type Database = {
           phone?: string | null
           postal_code?: string | null
           province?: string | null
+          tags?: string[] | null
           tax_id?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           address_line1?: string | null
           address_line2?: string | null
-          country?: string | null
+          business_type?: string | null
           contact_person?: string | null
+          country?: string | null
           created_at?: string | null
+          created_by?: string | null
           credit_limit?: number | null
           customer_code?: string
           customer_name?: string
@@ -201,161 +231,113 @@ export type Database = {
           phone?: string | null
           postal_code?: string | null
           province?: string | null
+          tags?: string[] | null
           tax_id?: string | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
-      inventory_items: {
-        Row: {
-          box_quantity_legacy: number | null
-          carton_quantity_legacy: number | null
-          created_at: string | null
-          id: string
-          location: string
-          lot: string | null
-          mfd: string | null
-          product_name: string
-          sku: string | null
-          unit_level1_name: string | null
-          unit_level1_quantity: number | null
-          unit_level1_rate: number | null
-          unit_level2_name: string | null
-          unit_level2_quantity: number | null
-          unit_level2_rate: number | null
-          unit_level3_name: string | null
-          unit_level3_quantity: number | null
-          updated_at: string | null
-          user_id: string | null
-          warehouse_id: string | null
-        }
-        Insert: {
-          box_quantity_legacy?: number | null
-          carton_quantity_legacy?: number | null
-          created_at?: string | null
-          id?: string
-          location: string
-          lot?: string | null
-          mfd?: string | null
-          product_name: string
-          sku?: string | null
-          unit_level1_name?: string | null
-          unit_level1_quantity?: number | null
-          unit_level1_rate?: number | null
-          unit_level2_name?: string | null
-          unit_level2_quantity?: number | null
-          unit_level2_rate?: number | null
-          unit_level3_name?: string | null
-          unit_level3_quantity?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-          warehouse_id?: string | null
-        }
-        Update: {
-          box_quantity_legacy?: number | null
-          carton_quantity_legacy?: number | null
-          created_at?: string | null
-          id?: string
-          location?: string
-          lot?: string | null
-          mfd?: string | null
-          product_name?: string
-          sku?: string | null
-          unit_level1_name?: string | null
-          unit_level1_quantity?: number | null
-          unit_level1_rate?: number | null
-          unit_level2_name?: string | null
-          unit_level2_quantity?: number | null
-          unit_level2_rate?: number | null
-          unit_level3_name?: string | null
-          unit_level3_quantity?: number | null
-          updated_at?: string | null
-          user_id?: string | null
-          warehouse_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "inventory_items_warehouse_id_fkey"
-            columns: ["warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       order_items: {
         Row: {
-          confirmed_quantity: number | null
           created_at: string | null
+          discount_amount: number | null
+          discount_percent: number | null
           id: string
           inventory_item_id: string | null
-          line_number: number | null
+          level1_to_level2_conversion: number | null
+          level2_to_level3_conversion: number | null
+          line_number: number
+          line_total: number | null
+          location: string | null
           notes: string | null
           order_id: string
-          picked_quantity: number | null
-          product_name: string | null
-          quantity_requested: number | null
-          reserved_quantity: number | null
-          shipped_quantity: number | null
-          sku: string | null
+          ordered_quantity_level1: number | null
+          ordered_quantity_level2: number | null
+          ordered_quantity_level3: number | null
+          picked_at: string | null
+          picked_quantity_level1: number | null
+          picked_quantity_level2: number | null
+          picked_quantity_level3: number | null
+          product_id: string | null
+          product_name: string
+          shipped_at: string | null
+          shipped_quantity_level1: number | null
+          shipped_quantity_level2: number | null
+          shipped_quantity_level3: number | null
+          sku: string
+          status: string | null
           unit_level1_name: string | null
-          unit_level1_quantity: number | null
-          unit_level1_rate: number | null
           unit_level2_name: string | null
-          unit_level2_quantity: number | null
-          unit_level2_rate: number | null
           unit_level3_name: string | null
-          unit_level3_quantity: number | null
           unit_price: number | null
           updated_at: string | null
         }
         Insert: {
-          confirmed_quantity?: number | null
           created_at?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           inventory_item_id?: string | null
-          line_number?: number | null
+          level1_to_level2_conversion?: number | null
+          level2_to_level3_conversion?: number | null
+          line_number: number
+          line_total?: number | null
+          location?: string | null
           notes?: string | null
           order_id: string
-          picked_quantity?: number | null
-          product_name?: string | null
-          quantity_requested?: number | null
-          reserved_quantity?: number | null
-          shipped_quantity?: number | null
-          sku?: string | null
+          ordered_quantity_level1?: number | null
+          ordered_quantity_level2?: number | null
+          ordered_quantity_level3?: number | null
+          picked_at?: string | null
+          picked_quantity_level1?: number | null
+          picked_quantity_level2?: number | null
+          picked_quantity_level3?: number | null
+          product_id?: string | null
+          product_name: string
+          shipped_at?: string | null
+          shipped_quantity_level1?: number | null
+          shipped_quantity_level2?: number | null
+          shipped_quantity_level3?: number | null
+          sku: string
+          status?: string | null
           unit_level1_name?: string | null
-          unit_level1_quantity?: number | null
-          unit_level1_rate?: number | null
           unit_level2_name?: string | null
-          unit_level2_quantity?: number | null
-          unit_level2_rate?: number | null
           unit_level3_name?: string | null
-          unit_level3_quantity?: number | null
           unit_price?: number | null
           updated_at?: string | null
         }
         Update: {
-          confirmed_quantity?: number | null
           created_at?: string | null
+          discount_amount?: number | null
+          discount_percent?: number | null
           id?: string
           inventory_item_id?: string | null
-          line_number?: number | null
+          level1_to_level2_conversion?: number | null
+          level2_to_level3_conversion?: number | null
+          line_number?: number
+          line_total?: number | null
+          location?: string | null
           notes?: string | null
           order_id?: string
-          picked_quantity?: number | null
-          product_name?: string | null
-          quantity_requested?: number | null
-          reserved_quantity?: number | null
-          shipped_quantity?: number | null
-          sku?: string | null
+          ordered_quantity_level1?: number | null
+          ordered_quantity_level2?: number | null
+          ordered_quantity_level3?: number | null
+          picked_at?: string | null
+          picked_quantity_level1?: number | null
+          picked_quantity_level2?: number | null
+          picked_quantity_level3?: number | null
+          product_id?: string | null
+          product_name?: string
+          shipped_at?: string | null
+          shipped_quantity_level1?: number | null
+          shipped_quantity_level2?: number | null
+          shipped_quantity_level3?: number | null
+          sku?: string
+          status?: string | null
           unit_level1_name?: string | null
-          unit_level1_quantity?: number | null
-          unit_level1_rate?: number | null
           unit_level2_name?: string | null
-          unit_level2_quantity?: number | null
-          unit_level2_rate?: number | null
           unit_level3_name?: string | null
-          unit_level3_quantity?: number | null
           unit_price?: number | null
           updated_at?: string | null
         }
@@ -380,10 +362,10 @@ export type Database = {
           is_active: boolean | null
           manufacturing_country: string | null
           max_stock_level: number | null
-          product_name: string | null
-          product_type: string | null
+          product_name: string
+          product_type: string
           reorder_level: number | null
-          sku_code: string | null
+          sku_code: string
           storage_conditions: string | null
           subcategory: string | null
           unit_cost: number | null
@@ -401,10 +383,10 @@ export type Database = {
           is_active?: boolean | null
           manufacturing_country?: string | null
           max_stock_level?: number | null
-          product_name?: string
-          product_type?: string
+          product_name: string
+          product_type: string
           reorder_level?: number | null
-          sku_code?: string
+          sku_code: string
           storage_conditions?: string | null
           subcategory?: string | null
           unit_cost?: number | null
@@ -499,27 +481,33 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -527,20 +515,24 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -548,20 +540,24 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -569,39 +565,45 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
-// Specific type exports for easier usage
-export type CustomerOrder = Tables<'customer_orders'>
-export type CustomerOrderInsert = TablesInsert<'customer_orders'>
-export type CustomerOrderUpdate = TablesUpdate<'customer_orders'>
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
-export type OrderItem = Tables<'order_items'>
-export type OrderItemInsert = TablesInsert<'order_items'>
-export type OrderItemUpdate = TablesUpdate<'order_items'>
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
+} as const
 
-export type Customer = Tables<'customers'>
-export type CustomerInsert = TablesInsert<'customers'>
-export type CustomerUpdate = TablesUpdate<'customers'>
-
-export type Warehouse = Tables<'warehouses'>
-export type WarehouseInsert = TablesInsert<'warehouses'>
-export type WarehouseUpdate = TablesUpdate<'warehouses'>
-
-export type InventoryItem = Tables<'inventory_items'>
-export type InventoryItemInsert = TablesInsert<'inventory_items'>
-export type InventoryItemUpdate = TablesUpdate<'inventory_items'>
-
-export type Product = Tables<'products'>
-export type ProductInsert = TablesInsert<'products'>
-export type ProductUpdate = TablesUpdate<'products'>
