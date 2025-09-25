@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ไฟล์นี้ให้คำแนะนำสำหรับ Claude Code (claude.ai/code) เมื่อทำงานกับโค้ดในพื้นที่เก็บข้อมูลนี้
 
 ## คำสั่งสำหรับการพัฒนา
@@ -66,8 +68,10 @@
 
 **Hooks & Contexts สำคัญ:**
 - `src/hooks/useInventory.ts` - การจัดการข้อมูลสต็อกหลักพร้อม CRUD operations และ real-time updates ผ่าน Supabase subscriptions
+- `src/hooks/useDepartmentInventory.ts` - การจัดการข้อมูลสต็อกที่กรองตามแผนกและสิทธิ์ของผู้ใช้
 - `src/contexts/ProductsContext.tsx` - การจัดการข้อมูลสินค้าและ context
 - `src/contexts/InventoryContext.tsx` - การจัดการสถานะสต็อกแบบ global
+- `src/contexts/AuthContextSimple.tsx` - การจัดการ authentication และข้อมูลผู้ใช้
 
 **Utilities หลัก:**
 - `src/utils/unitCalculations.ts` - เครื่องมือการแปลงและคำนวณหน่วยหลายระดับ
@@ -133,6 +137,9 @@
 - การกำหนดค่า TypeScript ใช้ค่าปกติที่หลวม (ไม่มี strict null checks, อนุญาต any types, อนุญาต JS)
 - ควรแก้ไขไฟล์ที่มีอยู่แทนการสร้างไฟล์ใหม่เสมอ
 - ห้ามสร้างไฟล์เอกสาร (*.md) เว้นแต่ได้รับคำขอเฉพาะ
+- **Authentication**: ใช้ระบบ Auth simple ไม่ต้องการ registration - ใช้ข้อมูลผู้ใช้เริ่มต้นจาก AuthContextSimple
+- **Department-based Access Control**: ระบบมีการควบคุมสิทธิ์ตามแผนก (คลังสินค้า, จัดซื้อ, ควบคุมคุณภาพ, การเงิน, ผู้บริหาร)
+- **Performance**: ใช้ lazy loading สำหรับคอมโพเนนต์หนักและ memoization เพื่อป้องกัน re-renders ที่ไม่จำเป็น
 
 ### ปัญหาทั่วไป & วิธีแก้ไข
 - **ปัญหาการเชื่อมต่อฐานข้อมูล**: ตรวจสอบว่า JSX syntax ถูกต้องก่อน - syntax errors ทำให้ compilation ล้มเหลว

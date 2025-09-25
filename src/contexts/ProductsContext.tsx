@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 type Product = {
@@ -110,60 +110,57 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProducts = useCallback(async (force = false) => {
     try {
+      console.log('🔄 ProductsContext: fetchProducts called (real DB)', { force });
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      // Mock data
-      const mockProducts: Product[] = [
-        {
-          id: '1',
-          product_name: 'ยาตัวอย่าง 1',
-          sku_code: 'MED001',
-          product_type: 'FG',
-          is_active: true,
-          brand: 'Brand A',
-          category: 'Medicines',
-          created_at: new Date().toISOString(),
-          description: 'ยาตัวอย่างสำหรับการทดสอบ',
-          dimensions: '10x5x2 cm',
-          manufacturing_country: 'Thailand',
-          max_stock_level: 100,
-          reorder_level: 10,
-          subcategory: null,
-          unit_cost: 50,
-          updated_at: new Date().toISOString(),
-          weight: 0.1,
-          storage_conditions: 'อุณหภูมิห้อง',
-          unit_of_measure: 'ชิ้น',
-        },
-        {
-          id: '2',
-          product_name: 'อุปกรณ์ทางการแพทย์ 1',
-          sku_code: 'DEV001',
-          product_type: 'PK',
-          is_active: true,
-          brand: 'Brand B',
-          category: 'Devices',
-          created_at: new Date().toISOString(),
-          description: 'อุปกรณ์ทางการแพทย์สำหรับการทดสอบ',
-          dimensions: '15x10x5 cm',
-          manufacturing_country: 'Thailand',
-          max_stock_level: 50,
-          reorder_level: 5,
-          subcategory: null,
-          unit_cost: 150,
-          updated_at: new Date().toISOString(),
-          weight: 0.5,
-          storage_conditions: 'อุณหภูมิห้อง',
-          unit_of_measure: 'ชิ้น',
-        },
-      ];
-      
-      dispatch({ type: 'FETCH_SUCCESS', payload: mockProducts });
-      console.log('ProductsContext: Successfully loaded', mockProducts.length, 'products');
+      // Import supabase client
+      const { supabase } = await import('@/integrations/supabase/client');
+
+      // Fetch real data from Supabase
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) {
+        console.error('ProductsContext: Supabase error:', error);
+        throw error;
+      }
+
+      // Transform data to match our Product type
+      const transformedProducts: Product[] = (products || []).map((item: any) => ({
+        id: item.id,
+        product_name: item.product_name || '',
+        sku_code: item.sku_code || '',
+        product_type: item.product_type || 'FG',
+        is_active: item.is_active || true,
+        brand: item.brand || '',
+        category: item.category || '',
+        created_at: item.created_at || new Date().toISOString(),
+        description: item.description || '',
+        dimensions: item.dimensions || '',
+        manufacturing_country: item.manufacturing_country || '',
+        max_stock_level: item.max_stock_level || 0,
+        reorder_level: item.reorder_level || 0,
+        subcategory: item.subcategory || null,
+        unit_cost: item.unit_cost || null,
+        updated_at: item.updated_at || new Date().toISOString(),
+        weight: item.weight || 0,
+        storage_conditions: item.storage_conditions || '',
+        unit_of_measure: item.unit_of_measure || 'ชิ้น',
+      }));
+
+      dispatch({ type: 'FETCH_SUCCESS', payload: transformedProducts });
+      console.log('ProductsContext: Successfully loaded', transformedProducts.length, 'products from DB');
     } catch (err: any) {
-      console.error('ProductsContext: Error loading products:', err);
-      dispatch({ type: 'FETCH_ERROR', payload: 'Unable to load products.' });
+      console.error('ProductsContext: Error loading products from DB:', err);
+
+      // Fallback to empty array instead of mock data
+      dispatch({ type: 'FETCH_SUCCESS', payload: [] });
+      console.log('ProductsContext: Fallback to empty products list');
     } finally {
       isFetchingRef.current = false;
     }
@@ -247,27 +244,45 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    fetchProducts();
+    let mounted = true;
+    let isFirstRun = true;
 
-    const refreshInterval = setInterval(() => {
-      const { lastFetchTime } = stateRef.current;
-      const now = Date.now();
-      const timeSinceLastFetch = now - lastFetchTime;
-      const FIVE_MINUTES = 5 * 60 * 1000;
+    console.log('🔍 ProductsContext useEffect: Mount detected', { mounted, isFirstRun });
 
-      if (timeSinceLastFetch > FIVE_MINUTES) {
-        console.log('ProductsContext: Auto-refreshing products data');
-        fetchProducts();
+    const initFetch = async () => {
+      if (mounted && isFirstRun) {
+        isFirstRun = false;
+        console.log('🚀 ProductsContext: Initial fetch triggered');
+        await fetchProducts();
+      } else {
+        console.log('🚫 ProductsContext: Initial fetch blocked', { mounted, isFirstRun });
       }
-    }, 60000);
+    };
+
+    initFetch();
+
+    // CRITICAL: DISABLE AUTO-REFRESH INTERVAL TO PREVENT AUTO-REFRESHES
+    // const refreshInterval = setInterval(() => {
+    //   const { lastFetchTime } = stateRef.current;
+    //   const now = Date.now();
+    //   const timeSinceLastFetch = now - lastFetchTime;
+    //   const FIVE_MINUTES = 5 * 60 * 1000;
+    //   if (timeSinceLastFetch > FIVE_MINUTES) {
+    //     console.log('ProductsContext: Auto-refreshing products data');
+    //     fetchProducts();
+    //   }
+    // }, 60000);
 
     return () => {
-      clearInterval(refreshInterval);
+      console.log('🧹 ProductsContext useEffect: Cleanup triggered');
+      mounted = false;
+      // clearInterval(refreshInterval);
       isFetchingRef.current = false;
     };
-  }, [fetchProducts]);
+  }, []); // Empty dependency array - run only once on mount
 
-  const contextValue: ProductsContextType = {
+  // CRITICAL: Memoize context value to prevent re-render cascades
+  const contextValue: ProductsContextType = useMemo(() => ({
     ...state,
     fetchProducts,
     addProduct,
@@ -275,7 +290,15 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     deleteProduct,
     checkSKUExists,
     getProductBySKU,
-  };
+  }), [
+    state,
+    fetchProducts,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    checkSKUExists,
+    getProductBySKU
+  ]);
 
   return (
     <ProductsContext.Provider value={contextValue}>

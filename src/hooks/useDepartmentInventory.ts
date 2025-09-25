@@ -3,6 +3,10 @@ import { useInventory } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import type { InventoryItem } from '@/hooks/useInventory';
 
+// CRITICAL: Global throttling to prevent nested hook refresh loops
+let lastDeptFetchTime = 0;
+const DEPT_THROTTLE_TIME = 30000; // 30 seconds
+
 // Department access rules - defines which departments can access which inventory data
 const DEPARTMENT_ACCESS_RULES = {
   // คลังสินค้า (Warehouse) - Can access all inventory data
@@ -43,6 +47,20 @@ const DEPARTMENT_ACCESS_RULES = {
 
 export function useDepartmentInventory() {
   const { user } = useAuth();
+
+  // CRITICAL: Add throttling check before calling useInventory
+  const shouldThrottleFetch = useMemo(() => {
+    const now = Date.now();
+    return now - lastDeptFetchTime < DEPT_THROTTLE_TIME;
+  }, []);
+
+  // Update last fetch time when not throttled
+  useEffect(() => {
+    if (!shouldThrottleFetch) {
+      lastDeptFetchTime = Date.now();
+    }
+  }, [shouldThrottleFetch]);
+
   const { items: allItems, loading, ...inventoryHook } = useInventory();
   const [permissionDeniedAttempts, setPermissionDeniedAttempts] = useState(0);
 
@@ -85,13 +103,19 @@ export function useDepartmentInventory() {
     return false;
   }, [user]);
 
-  // Filtered items based on department permissions
+  // CRITICAL: Stable filtered items with throttling to prevent cascading re-renders
   const items = useMemo(() => {
     if (!user) return [];
 
+    // Log throttling status
+    if (shouldThrottleFetch) {
+      console.log('🚫 useDepartmentInventory: filtering throttled');
+    }
+
     const filtered = allItems.filter(checkItemAccess);
+    console.log(`📊 Department filter: ${filtered.length}/${allItems.length} items accessible`);
     return filtered;
-  }, [allItems, checkItemAccess, user]);
+  }, [allItems, checkItemAccess, user, shouldThrottleFetch]);
 
   // Get department access summary
   const accessSummary = useMemo(() => {

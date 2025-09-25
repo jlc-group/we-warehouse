@@ -12,14 +12,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    autoRefreshToken: true,
+    autoRefreshToken: false, // CRITICAL: Disable auto refresh to prevent refresh loops
   },
-  // TEMPORARILY DISABLE REALTIME TO FIX WEBSOCKET CONFLICTS
-  // realtime: {
-  //   params: {
-  //     eventsPerSecond: 1,
-  //   },
-  // },
+  // CRITICAL: COMPLETELY DISABLE REALTIME TO PREVENT AUTO-REFRESHES
+  realtime: {
+    params: {
+      eventsPerSecond: 0, // Completely disable events
+    },
+    // Disable heartbeats and automatic reconnection
+    heartbeatIntervalMs: 0,
+    reconnectDelayMs: 0,
+  },
   db: {
     schema: 'public',
   },
@@ -33,6 +36,8 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         ...options,
         mode: 'cors',
         credentials: 'omit',
+        // Add cache to prevent unnecessary requests
+        cache: 'default',
       });
     },
   },

@@ -87,43 +87,44 @@ async function checkBillClearingColumns(): Promise<boolean> {
 
 export function useFeatureFlags() {
   const [features, setFeatures] = useState<FeatureFlags>(DEFAULT_FEATURES);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // CRITICAL: No loading to prevent renders
   const [hasNewColumns, setHasNewColumns] = useState(false);
 
+  // CRITICAL: DISABLE ALL FEATURE FLAG QUERIES TO PREVENT 404 RE-RENDER LOOPS
   useEffect(() => {
-    const checkFeatures = async () => {
-      try {
-        setIsLoading(true);
+    console.log('🚫 useFeatureFlags: Auto-check DISABLED to prevent 404 re-render loops');
 
-        // Check for new tables
-        const tableFeatures = await checkBillClearingTables();
+    // Set static defaults immediately without any queries
+    setFeatures(DEFAULT_FEATURES);
+    setIsLoading(false);
+    setHasNewColumns(false);
 
-        // Check for new columns in existing tables
-        const hasColumns = await checkBillClearingColumns();
-        setHasNewColumns(hasColumns);
+    console.log('Feature flags determined (static):', DEFAULT_FEATURES);
+    console.log('Has bill clearing columns:', false);
 
-        // Determine final feature flags
-        const finalFeatures: FeatureFlags = {
-          ...DEFAULT_FEATURES,
-          ...tableFeatures,
-          // If we have the basic structure, enable basic bill clearing
-          billClearing: hasColumns || tableFeatures.billClearing || false,
-        };
-
-        setFeatures(finalFeatures);
-
-        console.log('Feature flags determined:', finalFeatures);
-        console.log('Has bill clearing columns:', hasColumns);
-
-      } catch (error) {
-        console.error('Error checking feature flags:', error);
-        setFeatures(DEFAULT_FEATURES);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkFeatures();
+    // DISABLED QUERIES - they cause 404 errors and re-render loops:
+    // const checkFeatures = async () => {
+    //   try {
+    //     setIsLoading(true);
+    //     const tableFeatures = await checkBillClearingTables();
+    //     const hasColumns = await checkBillClearingColumns();
+    //     setHasNewColumns(hasColumns);
+    //     const finalFeatures: FeatureFlags = {
+    //       ...DEFAULT_FEATURES,
+    //       ...tableFeatures,
+    //       billClearing: hasColumns || tableFeatures.billClearing || false,
+    //     };
+    //     setFeatures(finalFeatures);
+    //     console.log('Feature flags determined:', finalFeatures);
+    //     console.log('Has bill clearing columns:', hasColumns);
+    //   } catch (error) {
+    //     console.error('Error checking feature flags:', error);
+    //     setFeatures(DEFAULT_FEATURES);
+    //   } finally {
+    //     setIsLoading(false);
+    //   }
+    // };
+    // checkFeatures();
   }, []);
 
   return {
@@ -131,20 +132,11 @@ export function useFeatureFlags() {
     isLoading,
     hasNewColumns,
     isFallbackMode: !features.billClearing && !features.orderStatusHistory,
+    // CRITICAL: DISABLE MANUAL REFRESH TO PREVENT TRIGGERING 404 QUERIES
     refresh: async () => {
-      setIsLoading(true);
-      const tableFeatures = await checkBillClearingTables();
-      const hasColumns = await checkBillClearingColumns();
-      setHasNewColumns(hasColumns);
-
-      const finalFeatures: FeatureFlags = {
-        ...DEFAULT_FEATURES,
-        ...tableFeatures,
-        billClearing: hasColumns || tableFeatures.billClearing || false,
-      };
-
-      setFeatures(finalFeatures);
-      setIsLoading(false);
+      console.log('🚫 useFeatureFlags.refresh: DISABLED to prevent 404 queries');
+      // No-op function to prevent triggering 404 queries
+      return;
     }
   };
 }

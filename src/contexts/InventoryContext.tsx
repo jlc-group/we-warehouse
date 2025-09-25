@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Database } from '@/integrations/supabase/types';
@@ -20,10 +20,11 @@ interface InventoryContextType {
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
-// Simple throttling variables outside component to avoid re-renders
+// CRITICAL: Increase throttling time to prevent auto-refreshes
 let lastFetchTime = 0;
 let currentFetchPromise: Promise<any> | null = null;
-const THROTTLE_TIME = 2000; // 2 seconds
+const THROTTLE_TIME = 30000; // 30 seconds - much longer to prevent refresh loops
+let isInitialFetch = true; // Track initial fetch to allow one immediate call
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -32,15 +33,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [isStableLoaded, setIsStableLoaded] = useState(false);
   const { toast } = useToast();
 
-  // Ultra-simplified fetch to fix performance issues
-  const fetchItems = useCallback(async () => {
-    // Prevent duplicate calls
+  // CRITICAL: Stabilize fetchItems with useRef to prevent re-render loops
+  const fetchItemsRef = useRef<() => Promise<any>>();
+
+  fetchItemsRef.current = async () => {
+    // Allow initial fetch immediately
     const now = Date.now();
-    if (now - lastFetchTime < THROTTLE_TIME && currentFetchPromise) {
+    if (!isInitialFetch && now - lastFetchTime < THROTTLE_TIME && currentFetchPromise) {
+      console.log('🚫 InventoryContext: fetchItems throttled, returning existing promise');
       return currentFetchPromise;
     }
 
+    console.log('🔄 InventoryContext: fetchItems called', isInitialFetch ? '(initial)' : '(throttled)');
     lastFetchTime = now;
+    isInitialFetch = false;
     setLoading(true);
 
     const fetchPromise = (async () => {
@@ -56,7 +62,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         setItems(data || []);
         setConnectionStatus('connected');
         setIsStableLoaded(true);
-        
+
         return data;
       } catch (error) {
         console.error('Context fetch error:', error);
@@ -69,6 +75,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     currentFetchPromise = fetchPromise;
     return fetchPromise;
+  };
+
+  // CRITICAL: Stable callback reference that doesn't change
+  const fetchItems = useCallback(() => {
+    return fetchItemsRef.current?.();
   }, []);
 
   const addItem = useCallback(async (itemData: any) => {
@@ -94,9 +105,30 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     await fetchItems();
   }, [fetchItems]);
 
+  // CRITICAL: Only run initial fetch once on mount
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    let mounted = true;
+    let isFirstRun = true; // Extra protection against multiple runs
+
+    console.log('🔍 InventoryContext useEffect: Mount detected', { isInitialFetch, mounted, isFirstRun });
+
+    const initFetch = async () => {
+      if (mounted && isInitialFetch && isFirstRun) {
+        isFirstRun = false; // Prevent any potential duplicate runs
+        console.log('🚀 InventoryContext: Initial fetch triggered');
+        await fetchItems();
+      } else {
+        console.log('🚫 InventoryContext: Initial fetch blocked', { mounted, isInitialFetch, isFirstRun });
+      }
+    };
+
+    initFetch();
+
+    return () => {
+      console.log('🧹 InventoryContext useEffect: Cleanup triggered');
+      mounted = false;
+    };
+  }, []); // Empty dependency array - run only once on mount
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo((): InventoryContextType => ({

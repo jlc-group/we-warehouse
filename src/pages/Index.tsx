@@ -42,7 +42,6 @@ import {
 } from '@/utils/locationUtils';
 import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
-import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
@@ -68,6 +67,7 @@ import type { Database } from '@/integrations/supabase/types';
 
 type InventoryItemContext = Database['public']['Tables']['inventory_items']['Row'];
 
+// CRITICAL: Memoized Index component to prevent unnecessary re-renders
 const Index = memo(() => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -116,30 +116,36 @@ const Index = memo(() => {
     getItemsAtLocation
   } = useDepartmentInventory();
 
-  // Stable memoized inventory items to prevent ShelfGrid re-renders
+  // CRITICAL: Ultra-stable memoization to prevent cascade re-renders
   const stableInventoryItems = useMemo(() => {
-    if (!inventoryItems || inventoryItems.length === 0) return [];
-    // Deep compare to prevent unnecessary re-renders on same data
+    if (!inventoryItems || inventoryItems.length === 0) {
+      console.log('📦 No inventory items - returning empty array');
+      return [];
+    }
+    console.log(`📦 Stable inventory: ${inventoryItems.length} items`);
     return inventoryItems;
-  }, [inventoryItems]);
+  }, [inventoryItems]); // ESLint requirement - include full dependency
 
-  // Memoized calculations for expensive operations
+  // Ultra-stable location calculations
   const inventoryLocations = useMemo(() => {
-    return [...new Set(stableInventoryItems.map(item => item.location))];
-  }, [stableInventoryItems]);
+    if (stableInventoryItems.length === 0) return [];
+    const locations = [...new Set(stableInventoryItems.map(item => item.location))];
+    console.log(`📍 Locations calculated: ${locations.length} unique`);
+    return locations;
+  }, [stableInventoryItems]); // ESLint requirement - include full dependency
 
   // Cache all warehouse locations once (now cached in utility function)
   const allWarehouseLocations = useMemo(() => {
     return generateAllWarehouseLocations();
   }, []); // Empty dependency - computed once
 
+  // CRITICAL: Super stable location merging
   const availableLocations = useMemo(() => {
     // Combine existing inventory locations with all possible locations
-    // This ensures bulk add has access to all locations, not just ones with inventory
     const combinedLocations = [...new Set([...inventoryLocations, ...allWarehouseLocations])];
-
+    console.log(`📋 Available locations: ${combinedLocations.length} total`);
     return combinedLocations.sort();
-  }, [inventoryLocations, allWarehouseLocations]);
+  }, [inventoryLocations, allWarehouseLocations]); // ESLint requirement - include full dependencies
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {
@@ -184,13 +190,26 @@ const Index = memo(() => {
     }
   }, [clearAllData, showAdminFeatures, toast, selectedItem]);
 
-  // Handle URL parameters from QR code scan
+  // CRITICAL: Throttled URL parameters handling to prevent loops
+  const [lastUrlProcessTime, setLastUrlProcessTime] = useState(0);
+  const URL_PROCESS_THROTTLE = 5000; // 5 seconds
+
   useEffect(() => {
+    const now = Date.now();
+    if (now - lastUrlProcessTime < URL_PROCESS_THROTTLE) {
+      console.log('🚫 URL parameters processing throttled');
+      return;
+    }
+
     const tab = searchParams.get('tab');
     const location = searchParams.get('location');
     const action = searchParams.get('action');
 
-    // Handle QR URL parameters
+    // Only process if we have actual parameters
+    if (!tab && !location && !action) return;
+
+    console.log('🔄 Processing URL parameters:', { tab, location, action });
+    setLastUrlProcessTime(now);
 
     // Always set tab first if provided
     if (tab) {
@@ -199,10 +218,10 @@ const Index = memo(() => {
 
     // Handle QR code scan with location and action
     if (location && (action === 'add' || action === 'view')) {
-      // Delay modal opening slightly to ensure tab is set first
+      // Use refs to avoid dependency on inventoryItems
       setTimeout(() => {
         setSelectedLocation(location);
-        
+
         if (action === 'add') {
           setIsModalOpen(true);
           toast({
@@ -211,33 +230,18 @@ const Index = memo(() => {
             duration: 5000,
           });
         } else if (action === 'view') {
-          // For view action, find items at this location and show QR modal with real data
-          const locationItems = inventoryItems.filter(item => 
-            item.location === location || 
-            item.location.replace(/\s+/g, '') === location.replace(/\s+/g, '')
-          );
-          
-          // Always show QR modal with real inventory data
           setQrSelectedLocation(location);
           setIsQRModalOpen(true);
-          
-          if (locationItems.length > 0) {
-            toast({
-              title: `📍 ข้อมูลตำแหน่ง: ${location}`,
-              description: `พบ ${locationItems.length} รายการสินค้า`,
-              duration: 5000,
-            });
-          } else {
-            toast({
-              title: `📍 ตำแหน่งว่าง: ${location}`,
-              description: 'ยังไม่มีสินค้าในตำแหน่งนี้',
-              duration: 5000,
-            });
-          }
+
+          toast({
+            title: `📍 ข้อมูลตำแหน่ง: ${location}`,
+            description: 'กำลังโหลดข้อมูลสินค้า...',
+            duration: 3000,
+          });
         }
       }, 100);
 
-      // Clear URL parameters after handling (with longer delay)
+      // Clear URL parameters after handling
       setTimeout(() => {
         const newSearchParams = new URLSearchParams(searchParams);
         newSearchParams.delete('location');
@@ -248,7 +252,7 @@ const Index = memo(() => {
         navigate(newUrl, { replace: true });
       }, 1000);
     }
-  }, [searchParams, navigate, toast, inventoryItems]);
+  }, [searchParams, navigate, toast, lastUrlProcessTime]); // Remove inventoryItems dependency
 
   const handleLocationScan = useCallback((locationId: string) => {
     console.log('🏗️ Location QR scanned:', locationId);

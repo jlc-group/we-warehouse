@@ -10,13 +10,12 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8081,
     strictPort: false, // Allow automatic port selection if port is busy
-    hmr: {
-      port: 8081, // HMR port should match server port
-      overlay: false, // Disable error overlay that might cause WebSocket issues
-      clientPort: 8081,
-      timeout: 120000, // Increase timeout to prevent frequent reconnections
+    hmr: false, // CRITICAL: COMPLETELY DISABLE HMR to prevent auto-refreshes
+    // CRITICAL: Disable CSS preprocessing that triggers rebuilds
+    css: {
+      hmr: false, // Disable CSS HMR completely
     },
-    // Optimize file watching to reduce refreshes significantly
+    // CRITICAL: Optimize file watching to PREVENT auto-refreshes
     watch: {
       ignored: [
         '**/node_modules/**',
@@ -29,11 +28,17 @@ export default defineConfig(({ mode }) => ({
         '**/*.log',
         '**/*.md',
         '**/*.test.*',
-        '**/*.spec.*'
+        '**/*.spec.*',
+        '**/CLAUDE.md',
+        '**/README.md',
+        '**/supabase/migrations/**',
+        '**/src/data/**',
+        '**/src/integrations/supabase/types*.ts'
       ],
       usePolling: false, // Use native file watching instead of polling
-      interval: 3000, // Check files every 3 seconds to reduce sensitivity
-      binaryInterval: 5000, // Check binary files less frequently
+      interval: 10000, // Check files every 10 seconds to reduce sensitivity significantly
+      binaryInterval: 15000, // Check binary files much less frequently
+      depth: 2, // Limit depth of file watching
     },
     // Fix WebSocket connection issues
     fs: {

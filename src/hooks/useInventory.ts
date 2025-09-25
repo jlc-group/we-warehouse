@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
@@ -47,6 +47,18 @@ const isSupabaseError = (error: unknown): error is SupabaseError => {
   return typeof error === 'object' && error !== null;
 };
 
+// CRITICAL: Global throttling to prevent fetch loops
+let lastFetchTime = 0;
+let currentFetchPromise: Promise<any> | null = null;
+const FETCH_THROTTLE_TIME = 30000; // 30 seconds between fetches
+
+// CRITICAL: Global mount tracking to prevent double initialization
+let isGloballyInitialized = false;
+const mountedInstances = new Set<string>();
+
+// Import circuit breaker
+import { inventoryCircuitBreaker } from '@/utils/circuitBreaker';
+
 export function useInventory(warehouseId?: string) {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,12 +68,32 @@ export function useInventory(warehouseId?: string) {
   const [isStableLoaded, setIsStableLoaded] = useState(false); // Flag to prevent flicker
   const { toast } = useToast();
 
+  // Create unique instance ID for this hook
+  const instanceId = React.useMemo(() =>
+    `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    [warehouseId]
+  );
+
   const fetchItems = useCallback(async (isRetry = false) => {
+    // CRITICAL: Circuit breaker check first
+    if (!inventoryCircuitBreaker.recordRequest('fetchItems', 'useInventory')) {
+      console.error('🔥 fetchItems blocked by circuit breaker');
+      return;
+    }
+
+    // CRITICAL: Prevent multiple simultaneous calls to stop auto-refresh
+    const now = Date.now();
+    if (now - lastFetchTime < FETCH_THROTTLE_TIME && currentFetchPromise && !isRetry) {
+      console.log('🚫 fetchItems throttled, returning existing promise');
+      return currentFetchPromise;
+    }
+
+    console.log('🔄 fetchItems called', isRetry ? '(retry)' : '(normal)');
+    lastFetchTime = now;
+
     const startTime = Date.now();
 
     try {
-      // Rate limiting removed for direct database access
-
       // Only show loading if not a stable reload and no cached data
       if (!isStableLoaded || isRetry) {
         setLoading(true);
@@ -75,7 +107,12 @@ export function useInventory(warehouseId?: string) {
       }
 
       const params = warehouseId ? { warehouseId } : undefined;
-      const { data } = await secureGatewayClient.get<InventoryItem[]>('inventory', params);
+
+      // Store current fetch promise to prevent concurrent calls
+      const fetchPromise = secureGatewayClient.get<InventoryItem[]>('inventory', params);
+      currentFetchPromise = fetchPromise;
+
+      const { data } = await fetchPromise;
 
       // Filter out items with zero total quantity to show empty locations properly
       const filteredData = (data ?? []).filter(item => {
@@ -130,6 +167,7 @@ export function useInventory(warehouseId?: string) {
       }
     } finally {
       setLoading(false);
+      currentFetchPromise = null; // Clear current promise when done
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseId]); // Add warehouseId dependency to refetch when warehouse changes
@@ -607,14 +645,55 @@ export function useInventory(warehouseId?: string) {
 
   // Remove debounced function temporarily to avoid issues
 
-  // Initialize data on mount
+  // CONTROLLED DATA LOADING - Load once on mount with global deduplication
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('useInventory mounted - loading data automatically', { warehouseId });
-    }
-    fetchItems();
+    let mounted = true;
+
+    const initLoad = async () => {
+      // Register this instance
+      mountedInstances.add(instanceId);
+
+      // Only allow the first instance to load data globally
+      if (!isGloballyInitialized && mounted) {
+        isGloballyInitialized = true;
+        console.log('🔄 useInventory: Primary instance loading data', {
+          instanceId: instanceId.substring(0, 8),
+          warehouseId,
+          totalInstances: mountedInstances.size
+        });
+
+        await fetchItems();
+      } else if (mounted) {
+        console.log('🚫 useInventory: Secondary instance - waiting for primary', {
+          instanceId: instanceId.substring(0, 8),
+          warehouseId,
+          totalInstances: mountedInstances.size
+        });
+
+        // Wait for primary instance to load, then set ready state
+        if (currentFetchPromise) {
+          await currentFetchPromise;
+          setLoading(false);
+          setConnectionStatus('connected');
+          setIsStableLoaded(true);
+        }
+      }
+    };
+
+    initLoad();
+
+    return () => {
+      mounted = false;
+      mountedInstances.delete(instanceId);
+
+      // Reset global state if no instances remain
+      if (mountedInstances.size === 0) {
+        isGloballyInitialized = false;
+        console.log('🧹 useInventory: All instances unmounted, reset global state');
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [warehouseId]); // Re-fetch when warehouseId changes
+  }, [warehouseId, instanceId]);
 
   const loadSampleData = async () => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useProducts } from '@/contexts/ProductsContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,7 +65,8 @@ interface ActivityItem {
   timestamp: Date;
 }
 
-export function EnhancedOverview({
+// CRITICAL: Memoized component to prevent unnecessary re-renders
+export const EnhancedOverview = memo(({
   items,
   onShelfClick,
   onAddItem,
@@ -74,7 +75,7 @@ export function EnhancedOverview({
   onExportItem,
   onScanQR,
   loading = false
-}: EnhancedOverviewProps) {
+}: EnhancedOverviewProps) => {
   const { toast } = useToast();
   const { products: productsFromContext, loading: productsLoading } = useProducts();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
@@ -2589,4 +2590,6 @@ export function EnhancedOverview({
       )}
     </div>
   );
-}
+}); // End memo
+
+EnhancedOverview.displayName = 'EnhancedOverview';
