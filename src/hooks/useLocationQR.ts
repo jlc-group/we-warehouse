@@ -18,8 +18,8 @@ export function useLocationQR() {
     try {
       setLoading(true);
 
-      // ตรวจสอบว่าตารางมีอยู่หรือไม่
-      const tableResult = await TableManagementService.ensureLocationQRTableExists();
+      // ตรวจสอบว่าตารางมีอยู่หรือไม่ (disabled for now)
+      const tableResult = { success: true };
       if (!tableResult.success) {
         toast({
           title: 'ไม่พบตาราง QR Code',

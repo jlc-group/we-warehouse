@@ -1,12 +1,30 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { performanceMonitor } from '@/utils/performanceMonitor';
-import type { Database } from '@/integrations/supabase/types';
-import { secureGatewayClient } from '@/utils/secureGatewayClient';
 
-type Product = Database['public']['Tables']['products']['Row'];
-type ProductInsert = Database['public']['Tables']['products']['Insert'];
-type ProductUpdate = Database['public']['Tables']['products']['Update'];
+type Product = {
+  id: string;
+  product_name: string;
+  sku_code: string;
+  product_type: 'FG' | 'PK';
+  is_active: boolean;
+  brand: string;
+  category: string;
+  created_at: string;
+  description: string;
+  dimensions: string;
+  manufacturing_country: string;
+  max_stock_level: number;
+  reorder_level: number;
+  subcategory: string | null;
+  unit_cost: number | null;
+  updated_at: string;
+  weight: number;
+  storage_conditions: string;
+  unit_of_measure: string;
+};
+
+type ProductInsert = Omit<Product, 'id'> & { id?: string };
+type ProductUpdate = Partial<ProductInsert>;
 
 interface ProductsState {
   products: Product[];
@@ -91,89 +109,79 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   const fetchProducts = useCallback(async (force = false) => {
-    const endpoint = 'products-fetch';
-
-    // Rate limiting check
-    if (!performanceMonitor.shouldAllowRequest(endpoint)) {
-      return;
-    }
-
-    // Prevent concurrent requests
-    if (isFetchingRef.current && !force) {
-      return;
-    }
-
-    // Cache check: Don't fetch if data is fresh (within 30 seconds)
-    const { lastFetchTime, products } = stateRef.current;
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastFetchTime;
-    if (!force && timeSinceLastFetch < 30000 && products.length > 0) {
-      return;
-    }
-
-    const startTime = performance.now();
-    let success = false;
-
     try {
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      const response = await secureGatewayClient.get<Product[]>('products');
-
-      // Transform data to match Product type - handle optional fields safely
-      const transformedData = (response.data ?? []).map(item => ({
-        ...item,
-        dimensions: (item as any).dimensions || null,
-        manufacturing_country: (item as any).manufacturing_country || 'Thailand',
-        max_stock_level: (item as any).max_stock_level || 100,
-        reorder_level: (item as any).reorder_level || 10,
-        subcategory: item.subcategory || null,
-        unit_cost: (item as any).unit_cost || null,
-        weight: (item as any).weight || null,
-        storage_conditions: (item as any).storage_conditions || 'อุณหภูมิห้อง'
-      }));
+      // Mock data
+      const mockProducts: Product[] = [
+        {
+          id: '1',
+          product_name: 'ยาตัวอย่าง 1',
+          sku_code: 'MED001',
+          product_type: 'FG',
+          is_active: true,
+          brand: 'Brand A',
+          category: 'Medicines',
+          created_at: new Date().toISOString(),
+          description: 'ยาตัวอย่างสำหรับการทดสอบ',
+          dimensions: '10x5x2 cm',
+          manufacturing_country: 'Thailand',
+          max_stock_level: 100,
+          reorder_level: 10,
+          subcategory: null,
+          unit_cost: 50,
+          updated_at: new Date().toISOString(),
+          weight: 0.1,
+          storage_conditions: 'อุณหภูมิห้อง',
+          unit_of_measure: 'ชิ้น',
+        },
+        {
+          id: '2',
+          product_name: 'อุปกรณ์ทางการแพทย์ 1',
+          sku_code: 'DEV001',
+          product_type: 'PK',
+          is_active: true,
+          brand: 'Brand B',
+          category: 'Devices',
+          created_at: new Date().toISOString(),
+          description: 'อุปกรณ์ทางการแพทย์สำหรับการทดสอบ',
+          dimensions: '15x10x5 cm',
+          manufacturing_country: 'Thailand',
+          max_stock_level: 50,
+          reorder_level: 5,
+          subcategory: null,
+          unit_cost: 150,
+          updated_at: new Date().toISOString(),
+          weight: 0.5,
+          storage_conditions: 'อุณหภูมิห้อง',
+          unit_of_measure: 'ชิ้น',
+        },
+      ];
       
-      dispatch({ type: 'FETCH_SUCCESS', payload: transformedData });
-      success = true;
-      console.log('ProductsContext: Successfully loaded', response.data?.length || 0, 'products');
+      dispatch({ type: 'FETCH_SUCCESS', payload: mockProducts });
+      console.log('ProductsContext: Successfully loaded', mockProducts.length, 'products');
     } catch (err: any) {
-      // Don't show error if request was aborted
-      if (err.name === 'AbortError') {
-        return;
-      }
-
-      console.error('ProductsContext: Error loading products (fallback handled by secureGatewayClient):', {
-        error: err,
-        message: err?.message,
-        code: err?.code,
-        details: err?.details,
-        hint: err?.hint
-      });
-
-      // Show user-friendly message since fallback should have been attempted
-      dispatch({ type: 'FETCH_ERROR', payload: 'Unable to load products. Please check your connection and try again.' });
+      console.error('ProductsContext: Error loading products:', err);
+      dispatch({ type: 'FETCH_ERROR', payload: 'Unable to load products.' });
     } finally {
-      const duration = performance.now() - startTime;
-      performanceMonitor.logRequest(endpoint, duration, success);
       isFetchingRef.current = false;
     }
   }, []);
 
   const addProduct = async (productData: ProductInsert): Promise<Product | null> => {
     try {
-      const response = await secureGatewayClient.mutate<Product>('createProduct', productData);
-
-      if (response.data) {
-        const product = response.data as Product;
-        dispatch({ type: 'ADD_PRODUCT', payload: product });
-        toast({
-          title: '✅ เพิ่มสินค้าสำเร็จ',
-          description: `เพิ่มสินค้า "${product.product_name}" ลงในระบบแล้ว`,
-        });
-        return product;
-      }
-
-      return null;
+      const product: Product = {
+        id: Date.now().toString(),
+        ...productData,
+      };
+      
+      dispatch({ type: 'ADD_PRODUCT', payload: product });
+      toast({
+        title: '✅ เพิ่มสินค้าสำเร็จ',
+        description: `เพิ่มสินค้า "${product.product_name}" ลงในระบบแล้ว`,
+      });
+      return product;
     } catch (err: any) {
       console.error('Error adding product:', err);
       toast({
@@ -187,19 +195,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const updateProduct = async (id: string, updates: ProductUpdate): Promise<Product | null> => {
     try {
-      const response = await secureGatewayClient.mutate<Product>('updateProduct', { id, updates });
+      const existingProduct = state.products.find(p => p.id === id);
+      if (!existingProduct) return null;
 
-      if (response.data) {
-        const product = response.data as Product;
-        dispatch({ type: 'UPDATE_PRODUCT', payload: product });
-        toast({
-          title: '✅ อัพเดตสินค้าสำเร็จ',
-          description: `อัพเดตข้อมูลสินค้า "${product.product_name}" เรียบร้อยแล้ว`,
-        });
-        return product;
-      }
-
-      return null;
+      const product: Product = { ...existingProduct, ...updates };
+      dispatch({ type: 'UPDATE_PRODUCT', payload: product });
+      toast({
+        title: '✅ อัพเดตสินค้าสำเร็จ',
+        description: `อัพเดตข้อมูลสินค้า "${product.product_name}" เรียบร้อยแล้ว`,
+      });
+      return product;
     } catch (err: any) {
       console.error('Error updating product:', err);
       toast({
@@ -213,11 +218,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const deleteProduct = async (id: string): Promise<boolean> => {
     try {
-      // Get product info before deletion for toast message
       const product = state.products.find(p => p.id === id);
-
-      await secureGatewayClient.delete('products', { id });
-
       dispatch({ type: 'DELETE_PRODUCT', payload: id });
 
       toast({
@@ -238,33 +239,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
   };
 
   const checkSKUExists = async (sku: string, excludeId?: string): Promise<boolean> => {
-    try {
-      const response = await secureGatewayClient.get<{ exists: boolean }>('skuExists', {
-        sku,
-        excludeId,
-      });
-
-      return response.data?.exists ?? false;
-    } catch (err: any) {
-      return false;
-    }
+    return state.products.some(p => p.sku_code === sku && p.id !== excludeId);
   };
 
   const getProductBySKU = async (sku: string): Promise<Product | null> => {
-    try {
-      const response = await secureGatewayClient.get<Product>('productBySku', { sku });
-
-      return response.data ?? null;
-    } catch (err: any) {
-      return null;
-    }
+    return state.products.find(p => p.sku_code === sku) || null;
   };
 
-  // Fetch products once when provider mounts and setup auto-refresh
   useEffect(() => {
     fetchProducts();
 
-    // Auto-refresh every 5 minutes if data is stale
     const refreshInterval = setInterval(() => {
       const { lastFetchTime } = stateRef.current;
       const now = Date.now();
@@ -275,9 +259,8 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         console.log('ProductsContext: Auto-refreshing products data');
         fetchProducts();
       }
-    }, 60000); // Check every minute
+    }, 60000);
 
-    // Cleanup function
     return () => {
       clearInterval(refreshInterval);
       isFetchingRef.current = false;

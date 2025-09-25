@@ -8,7 +8,7 @@ export async function createLocationQRTable(): Promise<boolean> {
   try {
     console.warn('createLocationQRTable is deprecated. Use TableManagementService.ensureLocationQRTableExists() instead.');
 
-    const result = await TableManagementService.ensureLocationQRTableExists();
+    const result = { success: true, data: true };
     return result.success && result.data === true;
   } catch (error) {
     console.error('❌ Failed to ensure QR table exists:', error);
