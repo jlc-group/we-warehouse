@@ -39,7 +39,7 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
@@ -50,8 +50,12 @@ import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
 import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
 import { WarehouseSelector } from '@/components/WarehouseSelector';
-import { WarehouseTransferModal } from '@/components/WarehouseTransferModal';
+import { EnhancedWarehouseTransferModal } from '@/components/EnhancedWarehouseTransferModal';
+import { WarehouseTransferDashboard } from '@/components/WarehouseTransferDashboard';
 import { OrdersTab } from '@/components/OrdersTab';
+import { OrderStatusDashboard } from '@/components/OrderStatusDashboard';
+import { FallbackBanner } from '@/components/FallbackBanner';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -66,6 +70,9 @@ type InventoryItemContext = Database['public']['Tables']['inventory_items']['Row
 const Index = memo(() => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  // Feature flags for bill clearing system
+  const { features, isFallbackMode } = useFeatureFlags();
 
   // All useState hooks at the top level - no conditional rendering
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -538,47 +545,6 @@ const Index = memo(() => {
     setIsTransferModalOpen(true);
   }, []);
 
-  // Warehouse transfer handlers
-  const handleWarehouseTransfer = useCallback(async (targetWarehouseId: string, notes?: string) => {
-    if (selectedItemsForTransfer.length === 0) {
-      toast({
-        title: 'ไม่มีสินค้าที่จะย้าย',
-        description: 'กรุณาเลือกสินค้าที่ต้องการย้าย',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    try {
-      const itemIds = selectedItemsForTransfer.map(item => item.id);
-
-      // Update warehouse_id for all selected items
-      const success = await Promise.all(
-        selectedItemsForTransfer.map(item =>
-          updateItem(item.id, { warehouse_id: targetWarehouseId })
-        )
-      );
-
-      if (success.every(result => result !== null)) {
-        setSelectedItemsForTransfer([]);
-        toast({
-          title: '✅ ย้ายสินค้าสำเร็จ',
-          description: `ย้ายสินค้า ${selectedItemsForTransfer.length} รายการเรียบร้อยแล้ว`,
-        });
-        return true;
-      } else {
-        throw new Error('Some items failed to transfer');
-      }
-    } catch (error) {
-      console.error('Warehouse transfer error:', error);
-      toast({
-        title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถย้ายสินค้าได้',
-        variant: 'destructive',
-      });
-      return false;
-    }
-  }, [selectedItemsForTransfer, updateItem, toast]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -799,7 +765,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-6 lg:grid-cols-6 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -823,6 +789,18 @@ const Index = memo(() => {
             <TabsTrigger value="history" className="flex items-center gap-2">
               <Archive className="h-4 w-4" />
               <span className="hidden sm:inline">ประวัติ</span>
+            </TabsTrigger>
+            <TabsTrigger value="transfers" className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100">
+              <Truck className="h-4 w-4 text-orange-600" />
+              <span className="hidden sm:inline text-orange-600 font-medium">ใบย้ายสินค้า</span>
+            </TabsTrigger>
+            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 bg-red-50 hover:bg-red-100">
+              <CreditCard className="h-4 w-4 text-red-600" />
+              <span className="hidden sm:inline text-red-600 font-medium">เคลียร์บิล</span>
+            </TabsTrigger>
+            <TabsTrigger value="bill-status" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -959,6 +937,34 @@ const Index = memo(() => {
                 <EnhancedEventLogs />
               </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="transfers" className="space-y-4">
+            <WarehouseTransferDashboard
+              onCreateTransfer={() => setIsWarehouseTransferModalOpen(true)}
+            />
+          </TabsContent>
+
+          <TabsContent value="bill-clearing" className="space-y-4">
+            <FallbackBanner
+              show={isFallbackMode || !features.billClearing}
+              type="info"
+              title="ระบบ Bill Clearing อยู่ในโหมดสำรอง"
+              description="ฐานข้อมูลยังไม่มีตารางสำหรับระบบ Bill Clearing ครบถ้วน การทำงานจะใช้ข้อมูลเดิมและฟังก์ชันสำรอง"
+              showMigrationButton={true}
+            />
+            <OrderStatusDashboard userRole="bill_clearer" />
+          </TabsContent>
+
+          <TabsContent value="bill-status" className="space-y-4">
+            <FallbackBanner
+              show={isFallbackMode || !features.orderStatusHistory}
+              type="info"
+              title="ระบบตรวจสอบสถานะอยู่ในโหมดสำรอง"
+              description="การติดตามประวัติสถานะและสิทธิ์จะใช้ข้อมูลเริ่มต้น เมื่อ apply migration แล้วจะมีข้อมูลครบถ้วน"
+              showMigrationButton={true}
+            />
+            <OrderStatusDashboard userRole="bill_checker" />
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
@@ -1158,15 +1164,18 @@ const Index = memo(() => {
           </DialogContent>
         </Dialog>
 
-        {/* Warehouse Transfer Modal */}
-        <WarehouseTransferModal
+        {/* Enhanced Warehouse Transfer Modal */}
+        <EnhancedWarehouseTransferModal
           isOpen={isWarehouseTransferModalOpen}
           onClose={() => {
             setIsWarehouseTransferModalOpen(false);
             setSelectedItemsForTransfer([]);
           }}
-          onTransfer={handleWarehouseTransfer}
           selectedItems={selectedItemsForTransfer}
+          onSuccess={() => {
+            // Refresh inventory data
+            refetch();
+          }}
         />
 
         {/* Debug Permissions Component */}
