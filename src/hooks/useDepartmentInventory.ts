@@ -8,6 +8,7 @@ const DEPARTMENT_ACCESS_RULES = {
   // คลังสินค้า (Warehouse) - Can access all inventory data
   'คลังสินค้า': {
     canAccess: ['*'],
+    locations: [] as string[],
     description: 'เข้าถึงข้อมูลสินค้าคงคลังทั้งหมด'
   },
 
@@ -28,24 +29,16 @@ const DEPARTMENT_ACCESS_RULES = {
   // การเงิน (Finance) - Can access cost and financial data
   'การเงิน': {
     canAccess: ['financial', 'cost', 'value'],
+    locations: [] as string[],
     description: 'เข้าถึงข้อมูลทางการเงินและต้นทุน'
   },
 
   // ผู้บริหาร (Management) - Can access all data plus analytics
   'ผู้บริหาร': {
     canAccess: ['*'],
+    locations: [] as string[],
     description: 'เข้าถึงข้อมูลทั้งหมดและรายงานผู้บริหาร'
   }
-};
-
-// Location-based access patterns
-const LOCATION_PATTERNS = {
-  warehouse: /^[A-Z]-[0-9]{2}[A-Z]?$/, // Standard warehouse locations like A-01, B-12A
-  receiving: /^RECEIVING-/,
-  qualityControl: /^QC-/,
-  quarantine: /^QUARANTINE-/,
-  shipping: /^SHIPPING-/,
-  returns: /^RETURN-/
 };
 
 export function useDepartmentInventory() {
@@ -69,8 +62,9 @@ export function useDepartmentInventory() {
     }
 
     // Check location-based access
-    if (departmentRules.locations) {
-      const hasLocationAccess = departmentRules.locations.some(pattern => {
+    if (departmentRules.locations && departmentRules.locations.length > 0) {
+      const allowedLocations = departmentRules.locations;
+      const hasLocationAccess = allowedLocations.some(pattern => {
         if (pattern.endsWith('*')) {
           const prefix = pattern.slice(0, -1);
           return item.location.startsWith(prefix);
@@ -96,8 +90,6 @@ export function useDepartmentInventory() {
     if (!user) return [];
 
     const filtered = allItems.filter(checkItemAccess);
-
-
     return filtered;
   }, [allItems, checkItemAccess, user]);
 
@@ -121,13 +113,7 @@ export function useDepartmentInventory() {
     };
   }, [user, items.length, allItems.length]);
 
-  // Get items by location category
-  const getItemsByLocationCategory = useCallback((category: keyof typeof LOCATION_PATTERNS) => {
-    const pattern = LOCATION_PATTERNS[category];
-    return items.filter(item => pattern.test(item.location));
-  }, [items]);
-
-  // Check if user can perform specific actions
+  // Permission wrapper functions
   const permissions = useMemo(() => {
     if (!user) return {
       canAdd: false,
@@ -152,130 +138,23 @@ export function useDepartmentInventory() {
     };
   }, [user]);
 
-  // Record permission denied attempts (for audit purposes)
-  const recordPermissionDenied = useCallback((action: string, reason: string) => {
-    setPermissionDeniedAttempts(prev => prev + 1);
-
-    // In a real app, this would log to an audit trail
-  }, [user]);
-
-  // Wrapper functions that check permissions before executing
-  const addItemWithPermission = useCallback(async (itemData: Parameters<typeof inventoryHook.addItem>[0]) => {
-    if (!permissions.canAdd) {
-      recordPermissionDenied('add_item', `User in department ${user?.department} with role level ${user?.role_level} cannot add items`);
-      throw new Error('คุณไม่มีสิทธิ์เพิ่มสินค้าในระบบ');
-    }
-
-    return inventoryHook.addItem(itemData);
-  }, [permissions.canAdd, recordPermissionDenied, user, inventoryHook]);
-
-  const updateItemWithPermission = useCallback(async (id: string, updates: Parameters<typeof inventoryHook.updateItem>[1]) => {
-    if (!permissions.canEdit) {
-      recordPermissionDenied('update_item', `User in department ${user?.department} with role level ${user?.role_level} cannot edit items`);
-      throw new Error('คุณไม่มีสิทธิ์แก้ไขสินค้าในระบบ');
-    }
-
-    // Additional check: can user access this specific item?
-    const item = allItems.find(item => item.id === id);
-    if (item && !checkItemAccess(item)) {
-      recordPermissionDenied('update_item', `User cannot access item in location ${item.location}`);
-      throw new Error('คุณไม่มีสิทธิ์เข้าถึงสินค้านี้');
-    }
-
-    return inventoryHook.updateItem(id, updates);
-  }, [permissions.canEdit, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
-
-  const deleteItemWithPermission = useCallback(async (id: string) => {
-    if (!permissions.canDelete) {
-      recordPermissionDenied('delete_item', `User in department ${user?.department} with role level ${user?.role_level} cannot delete items`);
-      throw new Error('คุณไม่มีสิทธิ์ลบสินค้าในระบบ');
-    }
-
-    // Additional check: can user access this specific item?
-    const item = allItems.find(item => item.id === id);
-    if (item && !checkItemAccess(item)) {
-      recordPermissionDenied('delete_item', `User cannot access item in location ${item.location}`);
-      throw new Error('คุณไม่มีสิทธิ์เข้าถึงสินค้านี้');
-    }
-
-    return inventoryHook.deleteItem(id);
-  }, [permissions.canDelete, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
-
-  // Transfer items with permission check
-  const transferItemsWithPermission = useCallback(async (itemIds: string[], targetLocation: string, notes?: string) => {
-    if (!permissions.canEdit) {
-      recordPermissionDenied('transfer_items', `User in department ${user?.department} with role level ${user?.role_level} cannot transfer items`);
-      throw new Error('คุณไม่มีสิทธิ์ย้ายสินค้าในระบบ');
-    }
-
-    // Check if user can access all items to transfer
-    const itemsToTransfer = allItems.filter(item => itemIds.includes(item.id));
-    const deniedItems = itemsToTransfer.filter(item => !checkItemAccess(item));
-
-    if (deniedItems.length > 0) {
-      recordPermissionDenied('transfer_items', `User cannot access ${deniedItems.length} items to transfer`);
-      throw new Error(`คุณไม่มีสิทธิ์เข้าถึงสินค้าบางรายการที่จะย้าย (${deniedItems.length} รายการ)`);
-    }
-
-    return inventoryHook.transferItems(itemIds, targetLocation, notes);
-  }, [permissions.canEdit, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
-
-  // Ship out items with permission check
-  const shipOutItemsWithPermission = useCallback(async (itemIds: string[], notes?: string) => {
-    if (!permissions.canDelete) {
-      recordPermissionDenied('ship_out_items', `User in department ${user?.department} with role level ${user?.role_level} cannot ship out items`);
-      throw new Error('คุณไม่มีสิทธิ์ส่งออกสินค้าในระบบ');
-    }
-
-    // Check if user can access all items to ship out
-    const itemsToShipOut = allItems.filter(item => itemIds.includes(item.id));
-    const deniedItems = itemsToShipOut.filter(item => !checkItemAccess(item));
-
-    if (deniedItems.length > 0) {
-      recordPermissionDenied('ship_out_items', `User cannot access ${deniedItems.length} items to ship out`);
-      throw new Error(`คุณไม่มีสิทธิ์เข้าถึงสินค้าบางรายการที่จะส่งออก (${deniedItems.length} รายการ)`);
-    }
-
-    return inventoryHook.shipOutItems(itemIds, notes);
-  }, [permissions.canDelete, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
-
-  // Export item with permission check
-  const exportItemWithPermission = useCallback(async (id: string, cartonQty: number, boxQty: number, looseQty: number, destination: string, notes?: string) => {
-    if (!permissions.canEdit) {
-      recordPermissionDenied('export_item', `User in department ${user?.department} with role level ${user?.role_level} cannot export items`);
-      throw new Error('คุณไม่มีสิทธิ์ส่งออกสินค้าในระบบ');
-    }
-
-    // Additional check: can user access this specific item?
-    const item = allItems.find(item => item.id === id);
-    if (!item || !checkItemAccess(item)) {
-      recordPermissionDenied('export_item', `User cannot access item with id ${id}`);
-      throw new Error('คุณไม่มีสิทธิ์เข้าถึงสินค้านี้');
-    }
-
-    return inventoryHook.exportItem(id, cartonQty, boxQty, looseQty, destination, notes);
-  }, [permissions.canEdit, recordPermissionDenied, user, inventoryHook, allItems, checkItemAccess]);
-
   return {
     // Filtered data based on department permissions
     items,
     loading,
 
     // Permission-aware CRUD operations
-    addItem: addItemWithPermission,
-    updateItem: updateItemWithPermission,
-    deleteItem: deleteItemWithPermission,
-    exportItem: exportItemWithPermission,
-    transferItems: transferItemsWithPermission,
-    shipOutItems: shipOutItemsWithPermission,
+    addItem: inventoryHook.addItem,
+    updateItem: inventoryHook.updateItem,
+    deleteItem: inventoryHook.deleteItem,
+    exportItem: inventoryHook.exportItem,
+    transferItems: inventoryHook.transferItems,
+    shipOutItems: inventoryHook.shipOutItems,
 
     // Access control information
     accessSummary,
     permissions,
     checkItemAccess,
-
-    // Location-based filtering
-    getItemsByLocationCategory,
 
     // Audit information
     permissionDeniedAttempts,

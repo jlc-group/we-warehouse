@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useProducts } from '@/hooks/useProducts';
 import { Package, Hash, Save, RotateCcw, Settings } from 'lucide-react';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
-import { UnitConversionSettings } from '@/components/UnitConversionSettings';
+import UnitConversionSettings from '@/components/UnitConversionSettings';
 
 type ProductType = 'FG' | 'PK';
 

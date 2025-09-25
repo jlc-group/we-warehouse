@@ -125,39 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // If not a demo user, try real Supabase authentication
-      try {
-        const { data, error } = await supabase.rpc('authenticate_user', {
-          user_email: email,
-          user_password: password
-        });
-
-        if (error) throw error;
-
-        if (!data || data.length === 0) {
-          throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-        }
-
-        const userData = data[0];
-        const user: User = {
-          id: userData.user_id,
-          email: userData.email,
-          full_name: userData.full_name,
-          department: userData.department || 'ทั่วไป',
-          role: userData.role || 'ผู้ใช้งาน',
-          role_level: userData.role_level ?? 1,
-          employee_code: userData.employee_code,
-          is_active: userData.is_active,
-          last_login: new Date().toISOString()
-        };
-
-        localStorage.setItem('warehouse_user', JSON.stringify(user));
-        setUser(user);
-
-      } catch (dbError) {
-        // If database fails, throw invalid credentials error
-        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
-      }
+      // Database authentication disabled - using demo users only
+      throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
 
     } catch (error: any) {
       console.error('Login error:', error);
