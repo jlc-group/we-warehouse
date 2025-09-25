@@ -258,20 +258,13 @@ export function LocationTransferModal({
           if (updateError) throw updateError;
         }
 
-        // Log movement
-        const { error: logError } = await supabase
-          .from('inventory_movements')
-          .insert([{
-            item_id: originalItem.id,
-            movement_type: 'transfer',
-            from_location: fromLocationId,
-            to_location: toLocation,
-            quantity_moved: calculateTotalPieces(originalItem, transferQty),
-            notes: `ย้ายสินค้า ${originalItem.product_name} จาก ${fromLocationId} ไป ${toLocation}`,
-            moved_by: 'system' // You might want to get this from auth context
-          }]);
-
-        if (logError) console.error('Error logging movement:', logError);
+        // Movement logging disabled - table not available in current schema
+        console.log('Transfer completed:', {
+          item: originalItem.id,
+          from: fromLocationId,
+          to: toLocation,
+          quantity: calculateTotalPieces(originalItem, transferQty)
+        });
       }
 
       toast({

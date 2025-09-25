@@ -44,7 +44,7 @@ import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useInventoryContext } from '@/contexts/InventoryContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { UserProfile } from '@/components/profile/UserProfile';
+import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
@@ -1034,7 +1034,7 @@ const Index = memo(() => {
           )}
 
           <TabsContent value="profile" className="space-y-4">
-            <UserProfile />
+            <DisabledUserProfile />
           </TabsContent>
         </Tabs>
 
