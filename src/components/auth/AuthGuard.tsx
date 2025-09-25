@@ -33,6 +33,7 @@ export function AuthGuard({
 
   // Show loading spinner while checking authentication
   if (loading) {
+    console.log('AuthGuard: Still loading...', { user, loading });
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <Card className="w-full max-w-sm">
@@ -40,12 +41,15 @@ export function AuthGuard({
             <div className="flex flex-col items-center gap-4">
               <div className="animate-spin h-8 w-8 border-2 border-blue-600 border-t-transparent rounded-full" />
               <p className="text-sm text-muted-foreground">กำลังตรวจสอบสิทธิ์...</p>
+              <p className="text-xs text-gray-400">Loading: {String(loading)}, User: {user ? 'Found' : 'None'}</p>
             </div>
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  console.log('AuthGuard: Finished loading', { user, loading });
 
   // If not authenticated, show login form
   if (!user) {
