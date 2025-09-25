@@ -154,7 +154,7 @@ export function useInventory(warehouseId?: string) {
         is_active: true,
       };
 
-      const createResponse = await secureGatewayClient.mutate<ProductRow>('createProduct', productData);
+      const createResponse = await secureGatewayClient.mutate('createProduct', productData);
 
       if (createResponse.data) {
         console.log('✅ Created new product:', createResponse.data);
@@ -262,7 +262,7 @@ export function useInventory(warehouseId?: string) {
         }
       });
 
-      const response = await secureGatewayClient.mutate<InventoryItem>(
+      const response = await secureGatewayClient.mutate(
         'createInventoryItem',
         insertData
       );
@@ -433,7 +433,7 @@ export function useInventory(warehouseId?: string) {
       }
 
       // Use upsert with complete data
-      const response = await secureGatewayClient.mutate<{ item?: InventoryItem; deleted?: boolean; newQuantities?: { level1: number; level2: number; level3: number } }>(
+      const response = await secureGatewayClient.mutate(
         'updateInventoryItem',
         { id, updates: validUpdateFields }
       );
@@ -545,7 +545,7 @@ export function useInventory(warehouseId?: string) {
       const newLooseQty = currentLooseQty - looseQty;
 
       // Update inventory
-      const response = await secureGatewayClient.mutate<{ item?: InventoryItem; deleted?: boolean }>('updateInventoryItem', {
+      const response = await secureGatewayClient.mutate('updateInventoryItem', {
         id,
         updates: {
           unit_level1_quantity: newCartonQty,
@@ -634,7 +634,7 @@ export function useInventory(warehouseId?: string) {
         batches.push(sampleData.slice(i, i + batchSize));
       }
 
-      const uploadResponse = await secureGatewayClient.mutate<InventoryItem[]>(
+      const uploadResponse = await secureGatewayClient.mutate(
         'bulkUpsertInventory',
         { items: sampleData, clearExisting: true }
       );
@@ -744,7 +744,7 @@ export function useInventory(warehouseId?: string) {
         return payload;
       });
 
-      const response = await secureGatewayClient.mutate<InventoryItem[]>(
+      const response = await secureGatewayClient.mutate(
         'bulkUpsertInventory',
         { items: uploadItems, clearExisting: true }
       );

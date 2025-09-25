@@ -1,6 +1,49 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
+// Utility functions for order status
+export const getOrderStatusColor = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'pending':
+    case 'pending_clearance':
+      return 'bg-yellow-100 text-yellow-800';
+    case 'cleared':
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    case 'cancelled':
+    case 'rejected':
+      return 'bg-red-100 text-red-800';
+    case 'draft':
+      return 'bg-gray-100 text-gray-800';
+    case 'confirmed':
+      return 'bg-blue-100 text-blue-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+export const getOrderStatusLabel = (status: string): string => {
+  switch (status.toLowerCase()) {
+    case 'pending':
+    case 'pending_clearance':
+      return 'รอการเคลียร์';
+    case 'cleared':
+      return 'เคลียร์แล้ว';
+    case 'completed':
+      return 'สำเร็จ';
+    case 'cancelled':
+      return 'ยกเลิก';
+    case 'rejected':
+      return 'ปฏิเสธ';
+    case 'draft':
+      return 'ร่าง';
+    case 'confirmed':
+      return 'ยืนยันแล้ว';
+    default:
+      return status;
+  }
+};
+
 // Mock types
 export interface BillClearingPermission {
   id: string;
@@ -248,3 +291,115 @@ export function useBillClearing() {
     revokePermission,
   };
 }
+
+// Additional hook for clearing individual bills
+export function useClearBill() {
+  const { toast } = useToast();
+
+  return {
+    mutateAsync: async (params: { orderId: string; clearedAmount?: number; notes?: string }) => {
+      try {
+        // Mock clearing process
+        toast({
+          title: 'เคลียร์บิลสำเร็จ',
+          description: `เคลียร์บิลเลขที่ ${params.orderId} เรียบร้อยแล้ว`,
+        });
+        return { success: true };
+      } catch (error) {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: 'ไม่สามารถเคลียร์บิลได้',
+          variant: 'destructive',
+        });
+        throw error;
+      }
+    },
+  };
+}
+
+// Additional hook for clearable orders
+export function useClearableOrders() {
+  const [orders, setOrders] = useState<ClearableOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Mock data
+  const mockOrders: ClearableOrder[] = [
+    {
+      id: '1',
+      order_number: 'ORD001',
+      customer_name: 'บริษัท ABC จำกัด',
+      total_amount: 15000,
+      status: 'pending_clearance',
+      created_at: new Date().toISOString(),
+      can_clear: true,
+    },
+    {
+      id: '2',
+      order_number: 'ORD002',
+      customer_name: 'บริษัท XYZ จำกัด',
+      total_amount: 25000,
+      status: 'pending_clearance',
+      created_at: new Date().toISOString(),
+      can_clear: true,
+    },
+  ];
+
+  return {
+    data: mockOrders,
+    isLoading: loading,
+    error: null
+  };
+}
+
+// Hook for order status history
+export function useOrderStatusHistory() {
+  return {
+    data: [],
+    isLoading: false,
+    error: null
+  };
+}
+
+// Hook for bill clearing permissions
+export function useBillClearingPermissions() {
+  return {
+    data: [],
+    isLoading: false,
+    error: null
+  };
+}
+
+// Hook for granting permissions
+export function useGrantBillClearingPermission() {
+  const { toast } = useToast();
+
+  return {
+    mutateAsync: async (params: any) => {
+      toast({
+        title: 'มอบสิทธิ์สำเร็จ',
+        description: 'มอบสิทธิ์การเคลียร์บิลเรียบร้อยแล้ว',
+      });
+      return { success: true };
+    }
+  };
+}
+
+// Utility functions
+export const getPermissionTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'view':
+      return 'ดูข้อมูล';
+    case 'clear':
+      return 'เคลียร์บิล';
+    default:
+      return type;
+  }
+};
+
+export const hasPermission = (permissions: BillClearingPermission[], type: 'view' | 'clear'): boolean => {
+  return permissions.some(p =>
+    p.permission_type === type &&
+    p.is_active &&
+    (!p.expires_at || new Date(p.expires_at) > new Date())
+  );
+};
