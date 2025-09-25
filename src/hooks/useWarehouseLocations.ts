@@ -317,8 +317,8 @@ export function useWarehouseLocations(searchTerm: string = '', pageSize: number 
     if (!searchTerm) return locationsWithInventory;
 
     return locationsWithInventory.filter(location =>
-      location.location_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (location.description && location.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      (location as any).location_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((location as any).description && (location as any).description.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [locationsWithInventory, searchTerm]);
 

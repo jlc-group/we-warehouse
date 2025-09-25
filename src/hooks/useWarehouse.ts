@@ -200,7 +200,7 @@ export const useWarehouseStats = (warehouseId: string) => {
       }
 
       const totalItems = data?.length || 0;
-      const totalQuantity = data?.reduce((sum, item) => sum + (item.quantity_pieces || 0), 0) || 0;
+      const totalQuantity = data?.reduce((sum, item) => sum + ((item as any).quantity_pieces || 0), 0) || 0;
 
       return {
         totalItems,

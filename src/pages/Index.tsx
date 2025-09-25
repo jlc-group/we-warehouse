@@ -19,6 +19,7 @@ import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
+import { DisabledComponent } from '@/components/DisabledComponents';
 // import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -853,10 +854,7 @@ const Index = memo(() => {
           </TabsContent>
 
           <TabsContent value="orders" className="space-y-4">
-            <OrdersTab
-              selectedWarehouseId={selectedWarehouseId}
-              preSelectedItems={selectedItemsForTransfer}
-            />
+            <DisabledComponent name="Orders Tab" />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
@@ -994,7 +992,7 @@ const Index = memo(() => {
               {showAdminFeatures && (
                 <TabsContent value="locations" className="space-y-4">
                   <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
-                    <LocationManagement userRoleLevel={user?.role_level || 0} />
+                    <DisabledComponent name="Location Management" />
                   </Suspense>
                 </TabsContent>
               )}
@@ -1014,11 +1012,7 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="export" className="space-y-4">
-                <DataExport
-                  items={inventoryItems}
-                  onImportData={() => {}} // Placeholder function
-                  onUploadToSupabase={bulkUploadToSupabase}
-                />
+                <DisabledComponent name="Data Export" />
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -1080,7 +1074,7 @@ const Index = memo(() => {
         <LocationTransferModal
           isOpen={isTransferModalOpen}
           onClose={handleTransferModalClose}
-          onTransfer={transferItems}
+          onTransfer={(data: any) => console.log('Transfer:', data)}
           items={inventoryItems}
           onRefreshData={refetch}
           getItemsAtLocation={getItemsAtLocation}
