@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { secureGatewayClient } from '@/utils/secureGatewayClient';
 import type { Customer, CustomerInsert, CustomerUpdate } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 
@@ -8,21 +9,52 @@ export function useCustomers() {
   return useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
-      console.log('🔍 Fetching customers...');
+      console.log('🔍 Fetching customers via secureGatewayClient...');
 
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('is_active', true)
-        .order('customer_name');
+      try {
+        const result = await secureGatewayClient.get<Customer[]>('customers');
 
-      if (error) {
-        console.error('❌ Error fetching customers:', error);
+        if (result.success && result.data) {
+          console.log(`✅ Fetched ${result.data.length || 0} customers via gateway`);
+          return result.data;
+        }
+
+        // Fallback to direct supabase call if gateway fails
+        console.log('⚠️ Gateway failed, falling back to direct supabase call...');
+        const { data, error } = await supabase
+          .from('customers')
+          .select(`
+            id,
+            customer_name,
+            customer_code,
+            customer_type,
+            phone,
+            email,
+            address_line1,
+            address_line2,
+            district,
+            province,
+            postal_code,
+            country,
+            is_active,
+            created_at,
+            updated_at
+          `)
+          .eq('is_active', true)
+          .order('customer_name');
+
+        if (error) {
+          console.error('❌ Fallback error fetching customers:', error);
+          throw error;
+        }
+
+        console.log(`✅ Fallback fetched ${data?.length || 0} customers`);
+        return data as Customer[];
+
+      } catch (error) {
+        console.error('❌ Error in useCustomers:', error);
         throw error;
       }
-
-      console.log(`✅ Fetched ${data?.length || 0} customers`);
-      return data as Customer[];
     },
   });
 }
@@ -34,21 +66,52 @@ export function useCustomer(customerId?: string) {
     queryFn: async () => {
       if (!customerId) return null;
 
-      console.log('🔍 Fetching customer:', customerId);
+      console.log('🔍 Fetching customer via gateway:', customerId);
 
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', customerId)
-        .single();
+      try {
+        const result = await secureGatewayClient.get<Customer>('customers', { id: customerId });
 
-      if (error) {
-        console.error('❌ Error fetching customer:', error);
+        if (result.success && result.data) {
+          console.log('✅ Fetched customer via gateway:', result.data.customer_name);
+          return result.data;
+        }
+
+        // Fallback to direct supabase call
+        console.log('⚠️ Gateway failed, falling back to direct supabase call...');
+        const { data, error } = await supabase
+          .from('customers')
+          .select(`
+            id,
+            customer_name,
+            customer_code,
+            customer_type,
+            phone,
+            email,
+            address_line1,
+            address_line2,
+            district,
+            province,
+            postal_code,
+            country,
+            is_active,
+            created_at,
+            updated_at
+          `)
+          .eq('id', customerId)
+          .single();
+
+        if (error) {
+          console.error('❌ Fallback error fetching customer:', error);
+          throw error;
+        }
+
+        console.log('✅ Fallback fetched customer:', data.customer_name);
+        return data as Customer;
+
+      } catch (error) {
+        console.error('❌ Error in useCustomer:', error);
         throw error;
       }
-
-      console.log('✅ Fetched customer:', data.customer_name);
-      return data as Customer;
     },
     enabled: !!customerId,
   });
@@ -61,23 +124,54 @@ export function useCustomerSearch(searchTerm?: string) {
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
 
-      console.log('🔍 Searching customers:', searchTerm);
+      console.log('🔍 Searching customers via gateway:', searchTerm);
 
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('is_active', true)
-        .or(`customer_name.ilike.%${searchTerm}%,customer_code.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
-        .order('customer_name')
-        .limit(20);
+      try {
+        const result = await secureGatewayClient.get<Customer[]>('customers', { search: searchTerm });
 
-      if (error) {
-        console.error('❌ Error searching customers:', error);
+        if (result.success && result.data) {
+          console.log(`✅ Found ${result.data.length || 0} customers via gateway matching "${searchTerm}"`);
+          return result.data;
+        }
+
+        // Fallback to direct supabase call
+        console.log('⚠️ Gateway search failed, falling back to direct supabase call...');
+        const { data, error } = await supabase
+          .from('customers')
+          .select(`
+            id,
+            customer_name,
+            customer_code,
+            customer_type,
+            phone,
+            email,
+            address_line1,
+            address_line2,
+            district,
+            province,
+            postal_code,
+            country,
+            is_active,
+            created_at,
+            updated_at
+          `)
+          .eq('is_active', true)
+          .or(`customer_name.ilike.%${searchTerm}%,customer_code.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
+          .order('customer_name')
+          .limit(20);
+
+        if (error) {
+          console.error('❌ Fallback error searching customers:', error);
+          throw error;
+        }
+
+        console.log(`✅ Fallback found ${data?.length || 0} customers matching "${searchTerm}"`);
+        return data as Customer[];
+
+      } catch (error) {
+        console.error('❌ Error in useCustomerSearch:', error);
         throw error;
       }
-
-      console.log(`✅ Found ${data?.length || 0} customers matching "${searchTerm}"`);
-      return data as Customer[];
     },
     enabled: !!searchTerm && searchTerm.length >= 2,
   });
@@ -136,21 +230,36 @@ export function useCreateCustomer() {
 
   return useMutation({
     mutationFn: async (customerData: CustomerInsert) => {
-      console.log('📝 Creating customer:', customerData.customer_name);
+      console.log('📝 Creating customer via gateway:', customerData.customer_name);
 
-      const { data, error } = await supabase
-        .from('customers')
-        .insert(customerData)
-        .select()
-        .single();
+      try {
+        const result = await secureGatewayClient.mutate('createCustomer', customerData);
 
-      if (error) {
-        console.error('❌ Error creating customer:', error);
+        if (result.success && result.data) {
+          console.log('✅ Customer created via gateway:', result.data.customer_name);
+          return result.data as Customer;
+        }
+
+        // Fallback to direct supabase call
+        console.log('⚠️ Gateway creation failed, falling back to direct supabase call...');
+        const { data, error } = await supabase
+          .from('customers')
+          .insert(customerData)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Fallback error creating customer:', error);
+          throw error;
+        }
+
+        console.log('✅ Fallback customer created:', data.customer_name);
+        return data as Customer;
+
+      } catch (error) {
+        console.error('❌ Error in useCreateCustomer:', error);
         throw error;
       }
-
-      console.log('✅ Customer created:', data.customer_name);
-      return data as Customer;
     },
     onSuccess: (data) => {
       // อัปเดต cache
@@ -170,22 +279,37 @@ export function useUpdateCustomer() {
 
   return useMutation({
     mutationFn: async ({ customerId, updates }: { customerId: string; updates: CustomerUpdate }) => {
-      console.log('📝 Updating customer:', customerId);
+      console.log('📝 Updating customer via gateway:', customerId);
 
-      const { data, error } = await supabase
-        .from('customers')
-        .update(updates)
-        .eq('id', customerId)
-        .select()
-        .single();
+      try {
+        const result = await secureGatewayClient.mutate('updateCustomer', { id: customerId, updates });
 
-      if (error) {
-        console.error('❌ Error updating customer:', error);
+        if (result.success && result.data) {
+          console.log('✅ Customer updated via gateway:', result.data.customer_name);
+          return result.data as Customer;
+        }
+
+        // Fallback to direct supabase call
+        console.log('⚠️ Gateway update failed, falling back to direct supabase call...');
+        const { data, error } = await supabase
+          .from('customers')
+          .update(updates)
+          .eq('id', customerId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Fallback error updating customer:', error);
+          throw error;
+        }
+
+        console.log('✅ Fallback customer updated:', data.customer_name);
+        return data as Customer;
+
+      } catch (error) {
+        console.error('❌ Error in useUpdateCustomer:', error);
         throw error;
       }
-
-      console.log('✅ Customer updated:', data.customer_name);
-      return data as Customer;
     },
     onSuccess: (data) => {
       // อัปเดต cache

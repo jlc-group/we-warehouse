@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
@@ -50,11 +50,17 @@ const isSupabaseError = (error: unknown): error is SupabaseError => {
 // CRITICAL: Global throttling to prevent fetch loops
 let lastFetchTime = 0;
 let currentFetchPromise: Promise<any> | null = null;
-const FETCH_THROTTLE_TIME = 30000; // 30 seconds between fetches
+const FETCH_THROTTLE_TIME = 2000; // Reduced to 2 seconds for better UX
 
-// CRITICAL: Global mount tracking to prevent double initialization
-let isGloballyInitialized = false;
-const mountedInstances = new Set<string>();
+  // CRITICAL: Global mount tracking to prevent double initialization
+  let isGloballyInitialized = false;
+  const mountedInstances = new Set<string>();
+  let primaryInstance: string | null = null;
+
+  // Global shared data cache
+  let globalInventoryData: InventoryItem[] = [];
+  let globalDataUpdatedAt = 0;
+  const dataSubscribers = new Set<(data: InventoryItem[]) => void>();
 
 // Import circuit breaker
 import { inventoryCircuitBreaker } from '@/utils/circuitBreaker';
@@ -69,26 +75,73 @@ export function useInventory(warehouseId?: string) {
   const { toast } = useToast();
 
   // Create unique instance ID for this hook
-  const instanceId = React.useMemo(() =>
-    `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+  const instanceId = React.useMemo(() => 
+    `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
     [warehouseId]
   );
 
-  const fetchItems = useCallback(async (isRetry = false) => {
-    // CRITICAL: Circuit breaker check first
+  // Register this instance and determine if it's primary
+  React.useEffect(() => {
+    mountedInstances.add(instanceId);
+
+    // Subscribe to global data updates
+    const handleDataUpdate = (data: InventoryItem[]) => {
+      setItems(data);
+      if (data.length > 0) {
+        setConnectionStatus('connected');
+        setLoading(false);
+        setIsStableLoaded(true);
+      }
+    };
+    dataSubscribers.add(handleDataUpdate);
+
+    // If global data exists, use it immediately
+    if (globalInventoryData.length > 0) {
+      handleDataUpdate(globalInventoryData);
+    }
+
+    if (!primaryInstance) {
+      primaryInstance = instanceId;
+      console.log(`🏆 useInventory: Primary instance registered: ${instanceId}`);
+    } else {
+      console.log(`🔗 useInventory: Secondary instance registered: ${instanceId}`);
+    }
+
+    return () => {
+      mountedInstances.delete(instanceId);
+      dataSubscribers.delete(handleDataUpdate);
+
+      if (primaryInstance === instanceId) {
+        primaryInstance = mountedInstances.size > 0 ? Array.from(mountedInstances)[0] : null;
+        console.log(`🔄 useInventory: Primary instance changed to: ${primaryInstance}`);
+      }
+    };
+  }, [instanceId]);
+
+  // Use useRef to stabilize fetchItems and prevent dependency loops
+  const fetchItemsRef = useRef<(isRetry?: boolean) => Promise<void>>();
+
+  fetchItemsRef.current = async (isRetry = false) => {
+    // IMPROVED: Circuit breaker check with better logging
     if (!inventoryCircuitBreaker.recordRequest('fetchItems', 'useInventory')) {
-      console.error('🔥 fetchItems blocked by circuit breaker');
-      return;
+      console.warn('⚡ fetchItems temporarily blocked by circuit breaker - will retry automatically');
+      // Don't return immediately - allow fallback
     }
 
-    // CRITICAL: Prevent multiple simultaneous calls to stop auto-refresh
+    // Throttling check with better feedback
     const now = Date.now();
-    if (now - lastFetchTime < FETCH_THROTTLE_TIME && currentFetchPromise && !isRetry) {
-      console.log('🚫 fetchItems throttled, returning existing promise');
-      return currentFetchPromise;
+    const timeSinceLastFetch = now - lastFetchTime;
+
+    if (timeSinceLastFetch < FETCH_THROTTLE_TIME && currentFetchPromise && !isRetry) {
+      console.log(`⏳ fetchItems throttled - ${Math.ceil((FETCH_THROTTLE_TIME - timeSinceLastFetch) / 1000)}s remaining, reusing existing promise`);
+      try {
+        return await currentFetchPromise;
+      } catch (error) {
+        console.log('⚠️ Cached promise failed, proceeding with new request');
+      }
     }
 
-    console.log('🔄 fetchItems called', isRetry ? '(retry)' : '(normal)');
+    console.log(`🔄 fetchItems called ${isRetry ? '(retry)' : '(normal)'} - last fetch was ${Math.floor(timeSinceLastFetch / 1000)}s ago`);
     lastFetchTime = now;
 
     const startTime = Date.now();
@@ -101,10 +154,7 @@ export function useInventory(warehouseId?: string) {
       setConnectionStatus('connecting');
       // Starting optimized fetch process
 
-      // Performance: Conditional logging
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 Fetching inventory via secure gateway...');
-      }
+      console.log(`🔄 Fetching inventory via secure gateway... (attempt ${retryCount + 1})`);
 
       const params = warehouseId ? { warehouseId } : undefined;
 
@@ -114,54 +164,78 @@ export function useInventory(warehouseId?: string) {
 
       const { data } = await fetchPromise;
 
-      // Filter out items with zero total quantity to show empty locations properly
-      const filteredData = (data ?? []).filter(item => {
+      // Show ALL inventory items including zero quantities for complete visibility
+      const allData = data ?? [];
+
+      // Calculate stats for debugging
+      const emptyItems = allData.filter(item => {
         const level1 = item.unit_level1_quantity || 0;
         const level2 = item.unit_level2_quantity || 0;
         const level3 = item.unit_level3_quantity || 0;
         const totalQuantity = level1 + level2 + level3;
-
-        // Only show items that have actual inventory
-        return totalQuantity > 0;
+        return totalQuantity === 0;
       });
 
-      console.log(`📦 Filtered out ${(data?.length || 0) - filteredData.length} empty inventory items`);
+      console.log(`📊 Database contains ${allData.length} total inventory items:`);
+      console.log(`  - ${allData.length - emptyItems.length} items with stock`);
+      console.log(`  - ${emptyItems.length} empty locations`);
+      console.log(`✅ Showing ALL ${allData.length} items (including empty locations)`);
+
+      const filteredData = allData; // Show all data instead of filtering
 
       const normalizedItems = filteredData.map(item => ({
         ...item,
         location: normalizeLocation(item.location || ''),
       })) as InventoryItem[];
 
-      setItems(normalizedItems);
+      // Update global cache and notify all subscribers
+      globalInventoryData = normalizedItems;
+      globalDataUpdatedAt = Date.now();
+      dataSubscribers.forEach(callback => callback(normalizedItems));
+
       setConnectionStatus('connected');
       setIsStableLoaded(true); // Mark as stable
       setRetryCount(0); // Reset retry count on success
 
-      // If no data, system ready for new data
-      if (!data || data.length === 0) {
-        // Cache management disabled for direct database access
+      const fetchDuration = Date.now() - startTime;
+      console.log(`✅ Successfully loaded ${normalizedItems.length} inventory items in ${fetchDuration}ms`);
+
+      if (normalizedItems.length === 0) {
+        console.log('📭 No inventory items found in database - this might be expected or indicate an issue');
       }
 
     } catch (error) {
-      console.error('Error fetching inventory items (fallback handled by secureGatewayClient):', error);
+      const fetchDuration = Date.now() - startTime;
+      console.error(`❌ Failed to fetch inventory items after ${fetchDuration}ms:`, error);
+
+      // Increment retry count for better tracking
+      setRetryCount(prev => prev + 1);
 
       // The secureGatewayClient already handles fallback to direct Supabase client
       // so this error means both gateway and fallback failed
 
+      // More detailed error logging
+      if (error instanceof Error) {
+        console.error(`Error details: ${error.name} - ${error.message}`);
+      }
+
       // ไม่เปลี่ยน connectionStatus ทันที เพื่อไม่ให้กระพริบ (ถ้ามีข้อมูลอยู่แล้ว)
       if (!isStableLoaded) {
-        setConnectionStatus('disconnected');
+        setConnectionStatus('error');
+        console.log('🔄 Setting connection status to error - first load failed');
+      } else {
+        console.log('⚠️ Fetch failed but keeping existing data to prevent flickering');
       }
 
       // Simple fallback: show empty state instead of sample data to avoid confusion
       if (!isStableLoaded) {
         setItems([]);
-        setConnectionStatus('disconnected');
+        setConnectionStatus('error');
         setIsStableLoaded(true); // Prevent infinite loading
 
         toast({
-          title: '⚠️ ไม่สามารถเชื่อมต่อฐานข้อมูลได้',
-          description: 'กรุณาตรวจสอบการเชื่อมต่อและลองใหม่อีกครั้ง',
+          title: `⚠️ ไม่สามารถเชื่อมต่อฐานข้อมูลได้ (ครั้งที่ ${retryCount + 1})`,
+          description: 'กรุณาตรวจสอบการเชื่อมต่อและลองใหม่อีกครั้ง หรือใช้ปุ่มกู้คืนข้อมูลฉุกเฉิน',
           variant: 'destructive',
         });
       }
@@ -169,8 +243,12 @@ export function useInventory(warehouseId?: string) {
       setLoading(false);
       currentFetchPromise = null; // Clear current promise when done
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [warehouseId]); // Add warehouseId dependency to refetch when warehouse changes
+  };
+
+  // Stable callback that doesn't change
+  const fetchItems = useCallback(() => {
+    return fetchItemsRef.current?.();
+  }, []);
 
   // Function to ensure product exists in products table
   // Note: Using 'as any' temporarily due to Supabase types not recognizing 'products' table
@@ -653,30 +731,20 @@ export function useInventory(warehouseId?: string) {
       // Register this instance
       mountedInstances.add(instanceId);
 
-      // Only allow the first instance to load data globally
-      if (!isGloballyInitialized && mounted) {
-        isGloballyInitialized = true;
+      // OPTIMIZED: Only primary instance loads data to reduce duplicate requests
+      if (mounted && primaryInstance === instanceId && globalInventoryData.length === 0) {
         console.log('🔄 useInventory: Primary instance loading data', {
           instanceId: instanceId.substring(0, 8),
           warehouseId,
           totalInstances: mountedInstances.size
         });
 
-        await fetchItems();
+        fetchItemsRef.current?.();
       } else if (mounted) {
-        console.log('🚫 useInventory: Secondary instance - waiting for primary', {
+        console.log('🔗 useInventory: Secondary instance using cached data', {
           instanceId: instanceId.substring(0, 8),
-          warehouseId,
-          totalInstances: mountedInstances.size
+          cachedItemsCount: globalInventoryData.length
         });
-
-        // Wait for primary instance to load, then set ready state
-        if (currentFetchPromise) {
-          await currentFetchPromise;
-          setLoading(false);
-          setConnectionStatus('connected');
-          setIsStableLoaded(true);
-        }
       }
     };
 
@@ -689,6 +757,7 @@ export function useInventory(warehouseId?: string) {
       // Reset global state if no instances remain
       if (mountedInstances.size === 0) {
         isGloballyInitialized = false;
+        primaryInstance = null;
         console.log('🧹 useInventory: All instances unmounted, reset global state');
       }
     };
@@ -699,43 +768,21 @@ export function useInventory(warehouseId?: string) {
     try {
       setLoading(true);
 
-      // First clear existing data (optional - comment out if you want to keep existing data)
-      await secureGatewayClient.mutate('clearInventory');
+      console.log('🔄 Loading data from real database instead of sample data...');
 
-      // Generate sample data
-      const { sampleInventoryData } = await import('@/data/sampleInventory');
-      const sampleData = sampleInventoryData;
-
-      // Insert sample data in batches to avoid timeout
-      const batchSize = 10;
-      const batches = [];
-      for (let i = 0; i < sampleData.length; i += batchSize) {
-        batches.push(sampleData.slice(i, i + batchSize));
-      }
-
-      const uploadResponse = await secureGatewayClient.mutate(
-        'bulkUpsertInventory',
-        { items: sampleData, clearExisting: true }
-      );
-
-      if (uploadResponse.data) {
-        const normalized = (uploadResponse.data as InventoryItem[]).map(item => ({
-          ...item,
-          location: normalizeLocation(item.location || ''),
-        }));
-        setItems(normalized);
-      }
+      // Refresh data from database instead of loading mock data
+      await fetchItemsRef.current?.(true);
 
       toast({
-        title: 'โหลดข้อมูลตัวอย่างสำเร็จ',
-        description: `เพิ่มสินค้าจุฬาเฮิร์บ ${sampleData.length} รายการแล้ว`,
+        title: '♻️ รีเฟรชข้อมูลสำเร็จ',
+        description: 'ดึงข้อมูลจากฐานข้อมูลจริงแล้ว (ไม่ใช่ข้อมูลตัวอย่าง)',
       });
 
     } catch (error) {
-      console.error('Error loading sample data:', error);
+      console.error('Error refreshing data:', error);
       toast({
         title: 'เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถโหลดข้อมูลตัวอย่างได้',
+        description: 'ไม่สามารถดึงข้อมูลจากฐานข้อมูลได้',
         variant: 'destructive',
       });
     } finally {
@@ -769,28 +816,37 @@ export function useInventory(warehouseId?: string) {
     }
   };
 
-  // Emergency recovery function
+  // Emergency recovery function - now uses real database
   const emergencyRecovery = useCallback(async () => {
-    const { sampleInventoryData } = await import('@/data/sampleInventory');
-    const sampleData = sampleInventoryData;
-    const recoveryItems: any[] = sampleData.map((item: any, index: number) => ({
-      id: `recovery-${Date.now()}-${index}`,
-      ...item,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+    try {
+      console.log('🔄 Emergency recovery: Fetching data from real database...');
+      setConnectionStatus('connecting');
 
-    setItems(recoveryItems as any);
-    setConnectionStatus('connected');
-    setIsOfflineMode(false);
+      // Force fetch from database instead of using sample data
+      await fetchItemsRef.current?.(true);
 
-    toast({
-      title: '🔄 กู้ข้อมูลสำเร็จ',
-      description: `กู้คืนข้อมูล ${recoveryItems.length} รายการเรียบร้อยแล้ว`,
-    });
+      setConnectionStatus('connected');
+      setIsOfflineMode(false);
 
-    return recoveryItems;
-  }, [toast]);
+      toast({
+        title: '🔄 กู้คืนข้อมูลสำเร็จ',
+        description: `กู้คืนข้อมูลจากฐานข้อมูลจริงแล้ว (${items.length} รายการ)`,
+      });
+
+      return items;
+    } catch (error) {
+      console.error('Emergency recovery failed:', error);
+      setConnectionStatus('error');
+
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถกู้คืนข้อมูลจากฐานข้อมูลได้',
+        variant: 'destructive',
+      });
+
+      return [];
+    }
+  }, [toast, fetchItems, items.length]);
 
   // กู้ข้อมูลจริงของผู้ใช้
   const recoverUserData = useCallback(() => {
@@ -1044,7 +1100,7 @@ export function useInventory(warehouseId?: string) {
     refetch: () => {
       // Manual refetch only when explicitly requested by user
       console.log('Manual refetch requested');
-      return fetchItems();
+      return fetchItemsRef.current?.();
     },
     loadSampleData,
     clearAllData,

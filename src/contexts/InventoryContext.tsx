@@ -20,10 +20,10 @@ interface InventoryContextType {
 
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
-// CRITICAL: Increase throttling time to prevent auto-refreshes
+// IMPROVED: Reasonable throttling time for better UX
 let lastFetchTime = 0;
 let currentFetchPromise: Promise<any> | null = null;
-const THROTTLE_TIME = 30000; // 30 seconds - much longer to prevent refresh loops
+const THROTTLE_TIME = 15000; // 15 seconds - prevent excessive re-fetching
 let isInitialFetch = true; // Track initial fetch to allow one immediate call
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
@@ -37,14 +37,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const fetchItemsRef = useRef<() => Promise<any>>();
 
   fetchItemsRef.current = async () => {
-    // Allow initial fetch immediately
+    // Improved throttling with better logging
     const now = Date.now();
-    if (!isInitialFetch && now - lastFetchTime < THROTTLE_TIME && currentFetchPromise) {
-      console.log('🚫 InventoryContext: fetchItems throttled, returning existing promise');
+    const timeSinceLastFetch = now - lastFetchTime;
+
+    if (!isInitialFetch && timeSinceLastFetch < THROTTLE_TIME && currentFetchPromise) {
+      console.log(`⏳ InventoryContext: fetchItems throttled - ${Math.ceil((THROTTLE_TIME - timeSinceLastFetch) / 1000)}s remaining`);
       return currentFetchPromise;
     }
 
-    console.log('🔄 InventoryContext: fetchItems called', isInitialFetch ? '(initial)' : '(throttled)');
+    console.log(`🔄 InventoryContext: fetchItems called ${isInitialFetch ? '(initial)' : `(after ${Math.floor(timeSinceLastFetch / 1000)}s)`}`);
     lastFetchTime = now;
     isInitialFetch = false;
     setLoading(true);
@@ -55,11 +57,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           .from('inventory_items')
           .select('*')
           .order('location')
-          .limit(300); // Further reduced for performance
+          .limit(500); // Increased from 300 to show more data
 
         if (error) throw error;
 
-        setItems(data || []);
+        const items = data || [];
+        console.log(`✅ InventoryContext: Successfully loaded ${items.length} items from database`);
+
+        setItems(items);
         setConnectionStatus('connected');
         setIsStableLoaded(true);
 
@@ -105,30 +110,24 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     await fetchItems();
   }, [fetchItems]);
 
-  // CRITICAL: Only run initial fetch once on mount
-  useEffect(() => {
-    let mounted = true;
-    let isFirstRun = true; // Extra protection against multiple runs
-
-    console.log('🔍 InventoryContext useEffect: Mount detected', { isInitialFetch, mounted, isFirstRun });
-
-    const initFetch = async () => {
-      if (mounted && isInitialFetch && isFirstRun) {
-        isFirstRun = false; // Prevent any potential duplicate runs
-        console.log('🚀 InventoryContext: Initial fetch triggered');
-        await fetchItems();
-      } else {
-        console.log('🚫 InventoryContext: Initial fetch blocked', { mounted, isInitialFetch, isFirstRun });
-      }
-    };
-
-    initFetch();
-
-    return () => {
-      console.log('🧹 InventoryContext useEffect: Cleanup triggered');
-      mounted = false;
-    };
-  }, []); // Empty dependency array - run only once on mount
+  // DISABLED: Prevent any auto-fetching that might cause loops
+  // useEffect(() => {
+  //   let mounted = true;
+  //   let isFirstRun = true;
+  //   console.log('🔍 InventoryContext useEffect: Mount detected');
+  //   const initFetch = async () => {
+  //     if (mounted && isInitialFetch && isFirstRun) {
+  //       isFirstRun = false;
+  //       console.log('🚀 InventoryContext: Initial fetch triggered');
+  //       await fetchItems();
+  //     }
+  //   };
+  //   initFetch();
+  //   return () => {
+  //     console.log('🧹 InventoryContext useEffect: Cleanup triggered');
+  //     mounted = false;
+  //   };
+  // }, []);
 
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo((): InventoryContextType => ({

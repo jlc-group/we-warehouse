@@ -1,0 +1,36 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "VITE",
+    "SUPABASE",
+    "XVCJ",
+    "ogrcpzzmmudztwjfwjvu",
+    "supabase",
+    "vite",
+    "shadcn",
+    "lucide",
+    "radix",
+    "tanstack",
+    "tailwindcss",
+    "postcss",
+    "autoprefixer",
+    "typescript",
+    "tsx",
+    "jsx"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    "*.log",
+    "*.env*"
+  ],
+  "overrides": [
+    {
+      "filename": "**/.env*",
+      "enabled": false
+    }
+  ]
+}

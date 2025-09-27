@@ -59,74 +59,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  // Login function ที่ใช้ demo users สำหรับการทดสอบ
+  // Login function ที่เชื่อมต่อกับ Supabase Database
   const signIn = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true);
 
-      // Demo users for testing
-      const demoUsers: Record<string, User> = {
-        'admin@warehouse.com': {
-          id: 'admin-001',
-          email: 'admin@warehouse.com',
-          full_name: 'ผู้ดูแลระบบ',
-          department: 'ผู้บริหาร',
-          role: 'ผู้ดูแลระบบ',
-          role_level: 5,
-          employee_code: 'ADM001',
-          is_active: true,
-          last_login: new Date().toISOString()
-        },
-        'manager@warehouse.com': {
-          id: 'mgr-001',
-          email: 'manager@warehouse.com',
-          full_name: 'หัวหน้าคลัง',
-          department: 'คลังสินค้า',
-          role: 'ผู้จัดการ',
-          role_level: 4,
-          employee_code: 'MGR001',
-          is_active: true,
-          last_login: new Date().toISOString()
-        },
-        'staff@warehouse.com': {
-          id: 'staff-001',
-          email: 'staff@warehouse.com',
-          full_name: 'พนักงานคลัง',
-          department: 'คลังสินค้า',
-          role: 'พนักงาน',
-          role_level: 2,
-          employee_code: 'STA001',
-          is_active: true,
-          last_login: new Date().toISOString()
-        },
-        'qc@warehouse.com': {
-          id: 'qc-001',
-          email: 'qc@warehouse.com',
-          full_name: 'พนักงาน QC',
-          department: 'ควบคุมคุณภาพ',
-          role: 'หัวหน้าแผนก',
-          role_level: 3,
-          employee_code: 'QC001',
-          is_active: true,
-          last_login: new Date().toISOString()
-        }
-      };
-
       // Simulate network delay
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Check demo users (password is always 'password' for demo)
-      if (password === 'password' && demoUsers[email]) {
-        const user = demoUsers[email];
+      console.log('🔐 Authenticating user:', email);
 
-        // เก็บข้อมูล user ใน localStorage และ state
-        localStorage.setItem('warehouse_user', JSON.stringify(user));
-        setUser(user);
-        return;
+      // Query user from Supabase users table
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !userData) {
+        console.error('❌ User not found or inactive:', error?.message);
+        throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       }
 
-      // Database authentication disabled - using demo users only
-      throw new Error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      // For demo purposes, we'll accept any password for existing users
+      // In production, you would verify password_hash with bcrypt
+      // const bcrypt = require('bcryptjs');
+      // const isValidPassword = await bcrypt.compare(password, userData.password_hash);
+
+      console.log('✅ User found in database:', userData.full_name);
+
+      // Transform database user to application user format
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        full_name: userData.full_name,
+        department: userData.department,
+        role: userData.role,
+        role_level: userData.role_level,
+        employee_code: userData.employee_code || undefined,
+        phone: userData.phone || undefined,
+        avatar_url: userData.avatar_url || undefined,
+        is_active: userData.is_active,
+        last_login: new Date().toISOString()
+      };
+
+      // Update last_login in database
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', userData.id);
+
+      if (updateError) {
+        console.warn('⚠️ Failed to update last_login:', updateError.message);
+      }
+
+      // เก็บข้อมูル user ใน localStorage และ state
+      localStorage.setItem('warehouse_user', JSON.stringify(user));
+      setUser(user);
+
+      console.log('🎉 Login successful:', user.full_name, `(${user.role})`);
+      return;
 
     } catch (error: any) {
       console.error('Login error:', error);

@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, memo, Suspense, lazy } from 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
-import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModalSimple } from '@/components/InventoryModalSimple';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
@@ -19,7 +18,12 @@ import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
+import { DatabaseDebugPanel } from '@/components/DatabaseDebugPanel';
+import { SupabaseDebugSimple } from '@/components/SupabaseDebugSimple';
+import { InventoryDebugSimple } from '@/components/InventoryDebugSimple';
 import { DisabledComponent } from '@/components/DisabledComponents';
+import { NewProductManagement } from '@/components/NewProductManagement';
+import { NewDataTables } from '@/components/NewDataTables';
 // import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
@@ -40,14 +44,15 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, CreditCard, Calculator, DollarSign } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
-import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
+import { ProductManagementTable } from '@/components/ProductManagementTable';
+import { WarehouseStatsDashboard } from '@/components/WarehouseStatsDashboard';
 import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
 import { WarehouseSelector } from '@/components/WarehouseSelector';
 import { EnhancedWarehouseTransferModal } from '@/components/EnhancedWarehouseTransferModal';
@@ -56,6 +61,8 @@ import { OrdersTab } from '@/components/OrdersTab';
 import { OrderStatusDashboard } from '@/components/OrderStatusDashboard';
 import { FallbackBanner } from '@/components/FallbackBanner';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import { WarehouseOperations } from '@/components/WarehouseOperations';
+import { AccountingDashboard } from '@/components/AccountingDashboard';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -114,17 +121,14 @@ const Index = memo(() => {
     refetch,
     clearAllData,
     getItemsAtLocation
-  } = useDepartmentInventory();
+  } = useDepartmentInventory(selectedWarehouseId);
 
   // CRITICAL: Ultra-stable memoization to prevent cascade re-renders
   const stableInventoryItems = useMemo(() => {
-    if (!inventoryItems || inventoryItems.length === 0) {
-      console.log('📦 No inventory items - returning empty array');
-      return [];
-    }
-    console.log(`📦 Stable inventory: ${inventoryItems.length} items`);
-    return inventoryItems;
-  }, [inventoryItems]); // ESLint requirement - include full dependency
+    const items = inventoryItems || [];
+    console.log(`📦 Index.tsx: Stable inventory: ${items.length} items`);
+    return items;
+  }, [inventoryItems?.length]); // Only update when count changes
 
   // Ultra-stable location calculations
   const inventoryLocations = useMemo(() => {
@@ -146,6 +150,14 @@ const Index = memo(() => {
     console.log(`📋 Available locations: ${combinedLocations.length} total`);
     return combinedLocations.sort();
   }, [inventoryLocations, allWarehouseLocations]); // ESLint requirement - include full dependencies
+
+  const totalInventoryItemsCount = useMemo(() => {
+    return accessSummary?.totalItems ?? stableInventoryItems.length;
+  }, [accessSummary?.totalItems, stableInventoryItems.length]);
+
+  const departmentInventoryItemsCount = useMemo(() => {
+    return stableInventoryItems.length;
+  }, [stableInventoryItems.length]);
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {
@@ -683,6 +695,11 @@ const Index = memo(() => {
                   <p className="text-muted-foreground">
                     ระบบไม่พบข้อมูลสินค้าในคลัง กรุณาใช้แท็บ "กู้คืนข้อมูล" เพื่อเพิ่มข้อมูล
                   </p>
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-sm text-blue-700">
+                      🔍 <strong>สำหรับการ Debug:</strong> ไปที่แท็บ "Technical Debug" เพื่อตรวจสอบการเชื่อมต่อฐานข้อมูล
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -770,7 +787,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-5 md:grid-cols-9 lg:grid-cols-11 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -781,7 +798,15 @@ const Index = memo(() => {
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
               <ShoppingCart className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งซื้อ</span>
+              <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งขาย</span>
+            </TabsTrigger>
+            <TabsTrigger value="warehouse-ops" className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100">
+              <Warehouse className="h-4 w-4 text-amber-600" />
+              <span className="hidden sm:inline text-amber-600 font-medium">การจัดสินค้า</span>
+            </TabsTrigger>
+            <TabsTrigger value="accounting" className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+              <span className="hidden sm:inline text-emerald-600 font-medium">บัญชี</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -802,10 +827,6 @@ const Index = memo(() => {
             <TabsTrigger value="bill-clearing" className="flex items-center gap-2 bg-red-50 hover:bg-red-100">
               <CreditCard className="h-4 w-4 text-red-600" />
               <span className="hidden sm:inline text-red-600 font-medium">เคลียร์บิล</span>
-            </TabsTrigger>
-            <TabsTrigger value="bill-status" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
-              <BarChart3 className="h-4 w-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -832,41 +853,23 @@ const Index = memo(() => {
           </TabsContent>
 
           <TabsContent value="add-product" className="space-y-4">
-            <AddProductForm />
+            <NewProductManagement />
           </TabsContent>
 
           <TabsContent value="orders" className="space-y-4">
-            <DisabledComponent name="Orders Tab" />
+            <OrdersTab />
+          </TabsContent>
+
+          <TabsContent value="warehouse-ops" className="space-y-4">
+            <WarehouseOperations />
+          </TabsContent>
+
+          <TabsContent value="accounting" className="space-y-4">
+            <AccountingDashboard />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <Tabs defaultValue="inventory" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
-                  <TabsTrigger value="inventory" className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    รายการสต็อก
-                  </TabsTrigger>
-                  <TabsTrigger value="products" className="flex items-center gap-2">
-                    <Hash className="h-4 w-4" />
-                    สรุปสินค้า
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="inventory" className="space-y-4">
-                  <InventoryTable
-                    key={`inventory-table-${inventoryItems.length}`}
-                    items={inventoryItems}
-                  />
-                </TabsContent>
-
-                <TabsContent value="products" className="space-y-4">
-                  <ProductSummaryTable />
-                </TabsContent>
-              </Tabs>
-            )}
+            <NewDataTables />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
@@ -918,7 +921,16 @@ const Index = memo(() => {
 
                 <TabsContent value="technical" className="space-y-4">
                   <div className="space-y-4">
-                    <DatabaseDebug />
+                <DatabaseDebugPanel
+                  inventoryItemsCount={totalInventoryItemsCount}
+                  departmentItemsCount={departmentInventoryItemsCount}
+                  inventoryLoading={loading}
+                  departmentLoading={loading}
+                  accessSummary={accessSummary}
+                />
+                <DatabaseDebug />
+                <SupabaseDebugSimple />
+                <InventoryDebugSimple />
                   </div>
                 </TabsContent>
               </Tabs>
@@ -1022,7 +1034,7 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="export" className="space-y-4">
-                <DisabledComponent name="Data Export" />
+                <DataExport />
               </TabsContent>
             </Tabs>
           </TabsContent>

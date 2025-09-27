@@ -129,7 +129,7 @@ export function DataRecovery() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              กู้คืนข้อมูลตัวอย่างเมื่อระบบมีปัญหาหรือข้อมูลหายไป
+              กู้คืนข้อมูลจากฐานข้อมูลเมื่อระบบมีปัญหาหรือข้อมูลหายไป
             </p>
             <Button
               onClick={handleEmergencyRecovery}
@@ -142,7 +142,7 @@ export function DataRecovery() {
               ) : (
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
-              กู้คืนข้อมูลตัวอย่าง
+              กู้คืนจากฐานข้อมูล
             </Button>
           </CardContent>
         </Card>
@@ -208,12 +208,12 @@ export function DataRecovery() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Download className="h-5 w-5 text-purple-600" />
-              โหลดข้อมูลตัวอย่าง
+              รีเฟรชจากฐานข้อมูล
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              โหลดข้อมูลตัวอย่างสำหรับทดสอบระบบ
+              รีเฟรชข้อมูลจากฐานข้อมูล Supabase
             </p>
             <Button
               onClick={loadSampleData}
@@ -226,7 +226,7 @@ export function DataRecovery() {
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
-              โหลดข้อมูลตัวอย่าง
+              รีเฟรชจากฐานข้อมูล
             </Button>
           </CardContent>
         </Card>
@@ -270,7 +270,7 @@ export function DataRecovery() {
             <div className="flex items-start gap-2">
               <Badge variant="outline" className="mt-0.5">1</Badge>
               <div>
-                <strong>กู้คืนฉุกเฉิน:</strong> ใช้เมื่อระบบมีปัญหาหรือข้อมูลหายไป จะโหลดข้อมูลตัวอย่างมาให้
+                <strong>กู้คืนฉุกเฉิน:</strong> ใช้เมื่อระบบมีปัญหาหรือข้อมูลหายไป จะดึงข้อมูลจากฐานข้อมูลจริง
               </div>
             </div>
             <div className="flex items-start gap-2">
@@ -288,7 +288,7 @@ export function DataRecovery() {
             <div className="flex items-start gap-2">
               <Badge variant="outline" className="mt-0.5">4</Badge>
               <div>
-                <strong>โหลดข้อมูลตัวอย่าง:</strong> โหลดข้อมูลตัวอย่างสำหรับทดสอบระบบ
+                <strong>รีเฟรชจากฐานข้อมูล:</strong> ดึงข้อมูลล่าสุดจากฐานข้อมูล Supabase
               </div>
             </div>
           </div>

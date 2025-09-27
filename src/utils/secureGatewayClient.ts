@@ -52,6 +52,46 @@ export const secureGatewayClient = {
           return { success: true, data: data as T };
         }
 
+        case 'customers': {
+          let query = supabase
+            .from('customers')
+            .select(`
+              id,
+              customer_name,
+              customer_code,
+              customer_type,
+              phone,
+              email,
+              address_line1,
+              address_line2,
+              district,
+              province,
+              postal_code,
+              country,
+              is_active,
+              created_at,
+              updated_at
+            `)
+            .eq('is_active', true)
+            .order('customer_name');
+
+          if (params?.id) {
+            query = query.eq('id', params.id).single();
+          }
+
+          if (params?.search) {
+            query = query.or(`customer_name.ilike.%${params.search}%,customer_code.ilike.%${params.search}%,phone.ilike.%${params.search}%`);
+          }
+
+          const { data, error } = await query;
+
+          if (error && error.code !== 'PGRST116') {
+            throw error;
+          }
+
+          return { success: true, data: data as T };
+        }
+
         case 'productBySku': {
           const { data, error } = await supabase
             .from('products')
@@ -63,6 +103,168 @@ export const secureGatewayClient = {
             throw error;
           }
 
+          return { success: true, data: data as T };
+        }
+
+        case 'conversionRates': {
+          console.log('🔄 Fetching conversion rates from database...');
+
+          let query = supabase
+            .from('product_conversion_rates')
+            .select(`
+              sku,
+              product_name,
+              product_id,
+              product_type,
+              unit_level1_name,
+              unit_level1_rate,
+              unit_level2_name,
+              unit_level2_rate,
+              unit_level3_name,
+              created_at,
+              updated_at
+            `)
+            .order('sku');
+
+          if (params?.sku) {
+            console.log(`🔍 Filtering by SKU: ${params.sku}`);
+            query = query.eq('sku', params.sku).single();
+          }
+
+          if (params?.search) {
+            console.log(`🔍 Searching for: ${params.search}`);
+            query = query.or(`sku.ilike.%${params.search}%,product_name.ilike.%${params.search}%`);
+          }
+
+          const { data, error } = await query;
+
+          if (error) {
+            if (error.code === 'PGRST116') {
+              console.log('ℹ️ No conversion rates found (empty result)');
+              return { success: true, data: [] as T };
+            } else {
+              console.error('❌ Error fetching conversion rates:', error);
+              throw error;
+            }
+          }
+
+          const resultCount = Array.isArray(data) ? data.length : (data ? 1 : 0);
+          console.log(`✅ Retrieved ${resultCount} conversion rates`);
+          return { success: true, data: data as T };
+        }
+
+        case 'productsWithConversions': {
+          // First, let's get products separately and then join with conversion rates
+          console.log('🔄 Fetching products with conversions via manual join...');
+
+          const { data: products, error: productsError } = await supabase
+            .from('products')
+            .select(`
+              id,
+              product_name,
+              sku_code,
+              product_type,
+              brand,
+              category,
+              unit_of_measure,
+              is_active,
+              created_at
+            `)
+            .eq('is_active', true)
+            .order('product_name');
+
+          if (productsError) {
+            console.error('❌ Error fetching products:', productsError);
+            throw productsError;
+          }
+
+          // Get all conversion rates
+          const { data: conversions, error: conversionsError } = await supabase
+            .from('product_conversion_rates')
+            .select(`
+              sku,
+              product_name,
+              unit_level1_name,
+              unit_level1_rate,
+              unit_level2_name,
+              unit_level2_rate,
+              unit_level3_name
+            `);
+
+          if (conversionsError) {
+            console.warn('⚠️ Error fetching conversions, proceeding without:', conversionsError);
+          }
+
+          // Manual join: match products.sku_code with conversion_rates.sku
+          const productsWithConversions = products.map(product => {
+            const conversionRate = conversions?.find(conv => conv.sku === product.sku_code);
+            return {
+              ...product,
+              conversion_rates: conversionRate || null
+            };
+          });
+
+          console.log(`✅ Successfully joined ${products.length} products with conversions`);
+          return { success: true, data: productsWithConversions as T };
+        }
+
+        case 'conversionRateBySku': {
+          const { data, error } = await supabase
+            .from('product_conversion_rates')
+            .select('*')
+            .eq('sku', params?.sku)
+            .single();
+
+          if (error && error.code !== 'PGRST116') {
+            // Return default conversion rates if not found
+            const defaultData = {
+              sku: params?.sku || '',
+              product_name: 'ไม่ระบุ',
+              unit_level1_name: 'ลัง',
+              unit_level1_rate: 144,
+              unit_level2_name: 'กล่อง',
+              unit_level2_rate: 12,
+              unit_level3_name: 'ชิ้น',
+              isDefault: true
+            };
+            return { success: true, data: defaultData as T };
+          }
+
+          return { success: true, data: data as T };
+        }
+
+        case 'productsWithConversionsView': {
+          console.log('🔄 Fetching products with conversions from view...');
+
+          let query = supabase
+            .from('products_with_conversions')
+            .select('*')
+            .order('sku_code');
+
+          if (params?.productType) {
+            query = query.eq('product_type', params.productType);
+          }
+
+          if (params?.search) {
+            query = query.or(`sku_code.ilike.%${params.search}%,product_name.ilike.%${params.search}%`);
+          }
+
+          if (params?.hasConversion !== undefined) {
+            if (params.hasConversion) {
+              query = query.not('conversion_id', 'is', null);
+            } else {
+              query = query.is('conversion_id', null);
+            }
+          }
+
+          const { data, error } = await query;
+
+          if (error) {
+            console.error('❌ Error fetching products with conversions:', error);
+            throw error;
+          }
+
+          console.log(`✅ Retrieved ${data.length} products with conversion data`);
           return { success: true, data: data as T };
         }
 
@@ -135,6 +337,29 @@ export const secureGatewayClient = {
           return { success: true, data };
         }
 
+        case 'createCustomer': {
+          const { data, error } = await supabase
+            .from('customers')
+            .insert([payload])
+            .select()
+            .single();
+
+          if (error) throw error;
+          return { success: true, data };
+        }
+
+        case 'updateCustomer': {
+          const { data, error } = await supabase
+            .from('customers')
+            .update(payload.updates)
+            .eq('id', payload.id)
+            .select()
+            .single();
+
+          if (error) throw error;
+          return { success: true, data };
+        }
+
         case 'clearInventory': {
           const { error } = await supabase
             .from('inventory_items')
@@ -190,6 +415,111 @@ export const secureGatewayClient = {
 
           if (error) throw error;
           return { success: true, data: { shipped: true } };
+        }
+
+        case 'createConversionRate': {
+          // Validate required fields
+          if (!payload.sku || !payload.product_name) {
+            throw new Error('SKU และชื่อสินค้าจำเป็นต้องระบุ');
+          }
+
+          // Validate conversion rates are positive numbers
+          if (payload.unit_level1_rate && payload.unit_level1_rate <= 0) {
+            throw new Error('อัตราแปลงหน่วยระดับ 1 ต้องเป็นจำนวนบวก');
+          }
+          if (payload.unit_level2_rate && payload.unit_level2_rate <= 0) {
+            throw new Error('อัตราแปลงหน่วยระดับ 2 ต้องเป็นจำนวนบวก');
+          }
+
+          const { data, error } = await supabase
+            .from('product_conversion_rates')
+            .insert([{
+              sku: payload.sku,
+              product_name: payload.product_name,
+              product_id: payload.product_id || null,
+              product_type: payload.product_type || null,
+              unit_level1_name: payload.unit_level1_name || 'ลัง',
+              unit_level1_rate: payload.unit_level1_rate || 144,
+              unit_level2_name: payload.unit_level2_name || 'กล่อง',
+              unit_level2_rate: payload.unit_level2_rate || 12,
+              unit_level3_name: payload.unit_level3_name || 'ชิ้น',
+              user_id: '00000000-0000-0000-0000-000000000000'
+            }])
+            .select()
+            .single();
+
+          if (error) throw error;
+          return { success: true, data };
+        }
+
+        case 'updateConversionRate': {
+          if (!payload.sku) {
+            throw new Error('SKU จำเป็นต้องระบุ');
+          }
+
+          // Validate conversion rates are positive numbers
+          if (payload.updates.unit_level1_rate && payload.updates.unit_level1_rate <= 0) {
+            throw new Error('อัตราแปลงหน่วยระดับ 1 ต้องเป็นจำนวนบวก');
+          }
+          if (payload.updates.unit_level2_rate && payload.updates.unit_level2_rate <= 0) {
+            throw new Error('อัตราแปลงหน่วยระดับ 2 ต้องเป็นจำนวนบวก');
+          }
+
+          const { data, error } = await supabase
+            .from('product_conversion_rates')
+            .update({
+              ...payload.updates,
+              updated_at: new Date().toISOString()
+            })
+            .eq('sku', payload.sku)
+            .select()
+            .single();
+
+          if (error) throw error;
+          return { success: true, data };
+        }
+
+        case 'deleteConversionRate': {
+          if (!payload.sku) {
+            throw new Error('SKU จำเป็นต้องระบุ');
+          }
+
+          const { error } = await supabase
+            .from('product_conversion_rates')
+            .delete()
+            .eq('sku', payload.sku);
+
+          if (error) throw error;
+          return { success: true, data: { deleted: true, sku: payload.sku } };
+        }
+
+        case 'batchUpdateConversionRates': {
+          if (!payload.conversions || !Array.isArray(payload.conversions)) {
+            throw new Error('ข้อมูลอัตราแปลงไม่ถูกต้อง');
+          }
+
+          // Validate all conversion rates
+          for (const conv of payload.conversions) {
+            if (!conv.sku) throw new Error('SKU จำเป็นต้องระบุ');
+            if (conv.unit_level1_rate && conv.unit_level1_rate <= 0) {
+              throw new Error(`อัตราแปลงหน่วยระดับ 1 ของ ${conv.sku} ต้องเป็นจำนวนบวก`);
+            }
+            if (conv.unit_level2_rate && conv.unit_level2_rate <= 0) {
+              throw new Error(`อัตราแปลงหน่วยระดับ 2 ของ ${conv.sku} ต้องเป็นจำนวนบวก`);
+            }
+          }
+
+          const { data, error } = await supabase
+            .from('product_conversion_rates')
+            .upsert(payload.conversions.map((conv: any) => ({
+              ...conv,
+              user_id: '00000000-0000-0000-0000-000000000000',
+              updated_at: new Date().toISOString()
+            })), { onConflict: 'sku' })
+            .select();
+
+          if (error) throw error;
+          return { success: true, data };
         }
 
         default:

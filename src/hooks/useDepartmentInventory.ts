@@ -5,7 +5,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 
 // CRITICAL: Global throttling to prevent nested hook refresh loops
 let lastDeptFetchTime = 0;
-const DEPT_THROTTLE_TIME = 30000; // 30 seconds
+const DEPT_THROTTLE_TIME = 5000; // 5 seconds - balance between responsiveness and stability
 
 // Department access rules - defines which departments can access which inventory data
 const DEPARTMENT_ACCESS_RULES = {
@@ -45,7 +45,7 @@ const DEPARTMENT_ACCESS_RULES = {
   }
 };
 
-export function useDepartmentInventory() {
+export function useDepartmentInventory(warehouseId?: string) {
   const { user } = useAuth();
 
   // CRITICAL: Add throttling check before calling useInventory
@@ -61,8 +61,19 @@ export function useDepartmentInventory() {
     }
   }, [shouldThrottleFetch]);
 
-  const { items: allItems, loading, ...inventoryHook } = useInventory();
+  const { items: allItems, loading, ...inventoryHook } = useInventory(warehouseId);
   const [permissionDeniedAttempts, setPermissionDeniedAttempts] = useState(0);
+
+  // Debug logging for data flow
+  useEffect(() => {
+    console.log(`🔍 useDepartmentInventory: Raw data from useInventory:`, {
+      allItemsCount: allItems.length,
+      loading,
+      user: user?.email,
+      department: user?.department,
+      warehouseId,
+    });
+  }, [allItems.length, loading, user?.email, user?.department, warehouseId]);
 
   // Check if user has permission to access specific inventory data
   const checkItemAccess = useCallback((item: InventoryItem): boolean => {
@@ -105,17 +116,35 @@ export function useDepartmentInventory() {
 
   // CRITICAL: Stable filtered items with throttling to prevent cascading re-renders
   const items = useMemo(() => {
-    if (!user) return [];
+    // TEMP FIX: Show all data even without user to debug the issue
+    if (!user) {
+      console.log('⚠️ useDepartmentInventory: No user, showing all data for debugging');
+      const filtered = allItems.filter(item => {
+        if (!warehouseId) return true;
+        // แสดงสินค้าที่ไม่ระบุ warehouse เสมอ เพื่อไม่ให้ข้อมูลหาย
+        if (!item.warehouse_id) return true;
+        return item.warehouse_id === warehouseId;
+      });
+      console.log(`📊 No-user filter: ${filtered.length}/${allItems.length} items accessible`);
+      return filtered;
+    }
 
     // Log throttling status
     if (shouldThrottleFetch) {
       console.log('🚫 useDepartmentInventory: filtering throttled');
     }
 
-    const filtered = allItems.filter(checkItemAccess);
+    const filtered = allItems
+      .filter(checkItemAccess)
+      .filter(item => {
+        if (!warehouseId) return true;
+        // แสดงสินค้าที่ไม่ระบุ warehouse เสมอ เพื่อไม่ให้ข้อมูลหาย
+        if (!item.warehouse_id) return true;
+        return item.warehouse_id === warehouseId;
+      });
     console.log(`📊 Department filter: ${filtered.length}/${allItems.length} items accessible`);
     return filtered;
-  }, [allItems, checkItemAccess, user, shouldThrottleFetch]);
+  }, [allItems, checkItemAccess, user, shouldThrottleFetch, warehouseId]);
 
   // Get department access summary
   const accessSummary = useMemo(() => {

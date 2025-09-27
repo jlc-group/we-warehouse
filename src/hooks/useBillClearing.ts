@@ -58,10 +58,24 @@ export interface BillClearingPermission {
 export interface ClearableOrder {
   id: string;
   order_number: string;
+  customer_id: string;
   customer_name: string;
+  customer_code?: string;
+  warehouse_id?: string;
+  warehouse_name?: string;
   total_amount: number;
   status: string;
+  payment_status?: 'paid' | 'pending' | 'partial' | 'overdue';
   created_at: string;
+  delivery_date?: string;
+  cleared_at?: string;
+  cleared_by?: string;
+  cleared_amount?: number;
+  cleared_notes?: string;
+  is_cleared: boolean;
+  days_since_created?: number;
+  approval_required?: boolean;
+  is_approved_for_clearing?: boolean;
   can_clear: boolean;
 }
 
@@ -139,25 +153,68 @@ export function useBillClearing() {
     try {
       setLoading(true);
 
-      // Mock clearable orders
+      // Enhanced mock clearable orders with more realistic data
       const mockOrders: ClearableOrder[] = [
         {
           id: '1',
-          order_number: 'ORD001',
+          order_number: 'ORD-2024-001',
+          customer_id: '1',
           customer_name: 'บริษัท ABC จำกัด',
+          customer_code: 'CUST001',
+          warehouse_id: 'main',
+          warehouse_name: 'คลังสินค้าหลัก',
           total_amount: 15000,
-          status: 'pending_clearance',
-          created_at: new Date().toISOString(),
+          status: 'DELIVERED',
+          payment_status: 'pending',
+          created_at: new Date(Date.now() - 86400000 * 7).toISOString(), // 7 days ago
+          delivery_date: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
+          is_cleared: false,
+          days_since_created: 7,
+          approval_required: false,
+          is_approved_for_clearing: true,
           can_clear: true,
         },
         {
           id: '2',
-          order_number: 'ORD002',
+          order_number: 'ORD-2024-002',
+          customer_id: '2',
           customer_name: 'บริษัท XYZ จำกัด',
+          customer_code: 'CUST002',
+          warehouse_id: 'main',
+          warehouse_name: 'คลังสินค้าหลัก',
           total_amount: 25000,
-          status: 'pending_clearance',
-          created_at: new Date().toISOString(),
-          can_clear: true,
+          status: 'DELIVERED',
+          payment_status: 'overdue',
+          created_at: new Date(Date.now() - 86400000 * 35).toISOString(), // 35 days ago
+          delivery_date: new Date(Date.now() - 86400000 * 30).toISOString(), // 30 days ago
+          is_cleared: false,
+          days_since_created: 35,
+          approval_required: true,
+          is_approved_for_clearing: false,
+          can_clear: false,
+        },
+        {
+          id: '3',
+          order_number: 'ORD-2024-003',
+          customer_id: '3',
+          customer_name: 'บริษัท DEF จำกัด',
+          customer_code: 'CUST003',
+          warehouse_id: 'main',
+          warehouse_name: 'คลังสินค้าหลัก',
+          total_amount: 12500,
+          status: 'DELIVERED',
+          payment_status: 'paid',
+          created_at: new Date(Date.now() - 86400000 * 10).toISOString(), // 10 days ago
+          delivery_date: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
+          cleared_at: new Date(Date.now() - 86400000 * 3).toISOString(), // 3 days ago
+          cleared_by: 'admin',
+          cleared_amount: 12500,
+          cleared_notes: 'เคลียร์ตามกำหนดเวลา',
+          is_cleared: true,
+          days_since_created: 10,
+          approval_required: false,
+          is_approved_for_clearing: true,
+          can_clear: false,
         },
       ];
 
@@ -297,55 +354,154 @@ export function useClearBill() {
   const { toast } = useToast();
 
   return {
-    mutateAsync: async (params: { orderId: string; clearedAmount?: number; notes?: string }) => {
+    mutateAsync: async (params: {
+      orderId: string;
+      clearedBy: string;
+      clearedAmount?: number;
+      notes?: string;
+    }) => {
       try {
-        // Mock clearing process
+        // Simulate clearing process with validation
+        console.log('Starting bill clearing process:', params);
+
+        // Mock validation
+        if (!params.orderId || !params.clearedBy) {
+          throw new Error('ข้อมูลไม่ครบถ้วน');
+        }
+
+        // Simulate async clearing operation
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        console.log('Bill cleared successfully:', params.orderId);
+
         toast({
           title: 'เคลียร์บิลสำเร็จ',
           description: `เคลียร์บิลเลขที่ ${params.orderId} เรียบร้อยแล้ว`,
         });
-        return { success: true };
-      } catch (error) {
+
+        return {
+          success: true,
+          clearedAt: new Date().toISOString(),
+          clearedBy: params.clearedBy,
+          clearedAmount: params.clearedAmount,
+          notes: params.notes
+        };
+      } catch (error: any) {
+        console.error('Error clearing bill:', error);
         toast({
           title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถเคลียร์บิลได้',
+          description: error.message || 'ไม่สามารถเคลียร์บิลได้',
           variant: 'destructive',
         });
         throw error;
       }
     },
+    isPending: false, // In real implementation, this would track loading state
   };
 }
 
-// Additional hook for clearable orders
-export function useClearableOrders() {
-  const [orders, setOrders] = useState<ClearableOrder[]>([]);
-  const [loading, setLoading] = useState(false);
+// Additional hook for clearable orders with filters
+export function useClearableOrders(filters?: any) {
+  const [loading] = useState(false);
 
-  // Mock data
+  // Enhanced mock data with realistic bill clearing scenarios
   const mockOrders: ClearableOrder[] = [
     {
       id: '1',
-      order_number: 'ORD001',
+      order_number: 'ORD-2024-001',
+      customer_id: '1',
       customer_name: 'บริษัท ABC จำกัด',
+      customer_code: 'CUST001',
+      warehouse_id: 'main',
+      warehouse_name: 'คลังสินค้าหลัก',
       total_amount: 15000,
-      status: 'pending_clearance',
-      created_at: new Date().toISOString(),
+      status: 'DELIVERED',
+      payment_status: 'pending',
+      created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
+      delivery_date: new Date(Date.now() - 86400000 * 2).toISOString(),
+      is_cleared: false,
+      days_since_created: 7,
+      approval_required: false,
+      is_approved_for_clearing: true,
       can_clear: true,
     },
     {
       id: '2',
-      order_number: 'ORD002',
+      order_number: 'ORD-2024-002',
+      customer_id: '2',
       customer_name: 'บริษัท XYZ จำกัด',
+      customer_code: 'CUST002',
+      warehouse_id: 'main',
+      warehouse_name: 'คลังสินค้าหลัก',
       total_amount: 25000,
-      status: 'pending_clearance',
-      created_at: new Date().toISOString(),
+      status: 'DELIVERED',
+      payment_status: 'overdue',
+      created_at: new Date(Date.now() - 86400000 * 35).toISOString(),
+      delivery_date: new Date(Date.now() - 86400000 * 30).toISOString(),
+      is_cleared: false,
+      days_since_created: 35,
+      approval_required: true,
+      is_approved_for_clearing: false,
+      can_clear: false,
+    },
+    {
+      id: '3',
+      order_number: 'ORD-2024-003',
+      customer_id: '3',
+      customer_name: 'บริษัท DEF จำกัด',
+      customer_code: 'CUST003',
+      warehouse_id: 'main',
+      warehouse_name: 'คลังสินค้าหลัก',
+      total_amount: 12500,
+      status: 'DELIVERED',
+      payment_status: 'paid',
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      delivery_date: new Date(Date.now() - 86400000 * 5).toISOString(),
+      cleared_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      cleared_by: 'admin',
+      cleared_amount: 12500,
+      cleared_notes: 'เคลียร์ตามกำหนดเวลา',
+      is_cleared: true,
+      days_since_created: 10,
+      approval_required: false,
+      is_approved_for_clearing: true,
+      can_clear: false,
+    },
+    {
+      id: '4',
+      order_number: 'ORD-2024-004',
+      customer_id: '1',
+      customer_name: 'บริษัท ABC จำกัด',
+      customer_code: 'CUST001',
+      warehouse_id: 'main',
+      warehouse_name: 'คลังสินค้าหลัก',
+      total_amount: 8500,
+      status: 'DELIVERED',
+      payment_status: 'pending',
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+      delivery_date: new Date(Date.now() - 86400000 * 1).toISOString(),
+      is_cleared: false,
+      days_since_created: 3,
+      approval_required: false,
+      is_approved_for_clearing: true,
       can_clear: true,
     },
   ];
 
+  // Apply filters if provided
+  let filteredOrders = mockOrders;
+  if (filters) {
+    filteredOrders = mockOrders.filter(order => {
+      if (filters.status && order.status !== filters.status) return false;
+      if (filters.customerId && order.customer_id !== filters.customerId) return false;
+      if (filters.warehouseId && order.warehouse_id !== filters.warehouseId) return false;
+      if (filters.isCleared !== undefined && order.is_cleared !== filters.isCleared) return false;
+      return true;
+    });
+  }
+
   return {
-    data: mockOrders,
+    data: filteredOrders,
     isLoading: loading,
     error: null
   };
@@ -374,7 +530,7 @@ export function useGrantBillClearingPermission() {
   const { toast } = useToast();
 
   return {
-    mutateAsync: async (params: any) => {
+    mutateAsync: async (_params: any) => {
       toast({
         title: 'มอบสิทธิ์สำเร็จ',
         description: 'มอบสิทธิ์การเคลียร์บิลเรียบร้อยแล้ว',
