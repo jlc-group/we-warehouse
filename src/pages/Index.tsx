@@ -60,6 +60,7 @@ import { FallbackBanner } from '@/components/FallbackBanner';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { WarehouseOperations } from '@/components/WarehouseOperations';
 import { AccountingDashboard } from '@/components/AccountingDashboard';
+import { WarehouseFulfillmentDashboard } from '@/components/WarehouseFulfillmentDashboard';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -801,6 +802,10 @@ const Index = memo(() => {
               <Warehouse className="h-4 w-4 text-amber-600" />
               <span className="hidden sm:inline text-amber-600 font-medium">การจัดสินค้า</span>
             </TabsTrigger>
+            <TabsTrigger value="fulfillment" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+              <Package className="h-4 w-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600 font-medium">คลัง-จัดส่ง</span>
+            </TabsTrigger>
             <TabsTrigger value="accounting" className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100">
               <DollarSign className="h-4 w-4 text-emerald-600" />
               <span className="hidden sm:inline text-emerald-600 font-medium">บัญชี</span>
@@ -859,6 +864,10 @@ const Index = memo(() => {
 
           <TabsContent value="warehouse-ops" className="space-y-4">
             <WarehouseOperations />
+          </TabsContent>
+
+          <TabsContent value="fulfillment" className="space-y-4">
+            <WarehouseFulfillmentDashboard />
           </TabsContent>
 
           <TabsContent value="accounting" className="space-y-4">

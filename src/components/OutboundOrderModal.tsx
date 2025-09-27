@@ -57,7 +57,7 @@ interface OrderItemData {
   ordered_quantity_level3: number;
   unit_price: number;
   notes?: string;
-  source_location?: string; // Add location tracking
+  // ลบ source_location - เซลไม่ต้องเลือก location แล้ว
 }
 
 interface ProductSelection {
@@ -145,8 +145,8 @@ export function OutboundOrderModal({
           ordered_quantity_level2,
           ordered_quantity_level3,
           unit_price: 0, // Will be set by user
-          notes: '',
-          source_location: item.location
+          notes: ''
+          // ลบ source_location - ไม่ต้องระบุ location ในขั้นตอนสร้างใบสั่ง
         };
       });
 
@@ -224,8 +224,8 @@ export function OutboundOrderModal({
       ordered_quantity_level2: selection.quantities.level2,
       ordered_quantity_level3: selection.quantities.level3,
       unit_price: selection.unitPrice || 0,
-      notes: '',
-      source_location: selection.item.location
+      notes: ''
+      // ลบ source_location - เซลไม่ต้องเลือก location
     }));
 
     setOrderItems(prev => [...prev, ...newOrderItems]);
@@ -323,8 +323,8 @@ export function OutboundOrderModal({
           ordered_quantity_level2: item.ordered_quantity_level2,
           ordered_quantity_level3: item.ordered_quantity_level3,
           unit_price: item.unit_price,
-          notes: item.notes || '',
-          source_location: item.source_location || item.inventoryItem.location,
+          notes: item.notes || ''
+          // ลบ source_location - เซลไม่ต้องระบุ location, คลังจะเป็นคนเลือกเอง
         }))
       };
 
@@ -594,7 +594,7 @@ export function OutboundOrderModal({
                           </Button>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          รหัส: {item.inventoryItem.sku} | ตำแหน่ง: {item.inventoryItem.location}
+                          รหัส: {item.inventoryItem.sku}
                         </div>
                       </CardHeader>
                       <CardContent>
