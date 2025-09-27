@@ -18,9 +18,6 @@ import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
-import { DatabaseDebugPanel } from '@/components/DatabaseDebugPanel';
-import { SupabaseDebugSimple } from '@/components/SupabaseDebugSimple';
-import { InventoryDebugSimple } from '@/components/InventoryDebugSimple';
 import { DisabledComponent } from '@/components/DisabledComponents';
 import { NewProductManagement } from '@/components/NewProductManagement';
 import { NewDataTables } from '@/components/NewDataTables';
@@ -921,16 +918,7 @@ const Index = memo(() => {
 
                 <TabsContent value="technical" className="space-y-4">
                   <div className="space-y-4">
-                <DatabaseDebugPanel
-                  inventoryItemsCount={totalInventoryItemsCount}
-                  departmentItemsCount={departmentInventoryItemsCount}
-                  inventoryLoading={loading}
-                  departmentLoading={loading}
-                  accessSummary={accessSummary}
-                />
                 <DatabaseDebug />
-                <SupabaseDebugSimple />
-                <InventoryDebugSimple />
                   </div>
                 </TabsContent>
               </Tabs>
