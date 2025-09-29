@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, memo, Suspense, lazy } from 
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShelfGrid } from '@/components/ShelfGrid';
+import { InventoryTable } from '@/components/InventoryTable';
 import { InventoryModalSimple } from '@/components/InventoryModalSimple';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
@@ -19,30 +20,11 @@ import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
-import { NewProductManagement } from '@/components/NewProductManagement';
-import NewDataTables from '@/components/NewDataTables';
-import { StockSummaryDashboard } from '@/components/StockSummaryDashboard';
 // import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
 
-// Lazy load components with better error handling
-const QRCodeManagement = lazy(() =>
-  import('@/components/QRCodeManagement').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">QR Code Management could not be loaded</div>
-  }))
-);
-
-const InventoryAnalytics = lazy(() =>
-  import('@/components/InventoryAnalytics').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Inventory Analytics could not be loaded</div>
-  }))
-);
-
-const LocationManagement = lazy(() =>
-  import('@/components/LocationManagementNew').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Location Management could not be loaded</div>
-  }))
-);
-
+const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
+const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
+const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
 // const ProductConfiguration = lazy(() => import('@/components/ProductConfiguration'));
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ComponentLoadingFallback } from '@/components/ui/loading-fallback';
@@ -58,57 +40,28 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, CreditCard, Calculator, DollarSign, ShoppingCart } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
+import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
-import { ProductManagementTable } from '@/components/ProductManagementTable';
-import { WarehouseStatsDashboard } from '@/components/WarehouseStatsDashboard';
 import { ErrorBoundaryFetch } from '@/components/ErrorBoundaryFetch';
 import { WarehouseSelector } from '@/components/WarehouseSelector';
 import { EnhancedWarehouseTransferModal } from '@/components/EnhancedWarehouseTransferModal';
 import { WarehouseTransferDashboard } from '@/components/WarehouseTransferDashboard';
+import { OrdersTab } from '@/components/OrdersTab';
 import { OrderStatusDashboard } from '@/components/OrderStatusDashboard';
 import { FallbackBanner } from '@/components/FallbackBanner';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
-import { WarehouseOperations } from '@/components/WarehouseOperations';
-import { AccountingDashboard } from '@/components/AccountingDashboard';
-import { WarehouseFulfillmentDashboard } from '@/components/WarehouseFulfillmentDashboard';
-import { WarehouseOrdersDashboard } from '@/components/WarehouseOrdersDashboard';
-import { SalesTab } from '@/components/SalesTab';
 
-const UserManagement = lazy(() =>
-  import('@/components/admin/UserManagement').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">User Management could not be loaded</div>
-  }))
-);
-
-const WarehouseDashboard = lazy(() =>
-  import('@/components/departments/WarehouseDashboard').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Warehouse Dashboard could not be loaded</div>
-  }))
-);
-
-const AdvancedAnalytics = lazy(() =>
-  import('@/components/inventory/AdvancedAnalytics').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Advanced Analytics could not be loaded</div>
-  }))
-);
-
-const BatchManagement = lazy(() =>
-  import('@/components/inventory/BatchManagement').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Batch Management could not be loaded</div>
-  }))
-);
-
-const ForecastingDashboard = lazy(() =>
-  import('@/components/inventory/ForecastingDashboard').catch(() => ({
-    default: () => <div className="p-4 text-center text-gray-500">Forecasting Dashboard could not be loaded</div>
-  }))
-);
+const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
+const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
+const AdvancedAnalytics = lazy(() => import('@/components/inventory/AdvancedAnalytics'));
+const BatchManagement = lazy(() => import('@/components/inventory/BatchManagement'));
+const ForecastingDashboard = lazy(() => import('@/components/inventory/ForecastingDashboard'));
 import type { InventoryItem } from '@/hooks/useDepartmentInventory';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -161,14 +114,17 @@ const Index = memo(() => {
     refetch,
     clearAllData,
     getItemsAtLocation
-  } = useDepartmentInventory(selectedWarehouseId);
+  } = useDepartmentInventory();
 
   // CRITICAL: Ultra-stable memoization to prevent cascade re-renders
   const stableInventoryItems = useMemo(() => {
-    const items = inventoryItems || [];
-    console.log(`📦 Index.tsx: Stable inventory: ${items.length} items`);
-    return items;
-  }, [inventoryItems?.length]); // Only update when count changes
+    if (!inventoryItems || inventoryItems.length === 0) {
+      console.log('📦 No inventory items - returning empty array');
+      return [];
+    }
+    console.log(`📦 Stable inventory: ${inventoryItems.length} items`);
+    return inventoryItems;
+  }, [inventoryItems]); // ESLint requirement - include full dependency
 
   // Ultra-stable location calculations
   const inventoryLocations = useMemo(() => {
@@ -190,14 +146,6 @@ const Index = memo(() => {
     console.log(`📋 Available locations: ${combinedLocations.length} total`);
     return combinedLocations.sort();
   }, [inventoryLocations, allWarehouseLocations]); // ESLint requirement - include full dependencies
-
-  const totalInventoryItemsCount = useMemo(() => {
-    return accessSummary?.totalItems ?? stableInventoryItems.length;
-  }, [accessSummary?.totalItems, stableInventoryItems.length]);
-
-  const departmentInventoryItemsCount = useMemo(() => {
-    return stableInventoryItems.length;
-  }, [stableInventoryItems.length]);
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {
@@ -523,29 +471,14 @@ const Index = memo(() => {
 
   const handleDeleteLocationItem = useCallback(async (itemId: string) => {
     try {
-      console.log('🗑️ Index.tsx: Starting delete for item:', itemId);
-
       await deleteItem(itemId);
-
-      console.log('✅ Index.tsx: Delete successful, updating local state');
-
       // Update the locationItems state to remove the deleted item
-      setLocationItems(prev => {
-        const updated = prev.filter(item => item.id !== itemId);
-        console.log(`📦 Location items updated: ${prev.length} -> ${updated.length}`);
-        return updated;
-      });
-
-      // Trigger refetch to ensure UI is in sync with database
-      console.log('🔄 Triggering refetch to sync with database');
-      await refetch();
-
+      setLocationItems(prev => prev.filter(item => item.id !== itemId));
       return true;
     } catch (error) {
-      console.error('❌ Index.tsx: Delete failed:', error);
       throw error; // Let the LocationItemSelector component handle the error display
     }
-  }, [deleteItem, refetch]);
+  }, [deleteItem]);
 
   const handleClearLocationItems = useCallback(async () => {
     try {
@@ -750,11 +683,6 @@ const Index = memo(() => {
                   <p className="text-muted-foreground">
                     ระบบไม่พบข้อมูลสินค้าในคลัง กรุณาใช้แท็บ "กู้คืนข้อมูล" เพื่อเพิ่มข้อมูล
                   </p>
-                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                    <p className="text-sm text-blue-700">
-                      🔍 <strong>สำหรับการ Debug:</strong> ไปที่แท็บ "Technical Debug" เพื่อตรวจสอบการเชื่อมต่อฐานข้อมูล
-                    </p>
-                  </div>
                 </div>
               </div>
             )}
@@ -842,30 +770,18 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5 md:grid-cols-8 lg:grid-cols-11 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
-            </TabsTrigger>
-            <TabsTrigger value="sales" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
-              <ShoppingCart className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline text-blue-600 font-medium">Sales</span>
             </TabsTrigger>
             <TabsTrigger value="add-product" className="flex items-center gap-2 bg-green-50 hover:bg-green-100">
               <PackagePlus className="h-4 w-4 text-green-600" />
               <span className="hidden sm:inline text-green-600 font-medium">จัดการสินค้า</span>
             </TabsTrigger>
-            <TabsTrigger value="warehouse-ops" className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100">
-              <Warehouse className="h-4 w-4 text-amber-600" />
-              <span className="hidden sm:inline text-amber-600 font-medium">การจัดสินค้า</span>
-            </TabsTrigger>
-            <TabsTrigger value="fulfillment" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
-              <Package className="h-4 w-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600 font-medium">คลัง-จัดส่ง</span>
-            </TabsTrigger>
-            <TabsTrigger value="accounting" className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              <span className="hidden sm:inline text-emerald-600 font-medium">บัญชี</span>
+            <TabsTrigger value="orders" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
+              <ShoppingCart className="h-4 w-4 text-blue-600" />
+              <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งซื้อ</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -886,6 +802,10 @@ const Index = memo(() => {
             <TabsTrigger value="bill-clearing" className="flex items-center gap-2 bg-red-50 hover:bg-red-100">
               <CreditCard className="h-4 w-4 text-red-600" />
               <span className="hidden sm:inline text-red-600 font-medium">เคลียร์บิล</span>
+            </TabsTrigger>
+            <TabsTrigger value="bill-status" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2">
               <QrCode className="h-4 w-4" />
@@ -911,52 +831,42 @@ const Index = memo(() => {
             />
           </TabsContent>
 
-          <TabsContent value="sales" className="space-y-4">
-            <SalesTab />
-          </TabsContent>
-
           <TabsContent value="add-product" className="space-y-4">
-            <NewProductManagement />
+            <AddProductForm />
           </TabsContent>
 
-
-          <TabsContent value="warehouse-ops" className="space-y-4">
-            <WarehouseOperations />
-          </TabsContent>
-
-          <TabsContent value="fulfillment" className="space-y-4">
-            <Tabs defaultValue="new-orders" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="new-orders" className="flex items-center gap-2 relative">
-                  <Package className="h-4 w-4" />
-                  งานใหม่
-                  <Badge variant="secondary" className="ml-2 bg-red-100 text-red-700 text-xs">
-                    ใหม่
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="in-progress" className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  งานที่รับแล้ว
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="new-orders" className="mt-6">
-                <WarehouseOrdersDashboard />
-              </TabsContent>
-
-              <TabsContent value="in-progress" className="mt-6">
-                <WarehouseFulfillmentDashboard />
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-
-          <TabsContent value="accounting" className="space-y-4">
-            <AccountingDashboard />
+          <TabsContent value="orders" className="space-y-4">
+            <DisabledComponent name="Orders Tab" />
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
-            {/* ยุบ tabs ย่อยเหลือแค่หน้าเดียว - ใช้ NewDataTables ที่เชื่อมต่อข้อมูลจริงแล้ว */}
-            <NewDataTables />
+            {loading ? (
+              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+            ) : (
+              <Tabs defaultValue="inventory" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                  <TabsTrigger value="inventory" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    รายการสต็อก
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex items-center gap-2">
+                    <Hash className="h-4 w-4" />
+                    สรุปสินค้า
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="inventory" className="space-y-4">
+                  <InventoryTable
+                    key={`inventory-table-${inventoryItems.length}`}
+                    items={inventoryItems}
+                  />
+                </TabsContent>
+
+                <TabsContent value="products" className="space-y-4">
+                  <ProductSummaryTable />
+                </TabsContent>
+              </Tabs>
+            )}
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
@@ -974,17 +884,13 @@ const Index = memo(() => {
 
                 <TabsContent value="monitoring" className="space-y-4">
                   <div className="grid gap-4">
-                    <ErrorBoundary>
-                      <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
-                        <InventoryAnalytics items={inventoryItems} />
-                      </Suspense>
-                    </ErrorBoundary>
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
+                      <InventoryAnalytics items={inventoryItems} />
+                    </Suspense>
                     {showWarehouseTab && (
-                      <ErrorBoundary>
-                        <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
-                          <WarehouseDashboard />
-                        </Suspense>
-                      </ErrorBoundary>
+                      <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                        <WarehouseDashboard />
+                      </Suspense>
                     )}
                   </div>
                 </TabsContent>
@@ -994,31 +900,25 @@ const Index = memo(() => {
                 </TabsContent>
 
                 <TabsContent value="analysis" className="space-y-4">
-                  <ErrorBoundary>
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
-                      <AdvancedAnalytics />
-                    </Suspense>
-                  </ErrorBoundary>
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
+                    <AdvancedAnalytics />
+                  </Suspense>
                 </TabsContent>
 
                 <TabsContent value="forecasting" className="space-y-4">
                   <div className="grid gap-4">
-                    <ErrorBoundary>
-                      <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
-                        <ForecastingDashboard />
-                      </Suspense>
-                    </ErrorBoundary>
-                    <ErrorBoundary>
-                      <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
-                        <BatchManagement />
-                      </Suspense>
-                    </ErrorBoundary>
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
+                      <ForecastingDashboard />
+                    </Suspense>
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
+                      <BatchManagement />
+                    </Suspense>
                   </div>
                 </TabsContent>
 
                 <TabsContent value="technical" className="space-y-4">
                   <div className="space-y-4">
-                <DatabaseDebug />
+                    <DatabaseDebug />
                   </div>
                 </TabsContent>
               </Tabs>
@@ -1094,20 +994,16 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="management" className="space-y-4">
-                <ErrorBoundary>
-                  <Suspense fallback={<ComponentLoadingFallback componentName="QR Code Management" />}>
-                    <QRCodeManagement items={inventoryItems} />
-                  </Suspense>
-                </ErrorBoundary>
+                <Suspense fallback={<ComponentLoadingFallback componentName="QR Code Management" />}>
+                  <QRCodeManagement items={inventoryItems} />
+                </Suspense>
               </TabsContent>
 
               {showAdminFeatures && (
                 <TabsContent value="locations" className="space-y-4">
-                  <ErrorBoundary>
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
-                      <DisabledComponent name="Location Management" />
-                    </Suspense>
-                  </ErrorBoundary>
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
+                    <DisabledComponent name="Location Management" />
+                  </Suspense>
                 </TabsContent>
               )}
 
@@ -1126,7 +1022,7 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="export" className="space-y-4">
-                <DataExport />
+                <DisabledComponent name="Data Export" />
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -1135,11 +1031,9 @@ const Index = memo(() => {
 
           {showAdminFeatures && (
             <TabsContent value="admin" className="space-y-4">
-              <ErrorBoundary>
-                <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
-                  <UserManagement />
-                </Suspense>
-              </ErrorBoundary>
+              <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
+                <UserManagement />
+              </Suspense>
             </TabsContent>
           )}
 
@@ -1201,7 +1095,6 @@ const Index = memo(() => {
           onAddNewItem={handleAddNewItemAtLocation}
           onExport={handleLocationExport}
           onTransfer={handleLocationTransfer}
-          canDelete={permissions.canDelete}
         />
 
         {/* Location Export Modal - Removed */}

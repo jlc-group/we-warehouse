@@ -66,10 +66,17 @@ export function useProductsSummary() {
       const viewCheck = await checkViewExists(REQUIRED_VIEWS.PRODUCTS_SUMMARY);
       const now = new Date();
 
+      console.log('🔍 Database view check:', {
+        viewName: REQUIRED_VIEWS.PRODUCTS_SUMMARY,
+        exists: viewCheck.exists,
+        checkTime: now.toISOString()
+      });
+
       if (!viewCheck.exists) {
         console.warn('🚨 products_summary view not found - using fallback mode');
         console.info('📝 To fix this: Apply MANUAL_APPLY_PRODUCTS_SUMMARY.sql in Supabase Dashboard');
         console.info('🔗 File location: /MANUAL_APPLY_PRODUCTS_SUMMARY.sql');
+        console.info('📊 Fallback mode will use: products + inventory_items + product_conversion_rates tables');
 
         const fallbackData = await generateProductSummaryFromInventory(fallbackInventory);
         return {
@@ -90,6 +97,11 @@ export function useProductsSummary() {
 
         if (error) {
           console.warn('⚠️ Error from products_summary view, falling back to inventory:', error.message);
+          console.error('🔴 View error details:', {
+            error: error.message,
+            code: error.code,
+            hint: error.hint
+          });
           const fallbackData = await generateProductSummaryFromInventory(fallbackInventory);
           return {
             data: fallbackData,
@@ -101,7 +113,10 @@ export function useProductsSummary() {
           };
         }
 
-        console.log('✅ Fetched products summary from view:', data?.length || 0);
+        console.log('✅ Fetched products summary from view:', {
+          count: data?.length || 0,
+          sample: data?.slice(0, 3).map(p => ({ sku: p.sku, name: p.product_name, stock: p.total_pieces })) || []
+        });
         return {
           data: (data || []) as ProductSummary[],
           meta: {
@@ -140,14 +155,14 @@ export function useProductsSummary() {
   });
 }
 
-// Helper function to generate product summary from inventory
+// Helper function to generate product summary from all products (not just inventory)
 async function generateProductSummaryFromInventory(
   fallbackInventory: ReturnType<typeof useInventory>
 ): Promise<ProductSummary[]> {
-  console.log('🔄 Converting inventory items to product summaries...');
+  console.log('🔄 Generating product summaries from all products (not just inventory)...');
 
-  // Wait for inventory data to be available
-  if (!fallbackInventory.items || fallbackInventory.isLoading) {
+  // Wait for inventory data to be available (for stock calculations)
+  if (fallbackInventory.isLoading) {
     console.log('⏳ Waiting for inventory data to load...');
     throw new Error('Inventory data not ready');
   }
@@ -200,7 +215,14 @@ async function generateProductSummaryFromInventory(
     });
   });
 
-  console.log(`✅ Loaded ${productsMap.size} products data`);
+  console.log(`✅ Loaded ${productsMap.size} products data`, {
+    sampleProducts: Array.from(productsMap.entries()).slice(0, 3).map(([sku, data]) => ({
+      sku,
+      name: data.product_name,
+      type: data.product_type,
+      active: data.is_active
+    }))
+  });
 
   // สร้าง Map สำหรับ conversion rates
   const conversionMap = new Map<string, {
@@ -221,129 +243,157 @@ async function generateProductSummaryFromInventory(
     });
   });
 
-  console.log(`✅ Loaded ${conversionMap.size} conversion rates`);
+  console.log(`✅ Loaded ${conversionMap.size} conversion rates`, {
+    sampleRates: Array.from(conversionMap.entries()).slice(0, 3).map(([sku, data]) => ({
+      sku,
+      level1Rate: data.unit_level1_rate,
+      level2Rate: data.unit_level2_rate
+    }))
+  });
 
-  // Convert inventory items to ProductSummary format
-  if (fallbackInventory.items.length > 0) {
-    const productSummaryMap = new Map<string, ProductSummary>();
-    const missingProducts = new Set<string>(); // Track SKUs without product data
-
+  // ✅ Create inventory lookup for stock calculations
+  const inventoryBySkuMap = new Map<string, InventoryItem[]>();
+  if (fallbackInventory.items) {
     fallbackInventory.items.forEach(item => {
-      // Use SKU as the key for grouping instead of ID
-      const productKey = item.sku;
-      const existing = productSummaryMap.get(productKey);
-
-      // ✅ ใช้ข้อมูลจาก products table และ conversion rates table
-      const productData = productsMap.get(item.sku);
-      const conversionRate = conversionMap.get(item.sku);
-
-      // 🔍 Enhanced product_id mapping with better error handling
-      if (!productData?.id) {
-        // Count missing products for summary
-        if (!missingProducts.has(item.sku)) {
-          missingProducts.add(item.sku);
-        }
-        console.warn(`⚠️ Missing product data for SKU "${item.sku}" - using inventory fallback (ID: ${item.id})`);
+      const sku = item.sku;
+      if (!inventoryBySkuMap.has(sku)) {
+        inventoryBySkuMap.set(sku, []);
       }
-      const level1Rate = conversionRate?.unit_level1_rate || 24;
-      const level2Rate = conversionRate?.unit_level2_rate || 1;
-
-      if (existing) {
-        // Aggregate quantities
-        existing.total_level1_quantity += item.unit_level1_quantity || 0;
-        existing.total_level2_quantity += item.unit_level2_quantity || 0;
-        existing.total_level3_quantity += item.unit_level3_quantity || 0;
-        existing.location_count += 1;
-
-        // ✅ Recalculate total pieces ด้วย conversion rates ที่ถูกต้อง
-        existing.total_pieces =
-          (existing.total_level1_quantity * level1Rate) +
-          (existing.total_level2_quantity * level2Rate) +
-          existing.total_level3_quantity;
-
-        // Update stock status
-        existing.stock_status = existing.total_pieces === 0 ? 'out_of_stock' :
-                               existing.total_pieces < 10 ? 'low_stock' :
-                               existing.total_pieces < 50 ? 'medium_stock' : 'high_stock';
-      } else {
-        // ✅ Create new summary ด้วย conversion rates ที่ถูกต้อง
-        const totalPieces =
-          ((item.unit_level1_quantity || 0) * level1Rate) +
-          ((item.unit_level2_quantity || 0) * level2Rate) +
-          (item.unit_level3_quantity || 0);
-
-        const summary: ProductSummary = {
-          product_id: productData?.id || `missing-${item.id}`, // ✅ Better fallback for missing products
-          sku: item.sku,
-          product_name: productData?.product_name || item.product_name,
-          category: productData?.category || item.category,
-          subcategory: productData?.subcategory || item.subcategory,
-          brand: productData?.brand || item.brand,
-          product_type: productData?.product_type || 'FG', // ✅ ใช้ product_type จาก products table เป็นหลัก
-          unit_of_measure: productData?.unit_of_measure || item.unit_of_measure,
-          unit_cost: productData?.unit_cost || item.unit_cost,
-          unit_price: productData?.unit_cost ? (productData.unit_cost * 1.3) : 10, // ราคาขาย = ต้นทุน + 30% markup
-          selling_price: productData?.unit_cost ? (productData.unit_cost * 1.3) : 10, // เริ่มต้นเท่ากับ unit_price
-          description: productData?.description || item.description,
-
-          total_level1_quantity: item.unit_level1_quantity || 0,
-          total_level2_quantity: item.unit_level2_quantity || 0,
-          total_level3_quantity: item.unit_level3_quantity || 0,
-          total_pieces: totalPieces,
-
-          // ✅ ใช้ข้อมูลจาก product_conversion_rates
-          unit_level1_name: conversionRate?.unit_level1_name || 'ลัง',
-          unit_level2_name: conversionRate?.unit_level2_name || 'กล่อง',
-          unit_level3_name: conversionRate?.unit_level3_name || 'ชิ้น',
-          unit_level1_rate: level1Rate,
-          unit_level2_rate: level2Rate,
-
-          location_count: 1,
-          primary_location: item.location,
-          stock_status: totalPieces === 0 ? 'out_of_stock' :
-                       totalPieces < 10 ? 'low_stock' :
-                       totalPieces < 50 ? 'medium_stock' : 'high_stock',
-          last_updated: item.updated_at,
-          is_active: productData?.is_active !== false
-        };
-
-        productSummaryMap.set(productKey, summary);
-      }
+      inventoryBySkuMap.get(sku)!.push(item);
     });
-
-    const result = Array.from(productSummaryMap.values())
-      .sort((a, b) => {
-        // ✅ เรียงตาม product_type ก่อน แล้วค่อยเรียงตามชื่อ
-        if (a.product_type !== b.product_type) {
-          return (a.product_type || '').localeCompare(b.product_type || '');
-        }
-        return a.product_name.localeCompare(b.product_name);
-      });
-
-    // 📊 Comprehensive data consistency report
-    const totalInventoryItems = fallbackInventory.items.length;
-    const totalUniqueSkus = productSummaryMap.size;
-    const missingProductsCount = missingProducts.size;
-    const successfulMappingsCount = totalUniqueSkus - missingProductsCount;
-
-    console.log('📊 Product Summary Generation Report:');
-    console.log(`  ✅ Total inventory items processed: ${totalInventoryItems}`);
-    console.log(`  ✅ Unique SKUs found: ${totalUniqueSkus}`);
-    console.log(`  ✅ Successful product mappings: ${successfulMappingsCount}`);
-    console.log(`  ⚠️ Missing product entries: ${missingProductsCount}`);
-
-    if (missingProductsCount > 0) {
-      console.log('  📋 SKUs missing from products table:', Array.from(missingProducts).join(', '));
-      console.log('  💡 Recommendation: Add these SKUs to the products table for complete data consistency');
-    }
-
-    console.log('✅ Generated product summaries with enhanced error handling:', result.length);
-
-    return result;
   }
 
-  console.log('⚠️ No inventory data available for fallback');
-  return [];
+  console.log(`🔍 Created inventory lookup for ${inventoryBySkuMap.size} SKUs from ${fallbackInventory.items?.length || 0} inventory items`);
+
+  // ✅ Generate ProductSummary for ALL products (not just those with inventory)
+  const productSummaries: ProductSummary[] = [];
+  const missingInventorySkus = new Set<string>(); // Track SKUs without inventory
+
+  for (const [sku, productData] of productsMap.entries()) {
+    const conversionRate = conversionMap.get(sku);
+    const inventoryItems = inventoryBySkuMap.get(sku) || [];
+    const level1Rate = conversionRate?.unit_level1_rate || 24;
+    const level2Rate = conversionRate?.unit_level2_rate || 1;
+
+    if (inventoryItems.length === 0) {
+      missingInventorySkus.add(sku);
+    }
+
+    // Aggregate inventory quantities
+    let totalLevel1 = 0;
+    let totalLevel2 = 0;
+    let totalLevel3 = 0;
+    let locationCount = 0;
+    let primaryLocation = '';
+    let lastUpdated = '';
+
+    if (inventoryItems.length > 0) {
+      totalLevel1 = inventoryItems.reduce((sum, item) => sum + (item.unit_level1_quantity || 0), 0);
+      totalLevel2 = inventoryItems.reduce((sum, item) => sum + (item.unit_level2_quantity || 0), 0);
+      totalLevel3 = inventoryItems.reduce((sum, item) => sum + (item.unit_level3_quantity || 0), 0);
+      locationCount = inventoryItems.length;
+
+      // Find primary location (with most stock)
+      const locationTotals = inventoryItems.map(item => ({
+        location: item.location,
+        total: ((item.unit_level1_quantity || 0) * level1Rate) +
+               ((item.unit_level2_quantity || 0) * level2Rate) +
+               (item.unit_level3_quantity || 0)
+      }));
+      primaryLocation = locationTotals.sort((a, b) => b.total - a.total)[0]?.location || '';
+      lastUpdated = inventoryItems.reduce((latest, item) =>
+        item.updated_at && (!latest || item.updated_at > latest) ? item.updated_at : latest, ''
+      );
+    }
+
+    // Calculate total pieces
+    const totalPieces = (totalLevel1 * level1Rate) + (totalLevel2 * level2Rate) + totalLevel3;
+
+    // Determine stock status
+    const stockStatus: ProductSummary['stock_status'] =
+      totalPieces === 0 ? 'out_of_stock' :
+      totalPieces < 10 ? 'low_stock' :
+      totalPieces < 50 ? 'medium_stock' : 'high_stock';
+
+    const summary: ProductSummary = {
+      product_id: productData.id,
+      sku: sku,
+      product_name: productData.product_name,
+      category: productData.category,
+      subcategory: productData.subcategory,
+      brand: productData.brand,
+      product_type: productData.product_type,
+      unit_of_measure: productData.unit_of_measure,
+      unit_cost: productData.unit_cost,
+      unit_price: productData.unit_cost ? (productData.unit_cost * 1.3) : 10,
+      selling_price: productData.unit_cost ? (productData.unit_cost * 1.3) : 10,
+      description: productData.description,
+
+      total_level1_quantity: totalLevel1,
+      total_level2_quantity: totalLevel2,
+      total_level3_quantity: totalLevel3,
+      total_pieces: totalPieces,
+
+      // Conversion rates
+      unit_level1_name: conversionRate?.unit_level1_name || 'ลัง',
+      unit_level2_name: conversionRate?.unit_level2_name || 'กล่อง',
+      unit_level3_name: conversionRate?.unit_level3_name || 'ชิ้น',
+      unit_level1_rate: level1Rate,
+      unit_level2_rate: level2Rate,
+
+      location_count: locationCount,
+      primary_location: primaryLocation || null,
+      stock_status: stockStatus,
+      last_updated: lastUpdated || null,
+      is_active: productData.is_active
+    };
+
+    productSummaries.push(summary);
+  }
+
+  // Sort results
+  const result = productSummaries.sort((a, b) => {
+    // เรียงตาม product_type ก่อน แล้วค่อยเรียงตามชื่อ
+    if (a.product_type !== b.product_type) {
+      return (a.product_type || '').localeCompare(b.product_type || '');
+    }
+    return a.product_name.localeCompare(b.product_name);
+  });
+
+  // 📊 Comprehensive data consistency report
+  const totalProducts = productsMap.size;
+  const totalInventoryItems = fallbackInventory.items?.length || 0;
+  const productsWithStock = result.filter(p => p.total_pieces > 0).length;
+  const productsWithoutStock = result.filter(p => p.total_pieces === 0).length;
+  const missingInventoryCount = missingInventorySkus.size;
+
+  console.log('📊 Enhanced Product Summary Generation Report:');
+  console.log(`  ✅ Total products in products table: ${totalProducts}`);
+  console.log(`  ✅ Total inventory items processed: ${totalInventoryItems}`);
+  console.log(`  ✅ Products with stock: ${productsWithStock}`);
+  console.log(`  ⚠️ Products without stock: ${productsWithoutStock}`);
+  console.log(`  📦 SKUs without inventory: ${missingInventoryCount}`);
+
+  if (missingInventoryCount > 0) {
+    console.log('  📋 SKUs without inventory:', Array.from(missingInventorySkus).slice(0, 10).join(', ') +
+                (missingInventoryCount > 10 ? ` (และอีก ${missingInventoryCount - 10} รายการ)` : ''));
+  }
+
+  console.log('✅ Generated complete product summaries (including zero-stock products):', {
+    totalCount: result.length,
+    withStock: productsWithStock,
+    withoutStock: productsWithoutStock,
+    sampleProducts: result.slice(0, 5).map(p => ({
+      sku: p.sku,
+      name: p.product_name,
+      type: p.product_type,
+      totalPieces: p.total_pieces,
+      stockStatus: p.stock_status,
+      locations: p.location_count
+    }))
+  });
+
+  return result;
 }
 
 // Hook สำหรับตรวจสอบสถานะการใช้ fallback

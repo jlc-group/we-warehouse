@@ -78,10 +78,24 @@ export const ProductOrderGrid: React.FC<ProductOrderGridProps> = ({
   const filteredProducts = useMemo(() => {
     if (!searchTerm.trim()) return [];
 
-    return products.filter(product =>
-      (product.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-      (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
-    ).slice(0, 10); // จำกัด 10 รายการ
+    const filtered = products.filter(product => {
+      const productName = product.product_name || '';
+      const productSku = product.sku || '';
+      const searchLower = searchTerm.toLowerCase();
+
+      return productName.toLowerCase().includes(searchLower) ||
+             productSku.toLowerCase().includes(searchLower);
+    });
+
+    // Debug logging
+    console.log('🔍 Product search:', {
+      searchTerm,
+      totalProducts: products.length,
+      filteredCount: filtered.length,
+      sampleResults: filtered.slice(0, 3).map(p => ({ name: p.product_name, sku: p.sku }))
+    });
+
+    return filtered; // แสดงผลการค้นหาทั้งหมด (ไม่จำกัด)
   }, [products, searchTerm]);
 
   // คำนวณจำนวนรวมเป็นชิ้น

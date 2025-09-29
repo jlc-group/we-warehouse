@@ -29,16 +29,21 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   useEffect(() => {
     if (debouncedSearchQuery) {
       const filteredItems = items.filter(item => {
-        // Text search filter
-        const matchesSearch = (item.product_name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) || false) ||
-          (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          (item.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) || false);
+        // ปรับปรุงการค้นหาให้แม่นยำขึ้น
+        const productName = item.product_name || '';
+        const sku = (item as any).sku || '';
+        const location = item.location || '';
+        const searchLower = debouncedSearchQuery.toLowerCase();
+
+        const matchesSearch = productName.toLowerCase().includes(searchLower) ||
+                            sku.toLowerCase().includes(searchLower) ||
+                            location.toLowerCase().includes(searchLower);
 
         if (!matchesSearch) return false;
 
         // Product type filter
         if (selectedProductTypes.length > 0) {
-          const productType = getProductType((item as any).sku || '');
+          const productType = getProductType(sku);
           return productType && selectedProductTypes.includes(productType);
         }
 
@@ -66,11 +71,24 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
   }, [debouncedSearchQuery, items, selectedProductTypes]);
 
   const handleSearch = (query: string) => {
-    const filteredItems = items.filter(item =>
-      (item.product_name?.toLowerCase().includes(query.toLowerCase()) || false) ||
-      (item as any).sku?.toLowerCase().includes(query.toLowerCase()) ||
-      (item.location?.toLowerCase().includes(query.toLowerCase()) || false)
-    );
+    const filteredItems = items.filter(item => {
+      const productName = item.product_name || '';
+      const sku = (item as any).sku || '';
+      const location = item.location || '';
+      const queryLower = query.toLowerCase();
+
+      return productName.toLowerCase().includes(queryLower) ||
+             sku.toLowerCase().includes(queryLower) ||
+             location.toLowerCase().includes(queryLower);
+    });
+
+    // Debug logging for manual search
+    console.log('🔍 Manual search:', {
+      query,
+      totalItems: items.length,
+      filteredCount: filteredItems.length
+    });
+
     setSearchResults(filteredItems);
   };
 

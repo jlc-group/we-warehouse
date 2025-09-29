@@ -28,6 +28,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { SalesOrderModal } from '@/components/SalesOrderModal';
+import { ProductSearchDebugPanel } from '@/components/ProductSearchDebugPanel';
 import { SalesSystemEmergencyDashboard } from '@/components/SalesSystemEmergencyDashboard';
 import { useSalesOrders, useSalesOrderStats, formatOrderStatus, formatPaymentStatus, getOrderStatusColor, getPaymentStatusColor } from '@/hooks/useSalesOrders';
 import { useActiveCustomers } from '@/hooks/useCustomers';
@@ -213,6 +214,9 @@ export const SalesTab: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Debug Panel */}
+      <ProductSearchDebugPanel className="mb-4" />
 
       {/* Stats Cards */}
       {stats && (

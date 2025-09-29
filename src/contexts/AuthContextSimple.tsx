@@ -171,20 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
 
-    // Admin ได้ทุกอย่าง
-    if (user.role_level >= 5) return true;
-
-    // กำหนด permissions ตาม role_level
-    const permissions: Record<number, string[]> = {
-      5: ['system.manage', 'users.manage', 'inventory.full', 'reports.all'],
-      4: ['department.manage', 'inventory.approve', 'reports.department'],
-      3: ['inventory.modify', 'reports.basic', 'team.supervise'],
-      2: ['inventory.view', 'inventory.update', 'reports.view'],
-      1: ['inventory.view', 'reports.view']
-    };
-
-    const userPermissions = permissions[user.role_level] || [];
-    return userPermissions.includes(permission);
+    // Import permission system
+    const { hasPermission: checkPermission } = require('@/config/permissions');
+    return checkPermission(user.role_level, permission);
   }, [user]);
 
   const hasRole = useCallback((role: string): boolean => {

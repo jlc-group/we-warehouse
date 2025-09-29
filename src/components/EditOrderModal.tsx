@@ -324,7 +324,7 @@ export const EditOrderModal = ({ isOpen, onClose, orderId }: EditOrderModalProps
 
                   {searchTerm && filteredInventory.length > 0 && (
                     <div className="border rounded-md max-h-32 overflow-y-auto">
-                      {filteredInventory.slice(0, 5).map((item) => (
+                      {filteredInventory.map((item) => (
                         <div
                           key={item.id}
                           className="p-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 flex justify-between items-center"

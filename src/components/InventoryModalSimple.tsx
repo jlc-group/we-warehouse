@@ -12,6 +12,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
+import { useProductsSummary } from '@/hooks/useProductsSummary';
 import { productHelpers } from '@/utils/productHelpers';
 
 type Product = Database['public']['Tables']['products']['Row'];
@@ -63,6 +64,37 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   const [lot, setLot] = useState('');
   const [mfd, setMfd] = useState('');
   const { products } = useProducts();
+  const { data: productsSummaryResult } = useProductsSummary();
+
+  // ใช้ products จาก ProductsSummary ก่อน ถ้าไม่มีให้ fallback ไปใช้ useProducts
+  const availableProducts = useMemo(() => {
+    if (productsSummaryResult?.data) {
+      // แปลง ProductSummary เป็น Product format สำหรับ productHelpers
+      return productsSummaryResult.data.map(p => ({
+        id: p.product_id,
+        sku_code: p.sku,
+        product_name: p.product_name,
+        product_type: p.product_type,
+        is_active: p.is_active,
+        category: p.category,
+        subcategory: p.subcategory,
+        brand: p.brand,
+        unit_of_measure: p.unit_of_measure,
+        unit_cost: p.unit_cost,
+        description: p.description,
+        // เพิ่มฟิลด์ที่จำเป็นอื่นๆ ด้วยค่า default
+        created_at: '',
+        updated_at: '',
+        dimensions: '',
+        manufacturing_country: '',
+        max_stock_level: 0,
+        reorder_level: 0,
+        weight: 0,
+        storage_conditions: ''
+      }));
+    }
+    return products;
+  }, [productsSummaryResult, products]);
   const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
   const [isNewProduct, setIsNewProduct] = useState(false);
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
@@ -191,18 +223,31 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
   // Get available product types from database
   const availableProductTypes = useMemo(() => {
-    return productHelpers.getAvailableProductTypes(products);
-  }, [products]);
+    return productHelpers.getAvailableProductTypes(availableProducts);
+  }, [availableProducts]);
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
-    return productHelpers.getAllProductCodes(products, selectedProductType);
-  }, [products, selectedProductType]);
+    return productHelpers.getAllProductCodes(availableProducts, selectedProductType);
+  }, [availableProducts, selectedProductType]);
 
-  // Filter product codes based on search
+  // Filter product codes based on search - ใช้ availableProducts แทน products
   const filteredProductCodes = useMemo(() => {
-    return productHelpers.getFilteredProductCodes(products, productCodeInputValue, selectedProductType);
-  }, [products, productCodeInputValue, selectedProductType]);
+    const filtered = productHelpers.getFilteredProductCodes(availableProducts, productCodeInputValue, selectedProductType);
+
+    // เพิ่ม debug logging
+    console.log('🔍 InventoryModalSimple: Filtering products for location', {
+      location,
+      totalAvailableProducts: availableProducts.length,
+      searchTerm: productCodeInputValue,
+      selectedProductType,
+      filteredCount: filtered.length,
+      sampleFiltered: filtered.slice(0, 5),
+      dataSource: productsSummaryResult?.data ? 'ProductsSummary' : 'ProductsContext'
+    });
+
+    return filtered;
+  }, [availableProducts, productCodeInputValue, selectedProductType, location, productsSummaryResult]);
 
   // Auto-fill product name when product code changes
   const handleProductCodeChange = (value: string) => {
@@ -217,18 +262,18 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
     }
 
     // Auto-fill product name from database first, then mapping
-    const displayName = productHelpers.getProductDisplayName(products, value);
+    const displayName = productHelpers.getProductDisplayName(availableProducts, value);
     if (displayName && !productName) {
       setProductName(displayName);
     }
 
     // Check if it's a new product
-    setIsNewProduct(productHelpers.isNewProduct(products, value));
+    setIsNewProduct(productHelpers.isNewProduct(availableProducts, value));
   };
 
   // Check if product code is new (not in mapping or DB) - Legacy function, now uses helper
   const checkIfNewProduct = (code: string) => {
-    return productHelpers.isNewProduct(products, code);
+    return productHelpers.isNewProduct(availableProducts, code);
   };
 
   // Handle free typing in product code input
@@ -502,7 +547,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                               <div className="flex flex-col">
                                 <span className="font-mono font-medium">{code}</span>
                                 {(() => {
-                                  const productInfo = productHelpers.getProductDisplayInfo(products, code);
+                                  const productInfo = productHelpers.getProductDisplayInfo(availableProducts, code);
                                   return productInfo.name && (
                                     <div className="flex flex-col text-xs text-muted-foreground">
                                       <span>{productInfo.name}</span>
