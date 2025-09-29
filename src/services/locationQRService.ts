@@ -36,17 +36,37 @@ export class LocationQRService {
    */
   static async getAllQRCodes(): Promise<LocationQRServiceResult<LocationQRCode[]>> {
     try {
-      const { data, error } = await supabase
-        .from('location_qr_codes')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // Add retry logic for network issues
+      let data, error;
+      let retries = 3;
+
+      while (retries > 0) {
+        try {
+          const result = await supabase
+            .from('location_qr_codes')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false });
+
+          data = result.data;
+          error = result.error;
+          break; // Success, exit retry loop
+        } catch (networkError: any) {
+          console.warn(`Network error (${4 - retries}/3):`, networkError.message);
+          retries--;
+          if (retries === 0) {
+            throw networkError;
+          }
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
 
       if (error) {
         console.error('Error fetching QR codes:', error);
         return {
           data: null,
-          error: error.message,
+          error: `ไม่สามารถดึงข้อมูล QR Code ได้: ${error.message}`,
           success: false
         };
       }

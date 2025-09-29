@@ -30,14 +30,35 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     headers: {
       'x-client-info': 'warehouse-app@1.0.0',
       'Origin': window.location.origin,
+      'Connection': 'close', // Force HTTP/1.1 to avoid QUIC protocol errors
     },
     fetch: (url, options = {}) => {
       return fetch(url, {
         ...options,
         mode: 'cors',
         credentials: 'omit',
-        // Add cache to prevent unnecessary requests
-        cache: 'default',
+        // Force HTTP/1.1 to prevent QUIC protocol errors
+        cache: 'no-store', // Changed from 'default' to prevent caching issues
+        // Add retry logic for failed requests
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      }).catch(async (error) => {
+        // Retry logic for network errors
+        if (error.name === 'AbortError' || error.message.includes('QUIC') || error.message.includes('net::ERR')) {
+          console.warn('Network error detected, retrying with fallback...', error.message);
+          // Retry with simpler fetch
+          return fetch(url, {
+            ...options,
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+            headers: {
+              ...options.headers,
+              'Connection': 'close',
+              'Cache-Control': 'no-cache',
+            },
+          });
+        }
+        throw error;
       });
     },
   },
