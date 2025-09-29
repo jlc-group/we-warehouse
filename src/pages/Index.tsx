@@ -13,7 +13,7 @@ import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
 import { BulkAddModal } from '@/components/BulkAddModal';
 import { LocationQRModal } from '@/components/LocationQRModal';
-import { LocationTransferModal } from '@/components/LocationTransferModal';
+import { LocationTransferModal } from '@/components/location/LocationTransferModal';
 import { LocationItemSelector } from '@/components/LocationItemSelector';
 import { DebugPermissions } from '@/components/DebugPermissions';
 import { QRScanner } from '@/components/QRScanner';
@@ -1081,7 +1081,30 @@ const Index = memo(() => {
         />
 
         {/* Location Transfer Modal */}
-        {/* Disabled LocationTransferModal due to type issues */}
+        <LocationTransferModal
+          isOpen={isTransferModalOpen}
+          onClose={() => setIsTransferModalOpen(false)}
+          fromLocationId={selectedLocation}
+          inventory={locationItems.map(item => ({
+            id: item.id,
+            sku: item.sku,
+            product_name: item.product_name,
+            unit_level1_quantity: item.unit_level1_quantity,
+            unit_level2_quantity: item.unit_level2_quantity,
+            unit_level3_quantity: item.unit_level3_quantity,
+            unit_level1_name: item.unit_level1_name || 'ลัง',
+            unit_level2_name: item.unit_level2_name || 'กล่อง',
+            unit_level3_name: item.unit_level3_name || 'ชิ้น',
+            unit_level1_rate: item.unit_level1_rate || 24,
+            unit_level2_rate: item.unit_level2_rate || 1,
+            lot: item.lot,
+            mfd: item.mfd,
+          }))}
+          onSuccess={() => {
+            refetch();
+            setIsTransferModalOpen(false);
+          }}
+        />
 
         {/* Location Item Selector Modal */}
         <LocationItemSelector
