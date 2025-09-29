@@ -56,6 +56,8 @@ import { OrdersTab } from '@/components/OrdersTab';
 import { OrderStatusDashboard } from '@/components/OrderStatusDashboard';
 import { FallbackBanner } from '@/components/FallbackBanner';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import { PurchaseOrdersList } from '@/components/PurchaseOrdersList';
+import { FulfillmentQueue } from '@/components/FulfillmentQueue';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -92,6 +94,7 @@ const Index = memo(() => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
   const [selectedItemsForTransfer, setSelectedItemsForTransfer] = useState<InventoryItem[]>([]);
+  const [purchaseOrdersSubTab, setPurchaseOrdersSubTab] = useState<string>('po-list');
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
@@ -146,6 +149,35 @@ const Index = memo(() => {
     console.log(`📋 Available locations: ${combinedLocations.length} total`);
     return combinedLocations.sort();
   }, [inventoryLocations, allWarehouseLocations]); // ESLint requirement - include full dependencies
+
+  // Function to handle navigation to fulfillment queue after task creation
+  const handleTaskCreated = useCallback((poNumber: string) => {
+    // Switch to purchase-orders tab if not already there
+    if (activeTab !== 'purchase-orders') {
+      setActiveTab('purchase-orders');
+    }
+    // Switch to fulfillment sub-tab
+    setPurchaseOrdersSubTab('fulfillment');
+
+    // Enhanced toast with action button
+    toast({
+      title: '✅ สร้างงานสำเร็จ',
+      description: `สร้างงานจัดสินค้าสำหรับใบสั่งซื้อ ${poNumber} แล้ว`,
+      action: (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setActiveTab('purchase-orders');
+            setPurchaseOrdersSubTab('fulfillment');
+          }}
+          className="ml-2"
+        >
+          ดูงาน
+        </Button>
+      ),
+    });
+  }, [activeTab, toast]);
 
   const userInitials = useMemo(() => {
     if (user?.full_name) {
@@ -770,7 +802,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-10 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -782,6 +814,10 @@ const Index = memo(() => {
             <TabsTrigger value="orders" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
               <ShoppingCart className="h-4 w-4 text-blue-600" />
               <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งซื้อ</span>
+            </TabsTrigger>
+            <TabsTrigger value="purchase-orders" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+              <Package className="h-4 w-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
             </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2">
               <Table className="h-4 w-4" />
@@ -837,6 +873,29 @@ const Index = memo(() => {
 
           <TabsContent value="orders" className="space-y-4">
             <DisabledComponent name="Orders Tab" />
+          </TabsContent>
+
+          <TabsContent value="purchase-orders" className="space-y-4">
+            <Tabs value={purchaseOrdersSubTab} onValueChange={setPurchaseOrdersSubTab} className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                <TabsTrigger value="po-list" className="flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4" />
+                  รายการ Purchase Orders
+                </TabsTrigger>
+                <TabsTrigger value="fulfillment" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  งานจัดสินค้า
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="po-list" className="space-y-4">
+                <PurchaseOrdersList onCreateFulfillment={handleTaskCreated} />
+              </TabsContent>
+
+              <TabsContent value="fulfillment" className="space-y-4">
+                <FulfillmentQueue />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="table" className="space-y-4">
