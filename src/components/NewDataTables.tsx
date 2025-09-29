@@ -29,8 +29,8 @@ const NewDataTables = () => {
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(item => {
       const matchesSearch = searchTerm === '' ||
-        item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+        (item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
 
       // ✅ ปรับปรุงการ filter ให้แม่นยำมากขึ้น
       const matchesType = selectedType === 'all' ||

@@ -79,8 +79,8 @@ export const ProductOrderGrid: React.FC<ProductOrderGridProps> = ({
     if (!searchTerm.trim()) return [];
 
     return products.filter(product =>
-      product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku.toLowerCase().includes(searchTerm.toLowerCase())
+      (product.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+      (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
     ).slice(0, 10); // จำกัด 10 รายการ
   }, [products, searchTerm]);
 

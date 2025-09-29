@@ -30,9 +30,9 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     if (debouncedSearchQuery) {
       const filteredItems = items.filter(item => {
         // Text search filter
-        const matchesSearch = item.product_name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        const matchesSearch = (item.product_name?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) || false) ||
           (item as any).sku?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          item.location.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
+          (item.location?.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) || false);
 
         if (!matchesSearch) return false;
 
@@ -67,9 +67,9 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
 
   const handleSearch = (query: string) => {
     const filteredItems = items.filter(item =>
-      item.product_name.toLowerCase().includes(query.toLowerCase()) ||
+      (item.product_name?.toLowerCase().includes(query.toLowerCase()) || false) ||
       (item as any).sku?.toLowerCase().includes(query.toLowerCase()) ||
-      item.location.toLowerCase().includes(query.toLowerCase())
+      (item.location?.toLowerCase().includes(query.toLowerCase()) || false)
     );
     setSearchResults(filteredItems);
   };

@@ -81,9 +81,9 @@ export const ProductManagementTable = () => {
   // Filtered data
   const filteredData = useMemo(() => {
     return sampleData.filter(item => {
-      const matchesSearch = 
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch =
+        (item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+        (item.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
       
       const matchesType = filterType === 'all' || item.type === filterType;
       
