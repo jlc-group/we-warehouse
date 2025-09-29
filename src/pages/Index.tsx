@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
 import { EnhancedEventLogs } from '@/components/EnhancedEventLogs';
 import { EnhancedOverview } from '@/components/EnhancedOverview';
+import { InventoryQuickStats } from '@/components/InventoryQuickStats';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
@@ -852,6 +853,14 @@ const Index = memo(() => {
 
 
           <TabsContent value="overview" className="space-y-4">
+            {/* Stock Summary Cards */}
+            {!loading && inventoryItems.length > 0 && (
+              <InventoryQuickStats
+                items={inventoryItems}
+                className="mb-6"
+              />
+            )}
+
             <EnhancedOverview
               items={inventoryItems}
               onShelfClick={handleShelfClick}
