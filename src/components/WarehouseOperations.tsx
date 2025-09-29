@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { QrCode, Package, CheckCircle, Clock, Truck, AlertCircle, Search, MapPin, User } from 'lucide-react';
 import { WarehouseAssignmentService } from '@/services/warehouseAssignmentService';
 import { FulfillmentService } from '@/services/fulfillmentService';
-import { FallbackWarehouseService } from '@/services/fallbackWarehouseService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import type {
@@ -49,18 +48,16 @@ export const WarehouseOperations: React.FC = () => {
 
   const checkSystemAndLoadData = async () => {
     try {
-      const has3PhaseTables = await FallbackWarehouseService.check3PhaseTablesExist();
-      setUse3PhaseSystem(has3PhaseTables);
-
-      if (!has3PhaseTables) {
-        const migration = await FallbackWarehouseService.isMigrationNeeded();
-        setMigrationInfo(migration);
-      }
-
-      await loadData(has3PhaseTables);
+      // Always use 3-phase system since fallback service was removed
+      setUse3PhaseSystem(true);
+      await loadData(true);
     } catch (error) {
       console.error('Error checking system:', error);
-      await loadData(false);
+      toast({
+        title: "ข้อผิดพลาด",
+        description: "ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อฐานข้อมูล",
+        variant: "destructive",
+      });
     }
   };
 
@@ -75,8 +72,8 @@ export const WarehouseOperations: React.FC = () => {
         setSalesBillsQueue(queue);
         setAssignedTasks(assignments);
       } else {
-        const queue = await FallbackWarehouseService.getFallbackOrdersQueue();
-        setSalesBillsQueue(queue as any);
+        // Fallback functionality removed - only using 3-phase system
+        setSalesBillsQueue([]);
         setAssignedTasks([]);
       }
     } catch (error) {
@@ -105,12 +102,8 @@ export const WarehouseOperations: React.FC = () => {
           pickingData.notes
         );
       } else {
-        await FallbackWarehouseService.updatePickedQuantity(
-          assignmentId,
-          pickingData.level1 + pickingData.level2 + pickingData.level3,
-          user.id,
-          pickingData.notes
-        );
+        // Fallback functionality removed - only using 3-phase system
+        throw new Error('Fallback functionality is no longer available');
       }
 
       toast({
@@ -138,7 +131,8 @@ export const WarehouseOperations: React.FC = () => {
       if (use3PhaseSystem) {
         await WarehouseAssignmentService.markItemsPacked(assignmentId, user.id, notes);
       } else {
-        await FallbackWarehouseService.updateOrderStatus(assignmentId, 'processing', notes);
+        // Fallback functionality removed - only using 3-phase system
+        throw new Error('Fallback functionality is no longer available');
       }
 
       toast({
@@ -162,7 +156,8 @@ export const WarehouseOperations: React.FC = () => {
       if (use3PhaseSystem) {
         await WarehouseAssignmentService.markReadyToShip(assignmentId);
       } else {
-        await FallbackWarehouseService.markOrderReadyForShipping(assignmentId, user?.name);
+        // Fallback functionality removed - only using 3-phase system
+        throw new Error('Fallback functionality is no longer available');
       }
 
       toast({

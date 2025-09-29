@@ -10,13 +10,32 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8081,
     strictPort: false, // Allow automatic port selection if port is busy
-    hmr: false, // CRITICAL: COMPLETELY DISABLE HMR to prevent auto-refreshes
-    // CRITICAL: Disable CSS preprocessing that triggers rebuilds
+    hmr: mode === 'development' ? {
+      port: 8082, // Use separate port for HMR
+      overlay: true, // Show errors in overlay
+    } : false, // Enable HMR only in development
+    // Enable CSS HMR in development for better UX
     css: {
-      hmr: false, // Disable CSS HMR completely
+      hmr: mode === 'development',
     },
-    // CRITICAL: Optimize file watching to PREVENT auto-refreshes
-    watch: {
+    // Optimize file watching for development vs production
+    watch: mode === 'development' ? {
+      ignored: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/.git/**',
+        '**/coverage/**',
+        '**/temp/**',
+        '**/tmp/**',
+        '**/*.log',
+        '**/*.test.*',
+        '**/*.spec.*',
+        '**/supabase/migrations/**'
+      ],
+      usePolling: false,
+      interval: 1000, // Faster updates in development
+      binaryInterval: 2000,
+    } : {
       ignored: [
         '**/node_modules/**',
         '**/dist/**',
@@ -35,23 +54,23 @@ export default defineConfig(({ mode }) => ({
         '**/src/data/**',
         '**/src/integrations/supabase/types*.ts'
       ],
-      usePolling: false, // Use native file watching instead of polling
-      interval: 10000, // Check files every 10 seconds to reduce sensitivity significantly
-      binaryInterval: 15000, // Check binary files much less frequently
-      depth: 2, // Limit depth of file watching
+      usePolling: false,
+      interval: 10000,
+      binaryInterval: 15000,
+      depth: 2,
     },
     // Fix WebSocket connection issues
     fs: {
       strict: false,
     },
-    // Reduce memory usage and prevent frequent refreshes
-    open: false, // Don't auto-open browser
+    // Development-friendly settings
+    open: mode === 'development' ? false : false, // Don't auto-open browser
     cors: true, // Enable CORS to prevent refresh issues
   },
   build: {
     outDir: "dist",
-    sourcemap: false,
-    rollupOptions: {
+    sourcemap: mode === 'development',
+    rollupOptions: mode === 'production' ? {
       output: {
         manualChunks: {
           vendor: ["react", "react-dom"],
@@ -61,6 +80,11 @@ export default defineConfig(({ mode }) => ({
           charts: ["recharts", "lucide-react"],
         },
       },
+    } : {
+      // Simplified chunking for development
+      output: {
+        manualChunks: undefined,
+      },
     },
     chunkSizeWarningLimit: 600,
   },
@@ -69,5 +93,52 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Prioritize ESM versions of packages
+    conditions: ['import', 'module', 'browser', 'default'],
+    mainFields: ['browser', 'module', 'main'],
+    // Help resolve Supabase module issues
+    dedupe: ['@supabase/supabase-js', '@supabase/postgrest-js'],
+  },
+  ssr: {
+    // Mark these as external for SSR to avoid module resolution issues
+    noExternal: mode === 'development' ? [] : ['@supabase/supabase-js']
+  },
+  optimizeDeps: {
+    exclude: mode === 'development' ? [
+      // Exclude problematic dependencies in development
+      'chunk-XHSRBMDX',
+      'lovable-tagger'
+    ] : [],
+    include: mode === 'development' ? [
+      // Pre-bundle stable dependencies
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'lucide-react',
+      // Include Supabase packages to resolve module issues
+      '@supabase/supabase-js',
+      '@supabase/postgrest-js',
+      '@supabase/realtime-js',
+      '@supabase/auth-js'
+    ] : [],
+    // Force Vite to handle these as ESM
+    esbuildOptions: {
+      target: 'esnext',
+      format: 'esm',
+      // Handle mixed module formats
+      banner: {
+        js: '// Vite ESM compatibility fix'
+      }
+    },
+  },
+  // Additional configuration for handling mixed module types
+  define: {
+    // Help with CommonJS compatibility
+    global: 'globalThis',
+  },
+  // Handle module format issues in build
+  esbuild: {
+    // Convert CommonJS to ESM when needed
+    logOverride: { 'this-is-undefined-in-esm': 'silent' },
   },
 }));

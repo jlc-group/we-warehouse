@@ -217,3 +217,116 @@ export const exportLocationSummary = (items: InventoryItem[]) => {
 
   URL.revokeObjectURL(url);
 };
+
+// Export ProductSummary data interface
+export interface ProductSummaryExportData {
+  sku_code: string;
+  product_name: string;
+  product_type: string;
+  category: string;
+  brand: string;
+  total_cartons: number;
+  total_pieces: number;
+  stock_status: string;
+  location_count: number;
+  unit_level1_name: string;
+  unit_level2_name: string;
+  unit_level3_name: string;
+  last_updated: string;
+}
+
+// Import ProductSummary type
+import type { ProductSummary } from '@/hooks/useProductsSummary';
+
+export const formatProductSummaryForExport = (products: ProductSummary[]): ProductSummaryExportData[] => {
+  return products.map(product => ({
+    sku_code: product.sku || '',
+    product_name: product.product_name || '',
+    product_type: product.product_type || '',
+    category: product.category || '',
+    brand: product.brand || '',
+    total_cartons: product.total_level1_quantity || 0,
+    total_pieces: product.total_pieces || 0,
+    stock_status: getStockStatusLabel(product.stock_status),
+    location_count: product.location_count || 0,
+    unit_level1_name: product.unit_level1_name || 'ลัง',
+    unit_level2_name: product.unit_level2_name || 'กล่อง',
+    unit_level3_name: product.unit_level3_name || 'ชิ้น',
+    last_updated: product.last_updated ? new Date(product.last_updated).toLocaleString('th-TH') : new Date().toLocaleString('th-TH')
+  }));
+};
+
+export const exportProductSummaryToCSV = (products: ProductSummary[], filename: string = 'products_summary') => {
+  const exportData = formatProductSummaryForExport(products);
+
+  // Define CSV headers in Thai
+  const headers = [
+    'รหัส SKU',
+    'ชื่อสินค้า',
+    'ประเภทสินค้า',
+    'หมวดหมู่',
+    'แบรนด์',
+    'จำนวนลัง',
+    'จำนวนชิ้นรวม',
+    'สถานะสต็อก',
+    'จำนวนตำแหน่ง',
+    'หน่วยลัง',
+    'หน่วยกล่อง',
+    'หน่วยชิ้น',
+    'อัปเดตล่าสุด'
+  ];
+
+  // Convert data to CSV format
+  const csvContent = [
+    headers.join(','),
+    ...exportData.map(row => [
+      `"${row.sku_code}"`,
+      `"${row.product_name}"`,
+      `"${row.product_type}"`,
+      `"${row.category}"`,
+      `"${row.brand}"`,
+      row.total_cartons,
+      row.total_pieces,
+      `"${row.stock_status}"`,
+      row.location_count,
+      `"${row.unit_level1_name}"`,
+      `"${row.unit_level2_name}"`,
+      `"${row.unit_level3_name}"`,
+      `"${row.last_updated}"`
+    ].join(','))
+  ].join('\n');
+
+  // Create and download file
+  const blob = new Blob(['\ufeff' + csvContent], {
+    type: 'text/csv;charset=utf-8;'
+  });
+
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+};
+
+// Helper function to convert stock status to Thai
+function getStockStatusLabel(status: string): string {
+  switch (status) {
+    case 'out_of_stock':
+      return 'หมดสต็อก';
+    case 'low_stock':
+      return 'สต็อกต่ำ';
+    case 'medium_stock':
+      return 'สต็อกปานกลาง';
+    case 'high_stock':
+      return 'สต็อกสูง';
+    default:
+      return 'ไม่ทราบ';
+  }
+};

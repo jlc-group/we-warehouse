@@ -23,13 +23,8 @@ import {
   Settings
 } from 'lucide-react';
 import { useInventory } from '@/hooks/useInventory';
-import {
-  usePendingFulfillmentItems,
-  useFulfillmentStats,
-  useUpdateFulfillmentLocation,
-  useUpdateFulfillmentStatus,
-  type PendingOrderItem
-} from '@/hooks/useFulfillment';
+// Fulfillment hooks removed - using placeholder functionality
+type PendingOrderItem = any;
 import { toast } from 'sonner';
 
 // ใช้ PendingOrderItem จาก useFulfillment hook แล้ว
@@ -226,10 +221,12 @@ export function WarehouseFulfillmentDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // API hooks
-  const { data: pendingItems = [], isLoading } = usePendingFulfillmentItems();
-  const { data: stats = {} } = useFulfillmentStats();
-  const updateLocationMutation = useUpdateFulfillmentLocation();
-  const updateStatusMutation = useUpdateFulfillmentStatus();
+  // Fulfillment functionality removed - using placeholder data
+  const pendingItems = [];
+  const isLoading = false;
+  const stats = {};
+  const updateLocationMutation = { mutate: () => {}, isLoading: false };
+  const updateStatusMutation = { mutate: () => {}, isLoading: false };
 
   // Filter items
   const filteredItems = pendingItems.filter(item => {

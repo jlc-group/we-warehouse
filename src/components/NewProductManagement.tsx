@@ -25,6 +25,7 @@ import { useConversionRates } from '@/hooks/useConversionRates';
 import { useProductsWithConversions } from '@/hooks/useProductsWithConversions';
 import { useToast } from '@/hooks/use-toast';
 import type { ConversionRateData } from '@/types';
+import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 
 interface ConversionRate {
   sku: string;
@@ -103,7 +104,6 @@ export const NewProductManagement = () => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<ConversionRateData>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const { products } = useProducts();
   const {
     conversionRates,
     loading: conversionLoading,
@@ -111,18 +111,14 @@ export const NewProductManagement = () => {
     fetchConversionRates
   } = useConversionRates();
   const {
-    products: productsWithConversions,
-    loading: productsLoading,
-    error: productsError,
-    fetchProductsWithConversions,
-    getProductsWithoutConversions,
-    getProductsWithConversions,
     updateConversionRate,
     deleteConversionRate
   } = useProductsWithConversions();
   const { toast } = useToast();
 
-  console.log('🔍 NewProductManagement: conversionRates:', conversionRates?.length, 'products:', productsWithConversions?.length);
+  // State for managing tabs and selected product
+  const [activeTab, setActiveTab] = useState('add-product');
+  const [selectedProductForConversion, setSelectedProductForConversion] = useState<any>(null);
 
   // Handle inline editing
   const handleEditStart = useCallback((sku: string, conversionData: ConversionRateData) => {
@@ -131,6 +127,9 @@ export const NewProductManagement = () => {
       sku: conversionData.sku,
       product_name: conversionData.product_name,
       product_type: conversionData.product_type,
+      category: conversionData.category,
+      brand: conversionData.brand,
+      unit_of_measure: conversionData.unit_of_measure,
       unit_level1_name: conversionData.unit_level1_name,
       unit_level1_rate: conversionData.unit_level1_rate,
       unit_level2_name: conversionData.unit_level2_name,
@@ -206,7 +205,7 @@ export const NewProductManagement = () => {
   const filteredConversionRates = useMemo(() => {
     if (!conversionRates || conversionRates.length === 0) {
       console.log('⚠️ No conversion rates available, using sample data for demo');
-      return sampleConversionRates.filter(item => {
+      let filtered = sampleConversionRates.filter(item => {
         const matchesSearch = searchTerm === '' ||
           item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -215,8 +214,15 @@ export const NewProductManagement = () => {
           item.unit_level3.toLowerCase().includes(searchTerm.toLowerCase());
 
         const matchesType = selectedType === 'all' || item.product_type === selectedType;
-        return matchesSearch && matchesType;
+
+        // Filter by selected product if any
+        const matchesSelectedProduct = !selectedProductForConversion ||
+          item.sku === selectedProductForConversion.sku;
+
+        return matchesSearch && matchesType && matchesSelectedProduct;
       });
+
+      return filtered;
     }
 
     console.log('✅ Using real conversion rates data:', conversionRates.length, 'items');
@@ -245,9 +251,36 @@ export const NewProductManagement = () => {
         item.unit_level3.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType = selectedType === 'all' || item.product_type === selectedType;
-      return matchesSearch && matchesType;
+
+      // Filter by selected product if any
+      const matchesSelectedProduct = !selectedProductForConversion ||
+        item.sku === selectedProductForConversion.sku;
+
+      return matchesSearch && matchesType && matchesSelectedProduct;
     });
-  }, [conversionRates, searchTerm, selectedType]);
+  }, [conversionRates, searchTerm, selectedType, selectedProductForConversion]);
+
+  // Handle edit conversion - switch to conversion tab with selected product
+  const handleEditConversion = useCallback((product: any) => {
+    console.log('📝 Edit conversion for product:', product);
+    setSelectedProductForConversion(product);
+    setActiveTab('unit-conversion');
+    toast({
+      title: "เปิดหน้าแก้ไขค่าแปลงหน่วย",
+      description: `กำลังโหลดข้อมูลสำหรับ: ${product.product_name}`,
+    });
+  }, [toast]);
+
+  // Handle setup conversion - switch to conversion tab with selected product
+  const handleSetupConversion = useCallback((product: any) => {
+    console.log('⚙️ Setup conversion for product:', product);
+    setSelectedProductForConversion(product);
+    setActiveTab('unit-conversion');
+    toast({
+      title: "เปิดหน้าตั้งค่าแปลงหน่วย",
+      description: `กำลังตั้งค่าสำหรับ: ${product.product_name}`,
+    });
+  }, [toast]);
 
   return (
     <div className="space-y-6">
@@ -259,7 +292,7 @@ export const NewProductManagement = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="add-product" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="add-product">เพิ่มสินค้า</TabsTrigger>
               <TabsTrigger value="sku-codes">รหัสสินค้า</TabsTrigger>
@@ -327,118 +360,54 @@ export const NewProductManagement = () => {
             </TabsContent>
 
             <TabsContent value="sku-codes" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">รายการรหัสสินค้า</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex gap-4 mb-4">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="ค้นหารหัส SKU หรือชื่อสินค้า..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="max-w-md"
-                      />
-                    </div>
-                    <Button variant="outline">
-                      <Search className="h-4 w-4 mr-2" />
-                      ค้นหา
-                    </Button>
-                    <Button>
-                      <Download className="h-4 w-4 mr-2" />
-                      ส่งออก
-                    </Button>
-                  </div>
-
-                  <div className="text-sm text-gray-600 mb-4">
-                    แสดงรายการ SKU ทั้งหมด {productsWithConversions?.length || 0} รายการ
-                    {productsLoading && <span className="text-blue-600 ml-2">(กำลังโหลด...)</span>}
-                  </div>
-
-                  {productsError && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <div className="text-sm text-red-700">
-                        <strong>ข้อผิดพลาด:</strong> {productsError}
-                      </div>
-                    </div>
-                  )}
-
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>รหัส SKU</TableHead>
-                        <TableHead>ชื่อสินค้า</TableHead>
-                        <TableHead>ประเภท</TableHead>
-                        <TableHead>แบรนด์</TableHead>
-                        <TableHead>การแปลงหน่วย</TableHead>
-                        <TableHead>สถานะ</TableHead>
-                        <TableHead>การดำเนินการ</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {productsWithConversions
-                        ?.filter(product => {
-                          const matchesSearch = searchTerm === '' ||
-                            product.sku_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            product.product_name?.toLowerCase().includes(searchTerm.toLowerCase());
-                          return matchesSearch;
-                        })
-                        .slice(0, 20)
-                        .map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell className="font-medium font-mono text-blue-600">
-                            {product.sku_code}
-                          </TableCell>
-                          <TableCell>{product.product_name}</TableCell>
-                          <TableCell>
-                            <Badge variant={product.product_type === 'FG' ? 'default' : 'secondary'}>
-                              {product.product_type || 'N/A'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600">
-                            {product.brand || '-'}
-                          </TableCell>
-                          <TableCell>
-                            {product.conversion_id ? (
-                              <Badge variant="outline" className="text-green-600 border-green-600">
-                                มีอัตราแปลง
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-orange-600 border-orange-600">
-                                ไม่มีอัตราแปลง
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-green-600 border-green-600">
-                              {product.is_active ? 'ใช้งาน' : 'ระงับ'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  {productsWithConversions && productsWithConversions.length === 0 && !productsLoading && (
-                    <div className="text-center py-8 text-gray-500">
-                      ไม่มีข้อมูลสินค้า
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <ProductSummaryTable
+                onEditConversion={handleEditConversion}
+                onSetupConversion={handleSetupConversion}
+              />
             </TabsContent>
 
             <TabsContent value="unit-conversion" className="space-y-4">
+              {/* Selected Product Info */}
+              {selectedProductForConversion && (
+                <Card className="bg-blue-50 border-blue-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                          <Edit className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-blue-900">
+                            กำลังแก้ไขค่าแปลงหน่วยสำหรับ
+                          </h3>
+                          <p className="text-sm text-blue-700">
+                            <strong>{selectedProductForConversion.product_name}</strong> (SKU: {selectedProductForConversion.sku})
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedProductForConversion(null)}
+                        className="text-blue-600 border-blue-200 hover:bg-blue-100"
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        ยกเลิก
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">รายการตั้งค่าแปลงหน่วย</CardTitle>
+                    <CardTitle className="text-lg">
+                      {selectedProductForConversion ?
+                        `แก้ไขค่าแปลงหน่วย: ${selectedProductForConversion.product_name}` :
+                        'รายการตั้งค่าแปลงหน่วย'
+                      }
+                    </CardTitle>
                     <div className="flex items-center gap-3">
                       {conversionLoading && (
                         <div className="flex items-center gap-2 text-blue-600">
@@ -542,19 +511,44 @@ export const NewProductManagement = () => {
 
                           return (
                             <TableRow key={index} className={isEditing ? "bg-blue-50" : "hover:bg-gray-50"}>
-                              <TableCell className="font-mono text-sm font-medium text-blue-600">
+                                <TableCell className="font-mono text-sm font-medium text-blue-600">
                                 {item.sku}
                               </TableCell>
                               <TableCell className="text-sm">
-                                {item.product_name}
+                                {isEditing ? (
+                                  <Input
+                                    value={editFormData.product_name || ''}
+                                    onChange={(e) => setEditFormData(prev => ({...prev, product_name: e.target.value}))}
+                                    className="h-8 text-xs"
+                                    placeholder="ชื่อสินค้า"
+                                  />
+                                ) : (
+                                  item.product_name
+                                )}
                               </TableCell>
                               <TableCell>
-                                <Badge
-                                  variant={item.product_type === 'FG' ? 'default' : 'secondary'}
-                                  className="text-xs"
-                                >
-                                  {item.product_type}
-                                </Badge>
+                                {isEditing ? (
+                                  <Select
+                                    value={editFormData.product_type || ''}
+                                    onValueChange={(value) => setEditFormData(prev => ({...prev, product_type: value as any}))}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder="ประเภท" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="FG">FG - สินค้าสำเร็จรูป</SelectItem>
+                                      <SelectItem value="PK">PK - วัสดุบรรจุ</SelectItem>
+                                      <SelectItem value="RM">RM - วัตถุดิบ</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Badge
+                                    variant={item.product_type === 'FG' ? 'default' : 'secondary'}
+                                    className="text-xs"
+                                  >
+                                    {item.product_type}
+                                  </Badge>
+                                )}
                               </TableCell>
 
                               {/* Unit Level 1 Name */}

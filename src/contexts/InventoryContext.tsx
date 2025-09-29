@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
 import type { Database } from '@/integrations/supabase/types';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
@@ -53,9 +54,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     const fetchPromise = (async () => {
       try {
-        const { data, error } = await supabase
+        // Check if soft delete is supported before filtering
+        const hasSoftDelete = await checkSoftDeleteSupport();
+
+        let query = supabase
           .from('inventory_items')
-          .select('*')
+          .select('*');
+
+        // Only apply soft delete filter if the column exists
+        if (hasSoftDelete) {
+          query = query.eq('is_deleted', false);
+        }
+
+        const { data, error } = await query
           .order('location')
           .limit(500); // Increased from 300 to show more data
 

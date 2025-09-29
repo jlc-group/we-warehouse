@@ -612,23 +612,44 @@ export function useInventory(warehouseId?: string) {
 
   const deleteItem = async (id: string) => {
     try {
+      console.log('🗑️ useInventory: Starting delete operation for item:', id);
 
-      await secureGatewayClient.delete('inventory', { id });
+      const result = await secureGatewayClient.delete('inventory', { id });
 
-      setItems(prev => prev.filter(item => item.id !== id));
+      // ตรวจสอบผลลัพธ์จาก secureGatewayClient ที่ปรับปรุงแล้ว
+      if (!result.success) {
+        const errorMessage = (result as any).error || 'ไม่สามารถลบสินค้าได้';
+        throw new Error(errorMessage);
+      }
+
+      console.log('✅ useInventory: Delete operation successful');
+
+      // อัปเดต local state เฉพาะเมื่อลบสำเร็จจริงๆ
+      setItems(prev => {
+        const filtered = prev.filter(item => item.id !== id);
+        console.log(`🔄 Local state updated: ${prev.length} -> ${filtered.length} items`);
+        return filtered;
+      });
+
       toast({
         title: 'ลบสำเร็จ',
         description: 'ลบสินค้าออกจากคลังแล้ว',
       });
+
     } catch (error: unknown) {
       const supabaseError = isSupabaseError(error) ? error : {};
-      console.error('Error deleting inventory item:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      console.error('❌ Error deleting inventory item:', error);
+
       toast({
         title: 'เกิดข้อผิดพลาด',
-        description: `ไม่สามารถลบสินค้าได้: ${supabaseError.message || 'Unknown error'}`,
+        description: `ไม่สามารถลบสินค้าได้: ${supabaseError.message || errorMessage}`,
         variant: 'destructive',
       });
-      throw error;
+
+      // ไม่ throw error เพื่อไม่ให้แอป crash
+      // throw error;
     }
   };
 

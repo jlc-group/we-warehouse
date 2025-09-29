@@ -11,12 +11,11 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import type { InventoryItem } from '@/hooks/useInventory';
+import type { ProductSummary } from '@/hooks/useProductsSummary';
 import { ProductCard } from './ProductCard';
-import { LocationFilter, LOCATION_COLORS } from './LocationFilter';
 
 interface ProductSelection {
-  item: InventoryItem;
+  item: ProductSummary;
   quantities: {
     level1: number;
     level2: number;
@@ -25,9 +24,9 @@ interface ProductSelection {
 }
 
 interface ProductSelectionGridProps {
-  inventoryItems: InventoryItem[];
+  productSummaries: ProductSummary[];
   selectedItems: ProductSelection[];
-  onItemSelect: (item: InventoryItem, quantities: {
+  onItemSelect: (item: ProductSummary, quantities: {
     level1: number;
     level2: number;
     level3: number;
@@ -38,38 +37,32 @@ interface ProductSelectionGridProps {
 }
 
 export function ProductSelectionGrid({
-  inventoryItems,
+  productSummaries,
   selectedItems,
   onItemSelect,
   onItemRemove,
   warehouseId,
   isLoading = false
 }: ProductSelectionGridProps) {
-  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'empty' | 'low' | 'medium' | 'high'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'FG' | 'PK'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
-    if (!inventoryItems) return [];
+    if (!productSummaries) return [];
 
-    const filtered = inventoryItems.filter(item => {
+    const filtered = productSummaries.filter(item => {
       // Search filter
       const matchesSearch = !searchTerm ||
         item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.location && item.location.toLowerCase().includes(searchTerm.toLowerCase()));
+        item.sku.toLowerCase().includes(searchTerm.toLowerCase());
 
-      // Location filter
-      const matchesLocation = !selectedLocation ||
-        (item.location || 'ไม่ระบุตำแหน่ง') === selectedLocation;
+      // ✅ ใช้ total_pieces จาก ProductSummary (แม่นยำกว่า)
+      const totalStock = item.total_pieces || 0;
 
       // Stock filter
-      const totalStock = (item.unit_level1_quantity || 0) +
-                        (item.unit_level2_quantity || 0) +
-                        (item.unit_level3_quantity || 0);
-
       let matchesStock = true;
       if (stockFilter !== 'all') {
         if (stockFilter === 'empty') matchesStock = totalStock === 0;
@@ -78,32 +71,40 @@ export function ProductSelectionGrid({
         else if (stockFilter === 'high') matchesStock = totalStock >= 50;
       }
 
-      return matchesSearch && matchesLocation && matchesStock;
+      // ✅ Product type filter
+      const matchesType = typeFilter === 'all' ||
+        (item.product_type && item.product_type.toUpperCase() === typeFilter);
+
+      return matchesSearch && matchesStock && matchesType;
     });
 
     // Sort products
     return filtered.sort((a, b) => {
-      // First sort by stock level (high to low)
-      const stockA = (a.unit_level1_quantity || 0) + (a.unit_level2_quantity || 0) + (a.unit_level3_quantity || 0);
-      const stockB = (b.unit_level1_quantity || 0) + (b.unit_level2_quantity || 0) + (b.unit_level3_quantity || 0);
-
-      if (stockA !== stockB) {
-        return stockB - stockA; // Higher stock first
+      // ✅ เรียงตาม product_type ก่อน
+      if (a.product_type !== b.product_type) {
+        return (a.product_type || '').localeCompare(b.product_type || '');
       }
 
-      // Then sort by product name
+      // ✅ จากนั้นเรียงตาม total_pieces (สูงไปต่ำ)
+      const stockA = a.total_pieces || 0;
+      const stockB = b.total_pieces || 0;
+      if (stockA !== stockB) {
+        return stockB - stockA;
+      }
+
+      // สุดท้ายเรียงตามชื่อสินค้า
       return a.product_name.localeCompare(b.product_name);
     });
-  }, [inventoryItems, selectedLocation, searchTerm, stockFilter]);
+  }, [productSummaries, searchTerm, stockFilter, typeFilter]);
 
   // Get selected quantity for an item
   const getSelectedQuantity = (itemId: string) => {
-    const selected = selectedItems.find(s => s.item.id === itemId);
+    const selected = selectedItems.find(s => s.item.product_id === itemId);
     return selected?.quantities || { level1: 0, level2: 0, level3: 0 };
   };
 
   // Handle quantity changes
-  const handleQuantityChange = (item: InventoryItem, quantities: {
+  const handleQuantityChange = (item: ProductSummary, quantities: {
     level1: number;
     level2: number;
     level3: number;
@@ -112,17 +113,13 @@ export function ProductSelectionGrid({
 
     if (totalQuantity === 0) {
       // Remove item if no quantity selected
-      onItemRemove(item.id);
+      onItemRemove(item.product_id);
     } else {
       // Add or update item
       onItemSelect(item, quantities);
     }
   };
 
-  // Get location color
-  const getLocationColor = (location: string) => {
-    return LOCATION_COLORS[location] || LOCATION_COLORS['default'];
-  };
 
   // Calculate totals
   const totalSelected = selectedItems.length;
@@ -149,7 +146,6 @@ export function ProductSelectionGrid({
             <h3 className="font-semibold text-gray-900">เลือกสินค้า</h3>
             <p className="text-sm text-gray-500">
               แสดง {totalProducts.toLocaleString()} สินค้า
-              {selectedLocation && ` ในตำแหน่ง "${selectedLocation}"`}
             </p>
           </div>
         </div>
@@ -187,16 +183,45 @@ export function ProductSelectionGrid({
         </div>
       </div>
 
-      {/* Location Filter */}
-      <LocationFilter
-        inventoryItems={inventoryItems || []}
-        selectedLocation={selectedLocation}
-        onLocationChange={setSelectedLocation}
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        stockFilter={stockFilter}
-        onStockFilterChange={setStockFilter}
-      />
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        {/* Search */}
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="ค้นหาด้วยชื่อสินค้าหรือรหัส SKU..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        {/* Stock Filter & Type Filter */}
+        <div className="flex gap-2">
+          {/* ✅ เพิ่ม Product Type Filter */}
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">ทุกประเภท</option>
+            <option value="FG">สินค้าสำเร็จรูป (FG)</option>
+            <option value="PK">วัสดุบรรจุ (PK)</option>
+          </select>
+
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">ทุกสต็อก</option>
+            <option value="high">สต็อกสูง (50+)</option>
+            <option value="medium">สต็อกปานกลาง (10-49)</option>
+            <option value="low">สต็อกต่ำ (1-9)</option>
+            <option value="empty">หมดสต็อก (0)</option>
+          </select>
+        </div>
+      </div>
 
       {/* Products Grid/List */}
       <div className="min-h-[400px]">
@@ -210,13 +235,13 @@ export function ProductSelectionGrid({
               <p className="text-sm text-gray-500 mb-4">
                 ลองเปลี่ยนคำค้นหาหรือเงื่อนไขการกรอง
               </p>
-              {(selectedLocation || stockFilter !== 'all' || searchTerm) && (
+              {(stockFilter !== 'all' || typeFilter !== 'all' || searchTerm) && (
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    setSelectedLocation(null);
                     setStockFilter('all');
+                    setTypeFilter('all');
                     setSearchTerm('');
                   }}
                   className="text-sm"
@@ -235,12 +260,10 @@ export function ProductSelectionGrid({
             }>
               {filteredProducts.map((item) => (
                 <ProductCard
-                  key={item.id}
+                  key={item.product_id}
                   item={item}
-                  selectedQuantity={getSelectedQuantity(item.id)}
+                  selectedQuantity={getSelectedQuantity(item.product_id)}
                   onQuantityChange={handleQuantityChange}
-                  locationColor={getLocationColor(item.location || '')}
-                  showLocation={!selectedLocation} // Hide location if filtering by specific location
                 />
               ))}
             </div>

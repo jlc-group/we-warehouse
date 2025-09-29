@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
+import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
 
 // ฟังก์ชันตัดสต็อกจริง - ง่ายและทำงานได้
 export async function deductStock(inventoryItemId: string, quantities: {
@@ -11,11 +12,19 @@ export async function deductStock(inventoryItemId: string, quantities: {
     console.log('เริ่มการตัดสต็อก:', { inventoryItemId, quantities });
 
     // ดึงข้อมูลปัจจุบันของ item นี้
-    const { data: currentItem, error: fetchError } = await supabase
+    const hasSoftDelete = await checkSoftDeleteSupport();
+
+    let query = supabase
       .from('inventory_items')
       .select('*')
-      .eq('id', inventoryItemId)
-      .single();
+      .eq('id', inventoryItemId);
+
+    // Only filter by is_deleted if the column exists
+    if (hasSoftDelete) {
+      query = query.eq('is_deleted', false);
+    }
+
+    const { data: currentItem, error: fetchError } = await query.single();
 
     if (fetchError || !currentItem) {
       throw new Error(`ไม่พบรายการสินค้า: ${fetchError?.message}`);

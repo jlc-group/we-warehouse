@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
 
 // Simple inventory hook without complex features that might cause hanging
 export function useInventorySimple() {
@@ -16,11 +17,20 @@ export function useInventorySimple() {
       setConnectionStatus('connecting');
       
       console.log('🔄 Simple fetch starting...');
-      
-      const { data, error } = await supabase
+
+      // Check if soft delete is supported before filtering
+      const hasSoftDelete = await checkSoftDeleteSupport();
+
+      let query = supabase
         .from('inventory_items')
-        .select('*')
-        .limit(50); // Very small limit to prevent hanging
+        .select('*');
+
+      // Only apply soft delete filter if the column exists
+      if (hasSoftDelete) {
+        query = query.eq('is_deleted', false);
+      }
+
+      const { data, error } = await query.limit(50); // Very small limit to prevent hanging
       
       if (error) {
         console.error('Simple fetch error:', error);

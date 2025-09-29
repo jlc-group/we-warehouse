@@ -35,6 +35,7 @@ interface LocationItemSelectorProps {
   onAddNewItem: () => void;
   onExport?: () => void;
   onTransfer?: () => void;
+  canDelete?: boolean;
 }
 
 export function LocationItemSelector({
@@ -47,7 +48,8 @@ export function LocationItemSelector({
   onClearLocation,
   onAddNewItem,
   onExport,
-  onTransfer
+  onTransfer,
+  canDelete = true
 }: LocationItemSelectorProps) {
   // console.log('🔍 LocationItemSelector rendered with:', { isOpen, location, itemsCount: items.length });
   
@@ -86,12 +88,19 @@ export function LocationItemSelector({
   };
 
   const handleDeleteConfirm = async (itemId: string) => {
+    setDeletingItemId(itemId);
+
     try {
+      console.log('🗑️ LocationItemSelector: Starting delete for item:', itemId);
+
       await onDeleteItem(itemId);
+
+      console.log('✅ LocationItemSelector: Delete successful');
+
       setDeletingItemId(null);
       toast({
         title: '✅ ลบสำเร็จ',
-        description: 'ลบรายการสินค้าแล้ว',
+        description: 'ลบรายการสินค้าออกจากระบบแล้ว',
       });
 
       // ถ้าไม่มีรายการเหลือ ปิด modal
@@ -99,9 +108,15 @@ export function LocationItemSelector({
         onClose();
       }
     } catch (error) {
+      console.error('❌ LocationItemSelector: Delete failed:', error);
+
+      setDeletingItemId(null);
+
+      const errorMessage = error instanceof Error ? error.message : 'ไม่สามารถลบรายการได้';
+
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถลบรายการได้',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -112,7 +127,7 @@ export function LocationItemSelector({
       await onClearLocation(location);
       toast({
         title: '🗑️ ลบทั้งหมดสำเร็จ',
-        description: `ลบสินค้าทั้งหมดใน ${displayLocation(location)} แล้ว`,
+        description: `ลบสินค้าทั้งหมดใน ${displayLocation(location)} ออกจากระบบแล้ว`,
       });
       onClose();
     } catch (error) {
@@ -334,22 +349,24 @@ export function LocationItemSelector({
                           แก้ไข
                         </Button>
 
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2 text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                              ลบ
-                            </Button>
-                          </AlertDialogTrigger>
+                        {canDelete && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex items-center gap-2 text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                ลบ
+                              </Button>
+                            </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
+                              <AlertDialogTitle>ยืนยันการลบรายการ</AlertDialogTitle>
                               <AlertDialogDescription>
                                 คุณต้องการลบ "{(item as any).product_name || item.sku}" ออกจาก {displayLocation(location)} หรือไม่?
+                                ข้อมูลจะถูกลบออกจากระบบอย่างถาวร
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -357,12 +374,14 @@ export function LocationItemSelector({
                               <AlertDialogAction
                                 onClick={() => handleDeleteConfirm(item.id)}
                                 className="bg-red-600 hover:bg-red-700"
+                                disabled={deletingItemId === item.id}
                               >
-                                ลบ
+                                {deletingItemId === item.id ? 'กำลังลบ...' : 'ลบ'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
-                        </AlertDialog>
+                          </AlertDialog>
+                        )}
                       </div>
                     </div>
                   </CardContent>

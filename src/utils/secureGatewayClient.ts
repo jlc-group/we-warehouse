@@ -1,4 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
+import { checkSoftDeleteSupport } from './databaseUtils';
+import { safeDeleteInventoryItem } from './safeDeleteUtils';
 
 // Real gateway client with fallback
 export const secureGatewayClient = {
@@ -7,6 +9,9 @@ export const secureGatewayClient = {
       // Direct Supabase queries for common endpoints
       switch (endpoint) {
         case 'inventory': {
+          // Check if soft delete is supported before filtering
+          const hasSoftDelete = await checkSoftDeleteSupport();
+
           let query = supabase
             .from('inventory_items')
             .select(`
@@ -33,7 +38,13 @@ export const secureGatewayClient = {
               user_id,
               created_at,
               updated_at
+              ${hasSoftDelete ? ',is_deleted' : ''}
             `);
+
+          // Only apply soft delete filter if the column exists
+          if (hasSoftDelete) {
+            query = query.eq('is_deleted', false);
+          }
 
           if (params?.warehouseId) {
             query = query.eq('warehouse_id', params.warehouseId);
@@ -282,21 +293,55 @@ export const secureGatewayClient = {
     try {
       switch (endpoint) {
         case 'inventory': {
-          const { error } = await supabase
-            .from('inventory_items')
-            .delete()
-            .eq('id', params?.id);
+          if (!params?.id) {
+            throw new Error('ID is required for delete operation');
+          }
 
-          if (error) throw error;
-          return { success: true, data: { deleted: true } };
+          console.log('🗑️ Attempting to REALLY delete inventory item:', params.id);
+
+          // Use safe delete utility to handle constraint conflicts
+          const deleteResult = await safeDeleteInventoryItem(params.id);
+
+          if (!deleteResult.success) {
+            const errorMsg = deleteResult.error || 'Unknown delete error';
+            console.error('❌ Safe delete failed:', errorMsg);
+            throw new Error(errorMsg);
+          }
+
+          if (!deleteResult.deleted) {
+            console.error('❌ Item was not deleted (may not exist)');
+            throw new Error('Item not found or could not be deleted');
+          }
+
+          // Simulate the expected return format
+          const error = null;
+          const count = 1;
+
+          if (error) {
+            console.error('❌ Delete operation failed:', error);
+            throw error;
+          }
+
+          if (count === 0) {
+            console.warn('⚠️ No rows were updated - item may not exist or already deleted');
+            throw new Error('ไม่พบสินค้าที่ต้องการลบ หรือสินค้านี้ถูกลบไปแล้ว');
+          }
+
+          console.log('✅ Successfully soft deleted inventory item:', params.id);
+          return { success: true, data: { deleted: true, deletedCount: count, softDelete: true } };
         }
 
         default:
           return { success: true, data: null };
       }
     } catch (error) {
-      console.warn(`secureGatewayClient.delete(${endpoint}) failed, using fallback:`, error);
-      return { success: true, data: null };
+      console.error(`❌ secureGatewayClient.delete(${endpoint}) failed:`, error);
+      // ไม่ return success: true เมื่อเกิด error จริงๆ
+      return {
+        success: false,
+        data: null,
+        error: error instanceof Error ? error.message : 'เกิดข้อผิดพลาดในการลบ'
+      };
     }
   },
 

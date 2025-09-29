@@ -32,6 +32,7 @@ export function useProductsWithConversions() {
       );
 
       if (result.success && result.data) {
+
         setProducts(result.data);
         console.log(`✅ Loaded ${result.data.length} products with conversion data`);
       } else {
@@ -60,6 +61,8 @@ export function useProductsWithConversions() {
             conversion_created_at: item.conversion_rates?.created_at || null,
             conversion_updated_at: item.conversion_rates?.updated_at || null
           }));
+
+
           setProducts(transformedData);
           console.log(`✅ Loaded ${transformedData.length} products via fallback`);
         }

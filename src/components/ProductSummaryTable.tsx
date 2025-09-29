@@ -8,124 +8,160 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Package,
   Hash,
-  FileSpreadsheet,
   Search,
-  Filter,
-  Download,
-  Building,
-  Tag,
-  Scale,
-  ArrowRight
+  ArrowRight,
+  Settings,
+  Edit,
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
-import { useProducts } from '@/contexts/ProductsContext';
-import { useConversionRates } from '@/hooks/useConversionRates';
+
+type SortField = 'product_name' | 'sku' | 'product_type';
+type SortDirection = 'asc' | 'desc';
+import { useProductsSummary } from '@/hooks/useProductsSummary';
 import { toast } from 'sonner';
 
-export const ProductSummaryTable = () => {
-  const { products, loading, error } = useProducts();
-  const { conversionRates } = useConversionRates();
+interface ProductSummaryTableProps {
+  onEditConversion?: (product: any) => void;
+  onSetupConversion?: (product: any) => void;
+}
+
+export const ProductSummaryTable = ({
+  onEditConversion,
+  onSetupConversion
+}: ProductSummaryTableProps = {}) => {
+  const { data: summaryResult, isLoading: loading, error } = useProductsSummary();
+  const products = summaryResult?.data || [];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [sortField, setSortField] = useState<SortField>('product_name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
-  // Get conversion rate for a specific SKU
-  const getConversionRate = (sku: string) => {
-    return conversionRates.find(rate => rate.sku === sku);
+  // Handle sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
   };
 
-  // Filtered products
+  // Check if product has custom conversion rates
+  const hasCustomConversion = (product: any) => {
+    const defaultLevel1Rate = 24;
+    const defaultLevel2Rate = 1;
+
+    return (
+      (product.unit_level1_rate && product.unit_level1_rate !== defaultLevel1Rate) ||
+      (product.unit_level2_rate && product.unit_level2_rate !== defaultLevel2Rate)
+    );
+  };
+
+  // Get conversion status badge
+  const getConversionStatusBadge = (product: any) => {
+    const hasCustom = hasCustomConversion(product);
+
+    if (hasCustom) {
+      return (
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <CheckCircle className="mr-1 h-3 w-3" />
+          ตั้งค่าแล้ว
+        </Badge>
+      );
+    } else {
+      return (
+        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+          <AlertCircle className="mr-1 h-3 w-3" />
+          ใช้ค่าเริ่มต้น
+        </Badge>
+      );
+    }
+  };
+
+  // Get product type badge
+  const getTypeBadge = (type: string) => {
+    const typeConfig = {
+      'FG': { label: 'สินค้าสำเร็จรูป', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+      'PK': { label: 'บรรจุภัณฑ์', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+      'RM': { label: 'วัตถุดิบ', color: 'bg-blue-50 text-blue-700 border-blue-200' }
+    };
+
+    const config = typeConfig[type] || { label: type, color: 'bg-gray-50 text-gray-700 border-gray-200' };
+
+    return (
+      <Badge variant="outline" className={config.color}>
+        {config.label}
+      </Badge>
+    );
+  };
+
+  // Filtered and sorted products
   const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      const matchesSearch =
-        product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.sku_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (product.brand && product.brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (product.category && product.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    let filtered = products.filter(product => {
+      const matchesSearch = !searchTerm ||
+        product.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        product.sku?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType = filterType === 'all' || product.product_type === filterType;
-      const matchesStatus = filterStatus === 'all' ||
-        (filterStatus === 'active' && product.is_active) ||
-        (filterStatus === 'inactive' && !product.is_active);
 
-      return matchesSearch && matchesType && matchesStatus;
+      return matchesSearch && matchesType;
     });
-  }, [products, searchTerm, filterType, filterStatus]);
 
-  // Export to CSV
-  const handleExport = () => {
-    if (filteredProducts.length === 0) {
-      toast.error('ไม่มีข้อมูลสินค้าที่จะส่งออก');
-      return;
+    // Sort products
+    filtered.sort((a, b) => {
+      let aValue: any, bValue: any;
+
+      switch (sortField) {
+        case 'product_name':
+        case 'sku':
+        case 'product_type':
+          aValue = a[sortField]?.toLowerCase() || '';
+          bValue = b[sortField]?.toLowerCase() || '';
+          break;
+        default:
+          aValue = 0;
+          bValue = 0;
+      }
+
+      if (sortDirection === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [products, searchTerm, filterType, sortField, sortDirection]);
+
+  // Handle conversion setup
+  const handleSetupConversion = (product: any) => {
+    if (onSetupConversion) {
+      onSetupConversion(product);
+    } else {
+      toast.info(`กำลังเปิดหน้าตั้งค่าแปลงหน่วยสำหรับ: ${product.product_name}`);
     }
-
-    const csvContent = [
-      ['ชื่อสินค้า', 'รหัสสินค้า (SKU)', 'ประเภท', 'แบรนด์', 'หมวดหมู่', 'หน่วยนับ', 'อัตราแปลงหน่วย', 'สถานะ', 'วันที่สร้าง'],
-      ...filteredProducts.map(product => {
-        const conversionRate = getConversionRate(product.sku_code);
-        const conversionInfo = conversionRate
-          ? `1 ${conversionRate.unit_level1_name} = ${conversionRate.unit_level1_rate} ${conversionRate.unit_level3_name}, 1 ${conversionRate.unit_level2_name} = ${conversionRate.unit_level2_rate} ${conversionRate.unit_level3_name}`
-          : 'ใช้ค่าเริ่มต้น (1 ลัง = 144 ชิ้น, 1 กล่อง = 12 ชิ้น)';
-
-        return [
-          product.product_name,
-          product.sku_code,
-          product.product_type === 'FG' ? 'สินค้าสำเร็จรูป' : 'บรรจุภัณฑ์',
-          product.brand || '',
-          product.category || '',
-          product.unit_of_measure,
-          conversionInfo,
-          product.is_active ? 'ใช้งาน' : 'ปิดใช้งาน',
-          new Date(product.created_at).toLocaleDateString('th-TH')
-        ];
-      })
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `products_summary_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success(`ส่งออกข้อมูลสินค้า ${filteredProducts.length} รายการเรียบร้อย`);
   };
 
-  const getTypeLabel = (type: string) => {
-    return type === 'FG' ? 'สินค้าสำเร็จรูป' : 'บรรจุภัณฑ์';
+  const handleEditConversion = (product: any) => {
+    if (onEditConversion) {
+      onEditConversion(product);
+    } else {
+      toast.info(`กำลังเปิดหน้าแก้ไขแปลงหน่วยสำหรับ: ${product.product_name}`);
+    }
   };
 
-  const getTypeBadge = (type: string) => {
-    const variant = type === 'FG' ? 'default' : 'secondary';
-    return (
-      <Badge variant={variant}>
-        {getTypeLabel(type)}
-      </Badge>
-    );
-  };
-
-  const getStatusBadge = (isActive: boolean) => {
-    return (
-      <Badge variant={isActive ? 'default' : 'destructive'}>
-        {isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
-      </Badge>
-    );
-  };
+  // Count products needing conversion setup
+  const needsSetup = filteredProducts.filter(p => !hasCustomConversion(p)).length;
+  const hasSetup = filteredProducts.filter(p => hasCustomConversion(p)).length;
 
   if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            สรุปข้อมูลสินค้า
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="text-muted-foreground">กำลังโหลดข้อมูลสินค้า...</div>
+        <CardContent className="p-6">
+          <div className="text-center">
+            <Package className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+            <p>กำลังโหลดข้อมูลสินค้า...</p>
           </div>
         </CardContent>
       </Card>
@@ -135,15 +171,10 @@ export const ProductSummaryTable = () => {
   if (error) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            สรุปข้อมูลสินค้า
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32">
-            <div className="text-red-500">เกิดข้อผิดพลาด: {error}</div>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            <AlertCircle className="mx-auto h-8 w-8 mb-2" />
+            <p>เกิดข้อผิดพลาด: {error.message}</p>
           </div>
         </CardContent>
       </Card>
@@ -154,164 +185,175 @@ export const ProductSummaryTable = () => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Package className="h-5 w-5" />
-          สรุปข้อมูลสินค้า
-          <Badge variant="outline" className="ml-auto">
-            {filteredProducts.length} รายการ
-          </Badge>
+          <Settings className="h-5 w-5" />
+          จัดการค่าแปลงหน่วยสินค้า
         </CardTitle>
+        <div className="flex gap-4 text-sm text-muted-foreground">
+          <span>ทั้งหมด: {filteredProducts.length} รายการ</span>
+          <span className="text-green-600">ตั้งค่าแล้ว: {hasSetup}</span>
+          <span className="text-orange-600">ยังไม่ตั้งค่า: {needsSetup}</span>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="ค้นหาสินค้า, รหัสสินค้า, แบรนด์, หมวดหมู่..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        <div className="space-y-4 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="ค้นหาสินค้า หรือ รหัสสินค้า..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
           </div>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ประเภททั้งหมด</SelectItem>
-              <SelectItem value="FG">สินค้าสำเร็จรูป</SelectItem>
-              <SelectItem value="PK">บรรจุภัณฑ์</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">สถานะทั้งหมด</SelectItem>
-              <SelectItem value="active">ใช้งาน</SelectItem>
-              <SelectItem value="inactive">ปิดใช้งาน</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleExport} variant="outline" className="flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            ส่งออก CSV
-          </Button>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="เลือกประเภท" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    ประเภททั้งหมด
+                  </div>
+                </SelectItem>
+                <SelectItem value="FG">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-purple-600" />
+                    สินค้าสำเร็จรูป (FG)
+                  </div>
+                </SelectItem>
+                <SelectItem value="PK">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-orange-600" />
+                    บรรจุภัณฑ์ (PK)
+                  </div>
+                </SelectItem>
+                <SelectItem value="RM">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 text-blue-600" />
+                    วัตถุดิบ (RM)
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        {/* Products Table */}
-        <div className="rounded-md border">
+        {/* Table */}
+        <div className="border rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ชื่อสินค้า</TableHead>
-                <TableHead>รหัสสินค้า (SKU)</TableHead>
-                <TableHead>ประเภท</TableHead>
-                <TableHead>แบรนด์</TableHead>
-                <TableHead>หมวดหมู่</TableHead>
-                <TableHead>หน่วยนับ</TableHead>
-                <TableHead>อัตราแปลงหน่วย</TableHead>
-                <TableHead>สถานะ</TableHead>
-                <TableHead>วันที่สร้าง</TableHead>
+                <TableHead
+                  className="cursor-pointer"
+                  onClick={() => handleSort('product_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    ชื่อสินค้า
+                    {sortField === 'product_name' && (
+                      sortDirection === 'asc' ? '↑' : '↓'
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer"
+                  onClick={() => handleSort('sku')}
+                >
+                  <div className="flex items-center gap-1">
+                    รหัส SKU
+                    {sortField === 'sku' && (
+                      sortDirection === 'asc' ? '↑' : '↓'
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead
+                  className="cursor-pointer"
+                  onClick={() => handleSort('product_type')}
+                >
+                  <div className="flex items-center gap-1">
+                    ประเภทสินค้า
+                    {sortField === 'product_type' && (
+                      sortDirection === 'asc' ? '↑' : '↓'
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead>หน่วยการแปลง</TableHead>
+                <TableHead>สถานะการตั้งค่า</TableHead>
+                <TableHead className="text-center">จัดการ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     ไม่พบข้อมูลสินค้าที่ตรงกับเงื่อนไขการค้นหา
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredProducts.map((product) => (
-                  <TableRow key={product.id}>
+                  <TableRow key={product.id || product.sku}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <div className="font-medium">{product.product_name}</div>
-                          {product.description && (
-                            <div className="text-sm text-muted-foreground">
-                              {product.description.length > 50
-                                ? `${product.description.substring(0, 50)}...`
-                                : product.description
-                              }
-                            </div>
-                          )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Hash className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-mono">{product.sku_code}</span>
+                        <span className="font-mono">{product.sku}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       {getTypeBadge(product.product_type)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <span>{product.brand || '-'}</span>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">1 {product.unit_level1_name || 'ลัง'}</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          <span>{product.unit_level1_rate || 24} {product.unit_level3_name || 'ชิ้น'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">1 {product.unit_level2_name || 'กล่อง'}</span>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          <span>{product.unit_level2_rate || 1} {product.unit_level3_name || 'ชิ้น'}</span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-muted-foreground" />
-                        <span>{product.category || '-'}</span>
-                      </div>
+                      {getConversionStatusBadge(product)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Scale className="h-4 w-4 text-muted-foreground" />
-                        <span>{product.unit_of_measure}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const conversionRate = getConversionRate(product.sku_code);
-                        if (conversionRate) {
-                          return (
-                            <div className="space-y-1 text-sm">
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">1 {conversionRate.unit_level1_name}</span>
-                                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                <span>{conversionRate.unit_level1_rate} {conversionRate.unit_level3_name}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="font-medium">1 {conversionRate.unit_level2_name}</span>
-                                <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                                <span>{conversionRate.unit_level2_rate} {conversionRate.unit_level3_name}</span>
-                              </div>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <span>1 ลัง</span>
-                                <ArrowRight className="h-3 w-3" />
-                                <span>144 ชิ้น</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span>1 กล่อง</span>
-                                <ArrowRight className="h-3 w-3" />
-                                <span>12 ชิ้น</span>
-                              </div>
-                              <Badge variant="outline" className="text-xs">ค่าเริ่มต้น</Badge>
-                            </div>
-                          );
-                        }
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(product.is_active)}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(product.created_at).toLocaleDateString('th-TH')}
+                    <TableCell className="text-center">
+                      {hasCustomConversion(product) ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditConversion(product)}
+                          className="gap-1"
+                        >
+                          <Edit className="h-3 w-3" />
+                          แก้ไข
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSetupConversion(product)}
+                          className="gap-1"
+                        >
+                          <Settings className="h-3 w-3" />
+                          ตั้งค่า
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -321,7 +363,7 @@ export const ProductSummaryTable = () => {
         </div>
 
         {filteredProducts.length > 0 && (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground mt-4">
             แสดง {filteredProducts.length} จากทั้งหมด {products.length} รายการ
           </div>
         )}

@@ -10,27 +10,28 @@ import { ProductsProvider } from "@/contexts/ProductsContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ReactProfiler } from "@/debug/ReactProfiler";
 import "@/debug/intervalDetector"; // CRITICAL: Import to activate interval monitoring
-import "@/utils/databaseTest"; // Import database test utilities
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { LocationDetail } from "./pages/LocationDetail";
 import SimpleAuth from "./pages/SimpleAuth";
 
-// CRITICAL: Disable all auto-refetch to prevent refresh loops
+// Development vs Production optimized query client configuration
+const isDevelopment = import.meta.env.DEV;
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 30, // 30 minutes - much longer
-      retry: 0, // No retries to prevent loops
-      refetchOnMount: false, // CRITICAL: Don't refetch on component mount
-      refetchOnWindowFocus: false, // CRITICAL: Don't refetch on window focus
-      refetchOnReconnect: false, // Don't refetch on network reconnect
+      staleTime: isDevelopment ? 1000 * 60 * 5 : 1000 * 60 * 30, // 5 min dev, 30 min prod
+      retry: isDevelopment ? 1 : 0, // Allow retries in development for better debugging
+      refetchOnMount: isDevelopment ? 'always' : false, // Refetch in dev for fresh data
+      refetchOnWindowFocus: isDevelopment ? true : false, // Enable in dev for debugging
+      refetchOnReconnect: isDevelopment ? true : false, // Enable in dev for debugging
       refetchInterval: false, // No automatic refetch intervals
       refetchIntervalInBackground: false, // No background refetch
     },
     mutations: {
-      retry: 0, // No retries for mutations either
+      retry: isDevelopment ? 1 : 0, // Allow mutation retries in development
     },
   },
 });

@@ -28,7 +28,7 @@ import {
   SalesBillWithPayment,
   CustomerPaymentSummary
 } from '@/services/accountingService';
-import { FallbackWarehouseService } from '@/services/fallbackWarehouseService';
+// FallbackWarehouseService removed - using 3-phase system only
 import { useToast } from '@/hooks/use-toast';
 
 export const AccountingDashboard: React.FC = () => {
@@ -66,18 +66,16 @@ export const AccountingDashboard: React.FC = () => {
 
   const checkSystemAndLoadData = async () => {
     try {
-      const has3PhaseTables = await FallbackWarehouseService.check3PhaseTablesExist();
-      setUse3PhaseSystem(has3PhaseTables);
-
-      if (!has3PhaseTables) {
-        const migration = await FallbackWarehouseService.isMigrationNeeded();
-        setMigrationInfo(migration);
-      }
-
-      await loadData(has3PhaseTables);
+      // Always use 3-phase system since fallback service was removed
+      setUse3PhaseSystem(true);
+      await loadData(true);
     } catch (error) {
       console.error('Error checking system:', error);
-      await loadData(false);
+      toast({
+        title: "ข้อผิดพลาด",
+        description: "ไม่สามารถโหลดข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อฐานข้อมูล",
+        variant: "destructive",
+      });
     }
   };
 
@@ -103,27 +101,15 @@ export const AccountingDashboard: React.FC = () => {
         setOverdueReports(overdue);
         setAgingReport(aging);
       } else {
-        const fallbackOrders = await FallbackWarehouseService.getFallbackOrdersQueue();
-        const fallbackStats = await FallbackWarehouseService.getFallbackWarehouseStats();
-
-        setSalesBills(fallbackOrders.map(order => ({
-          ...order,
-          payment_status: 'pending',
-          amount_paid: 0,
-          payment_date: null,
-          payment_method: null,
-          payment_reference: null,
-          payment_notes: null
-        })) as any);
-
+        // Fallback functionality removed - only using 3-phase system
+        setSalesBills([]);
         setPaymentSummary({
-          totalSales: fallbackOrders.reduce((sum, order) => sum + order.total_amount, 0),
+          totalSales: 0,
           totalPaid: 0,
-          totalOutstanding: fallbackOrders.reduce((sum, order) => sum + order.total_amount, 0),
+          totalOutstanding: 0,
           overdueAmount: 0,
           collectionRate: 0
         });
-
         setCustomerSummary([]);
         setOverdueReports([]);
         setAgingReport(null);

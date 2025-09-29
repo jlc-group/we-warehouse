@@ -137,6 +137,22 @@ export function InventoryTable({ items }: InventoryTableProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Conversion Legend */}
+        <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="bg-green-100 p-2 rounded-full">
+              <Package className="h-4 w-4 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-medium text-green-900 mb-2">📊 คำอธิบายการแสดงผลสต็อก</h4>
+              <div className="text-sm text-green-700 space-y-1">
+                <p>• <strong>จำนวนแยกหน่วย:</strong> แสดงจำนวนตามหน่วยจริงที่เก็บในคลัง (ลัง + กล่อง + ชิ้น)</p>
+                <p>• <strong>รวม (ชิ้น):</strong> <span className="text-blue-600 font-bold">จำนวนรวมหลังแปลงทุกหน่วยเป็นชิ้น</span> เพื่อให้เห็นปริมาณที่แท้จริง</p>
+                <p>• การคำนวณ: (ลัง × อัตราแปลง) + (กล่อง × อัตราแปลง) + ชิ้น</p>
+              </div>
+            </div>
+          </div>
+        </div>
         {items.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
@@ -153,7 +169,8 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   <TableHead className="text-center">รายการในตำแหน่ง</TableHead>
                   <TableHead>LOT</TableHead>
                   <TableHead>MFD</TableHead>
-                  <TableHead className="text-right">จำนวน</TableHead>
+                  <TableHead className="text-right">จำนวนแยกหน่วย</TableHead>
+                  <TableHead className="text-right">รวม (ชิ้น)</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead className="text-center">Export</TableHead>
                 </TableRow>
@@ -164,7 +181,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   return (
                     <>
                       <TableRow key={`${location}-header`} className="bg-muted/20">
-                        <TableCell colSpan={9} className="font-medium text-muted-foreground">
+                        <TableCell colSpan={10} className="font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-3 w-3" />
                             {displayLocation(location)}
@@ -224,18 +241,12 @@ export function InventoryTable({ items }: InventoryTableProps) {
                             </TableCell>
                             <TableCell>{item.lot || '-'}</TableCell>
                             <TableCell>{item.mfd ? formatDate(item.mfd) : '-'}</TableCell>
+                            {/* จำนวนแยกหน่วย */}
                             <TableCell className="text-right font-mono">
                               {(() => {
                                 const level1 = (item as any).unit_level1_quantity || 0;
                                 const level2 = (item as any).unit_level2_quantity || 0;
                                 const level3 = (item as any).unit_level3_quantity || 0;
-                                const level1Rate = (item as any).unit_level1_rate || 0;
-                                const level2Rate = (item as any).unit_level2_rate || 0;
-
-                                if (level1Rate > 0 || level2Rate > 0) {
-                                  const total = (level1 * level1Rate) + (level2 * level2Rate) + level3;
-                                  return `${total.toLocaleString('th-TH')} ${(item as any).unit_level3_name || 'ชิ้น'}`;
-                                }
 
                                 if (level1 > 0 || level2 > 0 || level3 > 0) {
                                   const parts = [];
@@ -246,6 +257,32 @@ export function InventoryTable({ items }: InventoryTableProps) {
                                 }
 
                                 return '0';
+                              })()}
+                            </TableCell>
+
+                            {/* รวม (ชิ้น) */}
+                            <TableCell className="text-right">
+                              {(() => {
+                                const level1 = (item as any).unit_level1_quantity || 0;
+                                const level2 = (item as any).unit_level2_quantity || 0;
+                                const level3 = (item as any).unit_level3_quantity || 0;
+                                const level1Rate = (item as any).unit_level1_rate || 0;
+                                const level2Rate = (item as any).unit_level2_rate || 0;
+
+                                const total = (level1 * level1Rate) + (level2 * level2Rate) + level3;
+
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-base text-blue-600">
+                                      {total.toLocaleString('th-TH')}
+                                    </span>
+                                    {(level1Rate > 0 || level2Rate > 0) && (
+                                      <span className="text-xs text-gray-500">
+                                        หลังแปลงหน่วย
+                                      </span>
+                                    )}
+                                  </div>
+                                );
                               })()}
                             </TableCell>
                             <TableCell>{getStockBadge(item)}</TableCell>

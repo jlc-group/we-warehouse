@@ -11,31 +11,27 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useState } from 'react';
-import type { InventoryItem } from '@/hooks/useInventory';
+import type { ProductSummary } from '@/hooks/useProductsSummary';
 import { formatUnitsDisplay } from '@/utils/unitCalculations';
 
 interface ProductCardProps {
-  item: InventoryItem;
+  item: ProductSummary;
   selectedQuantity?: {
     level1: number;
     level2: number;
     level3: number;
   };
-  onQuantityChange: (item: InventoryItem, quantity: {
+  onQuantityChange: (item: ProductSummary, quantity: {
     level1: number;
     level2: number;
     level3: number;
   }) => void;
-  locationColor?: string;
-  showLocation?: boolean;
 }
 
 export function ProductCard({
   item,
   selectedQuantity = { level1: 0, level2: 0, level3: 0 },
-  onQuantityChange,
-  locationColor,
-  showLocation = true
+  onQuantityChange
 }: ProductCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -43,11 +39,9 @@ export function ProductCard({
   const totalSelected = selectedQuantity.level1 + selectedQuantity.level2 + selectedQuantity.level3;
   const isSelected = totalSelected > 0;
 
-  // Get stock level and color
+  // ✅ Get stock level จาก total_pieces ของ ProductSummary
   const getStockLevel = () => {
-    const total = (item.unit_level1_quantity || 0) +
-                  (item.unit_level2_quantity || 0) +
-                  (item.unit_level3_quantity || 0);
+    const total = item.total_pieces || 0;
 
     if (total === 0) return { level: 'empty', color: 'bg-red-100 text-red-800 border-red-200' };
     if (total < 10) return { level: 'low', color: 'bg-orange-100 text-orange-800 border-orange-200' };
@@ -67,13 +61,13 @@ export function ProductCard({
 
   const stockLevel = getStockLevel();
 
-  // Handle quantity changes
+  // ✅ Handle quantity changes - ใช้ total_xxx_quantity จาก ProductSummary
   const updateQuantity = (level: 'level1' | 'level2' | 'level3', change: number) => {
     const newQuantity = { ...selectedQuantity };
     const currentValue = newQuantity[level];
-    const maxAvailable = level === 'level1' ? (item.unit_level1_quantity || 0) :
-                        level === 'level2' ? (item.unit_level2_quantity || 0) :
-                        (item.unit_level3_quantity || 0);
+    const maxAvailable = level === 'level1' ? (item.total_level1_quantity || 0) :
+                        level === 'level2' ? (item.total_level2_quantity || 0) :
+                        (item.total_level3_quantity || 0);
 
     const newValue = Math.max(0, Math.min(maxAvailable, currentValue + change));
     newQuantity[level] = newValue;
@@ -99,20 +93,15 @@ export function ProductCard({
             </div>
             <div className="text-xs text-gray-500 mb-2">
               รหัส: {item.sku}
+              {/* ✅ แสดง product_type */}
+              {item.product_type && (
+                <Badge variant="outline" className="ml-2 text-xs px-1 py-0">
+                  {item.product_type}
+                </Badge>
+              )}
             </div>
 
-            {/* Location Badge */}
-            {showLocation && (
-              <div className="flex items-center gap-1 mb-2">
-                <MapPin className="h-3 w-3 text-gray-400" />
-                <Badge
-                  variant="outline"
-                  className={`text-xs ${locationColor || 'bg-gray-100'}`}
-                >
-                  {item.location}
-                </Badge>
-              </div>
-            )}
+            {/* ลบ Location Badge - เซลไม่ต้องเห็น location */}
 
             {/* Stock Level Indicator */}
             <Badge
@@ -139,22 +128,23 @@ export function ProductCard({
           )}
         </div>
 
-        {/* Stock Info */}
+        {/* ✅ Stock Info - ใช้ total_xxx_quantity จาก ProductSummary */}
         <div className="text-xs text-gray-600 mb-3 space-y-1">
-          {item.unit_level1_quantity && item.unit_level1_quantity > 0 && (
-            <div>• {item.unit_level1_name || 'ลัง'}: {item.unit_level1_quantity}</div>
+          {item.total_level1_quantity && item.total_level1_quantity > 0 && (
+            <div>• {item.unit_level1_name || 'ลัง'}: {item.total_level1_quantity}</div>
           )}
-          {item.unit_level2_quantity && item.unit_level2_quantity > 0 && (
-            <div>• {item.unit_level2_name || 'กล่อง'}: {item.unit_level2_quantity}</div>
+          {item.total_level2_quantity && item.total_level2_quantity > 0 && (
+            <div>• {item.unit_level2_name || 'กล่อง'}: {item.total_level2_quantity}</div>
           )}
-          {item.unit_level3_quantity && item.unit_level3_quantity > 0 && (
-            <div>• {item.unit_level3_name || 'ชิ้น'}: {item.unit_level3_quantity}</div>
+          {item.total_level3_quantity && item.total_level3_quantity > 0 && (
+            <div>• {item.unit_level3_name || 'ชิ้น'}: {item.total_level3_quantity}</div>
           )}
+          <div className="text-blue-600 font-medium">• รวม: {(item.total_pieces || 0).toLocaleString()} ชิ้น</div>
         </div>
 
         {/* Quick Add Buttons */}
         <div className="space-y-2">
-          {item.unit_level1_quantity && item.unit_level1_quantity > 0 && (
+          {item.total_level1_quantity && item.total_level1_quantity > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-600">{item.unit_level1_name}</span>
               <div className="flex items-center gap-1">
@@ -184,7 +174,7 @@ export function ProductCard({
                         updateQuantity('level1', 1);
                       }}
                       className="h-6 w-6 p-0"
-                      disabled={selectedQuantity.level1 >= (item.unit_level1_quantity || 0)}
+                      disabled={selectedQuantity.level1 >= (item.total_level1_quantity || 0)}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -208,7 +198,7 @@ export function ProductCard({
             </div>
           )}
 
-          {item.unit_level2_quantity && item.unit_level2_quantity > 0 && (
+          {item.total_level2_quantity && item.total_level2_quantity > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-600">{item.unit_level2_name}</span>
               <div className="flex items-center gap-1">
@@ -238,7 +228,7 @@ export function ProductCard({
                         updateQuantity('level2', 1);
                       }}
                       className="h-6 w-6 p-0"
-                      disabled={selectedQuantity.level2 >= (item.unit_level2_quantity || 0)}
+                      disabled={selectedQuantity.level2 >= (item.total_level2_quantity || 0)}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -262,7 +252,7 @@ export function ProductCard({
             </div>
           )}
 
-          {item.unit_level3_quantity && item.unit_level3_quantity > 0 && (
+          {item.total_level3_quantity && item.total_level3_quantity > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-600">{item.unit_level3_name}</span>
               <div className="flex items-center gap-1">
@@ -292,7 +282,7 @@ export function ProductCard({
                         updateQuantity('level3', 1);
                       }}
                       className="h-6 w-6 p-0"
-                      disabled={selectedQuantity.level3 >= (item.unit_level3_quantity || 0)}
+                      disabled={selectedQuantity.level3 >= (item.total_level3_quantity || 0)}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>

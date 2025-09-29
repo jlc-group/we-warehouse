@@ -1,11 +1,14 @@
-import { FileText, CheckCircle, Package, Truck } from 'lucide-react';
+import { FileText, CheckCircle, Package, Truck, Warehouse, Send } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
 interface OrderStats {
   total: number;
-  confirmed: number;
-  preparing: number;
+  draft: number;
+  approved: number;
+  warehouse: number;
+  shipped: number;
   delivered: number;
+  cancelled: number;
 }
 
 interface OrderStatusCardsProps {
@@ -21,30 +24,30 @@ export function OrderStatusCards({ stats, isLoading = false }: OrderStatusCardsP
       icon: FileText,
       bgColor: 'bg-indigo-100',
       iconColor: 'text-indigo-600',
-      description: '',
+      description: 'รวมทั้งหมด',
     },
     {
-      title: 'ยืนยันแล้ว',
-      value: stats.confirmed,
+      title: 'อนุมัติแล้ว',
+      value: stats.approved,
       icon: CheckCircle,
       bgColor: 'bg-blue-100',
       iconColor: 'text-blue-600',
-      description: `${stats.confirmed} รอจัดเตรียม`,
+      description: `${stats.approved} พร้อมส่งคลัง`,
     },
     {
-      title: 'กำลังจัดเตรียม',
-      value: stats.preparing,
-      icon: Package,
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-      description: `${stats.preparing} กำลังดำเนินการ`,
+      title: 'คลังสินค้า',
+      value: stats.warehouse,
+      icon: Warehouse,
+      bgColor: 'bg-purple-100',
+      iconColor: 'text-purple-600',
+      description: `${stats.warehouse} อยู่ที่คลัง`,
     },
     {
       title: 'ส่งมอบแล้ว',
       value: stats.delivered,
       icon: Truck,
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
+      bgColor: 'bg-green-100',
+      iconColor: 'text-green-600',
       description: `${stats.delivered} เสร็จสิ้น`,
     },
   ];
