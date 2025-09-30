@@ -8,7 +8,6 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
 import { EnhancedEventLogs } from '@/components/EnhancedEventLogs';
 import { EnhancedOverview } from '@/components/EnhancedOverview';
-import { InventoryQuickStats } from '@/components/InventoryQuickStats';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
@@ -21,7 +20,7 @@ import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
-// import { ResourceMonitor } from '@/components/ResourceMonitor'; // Temporarily disabled
+import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -45,7 +44,7 @@ import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, Us
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { DisabledUserProfile } from '@/components/DisabledUserProfile';
+// Removed DisabledUserProfile import
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
@@ -59,6 +58,7 @@ import { FallbackBanner } from '@/components/FallbackBanner';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { PurchaseOrdersList } from '@/components/PurchaseOrdersList';
 import { FulfillmentQueue } from '@/components/FulfillmentQueue';
+import { WarehousePickingSystem } from '@/components/WarehousePickingSystem';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -853,14 +853,6 @@ const Index = memo(() => {
 
 
           <TabsContent value="overview" className="space-y-4">
-            {/* Stock Summary Cards */}
-            {!loading && inventoryItems.length > 0 && (
-              <InventoryQuickStats
-                items={inventoryItems}
-                className="mb-6"
-              />
-            )}
-
             <EnhancedOverview
               items={inventoryItems}
               onShelfClick={handleShelfClick}
@@ -902,7 +894,26 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="fulfillment" className="space-y-4">
-                <FulfillmentQueue />
+                <Tabs defaultValue="queue" className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="queue" className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      งานจัดสินค้า
+                    </TabsTrigger>
+                    <TabsTrigger value="picking" className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      จัดสินค้าตามตำแหน่ง
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="queue">
+                    <FulfillmentQueue />
+                  </TabsContent>
+
+                  <TabsContent value="picking">
+                    <WarehousePickingSystem />
+                  </TabsContent>
+                </Tabs>
               </TabsContent>
             </Tabs>
           </TabsContent>

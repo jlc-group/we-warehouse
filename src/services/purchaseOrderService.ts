@@ -3,6 +3,8 @@
  * Handles fetching PO data and converting to warehouse fulfillment tasks
  */
 
+import { supabase } from '@/integrations/supabase/client';
+
 // API Configuration
 const JLC_API_BASE = 'http://jhserver.dyndns.info:82';
 
@@ -69,11 +71,15 @@ export interface FulfillmentItem {
   id: string;
   fulfillment_task_id: string;
   product_name: string;
+  product_code?: string;
   requested_quantity: number;
   fulfilled_quantity: number;
   unit_price: number;
   total_amount: number;
   status: 'pending' | 'partial' | 'completed';
+  inventory_item_id?: string;
+  available_stock?: number;
+  location?: string;
 }
 
 /**
@@ -149,10 +155,103 @@ export class PurchaseOrderService {
   }
 
   /**
-   * Convert PO to Fulfillment Task format
+   * Find matching inventory items for PO product
    */
-  static convertPOToFulfillmentTask(po: PurchaseOrderFull): FulfillmentTask {
+  static async findInventoryItemForProduct(productKeydata: string): Promise<{
+    inventory_item_id?: string;
+    product_code?: string;
+    available_stock?: number;
+    location?: string;
+  } | null> {
+    try {
+      // First, try to find exact match by product name
+      let { data: inventoryData, error } = await supabase
+        .from('inventory_items')
+        .select(`
+          id,
+          product_name,
+          quantity,
+          location,
+          products (
+            id,
+            name,
+            sku_code
+          )
+        `)
+        .eq('product_name', productKeydata)
+        .gt('quantity', 0)
+        .limit(1)
+        .single();
+
+      // If no exact match, try partial match (case insensitive)
+      if (error || !inventoryData) {
+        const { data: partialMatchData, error: partialError } = await supabase
+          .from('inventory_items')
+          .select(`
+            id,
+            product_name,
+            quantity,
+            location,
+            products (
+              id,
+              name,
+              sku_code
+            )
+          `)
+          .ilike('product_name', `%${productKeydata}%`)
+          .gt('quantity', 0)
+          .limit(1);
+
+        if (partialError || !partialMatchData || partialMatchData.length === 0) {
+          console.warn(`No inventory found for product: ${productKeydata}`);
+          return null;
+        }
+        inventoryData = partialMatchData[0];
+      }
+
+      return {
+        inventory_item_id: inventoryData.id,
+        product_code: inventoryData.products?.sku_code || productKeydata,
+        available_stock: inventoryData.quantity,
+        location: inventoryData.location || 'ไม่ระบุ'
+      };
+
+    } catch (error) {
+      console.error('Error finding inventory item:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Convert PO to Fulfillment Task format with inventory linking
+   */
+  static async convertPOToFulfillmentTask(po: PurchaseOrderFull): Promise<FulfillmentTask> {
     const { header, details } = po;
+
+    // Process items with inventory linking
+    const items: FulfillmentItem[] = [];
+
+    for (let index = 0; index < details.length; index++) {
+      const detail = details[index];
+      const inventoryInfo = await this.findInventoryItemForProduct(detail.Keydata);
+
+      const item: FulfillmentItem = {
+        id: `fi_${detail.ID}_${index}`,
+        fulfillment_task_id: `ft_${header.PO_Number}_${Date.now()}`,
+        product_name: detail.Keydata,
+        product_code: inventoryInfo?.product_code || detail.Keydata,
+        requested_quantity: parseFloat(detail.Quantity),
+        fulfilled_quantity: 0,
+        unit_price: parseFloat(detail.UnitPrice),
+        total_amount: parseFloat(detail.TotalAmount),
+        status: 'pending' as const,
+        inventory_item_id: inventoryInfo?.inventory_item_id,
+        available_stock: inventoryInfo?.available_stock || 0,
+        location: inventoryInfo?.location
+      };
+
+      items.push(item);
+    }
 
     const fulfillmentTask: FulfillmentTask = {
       id: `ft_${header.PO_Number}_${Date.now()}`,
@@ -163,16 +262,7 @@ export class PurchaseOrderService {
       warehouse_name: header.Warehouse_Name,
       total_amount: parseFloat(header.M_TotalAmount),
       status: 'pending',
-      items: details.map((detail, index) => ({
-        id: `fi_${detail.ID}_${index}`,
-        fulfillment_task_id: `ft_${header.PO_Number}_${Date.now()}`,
-        product_name: detail.Keydata,
-        requested_quantity: parseFloat(detail.Quantity),
-        fulfilled_quantity: 0,
-        unit_price: parseFloat(detail.UnitPrice),
-        total_amount: parseFloat(detail.TotalAmount),
-        status: 'pending' as const
-      })),
+      items,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
