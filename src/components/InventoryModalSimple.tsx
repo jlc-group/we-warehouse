@@ -235,16 +235,16 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   const filteredProductCodes = useMemo(() => {
     const filtered = productHelpers.getFilteredProductCodes(availableProducts, productCodeInputValue, selectedProductType);
 
-    // เพิ่ม debug logging
-    console.log('🔍 InventoryModalSimple: Filtering products for location', {
-      location,
-      totalAvailableProducts: availableProducts.length,
-      searchTerm: productCodeInputValue,
-      selectedProductType,
-      filteredCount: filtered.length,
-      sampleFiltered: filtered.slice(0, 5),
-      dataSource: productsSummaryResult?.data ? 'ProductsSummary' : 'ProductsContext'
-    });
+    // Silent mode - debug logging disabled
+    // console.log('🔍 InventoryModalSimple: Filtering products for location', {
+    //   location,
+    //   totalAvailableProducts: availableProducts.length,
+    //   searchTerm: productCodeInputValue,
+    //   selectedProductType,
+    //   filteredCount: filtered.length,
+    //   sampleFiltered: filtered.slice(0, 5),
+    //   dataSource: productsSummaryResult?.data ? 'ProductsSummary' : 'ProductsContext'
+    // });
 
     return filtered;
   }, [availableProducts, productCodeInputValue, selectedProductType, location, productsSummaryResult]);

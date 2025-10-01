@@ -60,17 +60,17 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     fetch: async (url, options = {}) => {
       let lastError: Error | null = null;
 
-      // Debug: Log headers being sent (only in development)
-      if (import.meta.env.MODE === 'development' && url.includes('/rest/v1/')) {
-        console.log('🔧 Supabase Request Debug:', {
-          url: url.substring(0, 80) + '...',
-          hasHeaders: !!options.headers,
-          headerType: options.headers instanceof Headers ? 'Headers object' : typeof options.headers,
-          apikey: options.headers instanceof Headers
-            ? options.headers.get('apikey')?.substring(0, 20) + '...'
-            : (options.headers as any)?.apikey?.substring(0, 20) + '...'
-        });
-      }
+      // Silent mode - only log on errors
+      // if (import.meta.env.MODE === 'development' && url.includes('/rest/v1/')) {
+      //   console.log('🔧 Supabase Request Debug:', {
+      //     url: url.substring(0, 80) + '...',
+      //     hasHeaders: !!options.headers,
+      //     headerType: options.headers instanceof Headers ? 'Headers object' : typeof options.headers,
+      //     apikey: options.headers instanceof Headers
+      //       ? options.headers.get('apikey')?.substring(0, 20) + '...'
+      //       : (options.headers as any)?.apikey?.substring(0, 20) + '...'
+      //   });
+      // }
 
       for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         try {

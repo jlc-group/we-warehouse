@@ -29,8 +29,7 @@ class IntervalDetector {
         : String(callback);
 
       const id = this.originalSetInterval.call(window, (...innerArgs: any[]) => {
-        console.warn(`🔄 setInterval executing (ID: ${id}, delay: ${delay}ms):`, callbackStr.substring(0, 50));
-
+        // Silent execution - only log if error or very slow
         const startTime = performance.now();
         try {
           if (typeof callback === 'function') {
@@ -42,14 +41,13 @@ class IntervalDetector {
         const endTime = performance.now();
         const duration = endTime - startTime;
 
-        if (duration > 50) {
-          console.error(`🚨 SLOW setInterval detected (ID: ${id}): ${duration.toFixed(2)}ms`);
-          console.error('Callback:', callbackStr);
-          console.error('Stack trace:', this.intervals.get(id)?.stack);
+        // Only log if VERY slow (>100ms)
+        if (duration > 100) {
+          console.warn(`🚨 SLOW setInterval (ID: ${id}): ${duration.toFixed(2)}ms`, callbackStr.substring(0, 50));
         }
       }, delay, ...args);
 
-      // Track this interval
+      // Track this interval silently
       this.intervals.set(id, {
         id,
         callback: callbackStr,
@@ -58,8 +56,8 @@ class IntervalDetector {
         stack
       });
 
-      console.log(`✅ setInterval created (ID: ${id}, delay: ${delay}ms):`, callbackStr.substring(0, 50));
-      console.log('Created at:', stack.split('\n')[2]); // Show where it was created
+      // Silent tracking - only log if in verbose mode
+      // console.log(`✅ setInterval created (ID: ${id}, delay: ${delay}ms):`, callbackStr.substring(0, 50));
 
       return id;
     }) as typeof setInterval;
@@ -67,13 +65,15 @@ class IntervalDetector {
     // Override clearInterval to track cleanup
     window.clearInterval = (id: number) => {
       if (this.intervals.has(id)) {
-        console.log(`🧹 clearInterval called for ID: ${id}`);
+        // Silent cleanup
+        // console.log(`🧹 clearInterval called for ID: ${id}`);
         this.intervals.delete(id);
       }
       return this.originalClearInterval.call(window, id);
     };
 
-    console.log('🔍 IntervalDetector initialized - monitoring all setInterval calls');
+    // Silent initialization
+    // console.log('🔍 IntervalDetector initialized - monitoring all setInterval calls');
   }
 
   public getActiveIntervals(): IntervalInfo[] {
@@ -128,4 +128,4 @@ export const getActiveIntervals = () => intervalDetector.getActiveIntervals();
 // }
 
 // Manual logging only - call logActiveIntervals() from browser console if needed
-console.log('🔍 IntervalDetector ready - use logActiveIntervals() to check manually');
+// console.log('🔍 IntervalDetector ready - use logActiveIntervals() to check manually');

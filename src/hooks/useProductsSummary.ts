@@ -60,17 +60,19 @@ export function useProductsSummary() {
   return useQuery({
     queryKey: ['products-summary', fallbackInventory.items?.length],
     queryFn: async (): Promise<ProductsSummaryResult> => {
-      console.log('📦 Fetching products summary...');
+      // Silent mode - only log errors
+      // console.log('📦 Fetching products summary...');
 
       // ตรวจสอบว่า view มีอยู่หรือไม่ก่อน
       const viewCheck = await checkViewExists(REQUIRED_VIEWS.PRODUCTS_SUMMARY);
       const now = new Date();
 
-      console.log('🔍 Database view check:', {
-        viewName: REQUIRED_VIEWS.PRODUCTS_SUMMARY,
-        exists: viewCheck.exists,
-        checkTime: now.toISOString()
-      });
+      // Silent view check
+      // console.log('🔍 Database view check:', {
+      //   viewName: REQUIRED_VIEWS.PRODUCTS_SUMMARY,
+      //   exists: viewCheck.exists,
+      //   checkTime: now.toISOString()
+      // });
 
       if (!viewCheck.exists) {
         console.warn('🚨 products_summary view not found - using fallback mode');
@@ -113,10 +115,11 @@ export function useProductsSummary() {
           };
         }
 
-        console.log('✅ Fetched products summary from view:', {
-          count: data?.length || 0,
-          sample: data?.slice(0, 3).map(p => ({ sku: p.sku, name: p.product_name, stock: p.total_pieces })) || []
-        });
+        // Silent success
+        // console.log('✅ Fetched products summary from view:', {
+        //   count: data?.length || 0,
+        //   sample: data?.slice(0, 3).map(p => ({ sku: p.sku, name: p.product_name, stock: p.total_pieces })) || []
+        // });
         return {
           data: (data || []) as ProductSummary[],
           meta: {
