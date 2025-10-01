@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, Fragment } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -179,7 +179,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                 {uniqueLocations.map((location) => {
                   const locationItems = itemsByLocation.get(location) || [];
                   return (
-                    <React.Fragment key={`location-${location}`}>
+                    <Fragment key={`location-${location}`}>
                       <TableRow key={`${location}-header`} className="bg-muted/20">
                         <TableCell colSpan={10} className="font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">
@@ -300,7 +300,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                           </TableRow>
                         );
                       })}
-                    </React.Fragment>
+                    </Fragment>
                   );
                 })}
               </TableBody>

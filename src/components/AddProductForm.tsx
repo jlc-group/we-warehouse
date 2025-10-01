@@ -11,6 +11,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { Package, Hash, Save, RotateCcw, Settings } from 'lucide-react';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import UnitConversionSettings from '@/components/UnitConversionSettings';
+import { supabase } from '@/integrations/supabase/client';
 
 type ProductType = 'FG' | 'PK';
 
@@ -62,6 +63,54 @@ export function AddProductForm() {
       const result = await addProduct(productData);
 
       if (result) {
+        // Create default conversion rate for the new product
+        console.log('✅ Product added, creating default conversion rate...');
+        try {
+          // Get the product_id from the newly created product
+          const { data: newProduct, error: fetchError } = await supabase
+            .from('products')
+            .select('id, sku_code, product_name, product_type')
+            .eq('sku_code', data.sku_code)
+            .single();
+
+          if (fetchError || !newProduct) {
+            console.warn('⚠️ Could not fetch new product:', fetchError);
+            throw new Error('Failed to fetch product ID');
+          }
+
+          // Insert conversion rate with all required fields
+          const { error: conversionError } = await supabase
+            .from('product_conversion_rates')
+            .insert({
+              product_id: newProduct.id,
+              sku: newProduct.sku_code,
+              product_name: newProduct.product_name,
+              product_type: newProduct.product_type,
+              unit_level1_name: 'ลัง',
+              unit_level1_rate: 144,
+              unit_level2_name: 'กล่อง',
+              unit_level2_rate: 12,
+              unit_level3_name: 'ชิ้น'
+            });
+
+          if (conversionError) {
+            console.warn('⚠️ Could not create default conversion rate:', conversionError);
+            toast({
+              title: '⚠️ คำเตือน',
+              description: 'เพิ่มสินค้าสำเร็จแล้ว แต่ยังไม่ได้ตั้งค่าการแปลงหน่วย กรุณาไปตั้งค่าในแท็บ "การแปลงหน่วย"',
+              variant: 'default',
+            });
+          } else {
+            console.log('✅ Default conversion rate created successfully');
+            toast({
+              title: '✅ สำเร็จ',
+              description: `เพิ่มสินค้า "${data.product_name}" และสร้างการแปลงหน่วยเริ่มต้นเรียบร้อย (ใช้ product_id ไม่ซ้ำซ้อน)`,
+            });
+          }
+        } catch (convError) {
+          console.error('❌ Error creating conversion rate:', convError);
+        }
+
         // Reset form
         reset();
       }
@@ -88,7 +137,13 @@ export function AddProductForm() {
   return (
     <div className="space-y-6">
       {/* Product Management Tabs */}
-      <Tabs defaultValue="add-product" className="space-y-4">
+      <Tabs
+        defaultValue="add-product"
+        className="space-y-4"
+        onValueChange={(value) => {
+          console.log('📑 AddProductForm: Tab changed to:', value);
+        }}
+      >
         <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
           <TabsTrigger value="add-product" className="flex items-center gap-2">
             <Package className="h-4 w-4" />

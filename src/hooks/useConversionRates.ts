@@ -25,15 +25,13 @@ export function useConversionRates() {
       const result = await secureGatewayClient.get<ConversionRateData[]>('conversionRates');
 
       if (result.success && result.data) {
+        console.log(`✅ useConversionRates: Gateway returned ${result.data.length} records`);
+        console.log(`✅ useConversionRates: First 3 items:`, result.data.slice(0, 3));
         setConversionRates(result.data);
-        console.log(`✅ useConversionRates: Loaded ${result.data.length} conversion rates via gateway`);
+        console.log(`✅ useConversionRates: State updated with ${result.data.length} conversion rates`);
       } else {
-        // Fallback to service
-        console.log('🔄 useConversionRates: Gateway returned no data, using service fallback...');
-        const data = await productConversionService.getProductsWithConversions();
-        const conversionData = data.map(p => p.conversion_rates).filter(Boolean) as ConversionRateData[];
-        setConversionRates(conversionData);
-        console.log(`✅ useConversionRates: Loaded ${conversionData.length} conversion rates via fallback`);
+        console.warn('⚠️ useConversionRates: Gateway returned success but no data');
+        setConversionRates([]);
       }
     } catch (err) {
       console.error('❌ useConversionRates: Error fetching conversion rates:', err);
@@ -221,6 +219,7 @@ export function useConversionRates() {
   }, []);
 
   useEffect(() => {
+    console.log('🔄 useConversionRates: useEffect triggered, calling fetchConversionRates...');
     fetchConversionRates();
   }, [fetchConversionRates]);
 

@@ -1,4 +1,4 @@
-import { Component,forwardRef, type ComponentPropsWithoutRef,ElementRef,HTMLAttributes } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type HTMLAttributes } from "react";
 import * as MenubarPrimitive from "@radix-ui/react-menubar";
 import { Check, ChevronRight, Circle } from "lucide-react";
 

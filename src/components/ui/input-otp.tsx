@@ -1,4 +1,4 @@
-import { Component,forwardRef,useContext, type ComponentPropsWithoutRef,ElementRef } from "react";
+import { forwardRef, useContext, type ComponentPropsWithoutRef, type ElementRef } from "react";
 import { OTPInput, OTPInputContext } from "input-otp";
 import { Dot } from "lucide-react";
 

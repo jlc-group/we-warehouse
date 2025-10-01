@@ -1,4 +1,4 @@
-import { Component,createContext,forwardRef,useCallback,useContext,useEffect,useState, type ComponentProps,HTMLAttributes,KeyboardEvent } from "react";
+import { createContext, forwardRef, useCallback, useContext, useEffect, useState, type ComponentProps, type HTMLAttributes, type KeyboardEvent } from "react";
 import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 

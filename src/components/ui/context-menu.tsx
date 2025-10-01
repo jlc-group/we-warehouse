@@ -1,4 +1,4 @@
-import { Component,forwardRef, type ComponentPropsWithoutRef,ElementRef,HTMLAttributes } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type HTMLAttributes } from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 

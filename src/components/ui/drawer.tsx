@@ -1,4 +1,4 @@
-import { Component,forwardRef, type ComponentProps,ComponentPropsWithoutRef,ElementRef,HTMLAttributes } from "react";
+import { forwardRef, type ComponentProps, type ComponentPropsWithoutRef, type ElementRef, type HTMLAttributes } from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/lib/utils";

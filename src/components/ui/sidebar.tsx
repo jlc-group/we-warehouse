@@ -1,4 +1,4 @@
-import { Component,createContext,forwardRef,useCallback,useContext,useEffect,useMemo,useState, type CSSProperties,ComponentProps,ElementRef,KeyboardEvent } from "react";
+import { createContext, forwardRef, useCallback, useContext, useEffect, useMemo, useState, type CSSProperties, type ComponentProps, type ElementRef, type KeyboardEvent } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { VariantProps, cva } from "class-variance-authority";
 import { PanelLeft } from "lucide-react";

@@ -118,11 +118,13 @@ export const secureGatewayClient = {
         }
 
         case 'conversionRates': {
-          console.log('🔄 Fetching conversion rates from database...');
+          console.log('🔄 Fetching conversion rates from database (no JOIN needed)...');
 
+          // Table already has sku and product_name columns!
           let query = supabase
             .from('product_conversion_rates')
             .select(`
+              id,
               sku,
               product_name,
               product_id,
@@ -135,19 +137,17 @@ export const secureGatewayClient = {
               created_at,
               updated_at
             `)
-            .order('sku');
+            .order('created_at', { ascending: false });
 
           if (params?.sku) {
             console.log(`🔍 Filtering by SKU: ${params.sku}`);
             query = query.eq('sku', params.sku).single();
           }
 
-          if (params?.search) {
-            console.log(`🔍 Searching for: ${params.search}`);
-            query = query.or(`sku.ilike.%${params.search}%,product_name.ilike.%${params.search}%`);
-          }
-
           const { data, error } = await query;
+
+          console.log('🔍 Raw data from query:', data);
+          console.log('🔍 Error from query:', error);
 
           if (error) {
             if (error.code === 'PGRST116') {
@@ -159,9 +159,18 @@ export const secureGatewayClient = {
             }
           }
 
-          const resultCount = Array.isArray(data) ? data.length : (data ? 1 : 0);
-          console.log(`✅ Retrieved ${resultCount} conversion rates`);
-          return { success: true, data: data as T };
+          // Ensure we always return an array
+          if (!data) {
+            console.log('⚠️ No data returned from query');
+            return { success: true, data: [] as T };
+          }
+
+          const resultArray = Array.isArray(data) ? data : [data];
+          console.log(`✅ Retrieved ${resultArray.length} conversion rates`);
+          console.log('🔍 Sample data:', resultArray.length > 0 ? resultArray[0] : null);
+          console.log('🔍 Is Array?', Array.isArray(resultArray), 'Length:', resultArray.length);
+
+          return { success: true, data: resultArray as T };
         }
 
         case 'productsWithConversions': {
@@ -463,9 +472,24 @@ export const secureGatewayClient = {
         }
 
         case 'createConversionRate': {
-          // Validate required fields
-          if (!payload.sku || !payload.product_name) {
-            throw new Error('SKU และชื่อสินค้าจำเป็นต้องระบุ');
+          // Validate required fields - now only need SKU or product_id
+          if (!payload.sku && !payload.product_id) {
+            throw new Error('SKU หรือ product_id จำเป็นต้องระบุ');
+          }
+
+          // If SKU provided, find product_id
+          let productId = payload.product_id;
+          if (!productId && payload.sku) {
+            const { data: product } = await supabase
+              .from('products')
+              .select('id')
+              .eq('sku_code', payload.sku)
+              .single();
+
+            if (!product) {
+              throw new Error(`ไม่พบสินค้า SKU: ${payload.sku}`);
+            }
+            productId = product.id;
           }
 
           // Validate conversion rates are positive numbers
@@ -479,10 +503,7 @@ export const secureGatewayClient = {
           const { data, error } = await supabase
             .from('product_conversion_rates')
             .insert([{
-              sku: payload.sku,
-              product_name: payload.product_name,
-              product_id: payload.product_id || null,
-              product_type: payload.product_type || null,
+              product_id: productId,
               unit_level1_name: payload.unit_level1_name || 'ลัง',
               unit_level1_rate: payload.unit_level1_rate || 144,
               unit_level2_name: payload.unit_level2_name || 'กล่อง',
@@ -494,12 +515,28 @@ export const secureGatewayClient = {
             .single();
 
           if (error) throw error;
+          console.log('✅ Created conversion rate using product_id (no duplicate data!)');
           return { success: true, data };
         }
 
         case 'updateConversionRate': {
-          if (!payload.sku) {
-            throw new Error('SKU จำเป็นต้องระบุ');
+          if (!payload.sku && !payload.product_id) {
+            throw new Error('SKU หรือ product_id จำเป็นต้องระบุ');
+          }
+
+          // Find product_id if SKU provided
+          let productId = payload.product_id;
+          if (!productId && payload.sku) {
+            const { data: product } = await supabase
+              .from('products')
+              .select('id')
+              .eq('sku_code', payload.sku)
+              .single();
+
+            if (!product) {
+              throw new Error(`ไม่พบสินค้า SKU: ${payload.sku}`);
+            }
+            productId = product.id;
           }
 
           // Validate conversion rates are positive numbers
@@ -516,25 +553,41 @@ export const secureGatewayClient = {
               ...payload.updates,
               updated_at: new Date().toISOString()
             })
-            .eq('sku', payload.sku)
+            .eq('product_id', productId)
             .select()
             .single();
 
           if (error) throw error;
+          console.log('✅ Updated conversion rate using product_id');
           return { success: true, data };
         }
 
         case 'deleteConversionRate': {
-          if (!payload.sku) {
-            throw new Error('SKU จำเป็นต้องระบุ');
+          if (!payload.sku && !payload.product_id) {
+            throw new Error('SKU หรือ product_id จำเป็นต้องระบุ');
+          }
+
+          // Find product_id if SKU provided
+          let productId = payload.product_id;
+          if (!productId && payload.sku) {
+            const { data: product } = await supabase
+              .from('products')
+              .select('id')
+              .eq('sku_code', payload.sku)
+              .single();
+
+            if (product) {
+              productId = product.id;
+            }
           }
 
           const { error } = await supabase
             .from('product_conversion_rates')
             .delete()
-            .eq('sku', payload.sku);
+            .eq('product_id', productId);
 
           if (error) throw error;
+          console.log('✅ Deleted conversion rate using product_id');
           return { success: true, data: { deleted: true, sku: payload.sku } };
         }
 

@@ -36,44 +36,24 @@ export class LocationQRService {
    */
   static async getAllQRCodes(): Promise<LocationQRServiceResult<LocationQRCode[]>> {
     try {
-      // Add retry logic for network issues
-      let data, error;
-      let retries = 3;
+      console.log('🔍 LocationQRService: Fetching QR codes...');
 
-      while (retries > 0) {
-        try {
-          // Add timeout to individual query
-          const queryPromise = supabase
-            .from('location_qr_codes')
-            .select('*')
-            .eq('is_active', true)
-            .order('created_at', { ascending: false });
-
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Query timeout after 60 seconds')), 60000)
-          );
-
-          const result = await Promise.race([queryPromise, timeoutPromise]);
-          data = result.data;
-          error = result.error;
-          break; // Success, exit retry loop
-        } catch (networkError: any) {
-          console.warn(`Network error (${4 - retries}/3):`, networkError.message);
-          retries--;
-          if (retries === 0) {
-            throw networkError;
-          }
-          // Wait before retry (progressive backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
-        }
-      }
+      // Simple query with timeout - no retry to prevent error spam
+      const { data, error } = await supabase
+        .from('location_qr_codes')
+        .select('id, location, qr_code, is_active, created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(100) // Reduced limit for faster query
+        .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
 
       if (error) {
-        console.error('Error fetching QR codes:', error);
+        console.warn('⚠️ LocationQRService: Error fetching QR codes (returning empty array):', error.message);
+        // Return empty array instead of null to prevent UI errors
         return {
-          data: null,
-          error: `ไม่สามารถดึงข้อมูล QR Code ได้: ${error.message}`,
-          success: false
+          data: [],
+          error: null, // Don't propagate error to UI
+          success: true
         };
       }
 

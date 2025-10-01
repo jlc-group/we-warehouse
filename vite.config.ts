@@ -8,10 +8,9 @@ export default defineConfig(({ mode }) => ({
   base: "/",
   server: {
     host: "::",
-    port: 8081,
-    strictPort: false, // Allow automatic port selection if port is busy
+    port: 5173,
+    strictPort: true,
     hmr: mode === 'development' ? {
-      port: 8082, // Use separate port for HMR
       overlay: true, // Show errors in overlay
     } : false, // Enable HMR only in development
     // Enable CSS HMR in development for better UX

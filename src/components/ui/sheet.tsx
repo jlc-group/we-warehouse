@@ -1,7 +1,7 @@
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
-import { Component,forwardRef, type ComponentPropsWithoutRef,ElementRef,HTMLAttributes } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type HTMLAttributes } from "react";
 
 import { cn } from "@/lib/utils";
 

@@ -38,6 +38,8 @@ import { useProducts } from '@/contexts/ProductsContext';
 import { toast } from 'sonner';
 
 export default function UnitConversionSettings() {
+  console.log('🎨 UnitConversionSettings: Component rendering...');
+
   const { products } = useProducts();
   const {
     conversionRates,
@@ -49,10 +51,35 @@ export default function UnitConversionSettings() {
     deleteConversionRate
   } = useConversionRates();
 
+  console.log('🎨 UnitConversionSettings: State loaded', {
+    productsCount: products.length,
+    conversionRatesCount: conversionRates.length,
+    loading,
+    error
+  });
+
+  // Debug: Show sample data with details
+  if (conversionRates.length > 0) {
+    console.log('🔍 Sample conversion rate data:', conversionRates[0]);
+    console.log('🔍 First conversion rate details:', {
+      sku: conversionRates[0]?.sku,
+      product_name: conversionRates[0]?.product_name,
+      product_id: conversionRates[0]?.product_id,
+      unit_level1_name: conversionRates[0]?.unit_level1_name,
+      unit_level1_rate: conversionRates[0]?.unit_level1_rate
+    });
+    console.log('🔍 First 3 conversion rates:', conversionRates.slice(0, 3));
+  }
+  if (products.length > 0) {
+    console.log('🔍 Sample product data:', products[0]);
+  }
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedConversionRate, setSelectedConversionRate] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // แสดง 50 รายการต่อหน้า
   const [formData, setFormData] = useState<ConversionRateInput>({
     sku: '',
     product_name: '',
@@ -65,20 +92,60 @@ export default function UnitConversionSettings() {
 
   // Show all products (not just those without conversion rates)
   const availableProducts = useMemo(() => {
-    console.log('🔍 All products:', products.length, products);
-    console.log('🔍 Existing conversion rates:', conversionRates.length, conversionRates);
+    console.log('🔍 UnitConversionSettings - All products:', products.length);
+    console.table(products.map(p => ({ id: p.id, sku: p.sku_code, name: p.product_name })));
+    console.log('🔍 UnitConversionSettings - Existing conversion rates:', conversionRates.length);
+    console.table(conversionRates.map(c => ({ sku: c.sku, name: c.product_name, level1: c.unit_level1_name, rate1: c.unit_level1_rate })));
     // Return all products instead of filtering
     return products;
-  }, [products]);
+  }, [products, conversionRates]);
 
   // Filter conversion rates by search term
   const filteredConversionRates = useMemo(() => {
-    if (!searchTerm) return conversionRates;
-    return conversionRates.filter(rate =>
+    console.log('🔍 useMemo filteredConversionRates triggered', {
+      conversionRatesLength: conversionRates.length,
+      searchTerm,
+      hasConversionRates: conversionRates.length > 0
+    });
+
+    if (!searchTerm) {
+      console.log('✅ No search term, returning all', conversionRates.length, 'records');
+      return conversionRates;
+    }
+
+    const filtered = conversionRates.filter(rate =>
       rate.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
       rate.product_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    console.log('✅ Filtered results:', filtered.length, 'records');
+    return filtered;
   }, [conversionRates, searchTerm]);
+
+  // Paginate filtered results
+  const paginatedConversionRates = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginated = filteredConversionRates.slice(startIndex, endIndex);
+
+    console.log('📄 Pagination:', {
+      currentPage,
+      itemsPerPage,
+      totalItems: filteredConversionRates.length,
+      startIndex,
+      endIndex,
+      paginatedCount: paginated.length
+    });
+
+    return paginated;
+  }, [filteredConversionRates, currentPage, itemsPerPage]);
+
+  const totalPages = Math.ceil(filteredConversionRates.length / itemsPerPage);
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const handleAdd = async () => {
     try {
@@ -154,6 +221,12 @@ export default function UnitConversionSettings() {
     }
   };
 
+  // Get products without conversion rates
+  const productsWithoutConversion = useMemo(() => {
+    const conversionSkus = new Set(conversionRates.map(c => c.sku));
+    return availableProducts.filter(p => !conversionSkus.has(p.sku_code));
+  }, [availableProducts, conversionRates]);
+
   if (loading) {
     return (
       <Card>
@@ -210,6 +283,21 @@ export default function UnitConversionSettings() {
     );
   }
 
+  // Final render state logging
+  console.log('🎨🎨🎨 FINAL RENDER STATE 🎨🎨🎨', {
+    conversionRatesLength: conversionRates.length,
+    filteredConversionRatesLength: filteredConversionRates.length,
+    searchTerm,
+    loading,
+    error,
+    firstThreeFiltered: filteredConversionRates.slice(0, 3).map(r => ({
+      sku: r.sku,
+      name: r.product_name,
+      level1: r.unit_level1_name,
+      rate1: r.unit_level1_rate
+    }))
+  });
+
   return (
     <Card>
       <CardHeader>
@@ -229,6 +317,76 @@ export default function UnitConversionSettings() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* DEBUG INFO CARD - REMOVE AFTER FIXING */}
+        <div className="bg-blue-50 border-2 border-blue-500 rounded-lg p-4 space-y-2">
+          <div className="text-sm font-bold text-blue-900">🔍 DEBUG INFORMATION</div>
+          <div className="text-xs text-blue-800 font-mono space-y-1">
+            <div>✅ Total conversion rates in state: {conversionRates.length}</div>
+            <div>✅ Filtered conversion rates: {filteredConversionRates.length}</div>
+            <div>✅ Paginated (showing now): {paginatedConversionRates.length}</div>
+            <div>✅ Current page: {currentPage} / {totalPages}</div>
+            <div>✅ Items per page: {itemsPerPage}</div>
+            <div>✅ Search term: "{searchTerm}"</div>
+            <div>✅ Loading: {loading ? 'YES' : 'NO'}</div>
+            <div>✅ Error: {error || 'NONE'}</div>
+            {paginatedConversionRates.length > 0 && (
+              <div className="mt-2 bg-blue-100 p-2 rounded">
+                <div className="font-bold">First 3 items on this page:</div>
+                {paginatedConversionRates.slice(0, 3).map((r, i) => (
+                  <div key={i} className="ml-2">
+                    {i + 1}. SKU: {r.sku} | Name: {r.product_name} | Type: {r.product_type || 'N/A'}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Info and Missing Conversions Alert */}
+        {productsWithoutConversion.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+            <div className="text-sm font-medium text-yellow-900">⚠️ พบสินค้าที่ยังไม่มีการตั้งค่าการแปลงหน่วย:</div>
+            <div className="text-xs text-yellow-700">
+              มี <span className="font-bold">{productsWithoutConversion.length}</span> สินค้าที่ยังไม่ได้ตั้งค่าการแปลงหน่วย:
+              <div className="mt-2 space-y-1">
+                {productsWithoutConversion.slice(0, 5).map(p => (
+                  <div key={p.id} className="flex items-center justify-between bg-yellow-100 px-2 py-1 rounded">
+                    <span className="font-mono text-xs">{p.sku_code}</span>
+                    <span className="text-xs">{p.product_name}</span>
+                  </div>
+                ))}
+                {productsWithoutConversion.length > 5 && (
+                  <div className="text-xs text-yellow-600">...และอีก {productsWithoutConversion.length - 5} รายการ</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+          <div className="text-sm font-medium text-blue-900">🔍 ข้อมูล Debug:</div>
+          <div className="grid grid-cols-3 gap-2 text-xs text-blue-700">
+            <div>สินค้าทั้งหมด: <span className="font-bold">{products.length}</span></div>
+            <div>มีการแปลงหน่วย: <span className="font-bold text-green-600">{conversionRates.length}</span></div>
+            <div>ยังไม่มีการแปลง: <span className="font-bold text-red-600">{productsWithoutConversion.length}</span></div>
+          </div>
+          <Button
+            onClick={() => {
+              console.log('=== DEBUG: Manual Check ===');
+              console.log('Products:', products);
+              console.log('Conversion Rates:', conversionRates);
+              console.log('Products without conversion:', productsWithoutConversion);
+              fetchConversionRates();
+            }}
+            variant="outline"
+            size="sm"
+            className="w-full"
+          >
+            🔄 รีเฟรชและแสดงข้อมูลใน Console
+          </Button>
+        </div>
+
         {/* Search and Add Button */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -361,6 +519,7 @@ export default function UnitConversionSettings() {
             <TableHeader>
               <TableRow>
                 <TableHead>สินค้า</TableHead>
+                <TableHead>ประเภท</TableHead>
                 <TableHead>หน่วยระดับ 1</TableHead>
                 <TableHead>หน่วยระดับ 2</TableHead>
                 <TableHead>หน่วยฐาน</TableHead>
@@ -368,9 +527,19 @@ export default function UnitConversionSettings() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredConversionRates.length === 0 ? (
+              {(() => {
+                console.log('🎨 RENDER: About to render table body', {
+                  filteredLength: filteredConversionRates.length,
+                  paginatedLength: paginatedConversionRates.length,
+                  currentPage,
+                  totalPages,
+                  willShowEmptyState: paginatedConversionRates.length === 0
+                });
+                return null;
+              })()}
+              {paginatedConversionRates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={6} className="text-center py-8">
                     <div className="space-y-2">
                       <div className="text-muted-foreground">
                         {conversionRates.length === 0
@@ -405,7 +574,7 @@ export default function UnitConversionSettings() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredConversionRates.map((rate) => (
+                paginatedConversionRates.map((rate) => (
                   <TableRow key={rate.sku}>
                     <TableCell>
                       <div className="space-y-1">
@@ -414,6 +583,11 @@ export default function UnitConversionSettings() {
                           SKU: {rate.sku}
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="font-mono">
+                        {rate.product_type || 'N/A'}
+                      </Badge>
                     </TableCell>
                     <TableCell>
                       <div>
@@ -473,11 +647,42 @@ export default function UnitConversionSettings() {
           </Table>
         </div>
 
-        {filteredConversionRates.length > 0 && (
-          <div className="text-sm text-muted-foreground">
-            แสดง {filteredConversionRates.length} จากทั้งหมด {conversionRates.length} รายการ
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              แสดง {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, filteredConversionRates.length)} จาก {filteredConversionRates.length} รายการ
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                ← ก่อนหน้า
+              </Button>
+              <span className="text-sm">
+                หน้า {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                ถัดไป →
+              </Button>
+            </div>
           </div>
         )}
+
+        <div className="text-sm text-muted-foreground space-y-1">
+          <div>ทั้งหมด {conversionRates.length} รายการ | กรองแล้ว {filteredConversionRates.length} รายการ</div>
+          <div className="text-xs text-orange-600 font-mono">
+            DEBUG: total={conversionRates.length}, filtered={filteredConversionRates.length}, page={currentPage}/{totalPages}, showing={paginatedConversionRates.length}
+          </div>
+        </div>
 
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
