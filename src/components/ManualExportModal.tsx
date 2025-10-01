@@ -334,11 +334,11 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
           event_type: 'inventory_export',
           event_category: 'inventory',
           severity: 'info',
-          message: `ส่งออกสินค้า ${selectedItem.product_name} จำนวน ${exportQuantity} ชิ้น ไปยัง ${selectedCustomer.customer_name}`,
+          message: `ส่งออกสินค้า ${selectedItem.product_name} จำนวน ${exportedTotal} ชิ้น ไปยัง ${selectedCustomer.customer_name}`,
           metadata: {
             item_id: formData.selectedItemId,
             product_name: selectedItem.product_name,
-            quantity: exportQuantity,
+            quantity: exportedTotal,
             location: location,
             customer_id: formData.customerId,
             customer_name: selectedCustomer.customer_name,
