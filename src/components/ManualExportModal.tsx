@@ -270,36 +270,15 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         }
       });
 
-      // 1b. ตรวจสอบว่าสต็อกเป็น 0 หรือไม่
-      const isStockZero = newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0;
+      // 1b. อัปเดตสต็อกก่อนเสมอ
+      const { error: updateError } = await supabase
+        .from('inventory_items')
+        .update(updateData)
+        .eq('id', formData.selectedItemId);
 
-      if (isStockZero) {
-        // ถ้าสต็อกเป็น 0 ให้ลบรายการออกจาก location
-        console.log('🗑️ Stock is zero, deleting inventory item from location:', location);
+      if (updateError) throw updateError;
 
-        const { error: deleteError } = await supabase
-          .from('inventory_items')
-          .delete()
-          .eq('id', formData.selectedItemId);
-
-        if (deleteError) {
-          console.error('❌ Error deleting inventory item:', deleteError);
-          throw deleteError;
-        }
-
-        console.log('✅ Successfully deleted inventory item (stock = 0)');
-      } else {
-        // ถ้ายังมีสต็อกเหลือ ให้อัปเดตตามปกติ
-        const { error: updateError } = await supabase
-          .from('inventory_items')
-          .update(updateData)
-          .eq('id', formData.selectedItemId);
-
-        if (updateError) throw updateError;
-        console.log('✅ Successfully updated inventory item (stock remaining)');
-      }
-
-      // 2. บันทึกประวัติการส่งออก (เก็บไว้เสมอ แม้ลบรายการแล้ว)
+      // 2. บันทึกประวัติการส่งออกทันที (ก่อนลบ - สำคัญมาก!)
       const exportDescription = [];
       if (reqLevel1 > 0) exportDescription.push(`${reqLevel1} ${selectedItem.unit_level1_name || 'ลัง'}`);
       if (reqLevel2 > 0) exportDescription.push(`${reqLevel2} ${selectedItem.unit_level2_name || 'กล่อง'}`);
@@ -370,6 +349,26 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
           },
           user_id: '00000000-0000-0000-0000-000000000000'
         });
+
+      // 5. ลบ inventory_item ถ้าสต็อกเป็น 0 (หลังจากบันทึกประวัติแล้ว)
+      const isStockZero = newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0;
+
+      if (isStockZero) {
+        console.log('🗑️ Stock is zero, deleting inventory item from location:', location);
+
+        const { error: deleteError } = await supabase
+          .from('inventory_items')
+          .delete()
+          .eq('id', formData.selectedItemId);
+
+        if (deleteError) {
+          console.error('❌ Error deleting inventory item:', deleteError);
+          // Don't throw - ประวัติบันทึกแล้ว ไม่เป็นไร
+          console.warn('⚠️ Failed to delete but history was saved');
+        } else {
+          console.log('✅ Successfully deleted inventory item (stock = 0)');
+        }
+      }
 
       // Reset form first
       setFormData({
