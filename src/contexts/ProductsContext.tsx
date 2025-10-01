@@ -193,22 +193,39 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
 
   const addProduct = useCallback(async (productData: ProductInsert): Promise<Product | null> => {
     try {
-      const product: Product = {
-        id: Date.now().toString(),
-        ...productData,
-      };
+      // Import supabase here to avoid circular dependencies
+      const { supabase } = await import('@/integrations/supabase/client');
 
-      dispatch({ type: 'ADD_PRODUCT', payload: product });
+      // Insert into Supabase database
+      const { data, error } = await supabase
+        .from('products')
+        .insert([productData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('No data returned from insert');
+      }
+
+      // Add to local state
+      dispatch({ type: 'ADD_PRODUCT', payload: data as Product });
+
       toast({
         title: '✅ เพิ่มสินค้าสำเร็จ',
-        description: `เพิ่มสินค้า "${product.product_name}" ลงในระบบแล้ว`,
+        description: `เพิ่มสินค้า "${data.product_name}" ลงในระบบแล้ว`,
       });
-      return product;
+
+      return data as Product;
     } catch (err: any) {
       console.error('Error adding product:', err);
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถเพิ่มสินค้าได้ กรุณาลองใหม่',
+        description: err.message || 'ไม่สามารถเพิ่มสินค้าได้ กรุณาลองใหม่',
         variant: 'destructive',
       });
       return null;
