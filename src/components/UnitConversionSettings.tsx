@@ -63,11 +63,13 @@ export default function UnitConversionSettings() {
     unit_level3_name: 'ชิ้น'
   });
 
-  // Filter products without conversion rates for the add dialog
+  // Show all products (not just those without conversion rates)
   const availableProducts = useMemo(() => {
-    const existingSKUs = conversionRates.map(rate => rate.sku);
-    return products.filter(product => !existingSKUs.includes(product.sku_code));
-  }, [products, conversionRates]);
+    console.log('🔍 All products:', products.length, products);
+    console.log('🔍 Existing conversion rates:', conversionRates.length, conversionRates);
+    // Return all products instead of filtering
+    return products;
+  }, [products]);
 
   // Filter conversion rates by search term
   const filteredConversionRates = useMemo(() => {
