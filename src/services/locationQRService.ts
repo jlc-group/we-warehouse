@@ -41,7 +41,7 @@ export class LocationQRService {
       // Simple query with timeout - no retry to prevent error spam
       const { data, error } = await supabase
         .from('location_qr_codes')
-        .select('id, location, qr_code, is_active, created_at')
+        .select('id, location, qr_code_data, is_active, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(100) // Reduced limit for faster query

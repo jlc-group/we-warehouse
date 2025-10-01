@@ -332,10 +332,11 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
       await supabase
         .from('system_events')
         .insert({
-          event_type: 'inventory_export',
-          event_category: 'inventory',
-          severity: 'info',
-          message: `ส่งออกสินค้า ${selectedItem.product_name} จำนวน ${exportedTotal} ชิ้น ไปยัง ${selectedCustomer.customer_name}`,
+          event_type: 'inventory',
+          event_category: 'stock_movement',
+          event_action: 'export',
+          event_title: 'ส่งออกสินค้า',
+          event_description: `ส่งออกสินค้า ${selectedItem.product_name} จำนวน ${exportedTotal} ชิ้น ไปยัง ${selectedCustomer.customer_name}`,
           metadata: {
             item_id: formData.selectedItemId,
             product_name: selectedItem.product_name,
@@ -411,7 +412,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
 
       if (error && typeof error === 'object') {
         console.error('Error details:', JSON.stringify(error, null, 2));
-        console.error('Error message:', (error as any).message);
+        console.error('Error event_title:', (error as any).message);
         console.error('Error code:', (error as any).code);
         console.error('Error hint:', (error as any).hint);
         console.error('Error details field:', (error as any).details);
