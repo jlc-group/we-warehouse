@@ -1,4 +1,4 @@
-import * as React from "react";
+import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
@@ -20,9 +20,9 @@ const badgeVariants = cva(
   },
 );
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
+export interface BadgeProps extends HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}
 
-const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
+const Badge = forwardRef<HTMLDivElement, BadgeProps>(
   ({ className, variant, ...props }, ref) => {
     return <div ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />;
   }

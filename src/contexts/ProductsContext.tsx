@@ -98,7 +98,7 @@ interface ProductsContextType extends ProductsState {
 
 const ProductsContext = createContext<ProductsContextType | null>(null);
 
-export function ProductsProvider({ children }: { children: React.ReactNode }) {
+export function ProductsProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(productsReducer, initialState);
   const isFetchingRef = useRef<boolean>(false);
   const stateRef = useRef(state);

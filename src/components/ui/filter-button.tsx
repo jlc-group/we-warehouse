@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 interface FilterButtonProps {
   isActive: boolean;
   onClick: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
   variant?: 'all' | 'fg' | 'pk' | 'custom';
   className?: string;
   size?: 'sm' | 'default' | 'lg';

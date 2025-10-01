@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { hasPermission } from '@/config/permissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +9,8 @@ import { Lock, ShieldAlert, Eye, AlertTriangle, ArrowLeft } from 'lucide-react';
 
 interface PermissionGateProps {
   permission: string;
-  children: React.ReactNode;
-  fallback?: React.ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
   showFallback?: boolean;
   requiredRole?: string;
   feature?: string;
@@ -151,7 +151,7 @@ export const PermissionGate: React.FC<PermissionGateProps> = ({
 };
 
 // Specialized components for common use cases
-export const FinanceGate: React.FC<{ children: React.ReactNode; compact?: boolean }> = ({
+export const FinanceGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
   children,
   compact = false
 }) => (
@@ -165,7 +165,7 @@ export const FinanceGate: React.FC<{ children: React.ReactNode; compact?: boolea
   </PermissionGate>
 );
 
-export const SalesGate: React.FC<{ children: React.ReactNode; compact?: boolean }> = ({
+export const SalesGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
   children,
   compact = false
 }) => (
@@ -179,7 +179,7 @@ export const SalesGate: React.FC<{ children: React.ReactNode; compact?: boolean 
   </PermissionGate>
 );
 
-export const AccountingGate: React.FC<{ children: React.ReactNode; compact?: boolean }> = ({
+export const AccountingGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
   children,
   compact = false
 }) => (
@@ -193,7 +193,7 @@ export const AccountingGate: React.FC<{ children: React.ReactNode; compact?: boo
   </PermissionGate>
 );
 
-export const FinancialReportsGate: React.FC<{ children: React.ReactNode; compact?: boolean }> = ({
+export const FinancialReportsGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
   children,
   compact = false
 }) => (
@@ -207,7 +207,7 @@ export const FinancialReportsGate: React.FC<{ children: React.ReactNode; compact
   </PermissionGate>
 );
 
-export const AdminGate: React.FC<{ children: React.ReactNode; compact?: boolean }> = ({
+export const AdminGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
   children,
   compact = false
 }) => (

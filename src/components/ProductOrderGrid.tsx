@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,7 +53,7 @@ interface ProductOrderGridProps {
 
 import type { ProductSummary } from '@/hooks/useProductsSummary';
 
-export const ProductOrderGrid: React.FC<ProductOrderGridProps> = ({
+export const ProductOrderGrid: FC<ProductOrderGridProps> = ({
   orderItems,
   onOrderItemsChange,
   disabled = false,
@@ -65,7 +65,7 @@ export const ProductOrderGrid: React.FC<ProductOrderGridProps> = ({
   const { data: products = [], isLoading, error } = useAvailableProductsForSales();
 
   // Debug logging
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('🛒 ProductOrderGrid: Products state changed', {
       products: products.length,
       isLoading,

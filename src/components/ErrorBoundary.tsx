@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,11 +9,11 @@ interface ErrorBoundaryState {
 }
 
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
-  fallback?: React.ComponentType<{ error: Error; resetError: () => void }>;
+  children: ReactNode;
+  fallback?: ComponentType<{ error: Error; resetError: () => void }>;
 }
 
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };
@@ -74,13 +74,13 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
 // Hook version for functional components
 export function useErrorHandler() {
-  const [error, setError] = React.useState<Error | null>(null);
+  const [error, setError] = useState<Error | null>(null);
 
-  const resetError = React.useCallback(() => {
+  const resetError = useCallback(() => {
     setError(null);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       throw error;
     }

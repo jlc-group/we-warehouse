@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
@@ -75,13 +75,13 @@ export function useInventory(warehouseId?: string) {
   const { toast } = useToast();
 
   // Create unique instance ID for this hook
-  const instanceId = React.useMemo(() => 
+  const instanceId = useMemo(() => 
     `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
     [warehouseId]
   );
 
   // Register this instance and determine if it's primary
-  React.useEffect(() => {
+  useEffect(() => {
     mountedInstances.add(instanceId);
 
     // Subscribe to global data updates

@@ -92,7 +92,7 @@ export function InventorySearch({ items, onItemSelect }: InventorySearchProps) {
     setSearchResults(filteredItems);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch(searchQuery);
     }

@@ -1,4 +1,4 @@
-import React, { Profiler, ProfilerOnRenderCallback } from 'react';
+import { Profiler, ProfilerOnRenderCallback } from 'react';
 
 const onRenderCallback: ProfilerOnRenderCallback = (id, phase, actualDuration) => {
   // Only log renders that take more than 5ms to identify problematic components
@@ -9,7 +9,7 @@ const onRenderCallback: ProfilerOnRenderCallback = (id, phase, actualDuration) =
 
 interface ReactProfilerProps {
   id: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export const ReactProfiler: React.FC<ReactProfilerProps> = ({ id, children }) => (

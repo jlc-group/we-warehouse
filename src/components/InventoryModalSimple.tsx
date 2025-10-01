@@ -295,7 +295,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   };
 
   // Keyboard handler for product code input
-  const handleProductCodeKeyDown = (e: React.KeyboardEvent) => {
+  const handleProductCodeKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       setIsProductCodeOpen(false);

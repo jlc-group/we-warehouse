@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,7 +29,7 @@ import { useCreateSalesOrder, type CreateSalesOrderData } from '@/hooks/useSales
 import { toast } from 'sonner';
 
 interface SalesOrderModalProps {
-  trigger?: React.ReactNode;
+  trigger?: ReactNode;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   onOrderCreated?: (order: any) => void;

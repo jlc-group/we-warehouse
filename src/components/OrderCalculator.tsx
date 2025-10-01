@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, Percent, Receipt } from 'lucide-react';
@@ -32,7 +32,7 @@ export interface OrderTotals {
   totalItems: number;
 }
 
-export const OrderCalculator: React.FC<OrderCalculatorProps> = ({
+export const OrderCalculator: FC<OrderCalculatorProps> = ({
   orderItems,
   className,
   onTotalChange,
@@ -63,7 +63,7 @@ export const OrderCalculator: React.FC<OrderCalculatorProps> = ({
   };
 
   // เรียก callback เมื่อยอดเปลี่ยน
-  React.useEffect(() => {
+  useEffect(() => {
     onTotalChange?.(totals);
   }, [subtotal, discountAmount, taxAmount, total, totalItems, onTotalChange]);
 
