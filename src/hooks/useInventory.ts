@@ -700,7 +700,7 @@ export function useInventory(warehouseId?: string) {
       // Record movement
       const movementData = {
         inventory_item_id: id,
-        movement_type: 'OUT',
+        movement_type: 'out',
         quantity_level1_change: -cartonQty,
         quantity_level2_change: -looseQty,
         quantity_level3_change: 0,

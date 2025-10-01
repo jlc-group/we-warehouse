@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 interface MovementLog {
   id: string;
   inventory_item_id: string;
-  movement_type: 'IN' | 'OUT' | 'RESERVED' | 'ADJUSTMENT' | 'TRANSFER';
+  movement_type: 'in' | 'out' | 'adjustment' | 'transfer';
   quantity_level1_change: number;
   quantity_level2_change: number;
   quantity_level3_change: number;
@@ -47,7 +47,7 @@ export function MovementLogs() {
       const mockMovements: MovementLog[] = (data || []).map((item, index) => ({
         id: `movement_${item.id}`,
         inventory_item_id: item.id,
-        movement_type: index % 3 === 0 ? 'IN' : index % 3 === 1 ? 'OUT' : 'ADJUSTMENT',
+        movement_type: index % 3 === 0 ? 'in' : index % 3 === 1 ? 'out' : 'adjustment',
         quantity_level1_change: item.unit_level1_quantity || 0,
         quantity_level2_change: item.unit_level2_quantity || 0,
         quantity_level3_change: item.unit_level3_quantity || 0,
@@ -106,12 +106,12 @@ export function MovementLogs() {
   }, [fetchMovements]);
 
   const getMovementIcon = (type: string) => {
-    switch (type) {
+    switch (type.toLowerCase()) {
       case 'in':
         return <TrendingUp className="h-4 w-4 text-green-600" />;
       case 'out':
         return <TrendingDown className="h-4 w-4 text-red-600" />;
-      case 'TRANSFER':
+      case 'transfer':
         return <Move className="h-4 w-4 text-blue-600" />;
       case 'adjustment':
         return <Settings className="h-4 w-4 text-orange-600" />;

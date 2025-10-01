@@ -287,7 +287,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         .from('inventory_movements')
         .insert({
           inventory_item_id: formData.selectedItemId,
-          movement_type: 'OUT',
+          movement_type: 'out',
           quantity_boxes_before: selectedItem.unit_level1_quantity || 0,
           quantity_loose_before: selectedItem.unit_level2_quantity || 0,
           quantity_boxes_after: newLevel1,
