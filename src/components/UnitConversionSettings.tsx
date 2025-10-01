@@ -30,7 +30,8 @@ import {
   Plus,
   Edit,
   Trash2,
-  Settings
+  Settings,
+  ArrowRight
 } from 'lucide-react';
 import { useConversionRates, ConversionRateInput } from '@/hooks/useConversionRates';
 import { useProducts } from '@/contexts/ProductsContext';
