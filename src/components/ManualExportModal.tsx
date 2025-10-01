@@ -270,14 +270,36 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         }
       });
 
-      const { error: updateError } = await supabase
-        .from('inventory_items')
-        .update(updateData)
-        .eq('id', formData.selectedItemId);
+      // 1b. ตรวจสอบว่าสต็อกเป็น 0 หรือไม่
+      const isStockZero = newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0;
 
-      if (updateError) throw updateError;
+      if (isStockZero) {
+        // ถ้าสต็อกเป็น 0 ให้ลบรายการออกจาก location
+        console.log('🗑️ Stock is zero, deleting inventory item from location:', location);
 
-      // 2. บันทึกประวัติการส่งออก
+        const { error: deleteError } = await supabase
+          .from('inventory_items')
+          .delete()
+          .eq('id', formData.selectedItemId);
+
+        if (deleteError) {
+          console.error('❌ Error deleting inventory item:', deleteError);
+          throw deleteError;
+        }
+
+        console.log('✅ Successfully deleted inventory item (stock = 0)');
+      } else {
+        // ถ้ายังมีสต็อกเหลือ ให้อัปเดตตามปกติ
+        const { error: updateError } = await supabase
+          .from('inventory_items')
+          .update(updateData)
+          .eq('id', formData.selectedItemId);
+
+        if (updateError) throw updateError;
+        console.log('✅ Successfully updated inventory item (stock remaining)');
+      }
+
+      // 2. บันทึกประวัติการส่งออก (เก็บไว้เสมอ แม้ลบรายการแล้ว)
       const exportDescription = [];
       if (reqLevel1 > 0) exportDescription.push(`${reqLevel1} ${selectedItem.unit_level1_name || 'ลัง'}`);
       if (reqLevel2 > 0) exportDescription.push(`${reqLevel2} ${selectedItem.unit_level2_name || 'กล่อง'}`);
@@ -360,10 +382,14 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         poReference: ''
       });
 
-      // Show success toast
+      // Show success toast with location status
+      const locationStatus = isStockZero
+        ? ` (${location} ว่างแล้ว - พร้อมรับสินค้าใหม่)`
+        : ` (${location} เหลือสต็อก)`;
+
       toast({
         title: '✅ ส่งออกสำเร็จ',
-        description: `ส่ง ${selectedItem.product_name} จำนวน ${exportDescription.join(' + ')} (${exportedTotal.toLocaleString()} ชิ้น) ไปยัง ${selectedCustomer.customer_name} แล้ว`,
+        description: `ส่ง ${selectedItem.product_name} จำนวน ${exportDescription.join(' + ')} (${exportedTotal.toLocaleString()} ชิ้น) ไปยัง ${selectedCustomer.customer_name} แล้ว${locationStatus}`,
         duration: 5000, // Show for 5 seconds
       });
 
