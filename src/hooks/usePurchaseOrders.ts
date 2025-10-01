@@ -28,6 +28,8 @@ interface UsePurchaseOrdersReturn {
   fetchPODetails: (poNumber: string) => Promise<void>;
   createFulfillmentTask: (poNumber: string) => Promise<void>;
   updateTaskStatus: (taskId: string, status: any) => Promise<void>;
+  cancelFulfillmentItem: (itemId: string) => Promise<{ success: boolean; error?: string }>;
+  confirmTaskShipment: (taskId: string) => Promise<{ success: boolean; error?: string }>;
   refreshData: () => Promise<void>;
   clearError: () => void;
   clearSelectedPO: () => void;
@@ -142,6 +144,22 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       // Convert to fulfillment task with inventory linking
       const fulfillmentTask = await PurchaseOrderService.convertPOToFulfillmentTask(poData);
 
+      // Check if fulfillment_tasks table exists
+      const { error: tableCheckError } = await supabase
+        .from('fulfillment_tasks')
+        .select('id')
+        .limit(1);
+
+      if (tableCheckError && tableCheckError.message.includes('does not exist')) {
+        throw new Error(
+          'ตาราง fulfillment_tasks ยังไม่ถูกสร้าง\n\n' +
+          'กรุณารันคำสั่ง SQL ในไฟล์ apply_fulfillment_system.sql ที่ Supabase SQL Editor:\n' +
+          '1. เปิด https://supabase.com/dashboard/project/ogrcpzzmmudztwjfwjvu/sql/new\n' +
+          '2. คัดลอกเนื้อหาจากไฟล์ apply_fulfillment_system.sql\n' +
+          '3. วางและกด RUN'
+        );
+      }
+
       // Save fulfillment task to database
       const { data: savedTask, error: taskError } = await supabase
         .from('fulfillment_tasks')
@@ -163,19 +181,19 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
         throw taskError;
       }
 
-      // Save fulfillment items to database
+      // Save fulfillment items to database with proper fallback values
       const fulfillmentItemsData = fulfillmentTask.items.map(item => ({
         fulfillment_task_id: savedTask.id,
         product_name: item.product_name,
-        product_code: item.product_code || item.product_name,
+        product_code: item.product_code || item.product_name || '⚠️ ไม่มีรหัส',
         requested_quantity: item.requested_quantity,
         fulfilled_quantity: item.fulfilled_quantity,
         unit_price: item.unit_price,
         total_amount: item.total_amount,
         status: item.status,
-        location: item.location,
-        inventory_item_id: item.inventory_item_id,
-        available_stock: item.available_stock || 0
+        location: item.location || '❌ ไม่พบในสต็อก',
+        inventory_item_id: item.inventory_item_id || null,
+        available_stock: item.available_stock ?? 0 // Use ?? to preserve 0 values
       }));
 
       const { error: itemsError } = await supabase
@@ -308,23 +326,14 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
    */
   const fetchFulfillmentTasks = useCallback(async () => {
     try {
-      const { data: tasks, error } = await supabase
-        .from('fulfillment_tasks_with_items')
-        .select('*')
-        .order('created_at', { ascending: false });
+      console.log('🔄 Fetching fulfillment tasks...');
 
-      if (error) {
-        throw error;
-      }
-
-      // Convert to FulfillmentTask format
-      const fulfillmentTasksData: FulfillmentTask[] = [];
-
-      for (const task of tasks || []) {
-        // Fetch items for this task
-        const { data: items, error: itemsError } = await supabase
-          .from('fulfillment_items')
-          .select(`
+      // Add timeout wrapper for the query
+      const queryPromise = supabase
+        .from('fulfillment_tasks')
+        .select(`
+          *,
+          fulfillment_items (
             id,
             fulfillment_task_id,
             product_name,
@@ -337,13 +346,38 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
             location,
             inventory_item_id,
             available_stock
-          `)
-          .eq('fulfillment_task_id', task.id);
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(20); // Limit to prevent large queries
 
-        if (itemsError) {
-          console.warn('Error fetching items for task:', task.id, itemsError);
-          continue;
+      // Add a 15-second timeout specifically for this query
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Query timeout after 15 seconds')), 15000);
+      });
+
+      const { data: tasks, error } = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (error) {
+        // Check if error is due to table not existing
+        if (error.code === '42P01' || error.message.includes('does not exist')) {
+          console.warn('⚠️ Fulfillment tables do not exist yet. Please run the SQL migration first.');
+          setFulfillmentTasks([]);
+          toast({
+            title: '⚠️ ตารางฐานข้อมูลยังไม่พร้อม',
+            description: 'กรุณารัน SQL script ใน Supabase dashboard ก่อน',
+            variant: 'destructive'
+          });
+          return;
         }
+        throw error;
+      }
+
+      // Convert to FulfillmentTask format
+      const fulfillmentTasksData: FulfillmentTask[] = [];
+
+      for (const task of tasks || []) {
+        // Use joined data instead of separate queries
 
         const fulfillmentTask: FulfillmentTask = {
           id: task.id,
@@ -354,7 +388,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
           warehouse_name: task.warehouse_name,
           total_amount: task.total_amount,
           status: task.status,
-          items: (items || []).map(item => ({
+          items: (task.fulfillment_items || []).map(item => ({
             id: item.id,
             fulfillment_task_id: item.fulfillment_task_id,
             product_name: item.product_name,
@@ -380,13 +414,191 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
 
     } catch (err) {
       console.error('❌ Error fetching fulfillment tasks:', err);
+
+      let errorMessage = 'ไม่สามารถดึงข้อมูลงานจัดสินค้าได้';
+      let errorTitle = '❌ เกิดข้อผิดพลาด';
+
+      // Handle different types of errors
+      if (err && typeof err === 'object') {
+        const error = err as any;
+
+        if (error.code === '23' || error.message?.includes('TimeoutError') || error.message?.includes('Query timeout')) {
+          errorTitle = '⏱️ การเชื่อมต่อล่าช้า';
+          errorMessage = 'กรุณาลองใหม่อีกครั้ง หรือตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
+        } else if (error.code === '42P01') {
+          errorTitle = '⚠️ ตารางฐานข้อมูลไม่มีอยู่';
+          errorMessage = 'กรุณารัน SQL migration script ใน Supabase dashboard';
+        } else if (error.message?.includes('JWT')) {
+          errorTitle = '🔑 ปัญหาการตรวจสอบสิทธิ์';
+          errorMessage = 'กรุณาตรวจสอบการตั้งค่า Supabase key';
+        }
+      }
+
+      // Set empty array so UI doesn't break
+      setFulfillmentTasks([]);
+
       toast({
-        title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถดึงข้อมูลงานจัดสินค้าได้',
+        title: errorTitle,
+        description: errorMessage,
         variant: 'destructive'
       });
     }
   }, [toast]);
+
+  /**
+   * ยกเลิกรายการที่ picked แล้ว (คืนสต็อก)
+   */
+  const cancelFulfillmentItem = useCallback(async (itemId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      console.log(`🔄 Canceling fulfillment item: ${itemId}`);
+
+      // ดึงข้อมูล item ก่อน
+      const { data: item, error: fetchError } = await supabase
+        .from('fulfillment_items')
+        .select('*')
+        .eq('id', itemId)
+        .single();
+
+      if (fetchError || !item) {
+        throw new Error('ไม่พบรายการที่ต้องการยกเลิก');
+      }
+
+      // ตรวจสอบว่า status เป็น 'picked' (ยกเลิกได้เฉพาะ picked)
+      if (item.status !== 'picked') {
+        throw new Error('ยกเลิกได้เฉพาะรายการที่จัดแล้ว (picked)');
+      }
+
+      // คืนสต็อกกลับ
+      if (item.inventory_item_id && item.fulfilled_quantity > 0) {
+        const { data: inventoryItem, error: inventoryFetchError } = await supabase
+          .from('inventory_items')
+          .select('quantity')
+          .eq('id', item.inventory_item_id)
+          .single();
+
+        if (inventoryFetchError) {
+          throw new Error('ไม่สามารถดึงข้อมูลสต็อกได้');
+        }
+
+        const { error: stockError } = await supabase
+          .from('inventory_items')
+          .update({
+            quantity: (inventoryItem.quantity || 0) + item.fulfilled_quantity
+          })
+          .eq('id', item.inventory_item_id);
+
+        if (stockError) {
+          throw stockError;
+        }
+      }
+
+      // อัปเดต item เป็น pending และรีเซ็ตข้อมูล
+      const { error: updateError } = await supabase
+        .from('fulfillment_items')
+        .update({
+          status: 'pending',
+          fulfilled_quantity: 0,
+          picked_at: null,
+          picked_by: null,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: '00000000-0000-0000-0000-000000000000', // TODO: ใช้ user ID จริง
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', itemId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      console.log(`✅ Canceled fulfillment item: ${itemId}`);
+
+      // Refresh tasks
+      await fetchFulfillmentTasks();
+
+      return { success: true };
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'ไม่สามารถยกเลิกได้';
+      console.error('❌ Error canceling fulfillment item:', err);
+      return { success: false, error: errorMsg };
+    }
+  }, [fetchFulfillmentTasks]);
+
+  /**
+   * ยืนยันการจัดส่ง (picked → completed, task → shipped)
+   */
+  const confirmTaskShipment = useCallback(async (taskId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      console.log(`🔄 Confirming shipment for task: ${taskId}`);
+
+      // ดึงข้อมูล task กับ items
+      const { data: task, error: fetchError } = await supabase
+        .from('fulfillment_tasks')
+        .select(`
+          *,
+          fulfillment_items (*)
+        `)
+        .eq('id', taskId)
+        .single();
+
+      if (fetchError || !task) {
+        throw new Error('ไม่พบงานที่ต้องการยืนยัน');
+      }
+
+      // ตรวจสอบว่าทุกรายการเป็น picked หรือ completed แล้ว
+      const allItemsReady = task.fulfillment_items.every(
+        (item: any) => item.status === 'picked' || item.status === 'completed'
+      );
+
+      if (!allItemsReady) {
+        throw new Error('ยังมีรายการที่ยังไม่ได้จัดเสร็จ');
+      }
+
+      // อัปเดตทุก items จาก picked → completed
+      const itemsToUpdate = task.fulfillment_items
+        .filter((item: any) => item.status === 'picked')
+        .map((item: any) => item.id);
+
+      if (itemsToUpdate.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('fulfillment_items')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .in('id', itemsToUpdate);
+
+        if (itemsError) {
+          throw itemsError;
+        }
+      }
+
+      // อัปเดต task status เป็น 'shipped'
+      const { error: taskError } = await supabase
+        .from('fulfillment_tasks')
+        .update({
+          status: 'shipped',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+
+      if (taskError) {
+        throw taskError;
+      }
+
+      console.log(`✅ Confirmed shipment for task: ${taskId}`);
+
+      // Refresh tasks
+      await fetchFulfillmentTasks();
+
+      return { success: true };
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'ไม่สามารถยืนยันการจัดส่งได้';
+      console.error('❌ Error confirming shipment:', err);
+      return { success: false, error: errorMsg };
+    }
+  }, [fetchFulfillmentTasks]);
 
   /**
    * Auto-fetch data on mount
@@ -415,6 +627,8 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
     fetchPODetails,
     createFulfillmentTask,
     updateTaskStatus,
+    cancelFulfillmentItem,
+    confirmTaskShipment,
     refreshData,
     clearError,
     clearSelectedPO

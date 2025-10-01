@@ -242,6 +242,14 @@ export const ShelfGrid = memo(function ShelfGrid({
     const lots = new Set<string>();
     const productCodes = new Set<string>();
 
+    // Guard against undefined items
+    if (!items || !Array.isArray(items)) {
+      return {
+        uniqueLots: [],
+        uniqueProductCodes: []
+      };
+    }
+
     items.forEach(item => {
       if (item.lot) lots.add(item.lot);
       if (item.sku) productCodes.add(item.sku);
@@ -255,6 +263,11 @@ export const ShelfGrid = memo(function ShelfGrid({
 
   // Create a map for multiple items per location (with normalized locations)
   const itemsByLocation = useMemo(() => {
+    // Guard against undefined items
+    if (!items || !Array.isArray(items)) {
+      return {};
+    }
+
     const locationMap = items.reduce((acc, item) => {
       const normalizedLocation = normalizeLocation(item.location);
       if (!acc[normalizedLocation]) {
@@ -271,6 +284,11 @@ export const ShelfGrid = memo(function ShelfGrid({
 
   // Filter items based on current filter state
   const filteredItems = useMemo(() => {
+    // Guard against undefined items
+    if (!items || !Array.isArray(items)) {
+      return [];
+    }
+
     return items.filter(item => {
       const matchesSearch = filters.searchQuery === '' ||
         item.product_name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||

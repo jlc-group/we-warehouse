@@ -63,8 +63,8 @@ export const useWarehouseOrders = () => {
     return useQuery({
       queryKey: ['warehouse', 'assignments', status],
       queryFn: () => WarehouseAssignmentService.getAssignmentsByStatus(status),
-      refetchInterval: 15000, // Refetch every 15 seconds
-      staleTime: 5000
+      refetchInterval: 30000, // Refetch every 30 seconds
+      staleTime: 10000
     });
   };
 

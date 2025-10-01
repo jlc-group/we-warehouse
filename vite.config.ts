@@ -72,12 +72,52 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     rollupOptions: mode === 'production' ? {
       output: {
-        manualChunks: {
-          vendor: ["react", "react-dom"],
-          ui: ["@radix-ui/react-dialog", "@radix-ui/react-dropdown-menu", "@radix-ui/react-tabs"],
-          utils: ["date-fns", "lodash", "clsx"],
-          supabase: ["@supabase/supabase-js"],
-          charts: ["recharts", "lucide-react"],
+        manualChunks: (id) => {
+          // Vendor chunks
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'vendor-ui';
+            }
+            if (id.includes('recharts') || id.includes('lucide-react')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@supabase')) {
+              return 'vendor-supabase';
+            }
+            if (id.includes('@tanstack/react-query')) {
+              return 'vendor-query';
+            }
+            return 'vendor-misc';
+          }
+
+          // Analytics chunks - split heavy analytics components
+          if (id.includes('/components/InventoryAnalytics') ||
+              id.includes('/components/AdvancedAnalytics') ||
+              id.includes('/components/ForecastingDashboard')) {
+            return 'chunk-analytics';
+          }
+
+          // User management and auth chunks
+          if (id.includes('/components/UserManagement') ||
+              id.includes('/components/auth/') ||
+              id.includes('/contexts/Auth')) {
+            return 'chunk-auth';
+          }
+
+          // Location and QR chunks
+          if (id.includes('/components/QRCodeManagement') ||
+              id.includes('/components/LocationManagement') ||
+              id.includes('/components/location/')) {
+            return 'chunk-location';
+          }
+
+          // Services and utilities
+          if (id.includes('/services/') || id.includes('/utils/')) {
+            return 'chunk-services';
+          }
         },
       },
     } : {

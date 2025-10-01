@@ -27,7 +27,7 @@ const NewDataTables = () => {
 
   // กรองและเรียงข้อมูลจริงจากฐานข้อมูล
   const filteredProducts = useMemo(() => {
-    let filtered = products.filter(item => {
+    const filtered = products.filter(item => {
       const matchesSearch = searchTerm === '' ||
         (item.product_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
         (item.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
@@ -41,6 +41,9 @@ const NewDataTables = () => {
     });
 
     // เรียงข้อมูลตาม sortField และ sortDirection
+    // Define statusOrder outside switch to avoid lexical declaration in case block
+    const statusOrder = { 'out_of_stock': 0, 'low_stock': 1, 'medium_stock': 2, 'high_stock': 3 };
+
     filtered.sort((a, b) => {
       let aValue: any, bValue: any;
 
@@ -63,7 +66,6 @@ const NewDataTables = () => {
           break;
         case 'stock_status':
           // เรียงตาม priority ของสถานะ
-          const statusOrder = { 'out_of_stock': 0, 'low_stock': 1, 'medium_stock': 2, 'high_stock': 3 };
           aValue = statusOrder[a.stock_status as keyof typeof statusOrder] ?? 4;
           bValue = statusOrder[b.stock_status as keyof typeof statusOrder] ?? 4;
           break;

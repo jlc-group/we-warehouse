@@ -1,21 +1,24 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
-export const DisabledComponent = ({ name }: { name: string }) => (
-  <Card className="w-full">
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2">
-        <AlertTriangle className="h-5 w-5 text-yellow-500" />
-        {name} - ชั่วคราวปิดใช้งาน
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <p className="text-muted-foreground">
-        ฟีเจอร์นี้ถูกปิดใช้งานชั่วคราวเพื่อแก้ไขปัญหา TypeScript
-      </p>
-    </CardContent>
-  </Card>
-);
+interface DisabledComponentProps {
+  name: string;
+  reason?: string;
+}
 
-export default DisabledComponent;
+export function DisabledComponent({ name, reason = "Component is temporarily disabled" }: DisabledComponentProps) {
+  return (
+    <Card className="border-orange-200 bg-orange-50">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-orange-700">
+          <AlertCircle className="h-5 w-5" />
+          {name} - Disabled
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-orange-600 text-sm">{reason}</p>
+      </CardContent>
+    </Card>
+  );
+}

@@ -114,16 +114,27 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      // Import supabase client
-      const { supabase } = await import('@/integrations/supabase/client');
+      // Import supabase client with timeout
+      const { supabase } = await Promise.race([
+        import('@/integrations/supabase/client'),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Import timeout')), 5000)
+        )
+      ]);
 
-      // Fetch real data from Supabase
-      const { data: products, error } = await supabase
+      // Fetch real data from Supabase with timeout
+      const fetchPromise = supabase
         .from('products')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(100);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Fetch timeout after 25 seconds')), 25000)
+      );
+
+      const { data: products, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (error) {
         console.error('ProductsContext: Supabase error:', error);
@@ -158,21 +169,35 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       console.error('ProductsContext: Error loading products from DB:', err);
 
-      // Fallback to empty array instead of mock data
-      dispatch({ type: 'FETCH_SUCCESS', payload: [] });
-      console.log('ProductsContext: Fallback to empty products list');
+      const errorMessage = err?.message || 'Unknown error';
+      dispatch({ type: 'FETCH_ERROR', payload: `เกิดข้อผิดพลาด: ${errorMessage}` });
+
+      // Show user-friendly toast notification
+      toast({
+        title: 'ไม่สามารถโหลดข้อมูลสินค้าได้',
+        description: errorMessage.includes('timeout')
+          ? 'การเชื่อมต่อใช้เวลานานเกินไป กรุณาลองใหม่'
+          : 'เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล',
+        variant: 'destructive',
+      });
+
+      // Fallback to empty array
+      setTimeout(() => {
+        dispatch({ type: 'FETCH_SUCCESS', payload: [] });
+        console.log('ProductsContext: Fallback to empty products list');
+      }, 1000);
     } finally {
       isFetchingRef.current = false;
     }
-  }, []);
+  }, [toast]);
 
-  const addProduct = async (productData: ProductInsert): Promise<Product | null> => {
+  const addProduct = useCallback(async (productData: ProductInsert): Promise<Product | null> => {
     try {
       const product: Product = {
         id: Date.now().toString(),
         ...productData,
       };
-      
+
       dispatch({ type: 'ADD_PRODUCT', payload: product });
       toast({
         title: '✅ เพิ่มสินค้าสำเร็จ',
@@ -188,9 +213,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       });
       return null;
     }
-  };
+  }, [toast]);
 
-  const updateProduct = async (id: string, updates: ProductUpdate): Promise<Product | null> => {
+  const updateProduct = useCallback(async (id: string, updates: ProductUpdate): Promise<Product | null> => {
     try {
       const existingProduct = state.products.find(p => p.id === id);
       if (!existingProduct) return null;
@@ -211,9 +236,9 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       });
       return null;
     }
-  };
+  }, [state.products, toast]);
 
-  const deleteProduct = async (id: string): Promise<boolean> => {
+  const deleteProduct = useCallback(async (id: string): Promise<boolean> => {
     try {
       const product = state.products.find(p => p.id === id);
       dispatch({ type: 'DELETE_PRODUCT', payload: id });
@@ -233,15 +258,15 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       });
       return false;
     }
-  };
+  }, [state.products, toast]);
 
-  const checkSKUExists = async (sku: string, excludeId?: string): Promise<boolean> => {
+  const checkSKUExists = useCallback(async (sku: string, excludeId?: string): Promise<boolean> => {
     return state.products.some(p => p.sku_code === sku && p.id !== excludeId);
-  };
+  }, [state.products]);
 
-  const getProductBySKU = async (sku: string): Promise<Product | null> => {
+  const getProductBySKU = useCallback(async (sku: string): Promise<Product | null> => {
     return state.products.find(p => p.sku_code === sku) || null;
-  };
+  }, [state.products]);
 
   useEffect(() => {
     let mounted = true;
@@ -279,7 +304,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
       // clearInterval(refreshInterval);
       isFetchingRef.current = false;
     };
-  }, []); // Empty dependency array - run only once on mount
+  }, [fetchProducts]); // Include fetchProducts in dependency array
 
   // CRITICAL: Memoize context value to prevent re-render cascades
   const contextValue: ProductsContextType = useMemo(() => ({

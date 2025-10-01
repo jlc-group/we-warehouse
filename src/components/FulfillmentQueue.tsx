@@ -35,7 +35,9 @@ import {
   Eye,
   Calendar,
   User,
-  Building
+  Building,
+  FileText,
+  Edit
 } from 'lucide-react';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import {
@@ -47,17 +49,20 @@ import {
 export const FulfillmentQueue: React.FC = () => {
   const {
     fulfillmentTasks,
-    updateTaskStatus
+    updateTaskStatus,
+    cancelFulfillmentItem
   } = usePurchaseOrders();
 
   const [selectedTask, setSelectedTask] = useState<FulfillmentTask | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
 
-  // Filter tasks based on status
+  // Filter tasks based on status and source
   const filteredTasks = fulfillmentTasks.filter(task => {
-    if (statusFilter === 'all') return true;
-    return task.status === statusFilter;
+    if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+    if (sourceFilter !== 'all' && task.source_type !== sourceFilter) return false;
+    return true;
   });
 
   // Calculate statistics
@@ -104,8 +109,17 @@ export const FulfillmentQueue: React.FC = () => {
 
   const calculateTaskProgress = (task: FulfillmentTask): number => {
     if (task.items.length === 0) return 0;
-    const fulfilledItems = task.items.filter(item => item.status === 'completed').length;
+    const fulfilledItems = task.items.filter(item => item.status === 'picked' || item.status === 'completed').length;
     return (fulfilledItems / task.items.length) * 100;
+  };
+
+  const handleCancelItem = async (itemId: string) => {
+    const result = await cancelFulfillmentItem(itemId);
+    if (result.success && selectedTask) {
+      // Refresh selected task details
+      const updatedTask = fulfillmentTasks.find(t => t.id === selectedTask.id);
+      if (updatedTask) setSelectedTask(updatedTask);
+    }
   };
 
   return (
@@ -169,8 +183,8 @@ export const FulfillmentQueue: React.FC = () => {
             </div>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex justify-between items-center mt-4">
+          {/* Filters */}
+          <div className="flex gap-4 mt-4">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="กรองตามสถานะ" />
@@ -182,6 +196,17 @@ export const FulfillmentQueue: React.FC = () => {
                 <SelectItem value="completed">เสร็จสิ้น</SelectItem>
                 <SelectItem value="shipped">จัดส่งแล้ว</SelectItem>
                 <SelectItem value="cancelled">ยกเลิก</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="กรองตามแหล่ง" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกแหล่ง</SelectItem>
+                <SelectItem value="api">จาก PO (API)</SelectItem>
+                <SelectItem value="manual">สร้างเอง (Manual)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -203,6 +228,7 @@ export const FulfillmentQueue: React.FC = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>PO Number</TableHead>
+                  <TableHead>แหล่ง</TableHead>
                   <TableHead>รหัสลูกค้า</TableHead>
                   <TableHead>กำหนดส่ง</TableHead>
                   <TableHead>คลัง</TableHead>
@@ -223,6 +249,19 @@ export const FulfillmentQueue: React.FC = () => {
                         <div className="text-xs text-gray-500">
                           สร้างเมื่อ: {PurchaseOrderService.formatDate(task.created_at)}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {task.source_type === 'manual' ? (
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-800">
+                            <Edit className="h-3 w-3 mr-1" />
+                            สร้างเอง
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                            <FileText className="h-3 w-3 mr-1" />
+                            จาก PO
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -364,40 +403,96 @@ export const FulfillmentQueue: React.FC = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>รายการสินค้า</TableHead>
+                        <TableHead>รหัสสินค้า</TableHead>
+                        <TableHead>ตำแหน่ง</TableHead>
                         <TableHead className="text-right">จำนวนที่ต้องการ</TableHead>
+                        <TableHead className="text-right">สต็อกที่มี</TableHead>
                         <TableHead className="text-right">จัดไปแล้ว</TableHead>
                         <TableHead className="text-center">สถานะ</TableHead>
                         <TableHead className="text-right">มูลค่า</TableHead>
+                        <TableHead className="text-center">การดำเนินการ</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedTask.items.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div className="font-medium">{item.product_name}</div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.requested_quantity.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {item.fulfilled_quantity.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge
-                              variant={
-                                item.status === 'completed' ? 'default' :
-                                item.status === 'partial' ? 'secondary' : 'outline'
-                              }
-                            >
-                              {item.status === 'completed' ? 'เสร็จสิ้น' :
-                               item.status === 'partial' ? 'บางส่วน' : 'รอจัด'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {PurchaseOrderService.formatCurrency(item.total_amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {selectedTask.items.map((item) => {
+                        const isStockShortage = (item.available_stock || 0) < item.requested_quantity;
+
+                        return (
+                          <TableRow key={item.id} className={isStockShortage ? 'bg-red-50' : ''}>
+                            <TableCell>
+                              <div className="font-medium">{item.product_name}</div>
+                              {!item.inventory_item_id && (
+                                <div className="text-xs text-orange-600 mt-1">⚠️ ไม่พบในระบบสต็อก</div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="font-mono">
+                                {item.product_code || '⚠️ ไม่มีรหัส'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {item.location || '❌ ไม่พบในสต็อก'}
+                              </div>
+                              {!item.inventory_item_id && (
+                                <Badge variant="destructive" className="text-xs mt-1">
+                                  ⚠️ ไม่พบในระบบ
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.requested_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className={isStockShortage ? 'text-red-600 font-semibold' : 'text-green-600'}>
+                                {(item.available_stock ?? 0).toLocaleString()}
+                              </span>
+                              {isStockShortage && (
+                                <div className="text-xs text-red-600">ขาด {(item.requested_quantity - (item.available_stock ?? 0)).toLocaleString()}</div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {item.fulfilled_quantity.toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge
+                                variant={
+                                  item.status === 'completed' ? 'default' :
+                                  item.status === 'picked' ? 'secondary' : 'outline'
+                                }
+                                className={
+                                  item.status === 'picked' ? 'bg-blue-100 text-blue-800' : ''
+                                }
+                              >
+                                {item.status === 'completed' ? 'เสร็จสิ้น' :
+                                 item.status === 'picked' ? 'จัดแล้ว' : 'รอจัด'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {PurchaseOrderService.formatCurrency(item.total_amount)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {item.status === 'picked' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 hover:bg-red-50"
+                                  onClick={() => handleCancelItem(item.id)}
+                                >
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  ยกเลิก
+                                </Button>
+                              )}
+                              {item.status === 'completed' && (
+                                <span className="text-xs text-gray-500">-</span>
+                              )}
+                              {item.status === 'pending' && (
+                                <span className="text-xs text-gray-500">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>

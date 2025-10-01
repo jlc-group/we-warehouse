@@ -21,6 +21,7 @@ import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
+import { ManualExportModal } from '@/components/ManualExportModal';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -85,6 +86,7 @@ const Index = memo(() => {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isWarehouseTransferModalOpen, setIsWarehouseTransferModalOpen] = useState(false);
   const [isLocationItemSelectorOpen, setIsLocationItemSelectorOpen] = useState(false);
+  const [isManualExportModalOpen, setIsManualExportModalOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
@@ -330,6 +332,22 @@ const Index = memo(() => {
       normalizeLocation(inventoryItem.location) === normalizedLocation
     );
 
+    console.log('🎯 handleShelfClick called:');
+    console.log('  Location (raw):', location);
+    console.log('  Location (normalized):', normalizedLocation);
+    console.log('  Items at location:', itemsAtLocation.length);
+    itemsAtLocation.forEach((item, idx) => {
+      console.log(`  Item ${idx + 1}:`, {
+        product_name: item.product_name,
+        location: item.location,
+        sku: item.sku,
+        unit_level3_quantity: item.unit_level3_quantity,
+        carton_quantity_legacy: item.carton_quantity_legacy,
+        box_quantity_legacy: item.box_quantity_legacy,
+        pieces_quantity_legacy: item.pieces_quantity_legacy
+      });
+    });
+
     setSelectedLocation(normalizedLocation);
 
     // If any items exist at this location, show the LocationItemSelector
@@ -351,10 +369,26 @@ const Index = memo(() => {
   }, []);
 
   const handleLocationExport = useCallback(() => {
-    // Open export modal
+    console.log('📤 handleLocationExport called');
+    console.log('  selectedLocation:', selectedLocation);
+    console.log('  locationItems:', locationItems);
+    console.log('  locationItems.length:', locationItems.length);
+    locationItems.forEach((item, idx) => {
+      console.log(`  📦 Item ${idx + 1} being sent to modal:`, {
+        id: item.id,
+        product_name: item.product_name,
+        location: item.location,
+        sku: item.sku,
+        unit_level3_quantity: item.unit_level3_quantity,
+        carton_quantity_legacy: item.carton_quantity_legacy,
+        box_quantity_legacy: item.box_quantity_legacy
+      });
+    });
+
+    // Open manual export modal
     setIsLocationItemSelectorOpen(false);
-    // Export functionality removed
-  }, []);
+    setIsManualExportModalOpen(true);
+  }, [selectedLocation, locationItems]);
 
   const handleQRCodeClick = useCallback((location: string) => {
     setQrSelectedLocation(location);
@@ -1199,8 +1233,22 @@ const Index = memo(() => {
           onTransfer={handleLocationTransfer}
         />
 
-        {/* Location Export Modal - Removed */}
-
+        {/* Manual Export Modal */}
+        <ManualExportModal
+          isOpen={isManualExportModalOpen}
+          onClose={() => setIsManualExportModalOpen(false)}
+          location={selectedLocation}
+          items={locationItems}
+          onExportSuccess={() => {
+            // Refresh inventory data
+            refetch();
+            // Refresh location items
+            if (selectedLocation) {
+              const updatedItems = getItemsAtLocation(selectedLocation);
+              setLocationItems(updatedItems);
+            }
+          }}
+        />
 
         {/* QR Scanner */}
         <QRScanner

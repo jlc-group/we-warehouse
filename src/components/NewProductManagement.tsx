@@ -205,7 +205,7 @@ export const NewProductManagement = () => {
   const filteredConversionRates = useMemo(() => {
     if (!conversionRates || conversionRates.length === 0) {
       console.log('⚠️ No conversion rates available, using sample data for demo');
-      let filtered = sampleConversionRates.filter(item => {
+      const filtered = sampleConversionRates.filter(item => {
         const matchesSearch = searchTerm === '' ||
           item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

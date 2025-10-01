@@ -141,7 +141,7 @@ export function useProductsSummary() {
     },
     enabled: true,
     staleTime: 1000 * 60 * 2, // 2 minutes - ลดลงเพื่อให้ข้อมูลใหม่กว่า
-    refetchInterval: 1000 * 15, // Refresh every 15 seconds - เพิ่มความถี่
+    refetchInterval: 1000 * 30, // Refresh every 30 seconds - ลดความถี่
     retry: (failureCount, error) => {
       // Only retry if inventory is still loading
       if (error?.message === 'Inventory data not ready' && failureCount < 3) {

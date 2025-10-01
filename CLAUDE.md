@@ -80,12 +80,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ชั้นบริการ (Service Layer):**
 - `src/services/` - คลาสบริการเฉพาะสำหรับการดำเนินการฐานข้อมูลทั้งหมด
-- `src/services/eventLoggingService.ts` - **การบันทึกเหตุการณ์ครบถ้วน** พร้อม TypeScript interfaces
-- `src/services/conversionRateService.ts` - การจัดการอัตราแปลงหน่วย
 - `src/services/locationQRService.ts` - การสร้างและจัดการ QR code
 - `src/services/warehouseLocationService.ts` - การดำเนินการตำแหน่งคลังสินค้า
-- `src/services/databaseService.ts` - เครื่องมือวิเคราะห์และ debug ฐานข้อมูล
 - `src/services/tableManagementService.ts` - การจัดการโครงสร้างตาราง
+- `src/services/productConversionService.ts` - การจัดการอัตราแปลงหน่วยสินค้า
+- `src/services/fulfillmentService.ts` - การจัดการระบบ fulfillment
+- `src/services/purchaseOrderService.ts` - การจัดการใบสั่งซื้อ
 
 **แพทเทิร์น Secure Gateway:**
 - `src/utils/secureGatewayClient.ts` - ชั้น abstraction API พร้อม fallback ไปยัง Supabase โดยตรง
@@ -116,7 +116,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **แพทเทิร์นแท็บแบบซ้อน**: ใช้ `<Tabs>` พร้อม `<TabsContent>` ที่ประกอบด้วย `<Tabs>` ซ้อนสำหรับลำดับชั้น UI ที่จัดระเบียบ
 - **สถาปัตยกรรมชั้นบริการ**: การดำเนินการฐานข้อมูลทั้งหมดใช้คลาสบริการเฉพาะใน `src/services/`
 - **Secure Gateway เป็นอันดับแรก**: ใช้ `secureGatewayClient` สำหรับการดำเนินการฐานข้อมูลพร้อม Supabase fallback อัตโนมัติ
-- **การรวมการบันทึกเหตุการณ์**: เรียก `logInventoryEvent()` จาก `eventLoggingService` สำหรับการดำเนินการสำคัญทั้งหมด
+- **การจัดการคอมโพเนนต์ placeholder**: ใช้ `DisabledComponent` สำหรับฟีเจอร์ที่ยังไม่เสร็จ - นำเข้าจาก `@/components/DisabledComponents`
 - **การคำนวณหน่วยหลายระดับ**: ใช้เครื่องมือจาก `src/utils/unitCalculations.ts` สำหรับการแปลงหน่วยที่สม่ำเสมอ
 - **การมาตรฐานรูปแบบตำแหน่ง**: ใช้ `src/utils/locationUtils.ts` สำหรับการแยกวิเคราะห์ตำแหน่งและการสร้าง QR
 - **การจัดการประเภทสินค้า**: ใช้ค่าคงที่ `PRODUCT_TYPES` จาก `src/data/sampleInventory.ts`
@@ -149,6 +149,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **ปัญหารูปแบบตำแหน่ง**: ใช้ `src/utils/locationUtils.ts` สำหรับการจัดการตำแหน่งแบบมาตรฐาน
 - **ข้อผิดพลาดชั้นบริการ**: ใช้คลาสบริการจาก `src/services/` แทนการเรียก Supabase โดยตรงเสมอ
 - **ข้อผิดพลาดการจัดการสต็อก**: ใช้ `secureGatewayClient` ก่อน, ใช้ Supabase fallback เพื่อความเชื่อถือได้
-- **การบันทึกเหตุการณ์หายไป**: เพิ่มการเรียก `logInventoryEvent()` สำหรับการดำเนินการสต็อกสำคัญ
+- **คอมโพเนนต์ placeholder หายไป**: สร้างไฟล์ `DisabledComponents.tsx` หรือ `DisabledUserProfile.tsx` หากมีการใช้งานใน Index.tsx
 - **ปัญหาการนำทางแท็บ**: ตรวจสอบโครงสร้างแท็บแบบซ้อน - แท็บหลักประกอบด้วย sub-tabs ที่มีค่าเฉพาะ
 - **ไอคอนหายไป**: นำเข้า Lucide React icons ที่ต้องการเมื่อเพิ่มองค์ประกอบ UI ใหม่
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

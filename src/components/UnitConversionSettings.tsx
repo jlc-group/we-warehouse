@@ -27,15 +27,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
-  Settings,
   Plus,
   Edit,
-  Trash2,
-  Package,
-  Scale,
-  Calculator,
-  Search,
-  ArrowRight
+  Trash2
 } from 'lucide-react';
 import { useConversionRates, ConversionRateInput } from '@/hooks/useConversionRates';
 import { useProducts } from '@/contexts/ProductsContext';
@@ -160,8 +154,7 @@ export default function UnitConversionSettings() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+          <CardTitle>
             การตั้งค่าการแปลงหน่วย
           </CardTitle>
         </CardHeader>
@@ -182,8 +175,7 @@ export default function UnitConversionSettings() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+          <CardTitle>
             การตั้งค่าการแปลงหน่วย
           </CardTitle>
         </CardHeader>
@@ -236,15 +228,11 @@ export default function UnitConversionSettings() {
         {/* Search and Add Button */}
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="ค้นหารหัสสินค้าหรือชื่อสินค้า..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+            <Input
+              placeholder="ค้นหารหัสสินค้าหรือชื่อสินค้า..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
@@ -273,10 +261,7 @@ export default function UnitConversionSettings() {
                     <SelectContent>
                       {availableProducts.map((product) => (
                         <SelectItem key={product.id} value={product.id}>
-                          <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4" />
-                            <span>{product.product_name} ({product.sku_code})</span>
-                          </div>
+                          <span>{product.product_name} ({product.sku_code})</span>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -341,12 +326,12 @@ export default function UnitConversionSettings() {
                       <div className="text-sm space-y-1">
                         <div className="flex items-center gap-2">
                           <span>1 {formData.unit_level1_name}</span>
-                          <ArrowRight className="h-3 w-3" />
+→
                           <span>{formData.unit_level1_rate} {formData.unit_level3_name}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span>1 {formData.unit_level2_name}</span>
-                          <ArrowRight className="h-3 w-3" />
+→
                           <span>{formData.unit_level2_rate} {formData.unit_level3_name}</span>
                         </div>
                       </div>
@@ -427,32 +412,23 @@ export default function UnitConversionSettings() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Scale className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">{rate.unit_level1_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            = {rate.unit_level1_rate} {rate.unit_level3_name}
-                          </div>
+                      <div>
+                        <div className="font-medium">{rate.unit_level1_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          = {rate.unit_level1_rate} {rate.unit_level3_name}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Scale className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">{rate.unit_level2_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            = {rate.unit_level2_rate} {rate.unit_level3_name}
-                          </div>
+                      <div>
+                        <div className="font-medium">{rate.unit_level2_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          = {rate.unit_level2_rate} {rate.unit_level3_name}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{rate.unit_level3_name}</span>
-                      </div>
+                      <span className="font-medium">{rate.unit_level3_name}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-center">

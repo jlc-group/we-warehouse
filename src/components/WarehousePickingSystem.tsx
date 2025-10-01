@@ -27,7 +27,9 @@ import {
   Clock,
   Truck,
   QrCode,
-  AlertTriangle
+  AlertTriangle,
+  XCircle,
+  Send
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
@@ -47,7 +49,7 @@ interface PickingLocation {
 }
 
 export const WarehousePickingSystem: React.FC = () => {
-  const { fulfillmentTasks, updateTaskStatus } = usePurchaseOrders();
+  const { fulfillmentTasks, updateTaskStatus, cancelFulfillmentItem, confirmTaskShipment } = usePurchaseOrders();
   const { items: inventoryItems } = useInventory();
   const { toast } = useToast();
 
@@ -74,7 +76,7 @@ export const WarehousePickingSystem: React.FC = () => {
     return Array.from(locationMap.entries()).map(([location, items]) => ({
       location,
       items,
-      isCompleted: items.every(item => item.status === 'completed')
+      isCompleted: items.every(item => item.status === 'picked' || item.status === 'completed')
     }));
   };
 
@@ -92,30 +94,49 @@ export const WarehousePickingSystem: React.FC = () => {
     });
   };
 
-  const pickItem = async (item: FulfillmentItem, pickedQuantity: number) => {
+  const pickItem = async (item: FulfillmentItem, pickedQuantity: number, selectedLocations?: LocationOption[]) => {
     try {
       if (!selectedTask) return;
 
-      // Update item status in database
-      const newStatus = pickedQuantity >= item.requested_quantity ? 'completed' : 'partial';
+      // อัปเดต status เป็น 'picked' (ยังยกเลิกได้)
+      const newStatus = 'picked';
 
       const { error } = await supabase
         .from('fulfillment_items')
         .update({
           fulfilled_quantity: pickedQuantity,
           status: newStatus,
+          picked_at: new Date().toISOString(),
+          picked_by: '00000000-0000-0000-0000-000000000000', // TODO: ใช้ user ID จริง
           updated_at: new Date().toISOString()
         })
         .eq('id', item.id);
 
       if (error) throw error;
 
-      // Update inventory stock
-      if (item.inventory_item_id) {
+      // หักสต็อกจากทุก location ที่เลือก
+      if (selectedLocations && selectedLocations.length > 0) {
+        for (const loc of selectedLocations) {
+          if (loc.selected_quantity > 0) {
+            const { error: stockError } = await supabase
+              .from('inventory_items')
+              .update({
+                quantity: supabase.raw(`GREATEST(quantity - ${loc.selected_quantity}, 0)`)
+              })
+              .eq('id', loc.inventory_item_id);
+
+            if (stockError) {
+              console.error('Error deducting stock:', stockError);
+              throw stockError;
+            }
+          }
+        }
+      } else if (item.inventory_item_id) {
+        // Fallback: หักจาก location เดียว (เหมือนเดิม)
         const { error: stockError } = await supabase
           .from('inventory_items')
           .update({
-            quantity: (item.available_stock || 0) - pickedQuantity
+            quantity: supabase.raw(`GREATEST(quantity - ${pickedQuantity}, 0)`)
           })
           .eq('id', item.inventory_item_id);
 
@@ -128,18 +149,22 @@ export const WarehousePickingSystem: React.FC = () => {
           ...loc,
           items: loc.items.map(i =>
             i.id === item.id
-              ? { ...i, fulfilled_quantity: pickedQuantity, status: newStatus }
+              ? { ...i, fulfilled_quantity: pickedQuantity, status: newStatus, picked_at: new Date().toISOString() }
               : i
           ),
           isCompleted: loc.items.every(i =>
-            i.id === item.id ? newStatus === 'completed' : i.status === 'completed'
+            i.id === item.id ? true : (i.status === 'picked' || i.status === 'completed')
           )
         }))
       );
 
+      const locationSummary = selectedLocations && selectedLocations.length > 0
+        ? `จาก ${selectedLocations.filter(l => l.selected_quantity > 0).length} ตำแหน่ง`
+        : '';
+
       toast({
         title: '✅ จัดสินค้าสำเร็จ',
-        description: `จัด ${item.product_name} จำนวน ${pickedQuantity} แล้ว`
+        description: `จัด ${item.product_name} จำนวน ${pickedQuantity} ${locationSummary} แล้ว (ยังยกเลิกได้)`
       });
 
     } catch (error) {
@@ -152,25 +177,64 @@ export const WarehousePickingSystem: React.FC = () => {
     }
   };
 
-  const completeTask = async () => {
+  // ยกเลิกรายการที่ picked แล้ว
+  const handleCancelItem = async (item: FulfillmentItem) => {
+    try {
+      if (!selectedTask) return;
+
+      const result = await cancelFulfillmentItem(item.id);
+
+      if (result.success) {
+        // Update local state
+        setPickingLocations(prev =>
+          prev.map(loc => ({
+            ...loc,
+            items: loc.items.map(i =>
+              i.id === item.id
+                ? { ...i, fulfilled_quantity: 0, status: 'pending', picked_at: undefined, picked_by: undefined }
+                : i
+            ),
+            isCompleted: false
+          }))
+        );
+
+        toast({
+          title: '✅ ยกเลิกสำเร็จ',
+          description: `ยกเลิกการจัด ${item.product_name} และคืนสต็อกแล้ว`
+        });
+      }
+    } catch (error) {
+      console.error('Error canceling item:', error);
+      toast({
+        title: '❌ เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถยกเลิกได้',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  // ยืนยันการจัดส่ง (จะเปลี่ยน status จาก picked → completed และเปลี่ยน task เป็น shipped)
+  const handleConfirmShipment = async () => {
     if (!selectedTask) return;
 
     try {
-      await updateTaskStatus(selectedTask.id, 'completed');
+      const result = await confirmTaskShipment(selectedTask.id);
 
-      setPickingMode(false);
-      setSelectedTask(null);
-      setPickingLocations([]);
+      if (result.success) {
+        setPickingMode(false);
+        setSelectedTask(null);
+        setPickingLocations([]);
 
-      toast({
-        title: '🎉 จัดสินค้าเสร็จสิ้น',
-        description: `PO ${selectedTask.po_number} พร้อมส่งมอบ`,
-      });
-
+        toast({
+          title: '🎉 ยืนยันการจัดส่งสำเร็จ',
+          description: `PO ${selectedTask.po_number} พร้อมส่งมอบ (ยกเลิกไม่ได้แล้ว)`,
+        });
+      }
     } catch (error) {
+      console.error('Error confirming shipment:', error);
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถอัปเดตสถานะงานได้',
+        description: 'ไม่สามารถยืนยันการจัดส่งได้',
         variant: 'destructive'
       });
     }
@@ -178,8 +242,8 @@ export const WarehousePickingSystem: React.FC = () => {
 
   const calculateTaskProgress = (task: FulfillmentTask): number => {
     if (task.items.length === 0) return 0;
-    const completedItems = task.items.filter(item => item.status === 'completed').length;
-    return (completedItems / task.items.length) * 100;
+    const pickedItems = task.items.filter(item => item.status === 'picked' || item.status === 'completed').length;
+    return (pickedItems / task.items.length) * 100;
   };
 
   // Navigate to location in warehouse map
@@ -291,6 +355,7 @@ export const WarehousePickingSystem: React.FC = () => {
                       key={item.id}
                       item={item}
                       onPick={pickItem}
+                      onCancel={handleCancelItem}
                       onNavigateToLocation={navigateToLocation}
                     />
                   ))}
@@ -300,23 +365,26 @@ export const WarehousePickingSystem: React.FC = () => {
           ))}
         </div>
 
-        {/* Complete Task */}
+        {/* Confirm Shipment */}
         {pickingLocations.every(loc => loc.isCompleted) && (
-          <Card className="border-green-200 bg-green-50">
+          <Card className="border-blue-200 bg-blue-50">
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <CheckCircle className="h-12 w-12 text-green-600 mx-auto" />
+                <Send className="h-12 w-12 text-blue-600 mx-auto" />
                 <div>
-                  <h3 className="text-lg font-semibold text-green-800">
-                    จัดสินค้าเสร็จสิ้น!
+                  <h3 className="text-lg font-semibold text-blue-800">
+                    พร้อมยืนยันการจัดส่ง
                   </h3>
-                  <p className="text-green-600">
-                    สินค้าทั้งหมดพร้อมสำหรับจัดส่ง
+                  <p className="text-blue-600">
+                    สินค้าทั้งหมดจัดเรียบร้อย - กดยืนยันเพื่อส่งมอบ
+                  </p>
+                  <p className="text-sm text-orange-600 mt-2">
+                    ⚠️ หลังจากยืนยันแล้วจะยกเลิกไม่ได้
                   </p>
                 </div>
-                <Button onClick={completeTask} className="bg-green-600 hover:bg-green-700">
-                  <Truck className="h-4 w-4 mr-2" />
-                  เสร็จสิ้น - พร้อมจัดส่ง
+                <Button onClick={handleConfirmShipment} className="bg-blue-600 hover:bg-blue-700">
+                  <Send className="h-4 w-4 mr-2" />
+                  ยืนยันการจัดส่ง
                 </Button>
               </div>
             </CardContent>
@@ -337,9 +405,8 @@ export const WarehousePickingSystem: React.FC = () => {
             </DialogHeader>
             <div className="space-y-4">
               <ShelfGrid
+                items={inventoryItems || []}
                 onShelfClick={handleShelfClick}
-                highlightedShelf={highlightedLocation}
-                showLocationInfo={true}
               />
               <div className="flex justify-end gap-2">
                 <Button
@@ -424,28 +491,100 @@ export const WarehousePickingSystem: React.FC = () => {
 // Individual picking item component
 interface PickingItemRowProps {
   item: FulfillmentItem;
-  onPick: (item: FulfillmentItem, quantity: number) => void;
+  onPick: (item: FulfillmentItem, quantity: number, selectedLocations?: LocationOption[]) => void;
+  onCancel: (item: FulfillmentItem) => void;
   onNavigateToLocation?: (location: string) => void;
 }
 
-const PickingItemRow: React.FC<PickingItemRowProps> = ({ item, onPick, onNavigateToLocation }) => {
+interface LocationOption {
+  inventory_item_id: string;
+  location: string;
+  available_stock: number;
+  selected_quantity: number;
+}
+
+const PickingItemRow: React.FC<PickingItemRowProps> = ({ item, onPick, onCancel, onNavigateToLocation }) => {
   const [pickQuantity, setPickQuantity] = useState(item.requested_quantity);
   const [showDialog, setShowDialog] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState(false);
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
 
+  const isPicked = item.status === 'picked';
   const isCompleted = item.status === 'completed';
   const isShortage = (item.available_stock || 0) < item.requested_quantity;
 
+  // Load available locations when dialog opens
+  const handleDialogOpen = async (open: boolean) => {
+    setShowDialog(open);
+
+    if (open && !isPicked && !isCompleted) {
+      setLoadingLocations(true);
+      try {
+        // ใช้ฟังก์ชันใหม่ค้นหาทุก location
+        const locations = await PurchaseOrderService.findAllInventoryLocationsForProduct(item.product_name);
+
+        if (locations.length === 0) {
+          console.warn('No locations found for product:', item.product_name);
+          setLocationOptions([]);
+        } else {
+          const options: LocationOption[] = locations.map(loc => ({
+            inventory_item_id: loc.inventory_item_id,
+            location: loc.location,
+            available_stock: loc.available_stock,
+            selected_quantity: 0
+          }));
+
+          setLocationOptions(options);
+        }
+      } catch (error) {
+        console.error('Error loading locations:', error);
+        setLocationOptions([]);
+      } finally {
+        setLoadingLocations(false);
+      }
+    }
+  };
+
+  const handleQuantityChange = (index: number, quantity: number) => {
+    const newOptions = [...locationOptions];
+    newOptions[index].selected_quantity = Math.max(0, Math.min(quantity, newOptions[index].available_stock));
+    setLocationOptions(newOptions);
+  };
+
+  const getTotalSelected = () => {
+    return locationOptions.reduce((sum, opt) => sum + opt.selected_quantity, 0);
+  };
+
   const handlePick = () => {
-    onPick(item, pickQuantity);
+    const totalSelected = getTotalSelected();
+    if (totalSelected === 0) {
+      alert('กรุณาเลือกจำนวนที่จะเบิกอย่างน้อย 1 ตำแหน่ง');
+      return;
+    }
+
+    if (totalSelected > item.requested_quantity) {
+      alert(`จำนวนรวมเกินที่ต้องการ (${totalSelected} > ${item.requested_quantity})`);
+      return;
+    }
+
+    // ส่ง locationOptions ที่เลือกไปด้วย
+    onPick(item, totalSelected, locationOptions.filter(loc => loc.selected_quantity > 0));
     setShowDialog(false);
   };
 
+  const handleCancelConfirm = () => {
+    onCancel(item);
+    setShowCancelDialog(false);
+  };
+
   return (
-    <div className={`border rounded-lg p-4 ${isCompleted ? 'bg-green-50 border-green-200' : ''}`}>
+    <div className={`border rounded-lg p-4 ${isPicked ? 'bg-blue-50 border-blue-200' : isCompleted ? 'bg-green-50 border-green-200' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <h4 className="font-medium">{item.product_name}</h4>
+            {isPicked && <CheckCircle className="h-4 w-4 text-blue-600" />}
             {isCompleted && <CheckCircle className="h-4 w-4 text-green-600" />}
             {isShortage && <AlertTriangle className="h-4 w-4 text-orange-500" />}
           </div>
@@ -495,40 +634,95 @@ const PickingItemRow: React.FC<PickingItemRowProps> = ({ item, onPick, onNavigat
           )}
         </div>
 
-        <div className="ml-4">
-          {!isCompleted ? (
-            <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <div className="ml-4 flex gap-2">
+          {!isPicked && !isCompleted && (
+            <Dialog open={showDialog} onOpenChange={handleDialogOpen}>
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Package className="h-4 w-4 mr-1" />
                   จัดสินค้า
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>จัดสินค้า: {item.product_name}</DialogTitle>
                   <DialogDescription>
-                    กรอกจำนวนที่จัดได้จริง
+                    เลือกตำแหน่งและจำนวนที่จะเบิก
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">จำนวนที่จัด:</label>
-                    <Input
-                      type="number"
-                      value={pickQuantity}
-                      onChange={(e) => setPickQuantity(Number(e.target.value))}
-                      max={Math.min(item.requested_quantity, item.available_stock || 0)}
-                      min={0}
-                      className="mt-1"
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      สูงสุด: {Math.min(item.requested_quantity, item.available_stock || 0)} หน่วย
+                  {/* สรุปยอดต้องการ */}
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">ต้องการทั้งหมด:</span>
+                      <span className="text-lg font-bold text-blue-600">{item.requested_quantity}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-sm text-gray-600">เลือกแล้ว:</span>
+                      <span className={`text-lg font-bold ${getTotalSelected() > item.requested_quantity ? 'text-red-600' : 'text-green-600'}`}>
+                        {getTotalSelected()}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handlePick} className="flex-1">
-                      ยืนยันการจัดสินค้า
+
+                  {/* รายการ locations */}
+                  {loadingLocations ? (
+                    <div className="text-center py-8">
+                      <div className="text-gray-500">กำลังโหลดตำแหน่ง...</div>
+                    </div>
+                  ) : locationOptions.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <AlertTriangle className="h-12 w-12 mx-auto mb-2 text-orange-400" />
+                      <p>ไม่พบสินค้าในคลัง</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium">เลือกตำแหน่งที่จะเบิก:</label>
+                      {locationOptions.map((option, index) => (
+                        <Card key={option.inventory_item_id} className="border-gray-200">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MapPin className="h-4 w-4 text-blue-600" />
+                                  <span className="font-mono font-semibold">{option.location}</span>
+                                  <Badge variant="outline">
+                                    มี {option.available_stock} หน่วย
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="w-32">
+                                <Input
+                                  type="number"
+                                  placeholder="จำนวน"
+                                  value={option.selected_quantity || ''}
+                                  onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 0)}
+                                  max={option.available_stock}
+                                  min={0}
+                                  className={option.selected_quantity > option.available_stock ? 'border-red-500' : ''}
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* คำเตือนถ้าเกิน */}
+                  {getTotalSelected() > item.requested_quantity && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                      ⚠️ จำนวนที่เลือกเกินที่ต้องการ ({getTotalSelected()} &gt; {item.requested_quantity})
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-4 border-t">
+                    <Button
+                      onClick={handlePick}
+                      className="flex-1"
+                      disabled={getTotalSelected() === 0 || getTotalSelected() > item.requested_quantity}
+                    >
+                      ยืนยันการจัดสินค้า ({getTotalSelected()} หน่วย)
                     </Button>
                     <Button
                       variant="outline"
@@ -540,7 +734,60 @@ const PickingItemRow: React.FC<PickingItemRowProps> = ({ item, onPick, onNavigat
                 </div>
               </DialogContent>
             </Dialog>
-          ) : (
+          )}
+
+          {isPicked && (
+            <>
+              <Badge variant="default" className="bg-blue-100 text-blue-800">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                จัดแล้ว
+              </Badge>
+              <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="text-red-600 hover:bg-red-50">
+                    <XCircle className="h-4 w-4 mr-1" />
+                    ยกเลิก
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>ยกเลิกการจัดสินค้า</DialogTitle>
+                    <DialogDescription>
+                      คุณต้องการยกเลิกการจัดสินค้านี้ใช่หรือไม่?
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <p className="text-sm text-yellow-800">
+                        <strong>{item.product_name}</strong>
+                        <br />
+                        จำนวน: {item.fulfilled_quantity} หน่วย
+                        <br />
+                        <span className="text-xs">สต็อกจะถูกคืนกลับทันที</span>
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleCancelConfirm}
+                        variant="destructive"
+                        className="flex-1"
+                      >
+                        ยืนยันการยกเลิก
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowCancelDialog(false)}
+                      >
+                        ไม่ยกเลิก
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+
+          {isCompleted && (
             <Badge variant="default" className="bg-green-100 text-green-800">
               <CheckCircle className="h-3 w-3 mr-1" />
               เสร็จสิ้น

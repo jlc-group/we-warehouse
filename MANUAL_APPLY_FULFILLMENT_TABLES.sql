@@ -1,6 +1,9 @@
 -- ============================================================================
 -- CREATE FULFILLMENT TABLES FOR PO TO WAREHOUSE INTEGRATION
 -- คัดลอกโค้ด SQL นี้ไปรันใน Supabase SQL Editor
+--
+-- 🔧 SAFE TO RE-RUN: Script ใช้ IF NOT EXISTS และ DROP TRIGGER IF EXISTS
+-- เพื่อป้องกัน error "already exists" - สามารถรันซ้ำได้อย่างปลอดภัย
 -- ============================================================================
 
 -- Create fulfillment_tasks table
@@ -54,6 +57,10 @@ CREATE INDEX IF NOT EXISTS idx_fulfillment_items_inventory_id ON public.fulfillm
 -- Enable RLS (Row Level Security) - disabled for development
 ALTER TABLE public.fulfillment_tasks DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fulfillment_items DISABLE ROW LEVEL SECURITY;
+
+-- Drop existing triggers if they exist (to prevent "already exists" errors)
+DROP TRIGGER IF EXISTS update_fulfillment_tasks_updated_at ON public.fulfillment_tasks;
+DROP TRIGGER IF EXISTS update_fulfillment_items_updated_at ON public.fulfillment_items;
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION public.update_fulfillment_updated_at()
@@ -112,7 +119,9 @@ LEFT JOIN (
 -- Insert sample data for testing (only if no data exists)
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM public.fulfillment_tasks LIMIT 1) THEN
+  -- Check if tables exist first (safeguard against running script on incomplete database)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'fulfillment_tasks' AND table_schema = 'public')
+     AND NOT EXISTS (SELECT 1 FROM public.fulfillment_tasks LIMIT 1) THEN
     INSERT INTO public.fulfillment_tasks (
       po_number,
       po_date,
@@ -133,10 +142,16 @@ BEGIN
   END IF;
 END $$;
 
--- Insert sample fulfillment items
+-- Insert sample fulfillment items linked to real inventory
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.fulfillment_tasks) AND NOT EXISTS (SELECT 1 FROM public.fulfillment_items) THEN
+  -- Check if both tables exist and tasks are available but no items yet
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'fulfillment_items' AND table_schema = 'public')
+     AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inventory_items' AND table_schema = 'public')
+     AND EXISTS (SELECT 1 FROM public.fulfillment_tasks)
+     AND NOT EXISTS (SELECT 1 FROM public.fulfillment_items) THEN
+
+    -- Create fulfillment items from real inventory data
     INSERT INTO public.fulfillment_items (
       fulfillment_task_id,
       product_name,
@@ -145,27 +160,73 @@ BEGIN
       fulfilled_quantity,
       unit_price,
       total_amount,
-      status
-    ) SELECT
+      status,
+      location,
+      inventory_item_id,
+      available_stock
+    )
+    SELECT
       ft.id,
-      'สินค้าทดสอบ ' || ft.po_number,
-      'PRD-' || SUBSTRING(ft.po_number FROM -3),
-      10.00,
+      COALESCE(ii.product_name, 'สินค้าทดสอบ ' || ft.po_number) as product_name,
+      COALESCE(ii.sku, 'PRD-' || SUBSTRING(ft.po_number FROM -3)) as product_code,
+      CASE
+        -- Request quantity based on available stock
+        WHEN ii.quantity >= 10 THEN 10.00
+        WHEN ii.quantity >= 5 THEN 5.00
+        WHEN ii.quantity > 0 THEN ii.quantity
+        ELSE 2.00 -- Small test quantity even if no stock
+      END as requested_quantity,
       CASE ft.status
-        WHEN 'completed' THEN 10.00
-        WHEN 'in_progress' THEN 5.00
+        WHEN 'completed' THEN CASE
+          WHEN ii.quantity >= 10 THEN 10.00
+          WHEN ii.quantity >= 5 THEN 5.00
+          WHEN ii.quantity > 0 THEN ii.quantity
+          ELSE 0.00
+        END
+        WHEN 'in_progress' THEN CASE
+          WHEN ii.quantity >= 5 THEN 5.00
+          WHEN ii.quantity > 0 THEN ii.quantity * 0.5
+          ELSE 0.00
+        END
         ELSE 0.00
-      END,
-      100.00,
-      1000.00,
+      END as fulfilled_quantity,
+      COALESCE(ii.unit_price, 100.00) as unit_price,
+      COALESCE(ii.unit_price, 100.00) * CASE
+        WHEN ii.quantity >= 10 THEN 10.00
+        WHEN ii.quantity >= 5 THEN 5.00
+        WHEN ii.quantity > 0 THEN ii.quantity
+        ELSE 2.00
+      END as total_amount,
       CASE ft.status
         WHEN 'completed' THEN 'completed'
         WHEN 'in_progress' THEN 'partial'
         ELSE 'pending'
-      END
-    FROM public.fulfillment_tasks ft;
+      END as status,
+      COALESCE(ii.location, 'A1-01-01') as location, -- Use real location or default
+      ii.id as inventory_item_id,
+      COALESCE(ii.quantity, 0) as available_stock
+    FROM public.fulfillment_tasks ft
+    CROSS JOIN LATERAL (
+      -- Select inventory items with stock > 0 first, then any items as fallback
+      SELECT ii.* FROM public.inventory_items ii
+      WHERE ii.quantity > 0 AND ii.location IS NOT NULL
+      ORDER BY ii.quantity DESC, ii.created_at DESC
+      LIMIT 1
 
-    RAISE NOTICE 'Sample fulfillment items inserted successfully';
+      UNION ALL
+
+      -- Fallback: any inventory item if no stock available
+      SELECT ii.* FROM public.inventory_items ii
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.inventory_items ii2
+        WHERE ii2.quantity > 0 AND ii2.location IS NOT NULL
+      )
+      ORDER BY ii.created_at DESC
+      LIMIT 1
+    ) ii
+    LIMIT (SELECT COUNT(*) FROM public.fulfillment_tasks); -- One item per task
+
+    RAISE NOTICE 'Sample fulfillment items with real inventory data inserted successfully';
   ELSE
     RAISE NOTICE 'Fulfillment items already exist or no tasks found, skipping sample data insertion';
   END IF;

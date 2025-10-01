@@ -324,10 +324,11 @@ export const EnhancedOverview = memo(({
     });
   }, [allSkus, skuSearchQuery, getProductName]);
 
-  // รายการแถวทั้งหมด A-Z และแถวที่เพิ่มเติม
+  // รายการแถวทั้งหมด A-Z และแถวที่เพิ่มเติม (ป้องกัน duplicate keys)
   const allRows = useMemo(() => {
     const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-    return [...defaultRows, ...customRows];
+    // ใช้ Set เพื่อรับประกันความเป็น unique และป้องกัน React key duplication
+    return [...new Set([...defaultRows, ...customRows])];
   }, [customRows]);
 
   // รายการ MFD ทั้งหมด
@@ -437,10 +438,17 @@ export const EnhancedOverview = memo(({
     };
   }, []);
 
-  // Function to add new row
+  // Function to add new row (ป้องกัน duplicate keys)
   const addNewRow = () => {
     const trimmedName = newRowName.trim().toUpperCase();
-    if (trimmedName && !allRows.includes(trimmedName) && trimmedName.length === 1 && /^[A-Z]$/.test(trimmedName)) {
+    const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+
+    // ตรวจสอบไม่ให้เพิ่มตัวอักษรที่มีอยู่แล้วทั้งใน defaultRows และ customRows
+    if (trimmedName &&
+        !defaultRows.includes(trimmedName) &&
+        !customRows.includes(trimmedName) &&
+        trimmedName.length === 1 &&
+        /^[A-Z]$/.test(trimmedName)) {
       setCustomRows(prev => [...prev, trimmedName].sort());
       setNewRowName('');
       setShowAddRowDialog(false);
@@ -1447,7 +1455,10 @@ export const EnhancedOverview = memo(({
                               className="text-center font-mono text-lg"
                             />
                           </div>
-                          {newRowName && allRows.includes(newRowName.toUpperCase()) && (
+                          {newRowName && (() => {
+                            const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+                            return defaultRows.includes(newRowName.toUpperCase()) || customRows.includes(newRowName.toUpperCase());
+                          })() && (
                             <p className="text-sm text-red-600">แถว {newRowName.toUpperCase()} มีอยู่แล้ว</p>
                           )}
                           {newRowName && !/^[A-Z]$/.test(newRowName.toUpperCase()) && (
@@ -1465,11 +1476,14 @@ export const EnhancedOverview = memo(({
                             </Button>
                             <Button
                               onClick={addNewRow}
-                              disabled={
-                                !newRowName.trim() ||
-                                allRows.includes(newRowName.toUpperCase()) ||
-                                !/^[A-Z]$/.test(newRowName.toUpperCase())
-                              }
+                              disabled={(() => {
+                                const trimmedName = newRowName.trim().toUpperCase();
+                                const defaultRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
+                                return !trimmedName ||
+                                       defaultRows.includes(trimmedName) ||
+                                       customRows.includes(trimmedName) ||
+                                       !/^[A-Z]$/.test(trimmedName);
+                              })()}
                             >
                               เพิ่ม
                             </Button>

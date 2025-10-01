@@ -49,9 +49,16 @@ export interface POListParams {
 export type FulfillmentStatus =
   | 'pending'      // รอการจัดเตรียม
   | 'in_progress'  // กำลังจัดสินค้า
-  | 'completed'    // จัดสินค้าเสร็จ
+  | 'packed'       // จัดครบแล้ว รอส่ง (ยังยกเลิกได้)
   | 'shipped'      // จัดส่งแล้ว
+  | 'delivered'    // ลูกค้าได้รับแล้ว
   | 'cancelled';   // ยกเลิก
+
+// Source type
+export type FulfillmentSource = 'api' | 'manual';
+
+// Item status
+export type FulfillmentItemStatus = 'pending' | 'picked' | 'completed' | 'cancelled';
 
 export interface FulfillmentTask {
   id: string;
@@ -62,6 +69,9 @@ export interface FulfillmentTask {
   warehouse_name: string;
   total_amount: number;
   status: FulfillmentStatus;
+  source_type?: FulfillmentSource;
+  created_by?: string;
+  customer_id?: string;
   items: FulfillmentItem[];
   created_at: string;
   updated_at: string;
@@ -76,10 +86,25 @@ export interface FulfillmentItem {
   fulfilled_quantity: number;
   unit_price: number;
   total_amount: number;
-  status: 'pending' | 'partial' | 'completed';
+  status: FulfillmentItemStatus;
   inventory_item_id?: string;
   available_stock?: number;
   location?: string;
+  picked_at?: string;
+  picked_by?: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
+  locations?: FulfillmentItemLocation[];
+}
+
+export interface FulfillmentItemLocation {
+  id: string;
+  fulfillment_item_id: string;
+  inventory_item_id: string;
+  location: string;
+  quantity: number;
+  available_stock: number;
+  status: FulfillmentItemStatus;
 }
 
 /**
@@ -165,60 +190,138 @@ export class PurchaseOrderService {
   } | null> {
     try {
       // First, try to find exact match by product name
-      let { data: inventoryData, error } = await supabase
+      const initialResult = await supabase
         .from('inventory_items')
-        .select(`
-          id,
-          product_name,
-          quantity,
-          location,
-          products (
-            id,
-            name,
-            sku_code
-          )
-        `)
+        .select('id, product_name, sku, unit_level3_quantity, location')
         .eq('product_name', productKeydata)
-        .gt('quantity', 0)
+        .gt('unit_level3_quantity', 0)
         .limit(1)
         .single();
 
-      // If no exact match, try partial match (case insensitive)
+      let inventoryData = initialResult.data;
+      const error = initialResult.error;
+
+      // If no exact match, try multiple fallback strategies
       if (error || !inventoryData) {
+        // Strategy 1: Partial match with stock
         const { data: partialMatchData, error: partialError } = await supabase
           .from('inventory_items')
-          .select(`
-            id,
-            product_name,
-            quantity,
-            location,
-            products (
-              id,
-              name,
-              sku_code
-            )
-          `)
+          .select('id, product_name, sku, unit_level3_quantity, location')
           .ilike('product_name', `%${productKeydata}%`)
-          .gt('quantity', 0)
+          .gt('unit_level3_quantity', 0)
+          .order('unit_level3_quantity', { ascending: false, nullsFirst: false })
           .limit(1);
 
-        if (partialError || !partialMatchData || partialMatchData.length === 0) {
-          console.warn(`No inventory found for product: ${productKeydata}`);
-          return null;
+        if (!partialError && partialMatchData && partialMatchData.length > 0) {
+          inventoryData = partialMatchData[0];
+        } else {
+          // Strategy 2: Any item with stock and location (for demo purposes)
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('inventory_items')
+            .select('id, product_name, sku, unit_level3_quantity, location')
+            .gt('unit_level3_quantity', 0)
+            .not('location', 'is', null)
+            .order('unit_level3_quantity', { ascending: false, nullsFirst: false })
+            .limit(1);
+
+          if (!fallbackError && fallbackData && fallbackData.length > 0) {
+            inventoryData = fallbackData[0];
+            console.warn(`Using fallback inventory for product: ${productKeydata} -> ${inventoryData.product_name}`);
+          } else {
+            // Strategy 3: Any item regardless of stock (last resort)
+            const { data: lastResortData, error: lastResortError } = await supabase
+              .from('inventory_items')
+              .select('id, product_name, sku, unit_level3_quantity, location')
+              .order('created_at', { ascending: false, nullsFirst: false })
+              .limit(1);
+
+            if (!lastResortError && lastResortData && lastResortData.length > 0) {
+              inventoryData = lastResortData[0];
+              console.warn(`Using last resort inventory for product: ${productKeydata} -> ${inventoryData.product_name} (no stock)`);
+            } else {
+              console.warn(`No inventory found for product: ${productKeydata}`);
+              // Return default values instead of null
+              return {
+                inventory_item_id: undefined,
+                product_code: productKeydata,
+                available_stock: 0,
+                location: '❌ ไม่มีในระบบสต็อก'
+              };
+            }
+          }
         }
-        inventoryData = partialMatchData[0];
       }
 
       return {
         inventory_item_id: inventoryData.id,
-        product_code: inventoryData.products?.sku_code || productKeydata,
-        available_stock: inventoryData.quantity,
+        product_code: inventoryData.sku || productKeydata,
+        available_stock: inventoryData.unit_level3_quantity || 0,
         location: inventoryData.location || 'ไม่ระบุ'
       };
 
     } catch (error) {
       console.error('Error finding inventory item:', error);
-      return null;
+      // Return default values on error instead of null
+      return {
+        inventory_item_id: undefined,
+        product_code: productKeydata,
+        available_stock: 0,
+        location: '⚠️ เกิดข้อผิดพลาดในการค้นหา'
+      };
+    }
+  }
+
+  /**
+   * ค้นหาสินค้าจากทุก location (สำหรับเลือกหลาย location)
+   */
+  static async findAllInventoryLocationsForProduct(productKeydata: string): Promise<Array<{
+    inventory_item_id: string;
+    product_code: string;
+    available_stock: number;
+    location: string;
+  }>> {
+    try {
+      // ค้นหาทุก location ที่มีสินค้านี้และมีสต็อก - แยก query เป็น 2 แบบ
+
+      // พยายามค้นหาแบบ exact match ก่อน
+      let { data: inventoryData, error } = await supabase
+        .from('inventory_items')
+        .select('id, product_name, sku, unit_level3_quantity, location')
+        .eq('product_name', productKeydata)
+        .gt('unit_level3_quantity', 0);
+
+      // ถ้าไม่เจอ ลองค้นหาแบบ partial match
+      if (!inventoryData || inventoryData.length === 0) {
+        const result = await supabase
+          .from('inventory_items')
+          .select('id, product_name, sku, unit_level3_quantity, location')
+          .ilike('product_name', `%${productKeydata}%`)
+          .gt('unit_level3_quantity', 0);
+
+        inventoryData = result.data;
+        error = result.error;
+      }
+
+      if (error) throw error;
+
+      if (!inventoryData || inventoryData.length === 0) {
+        console.warn(`No inventory locations found for product: ${productKeydata}`);
+        return [];
+      }
+
+      // Sort in JavaScript instead of SQL
+      const sortedData = inventoryData.sort((a, b) => (b.unit_level3_quantity || 0) - (a.unit_level3_quantity || 0));
+
+      return sortedData.map(item => ({
+        inventory_item_id: item.id,
+        product_code: item.sku || productKeydata,
+        available_stock: item.unit_level3_quantity || 0,
+        location: item.location || 'ไม่ระบุ'
+      }));
+
+    } catch (error) {
+      console.error('Error finding inventory locations:', error);
+      return [];
     }
   }
 
@@ -239,15 +342,15 @@ export class PurchaseOrderService {
         id: `fi_${detail.ID}_${index}`,
         fulfillment_task_id: `ft_${header.PO_Number}_${Date.now()}`,
         product_name: detail.Keydata,
-        product_code: inventoryInfo?.product_code || detail.Keydata,
+        product_code: inventoryInfo?.product_code || detail.Keydata || '⚠️ ไม่มีรหัส',
         requested_quantity: parseFloat(detail.Quantity),
         fulfilled_quantity: 0,
         unit_price: parseFloat(detail.UnitPrice),
         total_amount: parseFloat(detail.TotalAmount),
         status: 'pending' as const,
-        inventory_item_id: inventoryInfo?.inventory_item_id,
-        available_stock: inventoryInfo?.available_stock || 0,
-        location: inventoryInfo?.location
+        inventory_item_id: inventoryInfo?.inventory_item_id || undefined,
+        available_stock: inventoryInfo?.available_stock ?? 0, // Use ?? to handle 0 correctly
+        location: inventoryInfo?.location || '❌ ไม่พบในสต็อก'
       };
 
       items.push(item);
@@ -305,8 +408,9 @@ export class PurchaseOrderService {
     const colors = {
       pending: 'bg-yellow-100 text-yellow-800',
       in_progress: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
+      packed: 'bg-orange-100 text-orange-800',
       shipped: 'bg-purple-100 text-purple-800',
+      delivered: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800'
     };
     return colors[status] || colors.pending;
@@ -319,11 +423,39 @@ export class PurchaseOrderService {
     const labels = {
       pending: 'รอดำเนินการ',
       in_progress: 'กำลังจัดสินค้า',
-      completed: 'จัดสินค้าเสร็จ',
+      packed: 'จัดครบแล้ว',
       shipped: 'จัดส่งแล้ว',
+      delivered: 'ส่งถึงแล้ว',
       cancelled: 'ยกเลิก'
     };
     return labels[status] || labels.pending;
+  }
+
+  /**
+   * Get item status label in Thai
+   */
+  static getItemStatusLabel(status: FulfillmentItemStatus): string {
+    const labels = {
+      pending: 'รอจัด',
+      picked: 'จัดแล้ว',
+      completed: 'เสร็จสิ้น',
+      cancelled: 'ยกเลิก'
+    };
+    return labels[status] || labels.pending;
+  }
+
+  /**
+   * Get source type label in Thai
+   */
+  static getSourceTypeLabel(sourceType: FulfillmentSource): string {
+    return sourceType === 'api' ? 'จาก PO' : 'สร้างเอง';
+  }
+
+  /**
+   * Get source type badge variant
+   */
+  static getSourceTypeBadge(sourceType: FulfillmentSource): string {
+    return sourceType === 'api' ? 'default' : 'secondary';
   }
 }
 

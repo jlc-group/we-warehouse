@@ -1,5 +1,5 @@
-import { DisabledComponent } from './DisabledComponents';
+import { LocationManagement } from './LocationManagement';
 
 export default function LocationManagementNew() {
-  return <DisabledComponent name="Location Management" />;
+  return <LocationManagement userRoleLevel={5} />;
 }

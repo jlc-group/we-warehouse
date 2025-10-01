@@ -42,12 +42,18 @@ export class LocationQRService {
 
       while (retries > 0) {
         try {
-          const result = await supabase
+          // Add timeout to individual query
+          const queryPromise = supabase
             .from('location_qr_codes')
             .select('*')
             .eq('is_active', true)
             .order('created_at', { ascending: false });
 
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Query timeout after 60 seconds')), 60000)
+          );
+
+          const result = await Promise.race([queryPromise, timeoutPromise]);
           data = result.data;
           error = result.error;
           break; // Success, exit retry loop
@@ -57,8 +63,8 @@ export class LocationQRService {
           if (retries === 0) {
             throw networkError;
           }
-          // Wait before retry
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Wait before retry (progressive backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * (4 - retries)));
         }
       }
 
@@ -129,8 +135,7 @@ export class LocationQRService {
           qr_code_data: qrUrl,
           qr_image_url: qrImageDataURL,
           inventory_snapshot: locationData,
-          is_active: true,
-          description: `QR Code for location ${normalizedLocation}`
+          is_active: true
         })
         .select()
         .single();
