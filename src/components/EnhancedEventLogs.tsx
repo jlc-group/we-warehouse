@@ -14,12 +14,17 @@ interface SystemEvent {
   id: string;
   event_type: string;
   event_category: string;
-  description: string;
+  event_action?: string;
+  event_title?: string;
+  event_description?: string;
+  description?: string; // backward compatibility
   metadata?: any;
   user_id?: string;
   source_table?: string;
   source_id?: string;
-  severity_level: 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
+  severity_level?: 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
+  status?: string;
+  location_context?: string;
   created_at: string;
 }
 
@@ -51,7 +56,7 @@ export function EnhancedEventLogs() {
       }
 
       if (searchTerm) {
-        query = query.or(`description.ilike.%${searchTerm}%,event_type.ilike.%${searchTerm}%`);
+        query = query.or(`description.ilike.%${searchTerm}%,event_title.ilike.%${searchTerm}%,event_description.ilike.%${searchTerm}%,event_type.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;
@@ -186,7 +191,9 @@ export function EnhancedEventLogs() {
 
   const filteredEvents = events.filter(event => {
     const matchesSearch = !searchTerm ||
-      event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.description && event.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (event.event_title && event.event_title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (event.event_description && event.event_description.toLowerCase().includes(searchTerm.toLowerCase())) ||
       event.event_type.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesSeverity = severityFilter === 'ALL' || event.severity_level === severityFilter;
@@ -296,7 +303,15 @@ export function EnhancedEventLogs() {
                         </div>
                       </div>
 
-                      <p className="text-sm font-medium">{event.description}</p>
+                      {event.event_title && (
+                        <p className="text-sm font-semibold text-foreground">{event.event_title}</p>
+                      )}
+                      {event.event_description && (
+                        <p className="text-sm text-muted-foreground">{event.event_description}</p>
+                      )}
+                      {!event.event_title && !event.event_description && event.description && (
+                        <p className="text-sm font-medium">{event.description}</p>
+                      )}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         <div className="flex items-center gap-2">

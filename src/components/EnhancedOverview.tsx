@@ -54,6 +54,7 @@ interface EnhancedOverviewProps {
   onWarehouseTransfer: (items: any) => void;
   onExportItem: (id: string, cartonQty: number, boxQty: number, looseQty: number, destination: string, notes?: string) => Promise<void>;
   onScanQR: () => void;
+  onBulkExport?: () => void;
   loading?: boolean;
 }
 
@@ -74,6 +75,7 @@ export const EnhancedOverview = memo(({
   onWarehouseTransfer,
   onExportItem,
   onScanQR,
+  onBulkExport,
   loading = false
 }: EnhancedOverviewProps) => {
   const { toast } = useToast();
@@ -2464,6 +2466,17 @@ export const EnhancedOverview = memo(({
                 <QrCode className="h-4 w-4 mr-2" />
                 สแกน QR Code
               </Button>
+
+              {onBulkExport && (
+                <Button
+                  onClick={onBulkExport}
+                  className="w-full justify-start bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
+                  variant="default"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  ส่งออกหลายรายการ
+                </Button>
+              )}
 
               <Button
                 onClick={async () => {

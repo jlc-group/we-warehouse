@@ -318,6 +318,15 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
             inventory_item_id: formData.selectedItemId,
             quantity_exported: exportedTotal,
             unit: exportDescription.join(' + '),
+            // เพิ่มข้อมูลหน่วยแยก + ชื่อหน่วย
+            quantity_level1: reqLevel1,
+            quantity_level2: reqLevel2,
+            quantity_level3: reqLevel3,
+            unit_level1_name: selectedItem.unit_level1_name || 'ลัง',
+            unit_level2_name: selectedItem.unit_level2_name || 'กล่อง',
+            unit_level3_name: selectedItem.unit_level3_name || 'ชิ้น',
+            unit_level1_rate: selectedItem.unit_level1_rate || 144,
+            unit_level2_rate: selectedItem.unit_level2_rate || 12,
             from_location: location,
             notes: formData.notes || null,
             po_reference: formData.poReference || null,
@@ -357,6 +366,28 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
       if (isStockZero) {
         console.log('🗑️ Stock is zero, deleting inventory item from location:', location);
 
+        // 5a. บันทึก event ว่า location ว่างแล้ว
+        await supabase
+          .from('system_events')
+          .insert({
+            event_type: 'location',
+            event_category: 'location_management',
+            event_action: 'location_cleared',
+            event_title: `ตำแหน่ง ${location} ว่างแล้ว`,
+            event_description: `สินค้า ${selectedItem.product_name} ถูกส่งออกหมดจาก ${location} - ตำแหน่งนี้พร้อมรับสินค้าใหม่`,
+            metadata: {
+              location: location,
+              product_name: selectedItem.product_name,
+              last_customer: selectedCustomer.customer_name,
+              last_export_quantity: exportedTotal,
+              cleared_at: new Date().toISOString()
+            },
+            location_context: location,
+            status: 'success',
+            user_id: '00000000-0000-0000-0000-000000000000'
+          });
+
+        // 5b. ลบ inventory_item
         const { error: deleteError } = await supabase
           .from('inventory_items')
           .delete()

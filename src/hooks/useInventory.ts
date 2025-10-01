@@ -32,6 +32,7 @@ export interface InventoryItem extends BaseInventoryItem {
   unit_level3_name: string | null;
   unit_level1_rate: number | null;
   unit_level2_rate: number | null;
+  product_type?: string | null;
 }
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'error';

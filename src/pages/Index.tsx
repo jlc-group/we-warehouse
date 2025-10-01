@@ -23,6 +23,7 @@ import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
+import { BulkExportModal } from '@/components/BulkExportModal';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -88,6 +89,7 @@ const Index = memo(() => {
   const [isWarehouseTransferModalOpen, setIsWarehouseTransferModalOpen] = useState(false);
   const [isLocationItemSelectorOpen, setIsLocationItemSelectorOpen] = useState(false);
   const [isManualExportModalOpen, setIsManualExportModalOpen] = useState(false);
+  const [isBulkExportModalOpen, setIsBulkExportModalOpen] = useState(false);
   const [isCreatingQRTable, setIsCreatingQRTable] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [qrSelectedLocation, setQrSelectedLocation] = useState<string>('');
@@ -899,6 +901,7 @@ const Index = memo(() => {
               }}
               onExportItem={exportItem}
               onScanQR={() => setShowScanner(true)}
+              onBulkExport={() => setIsBulkExportModalOpen(true)}
               loading={loading}
             />
           </TabsContent>
@@ -1044,8 +1047,8 @@ const Index = memo(() => {
             <Tabs defaultValue="export_history" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
-                <TabsTrigger value="movement_logs">ประวัติการเคลื่อนไหวสต็อก</TabsTrigger>
-                <TabsTrigger value="system_events">ประวัติเหตุการณ์ระบบ</TabsTrigger>
+                <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
+                <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
               </TabsList>
               <TabsContent value="export_history">
                 <ExportHistory />
@@ -1253,6 +1256,13 @@ const Index = memo(() => {
               setLocationItems(updatedItems);
             }
           }}
+        />
+
+        {/* Bulk Export Modal - ส่งออกหลายรายการพร้อมกัน */}
+        <BulkExportModal
+          open={isBulkExportModalOpen}
+          onOpenChange={setIsBulkExportModalOpen}
+          inventoryItems={inventoryItems}
         />
 
         {/* QR Scanner */}

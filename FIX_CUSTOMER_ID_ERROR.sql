@@ -1,6 +1,15 @@
--- สร้างตาราง customer_exports สำหรับบันทึกประวัติการส่งออกสินค้าไปยังลูกค้า
--- คัดลอกไฟล์นี้ทั้งหมด แล้ววางใน Supabase SQL Editor แล้วกด Run
+-- แก้ไขปัญหา ERROR: 42703: column "customer_id" does not exist
+-- รันไฟล์นี้ใน Supabase SQL Editor
 
+-- ======================================
+-- 1. ลบ views เก่าที่อาจมีปัญหา
+-- ======================================
+DROP VIEW IF EXISTS customer_payment_summary CASCADE;
+DROP VIEW IF EXISTS aging_report CASCADE;
+
+-- ======================================
+-- 2. สร้างตาราง customer_exports (ถ้ายังไม่มี)
+-- ======================================
 CREATE TABLE IF NOT EXISTS public.customer_exports (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     customer_id UUID,
@@ -19,19 +28,20 @@ CREATE TABLE IF NOT EXISTS public.customer_exports (
     user_id UUID DEFAULT '00000000-0000-0000-0000-000000000000'::UUID
 );
 
--- สร้าง indexes เพื่อเพิ่มความเร็วในการค้นหา
+-- สร้าง indexes
 CREATE INDEX IF NOT EXISTS idx_customer_exports_customer_name ON public.customer_exports (customer_name);
 CREATE INDEX IF NOT EXISTS idx_customer_exports_product_name ON public.customer_exports (product_name);
 CREATE INDEX IF NOT EXISTS idx_customer_exports_export_date ON public.customer_exports (export_date DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_exports_customer_id ON public.customer_exports (customer_id);
 CREATE INDEX IF NOT EXISTS idx_customer_exports_inventory_item_id ON public.customer_exports (inventory_item_id);
 
--- เปิดใช้งาน Row Level Security
+-- Enable RLS
 ALTER TABLE public.customer_exports ENABLE ROW LEVEL SECURITY;
 
--- สร้าง RLS policy อนุญาตให้ทุกคนเข้าถึงได้
+-- Create RLS policy
+DROP POLICY IF EXISTS "Allow all access to customer_exports" ON public.customer_exports;
 CREATE POLICY "Allow all access to customer_exports" ON public.customer_exports FOR ALL USING (true);
 
--- ให้สิทธิ์การเข้าถึง
+-- Grant permissions
 GRANT ALL ON public.customer_exports TO authenticated;
 GRANT ALL ON public.customer_exports TO anon;

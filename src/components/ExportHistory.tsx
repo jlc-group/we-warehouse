@@ -69,54 +69,46 @@ export function ExportHistory() {
     try {
       setLoading(true);
 
-      // Query inventory_movements where movement_type = 'out'
+      // Query customer_exports table instead (มีข้อมูลครบและไม่ถูกลบ)
       const { data, error } = await supabase
-        .from('inventory_movements')
-        .select(`
-          id,
-          inventory_item_id,
-          movement_type,
-          quantity_boxes_before,
-          quantity_loose_before,
-          quantity_boxes_after,
-          quantity_loose_after,
-          quantity_boxes_change,
-          quantity_loose_change,
-          location_before,
-          location_after,
-          notes,
-          created_at,
-          created_by,
-          inventory_items!inner(
-            product_name,
-            sku,
-            unit_level1_name,
-            unit_level2_name,
-            unit_level3_name,
-            unit_level1_rate,
-            unit_level2_rate
-          )
-        `)
-        .eq('movement_type', 'out')
+        .from('customer_exports')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(500);
 
       if (error) throw error;
 
-      // Flatten joined data
-      const flattenedData: ExportMovement[] = (data || []).map((item: any) => ({
-        ...item,
-        product_name: item.inventory_items?.product_name,
-        sku: item.inventory_items?.sku,
-        unit_level1_name: item.inventory_items?.unit_level1_name || 'ลัง',
-        unit_level2_name: item.inventory_items?.unit_level2_name || 'กล่อง',
-        unit_level3_name: item.inventory_items?.unit_level3_name || 'ชิ้น',
-        unit_level1_rate: item.inventory_items?.unit_level1_rate || 144,
-        unit_level2_rate: item.inventory_items?.unit_level2_rate || 12,
+      // Transform to match ExportMovement interface
+      const transformedData: ExportMovement[] = (data || []).map((item: any) => ({
+        id: item.id,
+        inventory_item_id: item.inventory_item_id,
+        movement_type: 'out',
+        quantity_boxes_change: item.quantity_level1 || 0,
+        quantity_loose_change: item.quantity_level2 || 0,
+        location_before: item.from_location || '',
+        location_after: `ลูกค้า: ${item.customer_name}`,
+        notes: item.notes || `ส่งออก ${item.quantity_exported} ชิ้น`,
+        created_at: item.created_at,
+        created_by: item.user_id || '',
+        // Product info
+        product_name: item.product_name,
+        sku: item.product_code,
+        unit_level1_name: item.unit_level1_name || 'ลัง',
+        unit_level2_name: item.unit_level2_name || 'กล่อง',
+        unit_level3_name: item.unit_level3_name || 'ชิ้น',
+        unit_level1_rate: item.unit_level1_rate || 144,
+        unit_level2_rate: item.unit_level2_rate || 12,
+        // Extra fields
+        quantity_boxes_before: 0,
+        quantity_loose_before: 0,
+        quantity_boxes_after: 0,
+        quantity_loose_after: 0,
+        total_pieces: item.quantity_exported,
+        quantity_level3: item.quantity_level3 || 0
       }));
 
-      console.log('✅ Loaded export movements:', flattenedData.length);
-      setMovements(flattenedData);
+      console.log('✅ Loaded export history from customer_exports:', transformedData.length);
+      setMovements(transformedData);
     } catch (error) {
       console.error('❌ Error fetching export movements:', error);
     } finally {
@@ -161,6 +153,12 @@ export function ExportHistory() {
   };
 
   const calculateTotalPieces = (movement: ExportMovement): number => {
+    // Use total_pieces from customer_exports if available
+    if ((movement as any).total_pieces) {
+      return (movement as any).total_pieces;
+    }
+
+    // Fallback to calculation from boxes/loose changes
     const boxesChange = Math.abs(movement.quantity_boxes_change || 0);
     const looseChange = Math.abs(movement.quantity_loose_change || 0);
 
@@ -171,14 +169,23 @@ export function ExportHistory() {
   };
 
   const formatQuantity = (movement: ExportMovement): string => {
-    const boxes = Math.abs(movement.quantity_boxes_change || 0);
-    const loose = Math.abs(movement.quantity_loose_change || 0);
+    const level1 = Math.abs(movement.quantity_boxes_change || 0);
+    const level2 = Math.abs(movement.quantity_loose_change || 0);
+    const level3 = Math.abs((movement as any).quantity_level3 || 0);
 
     const parts = [];
-    if (boxes > 0) parts.push(`${boxes} ${movement.unit_level1_name}`);
-    if (loose > 0) parts.push(`${loose} ${movement.unit_level2_name}`);
+    if (level1 > 0) parts.push(`${level1} ${movement.unit_level1_name}`);
+    if (level2 > 0) parts.push(`${level2} ${movement.unit_level2_name}`);
+    if (level3 > 0) parts.push(`${level3} ${movement.unit_level3_name}`);
 
-    return parts.join(' + ') || '0';
+    if (parts.length === 0) {
+      const totalPieces = calculateTotalPieces(movement);
+      if (totalPieces > 0) {
+        return `${totalPieces.toLocaleString()} ${movement.unit_level3_name || 'ชิ้น'}`;
+      }
+    }
+
+    return parts.join(' + ');
   };
 
   if (loading) {
