@@ -29,7 +29,8 @@ import {
 import {
   Plus,
   Edit,
-  Trash2
+  Trash2,
+  Settings
 } from 'lucide-react';
 import { useConversionRates, ConversionRateInput } from '@/hooks/useConversionRates';
 import { useProducts } from '@/contexts/ProductsContext';
