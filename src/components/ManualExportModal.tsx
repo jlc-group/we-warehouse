@@ -349,12 +349,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
           user_id: '00000000-0000-0000-0000-000000000000'
         });
 
-      toast({
-        title: '✅ ส่งออกสำเร็จ',
-        description: `ส่ง ${selectedItem.product_name} จำนวน ${exportDescription.join(' + ')} (${exportedTotal} ชิ้น) ไปยัง ${selectedCustomer.customer_name} แล้ว`,
-      });
-
-      // Reset form
+      // Reset form first
       setFormData({
         customerId: '',
         quantityLevel1: '',
@@ -365,12 +360,22 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         poReference: ''
       });
 
-      onClose();
+      // Show success toast
+      toast({
+        title: '✅ ส่งออกสำเร็จ',
+        description: `ส่ง ${selectedItem.product_name} จำนวน ${exportDescription.join(' + ')} (${exportedTotal.toLocaleString()} ชิ้น) ไปยัง ${selectedCustomer.customer_name} แล้ว`,
+        duration: 5000, // Show for 5 seconds
+      });
 
       // Call refresh callback if provided
       if (onExportSuccess) {
         onExportSuccess();
       }
+
+      // Close modal after a short delay to allow toast to render
+      setTimeout(() => {
+        onClose();
+      }, 300);
 
     } catch (error) {
       console.error('═══════════════════════════════════════════════════');
@@ -396,10 +401,26 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
       });
       console.error('═══════════════════════════════════════════════════');
 
+      // Extract more detailed error message
+      let errorMessage = 'ไม่สามารถส่งออกสินค้าได้';
+
+      if (error && typeof error === 'object') {
+        const err = error as any;
+        if (err.message) {
+          errorMessage = err.message;
+        }
+        if (err.details) {
+          errorMessage += ` (${err.details})`;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: error instanceof Error ? error.message : 'ไม่สามารถส่งออกสินค้าได้',
-        variant: 'destructive'
+        description: errorMessage,
+        variant: 'destructive',
+        duration: 7000, // Show error longer
       });
     } finally {
       setLoading(false);
