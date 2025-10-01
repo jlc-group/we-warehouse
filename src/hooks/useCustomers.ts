@@ -348,17 +348,25 @@ export const useCustomer = (id: string) => {
           .from('customers')
           .select(`
             id,
-            name,
+            customer_code,
+            customer_name,
+            customer_type,
             phone,
             email,
-            address,
+            address_line1,
+            address_line2,
+            district,
+            province,
+            postal_code,
+            country,
             contact_person,
-            company_name,
+            business_type,
             tax_id,
             credit_limit,
             payment_terms,
             is_active,
             notes,
+            tags,
             created_at,
             updated_at,
             created_by,
@@ -373,7 +381,14 @@ export const useCustomer = (id: string) => {
         }
 
         console.log('✅ Successfully fetched customer from database:', id);
-        return data;
+
+        // Transform ข้อมูลให้ตรงกับ interface Customer
+        return {
+          ...data,
+          name: data.customer_name, // alias สำหรับ backward compatibility
+          company_name: data.customer_name, // alias
+          address: data.address_line1 || '', // รวม address
+        };
 
       } catch (error: any) {
         const errorMessage = error?.message || error?.toString() || 'Unknown error';
