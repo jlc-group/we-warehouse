@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MovementLogs } from '@/components/MovementLogs';
 import { EnhancedEventLogs } from '@/components/EnhancedEventLogs';
 import { EnhancedOverview } from '@/components/EnhancedOverview';
+import { ExportHistory } from '@/components/ExportHistory';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
@@ -1040,11 +1041,15 @@ const Index = memo(() => {
 
 
           <TabsContent value="history" className="space-y-4">
-            <Tabs defaultValue="movement_logs" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue="export_history" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
                 <TabsTrigger value="movement_logs">ประวัติการเคลื่อนไหวสต็อก</TabsTrigger>
                 <TabsTrigger value="system_events">ประวัติเหตุการณ์ระบบ</TabsTrigger>
               </TabsList>
+              <TabsContent value="export_history">
+                <ExportHistory />
+              </TabsContent>
               <TabsContent value="movement_logs">
                 <MovementLogs />
               </TabsContent>
