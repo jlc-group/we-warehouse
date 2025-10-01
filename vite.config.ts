@@ -70,8 +70,14 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: "dist",
     sourcemap: mode === 'development',
+    // Force cache busting for production builds
+    assetsInlineLimit: 0,
     rollupOptions: mode === 'production' ? {
       output: {
+        // Add entryFileNames with hash to force new bundle names
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
         manualChunks: (id) => {
           // Vendor chunks
           if (id.includes('node_modules')) {
@@ -90,7 +96,7 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('@tanstack/react-query')) {
               return 'vendor-query';
             }
-            return 'vendor-misc';
+            return 'vendor-core';
           }
 
           // Analytics chunks - split heavy analytics components
