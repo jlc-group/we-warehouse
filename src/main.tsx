@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
+// Build version: 2025-10-01 (force cache invalidation)
+
 // Suppress Chrome Extension errors that clutter the console
 const originalError = console.error;
 console.error = (...args) => {
