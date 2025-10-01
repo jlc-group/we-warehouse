@@ -155,18 +155,20 @@ export default defineConfig(({ mode }) => ({
       'chunk-XHSRBMDX',
       'lovable-tagger'
     ] : [],
-    include: mode === 'development' ? [
-      // Pre-bundle stable dependencies
+    include: [
+      // Always pre-bundle these dependencies
       'react',
       'react-dom',
+      'react/jsx-runtime',
       'react-router-dom',
       'lucide-react',
-      // Include Supabase packages to resolve module issues
+    ].concat(mode === 'development' ? [
+      // Additional dev-only includes
       '@supabase/supabase-js',
       '@supabase/postgrest-js',
       '@supabase/realtime-js',
       '@supabase/auth-js'
-    ] : [],
+    ] : []),
     // Force Vite to handle these as ESM
     esbuildOptions: {
       target: 'esnext',
@@ -174,7 +176,9 @@ export default defineConfig(({ mode }) => ({
       // Handle mixed module formats
       banner: {
         js: '// Vite ESM compatibility fix'
-      }
+      },
+      jsx: 'automatic',
+      jsxImportSource: 'react'
     },
   },
   // Additional configuration for handling mixed module types
