@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 type Product = {
