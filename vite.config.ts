@@ -71,78 +71,38 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     // Force cache busting for production builds
     assetsInlineLimit: 0,
-    rollupOptions: mode === 'production' ? {
+    rollupOptions: {
       output: {
         // Add entryFileNames with hash to force new bundle names
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
-        manualChunks: (id) => {
-          // Vendor chunks
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@radix-ui')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('recharts') || id.includes('lucide-react')) {
-              return 'vendor-charts';
-            }
-            if (id.includes('@supabase')) {
-              return 'vendor-supabase';
-            }
-            if (id.includes('@tanstack/react-query')) {
-              return 'vendor-query';
-            }
-            return 'vendor-core';
-          }
-
-          // Analytics chunks - split heavy analytics components
-          if (id.includes('/components/InventoryAnalytics') ||
-              id.includes('/components/AdvancedAnalytics') ||
-              id.includes('/components/ForecastingDashboard')) {
-            return 'chunk-analytics';
-          }
-
-          // User management and auth chunks
-          if (id.includes('/components/UserManagement') ||
-              id.includes('/components/auth/') ||
-              id.includes('/contexts/Auth')) {
-            return 'chunk-auth';
-          }
-
-          // Location and QR chunks
-          if (id.includes('/components/QRCodeManagement') ||
-              id.includes('/components/LocationManagement') ||
-              id.includes('/components/location/')) {
-            return 'chunk-location';
-          }
-
-          // Services and utilities
-          if (id.includes('/services/') || id.includes('/utils/')) {
-            return 'chunk-services';
-          }
-        },
-      },
-    } : {
-      // Simplified chunking for development
-      output: {
+        // Let Vite handle chunking automatically - no manual chunks
         manualChunks: undefined,
       },
     },
     chunkSizeWarningLimit: 600,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react({
+      jsxRuntime: 'automatic',
+      jsxImportSource: 'react'
+    }),
+    mode === "development" && componentTagger()
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Force all React imports to use the same instance
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'react/jsx-runtime': path.resolve(__dirname, './node_modules/react/jsx-runtime')
     },
     // Prioritize ESM versions of packages
     conditions: ['import', 'module', 'browser', 'default'],
     mainFields: ['browser', 'module', 'main'],
-    // Help resolve Supabase module issues
-    dedupe: ['@supabase/supabase-js', '@supabase/postgrest-js'],
+    // Help resolve Supabase module issues and dedupe React
+    dedupe: ['react', 'react-dom', '@supabase/supabase-js', '@supabase/postgrest-js'],
   },
   ssr: {
     // Mark these as external for SSR to avoid module resolution issues
