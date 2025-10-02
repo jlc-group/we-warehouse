@@ -68,8 +68,8 @@ export function LocationItemSelector({
     const piecesQty = getPiecesQty(item);
     
     // Get conversion rates (default to 1 if not available)
-    const cartonRate = Number(item.unit_level1_conversion_rate ?? 1) || 1;
-    const boxRate = Number(item.unit_level2_conversion_rate ?? 1) || 1;
+    const cartonRate = Number(item.unit_level1_rate ?? 1) || 1;
+    const boxRate = Number(item.unit_level2_rate ?? 1) || 1;
     
     // Convert everything to base pieces
     const totalFromCartons = cartonQty * cartonRate;

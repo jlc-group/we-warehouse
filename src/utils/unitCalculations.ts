@@ -9,12 +9,12 @@ export interface MultiLevelInventoryItem {
   // Level 1 (Largest unit - e.g., ลัง)
   unit_level1_name?: string | null;
   unit_level1_quantity: number;
-  unit_level1_conversion_rate: number;
+  unit_level1_rate: number;
 
   // Level 2 (Middle unit - e.g., กล่อง)
   unit_level2_name?: string | null;
   unit_level2_quantity: number;
-  unit_level2_conversion_rate: number;
+  unit_level2_rate: number;
 
   // Level 3 (Base unit - e.g., ชิ้น)
   unit_level3_name?: string | null;
@@ -26,8 +26,8 @@ export interface MultiLevelInventoryItem {
  * Formula: (L1_qty * L1_rate) + (L2_qty * L2_rate) + L3_qty
  */
 export function calculateTotalBaseQuantity(item: MultiLevelInventoryItem): number {
-  const level1Total = (item.unit_level1_quantity || 0) * (item.unit_level1_conversion_rate || 0);
-  const level2Total = (item.unit_level2_quantity || 0) * (item.unit_level2_conversion_rate || 0);
+  const level1Total = (item.unit_level1_quantity || 0) * (item.unit_level1_rate || 0);
+  const level2Total = (item.unit_level2_quantity || 0) * (item.unit_level2_rate || 0);
   const level3Total = item.unit_level3_quantity || 0;
 
   return level1Total + level2Total + level3Total;
@@ -133,10 +133,10 @@ export function validateUnitData(item: MultiLevelInventoryItem): {
   }
 
   // Check conversion rates are positive when quantities exist
-  if (item.unit_level1_quantity > 0 && item.unit_level1_conversion_rate <= 0) {
+  if (item.unit_level1_quantity > 0 && item.unit_level1_rate <= 0) {
     errors.push('อัตราแปลงหน่วยชั้นที่ 1 ต้องมากกว่า 0 เมื่อมีจำนวน');
   }
-  if (item.unit_level2_quantity > 0 && item.unit_level2_conversion_rate <= 0) {
+  if (item.unit_level2_quantity > 0 && item.unit_level2_rate <= 0) {
     errors.push('อัตราแปลงหน่วยชั้นที่ 2 ต้องมากกว่า 0 เมื่อมีจำนวน');
   }
 
@@ -165,11 +165,11 @@ export function convertLegacyToMultiLevel(
   return {
     unit_level1_name: null,
     unit_level1_quantity: 0,
-    unit_level1_conversion_rate: 0,
+    unit_level1_rate: 0,
 
     unit_level2_name: boxQuantity > 0 ? 'กล่อง' : null,
     unit_level2_quantity: boxQuantity,
-    unit_level2_conversion_rate: boxToLooseRate,
+    unit_level2_rate: boxToLooseRate,
 
     unit_level3_name: 'ชิ้น',
     unit_level3_quantity: looseQuantity
@@ -183,11 +183,11 @@ export function getEmptyMultiLevelItem(): MultiLevelInventoryItem {
   return {
     unit_level1_name: null,
     unit_level1_quantity: 0,
-    unit_level1_conversion_rate: 0,
+    unit_level1_rate: 0,
 
     unit_level2_name: null,
     unit_level2_quantity: 0,
-    unit_level2_conversion_rate: 0,
+    unit_level2_rate: 0,
 
     unit_level3_name: 'ชิ้น',
     unit_level3_quantity: 0

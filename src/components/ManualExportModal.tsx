@@ -40,9 +40,9 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
     // คำนวณจากระบบหน่วยหลายระดับ
     const totalFromMultiLevel = calculateTotalBaseQuantity({
       unit_level1_quantity: item.unit_level1_quantity || 0,
-      unit_level1_conversion_rate: item.unit_level1_rate || 0,
+      unit_level1_rate: item.unit_level1_rate || 0,
       unit_level2_quantity: item.unit_level2_quantity || 0,
-      unit_level2_conversion_rate: item.unit_level2_rate || 0,
+      unit_level2_rate: item.unit_level2_rate || 0,
       unit_level3_quantity: item.unit_level3_quantity || 0
     });
 
@@ -64,10 +64,10 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
     const display = formatUnitsDisplay({
       unit_level1_name: item.unit_level1_name,
       unit_level1_quantity: item.unit_level1_quantity || 0,
-      unit_level1_conversion_rate: 0, // ไม่ต้องใช้ใน formatUnitsDisplay
+      unit_level1_rate: 0, // ไม่ต้องใช้ใน formatUnitsDisplay
       unit_level2_name: item.unit_level2_name,
       unit_level2_quantity: item.unit_level2_quantity || 0,
-      unit_level2_conversion_rate: 0, // ไม่ต้องใช้ใน formatUnitsDisplay
+      unit_level2_rate: 0, // ไม่ต้องใช้ใน formatUnitsDisplay
       unit_level3_name: item.unit_level3_name || 'ชิ้น',
       unit_level3_quantity: item.unit_level3_quantity || 0
     });
