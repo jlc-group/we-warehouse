@@ -162,7 +162,7 @@ export function ProductMasterList() {
                         </TableCell>
                         <TableCell>{product.product_name}</TableCell>
                         <TableCell>
-                          <ProductTypeBadge sku={product.sku_code} showIcon={true} />
+                          <ProductTypeBadge sku={product.sku_code} productType={product.product_type} showIcon={true} />
                         </TableCell>
                         <TableCell>
                           <div className="text-sm space-y-0.5">
