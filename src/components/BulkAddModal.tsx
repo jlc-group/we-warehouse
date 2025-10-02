@@ -335,17 +335,17 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   <SelectValue placeholder="เลือกประเภทสินค้า" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={PRODUCT_TYPES.FG}>
+                  <SelectItem value="FG">
                     🏭 FG - สินค้าสำเร็จรูป
                   </SelectItem>
-                  <SelectItem value={PRODUCT_TYPES.PK}>
+                  <SelectItem value="PK">
                     📦 PK - วัสดุบรรจุภัณฑ์
                   </SelectItem>
                 </SelectContent>
               </Select>
               {selectedProductType && (
                 <p className="text-xs text-muted-foreground">
-                  {selectedProductType === PRODUCT_TYPES.FG
+                  {selectedProductType === 'FG'
                     ? '💡 สินค้าสำเร็จรูปพร้อมขาย'
                     : '💡 วัสดุบรรจุภัณฑ์และอุปกรณ์'
                   }
