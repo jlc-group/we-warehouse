@@ -122,16 +122,36 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         )
       ]);
 
-      // Fetch real data from Supabase with timeout
+      // Fetch real data from Supabase with reduced timeout and specific columns
       const fetchPromise = supabase
         .from('products')
-        .select('*')
+        .select(`
+          id,
+          product_name,
+          sku_code,
+          product_type,
+          is_active,
+          brand,
+          category,
+          subcategory,
+          description,
+          unit_cost,
+          reorder_level,
+          max_stock_level,
+          unit_of_measure,
+          weight,
+          dimensions,
+          manufacturing_country,
+          storage_conditions,
+          created_at,
+          updated_at
+        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(100);
+        .limit(500);
 
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Fetch timeout after 25 seconds')), 25000)
+        setTimeout(() => reject(new Error('Fetch timeout after 10 seconds')), 10000)
       );
 
       const { data: products, error } = await Promise.race([fetchPromise, timeoutPromise]);
