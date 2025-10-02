@@ -62,6 +62,7 @@ import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { PurchaseOrdersList } from '@/components/PurchaseOrdersList';
 import { FulfillmentQueue } from '@/components/FulfillmentQueue';
 import { WarehousePickingSystem } from '@/components/WarehousePickingSystem';
+import { ProductMasterList } from '@/components/ProductMasterList';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -844,7 +845,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-10 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -852,10 +853,6 @@ const Index = memo(() => {
             <TabsTrigger value="add-product" className="flex items-center gap-2 bg-green-50 hover:bg-green-100">
               <PackagePlus className="h-4 w-4 text-green-600" />
               <span className="hidden sm:inline text-green-600 font-medium">จัดการสินค้า</span>
-            </TabsTrigger>
-            <TabsTrigger value="orders" className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100">
-              <ShoppingCart className="h-4 w-4 text-blue-600" />
-              <span className="hidden sm:inline text-blue-600 font-medium">ใบสั่งซื้อ</span>
             </TabsTrigger>
             <TabsTrigger value="purchase-orders" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
               <Package className="h-4 w-4 text-purple-600" />
@@ -911,11 +908,34 @@ const Index = memo(() => {
           </TabsContent>
 
           <TabsContent value="add-product" className="space-y-4">
-            <AddProductForm />
-          </TabsContent>
+            <Tabs defaultValue="add-form" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                <TabsTrigger value="add-form" className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  เพิ่มสินค้า
+                </TabsTrigger>
+                <TabsTrigger value="product-list" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  รายการสินค้าทั้งหมด
+                </TabsTrigger>
+                <TabsTrigger value="conversion-rates" className="flex items-center gap-2">
+                  <Hash className="h-4 w-4" />
+                  การแปลงหน่วย
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="orders" className="space-y-4">
-            <DisabledComponent name="Orders Tab" />
+              <TabsContent value="add-form" className="space-y-4">
+                <AddProductForm />
+              </TabsContent>
+
+              <TabsContent value="product-list" className="space-y-4">
+                <ProductMasterList />
+              </TabsContent>
+
+              <TabsContent value="conversion-rates" className="space-y-4">
+                <AddProductForm />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="purchase-orders" className="space-y-4">
