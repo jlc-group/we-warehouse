@@ -214,4 +214,45 @@ export class EventLoggingService {
       }
     });
   }
+
+  /**
+   * บันทึกการแก้ไขข้อมูลสินค้า
+   */
+  static async logProductUpdated(params: {
+    sku: string;
+    product_name: string;
+    changes: Record<string, { old: any; new: any }>;
+    notes?: string;
+    user_id?: string;
+  }): Promise<boolean> {
+    // สร้างคำอธิบายการเปลี่ยนแปลง
+    const changeDescriptions = Object.entries(params.changes).map(([field, change]) => {
+      const fieldNames: Record<string, string> = {
+        product_name: 'ชื่อสินค้า',
+        unit_level1_name: 'ชื่อหน่วยระดับ 1',
+        unit_level2_name: 'ชื่อหน่วยระดับ 2',
+        unit_level3_name: 'ชื่อหน่วยระดับ 3',
+        unit_level1_rate: 'อัตราแปลงระดับ 1',
+        unit_level2_rate: 'อัตราแปลงระดับ 2'
+      };
+      const fieldName = fieldNames[field] || field;
+      return `${fieldName}: "${change.old}" → "${change.new}"`;
+    });
+
+    return this.logEvent({
+      event_type: 'product_updated',
+      event_category: 'inventory',
+      event_title: `แก้ไขข้อมูลสินค้า ${params.sku}`,
+      event_description: `แก้ไข ${params.product_name} - ${changeDescriptions.join(', ')}`,
+      severity_level: 'INFO',
+      user_id: params.user_id,
+      metadata: {
+        sku: params.sku,
+        product_name: params.product_name,
+        changes: params.changes,
+        change_count: Object.keys(params.changes).length
+      },
+      notes: params.notes
+    });
+  }
 }
