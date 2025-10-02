@@ -14,10 +14,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ProductEditModal } from './ProductEditModal';
-import { Pencil, Search, Package, Loader2 } from 'lucide-react';
+import { Pencil, Search, Package, Loader2, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { ProductTypeBadge } from './ProductTypeBadge';
+import { ProductTypeBadge, ProductTypeFilter } from './ProductTypeBadge';
 
 interface Product {
   id: string;
@@ -42,6 +42,7 @@ export function ProductMasterList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]); // Empty = all types
 
   // Fetch products
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
@@ -76,15 +77,27 @@ export function ProductMasterList() {
     conversionRateMap.set(rate.product_id, rate);
   });
 
-  // Filter products based on search
+  // Filter products based on search and type
   const filteredProducts = products?.filter(product => {
+    // Search filter
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = !searchQuery || (
       product.sku_code.toLowerCase().includes(query) ||
       product.product_name.toLowerCase().includes(query) ||
       product.product_type.toLowerCase().includes(query)
     );
+
+    // Type filter (empty array = show all)
+    const matchesType = selectedTypes.length === 0 || selectedTypes.includes(product.product_type);
+
+    return matchesSearch && matchesType;
   });
+
+  // Count products by type for display
+  const typeCounts = products?.reduce((acc, product) => {
+    acc[product.product_type] = (acc[product.product_type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>) || {};
 
   const handleEditClick = (product: Product) => {
     setSelectedProduct(product);
@@ -125,15 +138,36 @@ export function ProductMasterList() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="ค้นหาด้วย SKU, ชื่อสินค้า, หรือประเภท..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          {/* Filters */}
+          <div className="space-y-3">
+            {/* Type Filter */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">กรองตามประเภท:</span>
+              <ProductTypeFilter
+                selectedTypes={selectedTypes}
+                onTypeChange={setSelectedTypes}
+              />
+              {/* Show counts */}
+              <div className="flex items-center gap-2 ml-auto text-xs text-muted-foreground">
+                <span>FG: {typeCounts['FG'] || 0}</span>
+                <span>•</span>
+                <span>PK: {typeCounts['PK'] || 0}</span>
+                <span>•</span>
+                <span>RM: {typeCounts['RM'] || 0}</span>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหาด้วย SKU, ชื่อสินค้า, หรือประเภท..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
 
           {/* Table */}

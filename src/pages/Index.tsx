@@ -65,6 +65,7 @@ import { WarehousePickingSystem } from '@/components/WarehousePickingSystem';
 import { ProductMasterList } from '@/components/ProductMasterList';
 import { DepartmentTransferDashboard } from '@/components/DepartmentTransferDashboard';
 import { InboundOutboundDashboard } from '@/components/InboundOutboundDashboard';
+import { ProductManagementPage } from '@/components/ProductManagementPage';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -630,7 +631,7 @@ const Index = memo(() => {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="container mx-auto px-4 py-8 space-y-8">
+      <div className="w-full mx-auto px-4 py-8 space-y-8 max-w-[1920px]">
         {/* Header */}
         <Card className="bg-white border border-gray-200">
           <CardHeader>
@@ -847,48 +848,44 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-10 bg-white border border-gray-200">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-9 bg-white border border-gray-200 h-auto">
+            <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
             </TabsTrigger>
-            <TabsTrigger value="add-product" className="flex items-center gap-2 bg-green-50 hover:bg-green-100">
-              <PackagePlus className="h-4 w-4 text-green-600" />
-              <span className="hidden sm:inline text-green-600 font-medium">จัดการสินค้า</span>
-            </TabsTrigger>
-            <TabsTrigger value="purchase-orders" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+            <TabsTrigger value="purchase-orders" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <Package className="h-4 w-4 text-purple-600" />
               <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
             </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2">
+            <TabsTrigger value="table" className="flex items-center gap-2 h-12">
               <Table className="h-4 w-4" />
               <span className="hidden sm:inline">ตารางข้อมูล</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TabsTrigger value="analytics" className="flex items-center gap-2 h-12">
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Analytics & แผนก</span>
+              <span className="hidden md:inline">Analytics & แผนก</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
+            <TabsTrigger value="history" className="flex items-center gap-2 h-12">
               <Archive className="h-4 w-4" />
               <span className="hidden sm:inline">ประวัติ</span>
             </TabsTrigger>
-            <TabsTrigger value="transfers" className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100">
+            <TabsTrigger value="transfers" className="flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100">
               <Truck className="h-4 w-4 text-orange-600" />
-              <span className="hidden sm:inline text-orange-600 font-medium">จัดการการย้าย</span>
+              <span className="hidden md:inline text-orange-600 font-medium">จัดการการย้าย</span>
             </TabsTrigger>
-            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100">
+            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100">
               <PackagePlus className="h-4 w-4 text-teal-600" />
-              <span className="hidden sm:inline text-teal-600 font-medium">รับเข้า-ส่งออก</span>
+              <span className="hidden md:inline text-teal-600 font-medium">รับเข้า-ส่งออก</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 bg-red-50 hover:bg-red-100">
+            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100">
               <CreditCard className="h-4 w-4 text-red-600" />
-              <span className="hidden sm:inline text-red-600 font-medium">เคลียร์บิล</span>
+              <span className="hidden md:inline text-red-600 font-medium">เคลียร์บิล</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-status" className="flex items-center gap-2 bg-purple-50 hover:bg-purple-100">
+            <TabsTrigger value="bill-status" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <BarChart3 className="h-4 w-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
+              <span className="hidden md:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
-            <TabsTrigger value="qr" className="flex items-center gap-2">
+            <TabsTrigger value="qr" className="flex items-center gap-2 h-12">
               <QrCode className="h-4 w-4" />
               <span className="hidden sm:inline">QR & ตำแหน่ง</span>
             </TabsTrigger>
@@ -911,37 +908,6 @@ const Index = memo(() => {
               onBulkExport={() => setIsBulkExportModalOpen(true)}
               loading={loading}
             />
-          </TabsContent>
-
-          <TabsContent value="add-product" className="space-y-4">
-            <Tabs defaultValue="add-form" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                <TabsTrigger value="add-form" className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  เพิ่มสินค้า
-                </TabsTrigger>
-                <TabsTrigger value="product-list" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  รายการสินค้าทั้งหมด
-                </TabsTrigger>
-                <TabsTrigger value="conversion-rates" className="flex items-center gap-2">
-                  <Hash className="h-4 w-4" />
-                  การแปลงหน่วย
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="add-form" className="space-y-4">
-                <AddProductForm />
-              </TabsContent>
-
-              <TabsContent value="product-list" className="space-y-4">
-                <ProductMasterList />
-              </TabsContent>
-
-              <TabsContent value="conversion-rates" className="space-y-4">
-                <AddProductForm />
-              </TabsContent>
-            </Tabs>
           </TabsContent>
 
           <TabsContent value="purchase-orders" className="space-y-4">
@@ -991,7 +957,7 @@ const Index = memo(() => {
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
             ) : (
               <Tabs defaultValue="inventory" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                   <TabsTrigger value="inventory" className="flex items-center gap-2">
                     <Package className="h-4 w-4" />
                     รายการสต็อก
@@ -999,6 +965,10 @@ const Index = memo(() => {
                   <TabsTrigger value="products" className="flex items-center gap-2">
                     <Hash className="h-4 w-4" />
                     สรุปสินค้า
+                  </TabsTrigger>
+                  <TabsTrigger value="product-management" className="flex items-center gap-2">
+                    <PackagePlus className="h-4 w-4" />
+                    จัดการข้อมูลสินค้า
                   </TabsTrigger>
                 </TabsList>
 
@@ -1011,6 +981,10 @@ const Index = memo(() => {
 
                 <TabsContent value="products" className="space-y-4">
                   <ProductSummaryTable />
+                </TabsContent>
+
+                <TabsContent value="product-management" className="space-y-4">
+                  <ProductManagementPage />
                 </TabsContent>
               </Tabs>
             )}

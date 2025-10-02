@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { getProductType, getProductTypeDisplayName, PRODUCT_TYPES } from '@/data/sampleInventory';
-import { Package, Box } from 'lucide-react';
+import { Package, Box, Factory } from 'lucide-react';
 
 interface ProductTypeBadgeProps {
   sku: string;
@@ -29,8 +29,9 @@ export function ProductTypeBadge({
     );
   }
 
-  const isFG = productType === PRODUCT_TYPES.FG;
-  const isPK = productType === PRODUCT_TYPES.PK;
+  const isFG = productType === 'FG';
+  const isPK = productType === 'PK';
+  const isRM = productType === 'RM';
 
   return (
     <Badge
@@ -38,6 +39,7 @@ export function ProductTypeBadge({
       className={`
         ${isFG ? 'bg-green-50 text-green-700 border-green-200' : ''}
         ${isPK ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}
+        ${isRM ? 'bg-orange-50 text-orange-700 border-orange-200' : ''}
         ${className}
       `}
     >
@@ -45,6 +47,7 @@ export function ProductTypeBadge({
         <>
           {isFG && <Package className="h-3 w-3 mr-1" />}
           {isPK && <Box className="h-3 w-3 mr-1" />}
+          {isRM && <Factory className="h-3 w-3 mr-1" />}
         </>
       )}
       {showFullName ? getProductTypeDisplayName(productType as any) : productType}
@@ -69,8 +72,9 @@ export function ProductTypeFilter({ selectedTypes, onTypeChange, className = '' 
   };
 
   const isAllSelected = selectedTypes.length === 0;
-  const isFGSelected = selectedTypes.includes(PRODUCT_TYPES.FG);
-  const isPKSelected = selectedTypes.includes(PRODUCT_TYPES.PK);
+  const isFGSelected = selectedTypes.includes('FG');
+  const isPKSelected = selectedTypes.includes('PK');
+  const isRMSelected = selectedTypes.includes('RM');
 
   return (
     <div className={`flex flex-wrap gap-2 ${className}`}>
@@ -86,7 +90,7 @@ export function ProductTypeFilter({ selectedTypes, onTypeChange, className = '' 
         className={`cursor-pointer hover:bg-green-100 ${
           isFGSelected ? 'bg-green-600 text-white' : 'text-green-700 border-green-200'
         }`}
-        onClick={() => handleTypeToggle(PRODUCT_TYPES.FG)}
+        onClick={() => handleTypeToggle('FG')}
       >
         <Package className="h-3 w-3 mr-1" />
         FG (สินค้าสำเร็จรูป)
@@ -96,10 +100,20 @@ export function ProductTypeFilter({ selectedTypes, onTypeChange, className = '' 
         className={`cursor-pointer hover:bg-blue-100 ${
           isPKSelected ? 'bg-blue-600 text-white' : 'text-blue-700 border-blue-200'
         }`}
-        onClick={() => handleTypeToggle(PRODUCT_TYPES.PK)}
+        onClick={() => handleTypeToggle('PK')}
       >
         <Box className="h-3 w-3 mr-1" />
         PK (วัสดุบรรจุภัณฑ์)
+      </Badge>
+      <Badge
+        variant={isRMSelected ? "default" : "outline"}
+        className={`cursor-pointer hover:bg-orange-100 ${
+          isRMSelected ? 'bg-orange-600 text-white' : 'text-orange-700 border-orange-200'
+        }`}
+        onClick={() => handleTypeToggle('RM')}
+      >
+        <Factory className="h-3 w-3 mr-1" />
+        RM (วัตถุดิบ)
       </Badge>
     </div>
   );

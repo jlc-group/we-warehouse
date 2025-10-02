@@ -295,15 +295,15 @@ export const EnhancedOverview = memo(({
       hash = sku.charCodeAt(i) + ((hash << 5) - hash);
     }
 
-    // แปลง hash เป็น HSL สีที่สวยและแยกแยะได้
+    // แปลง hash เป็น HSL สีพาสเทลที่อ่อนกว่า เหมาะสำหรับปริ้น
     const hue = Math.abs(hash % 360);
-    const saturation = 65 + (Math.abs(hash >> 8) % 25); // 65-90%
-    const lightness = 45 + (Math.abs(hash >> 16) % 20); // 45-65%
+    const saturation = 35 + (Math.abs(hash >> 8) % 20); // 35-55% (ลดลงจาก 65-90%)
+    const lightness = 75 + (Math.abs(hash >> 16) % 15); // 75-90% (เพิ่มขึ้นจาก 45-65%)
 
     return {
       bg: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
-      border: `hsl(${hue}, ${saturation + 10}%, ${lightness - 15}%)`,
-      text: lightness > 55 ? '#1f2937' : '#ffffff'
+      border: `hsl(${hue}, ${saturation + 15}%, ${lightness - 25}%)`,
+      text: '#1f2937' // ใช้สีดำเสมอเพราะพื้นหลังอ่อนแล้ว
     };
   };
 
@@ -767,60 +767,60 @@ export const EnhancedOverview = memo(({
       margin-bottom: 5px; 
     }
     
-    .grid-container { 
-      display: grid; 
-      grid-template-columns: 40px repeat(20, 1fr); 
-      gap: 1px; 
-      border: 1px solid #cbd5e1; 
-      background: #cbd5e1; 
-      font-size: 8px;
+    .grid-container {
+      display: grid;
+      grid-template-columns: 10px repeat(20, minmax(42px, 1fr));
+      gap: 1px;
+      border: 1px solid #cbd5e1;
+      background: #cbd5e1;
+      font-size: 7px;
       margin: 5px;
     }
-    
-    .grid-header { 
-      background: #3b82f6; 
-      color: white; 
-      font-weight: bold; 
-      text-align: center; 
-      padding: 6px 2px; 
-      font-size: 9px; 
+
+    .grid-header {
+      background: #3b82f6;
+      color: white;
+      font-weight: bold;
+      text-align: center;
+      padding: 4px 1px;
+      font-size: 8px;
     }
-    
-    .row-label { 
-      background: #64748b; 
-      color: white; 
-      font-weight: bold; 
-      display: flex; 
-      align-items: center; 
-      justify-content: center; 
-      font-size: 10px; 
+
+    .row-label {
+      background: #64748b;
+      color: white;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
     }
-    
-    .grid-cell { 
-      background: white; 
-      padding: 2px; 
-      text-align: center; 
-      font-size: 6px; 
-      min-height: 45px; 
-      display: flex; 
-      flex-direction: column; 
-      justify-content: flex-start; 
+
+    .grid-cell {
+      background: white;
+      padding: 2px;
+      text-align: center;
+      font-size: 6px;
+      min-height: 50px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
       align-items: center;
       overflow: hidden;
     }
-    
-    .empty { 
-      background: #f8fafc !important; 
-      color: #94a3b8; 
-      font-style: italic; 
+
+    .empty {
+      background: #f8fafc !important;
+      color: #94a3b8;
+      font-style: italic;
       justify-content: center;
       font-size: 7px;
     }
-    
-    .sku-code { font-weight: bold; font-size: 7px; margin-bottom: 1px; }
-    .product-info { font-size: 5px; color: rgba(0,0,0,0.7); margin-bottom: 1px; line-height: 1.1; }
-    .lot-info, .mfd-info { font-size: 5px; color: rgba(0,0,0,0.6); margin: 0.5px 0; }
-    .quantity-info { font-size: 5px; color: rgba(0,0,0,0.8); margin-top: 1px; }
+
+    .sku-code { font-weight: bold; font-size: 7px; margin-bottom: 0.5px; color: #111827; }
+    .product-info { font-size: 5.5px; color: #374151; margin-bottom: 0.5px; line-height: 1.1; }
+    .lot-info, .mfd-info { font-size: 5.5px; color: #4b5563; margin: 0.5px 0; }
+    .quantity-info { font-size: 5.5px; color: #111827; margin-top: 0.5px; font-weight: 500; }
     .quantity-info div { margin: 0.5px 0; }
     
     .print-button { 
@@ -2291,7 +2291,7 @@ export const EnhancedOverview = memo(({
                               <table className="w-full border-collapse">
                                 <thead>
                                   <tr className="bg-gray-50">
-                                    <th className="px-3 py-2 bg-gray-100 text-gray-700 text-center font-bold text-sm border-r border-gray-200">
+                                    <th className="w-8 px-1 py-2 bg-gray-100 text-gray-700 text-center font-bold text-sm border-r border-gray-200">
                                       ชั้น
                                     </th>
                                     {Array.from({ length: 20 }, (_, i) => (
@@ -2304,7 +2304,7 @@ export const EnhancedOverview = memo(({
                                 <tbody className="bg-white">
                                   {[4, 3, 2, 1].map(level => (
                                     <tr key={`${row}-${level}`} className="border-b border-gray-200 last:border-b-0">
-                                      <td className="px-3 py-2 bg-gray-50 text-gray-700 text-center font-bold font-mono text-sm border-r border-gray-200">
+                                      <td className="w-8 px-1 py-2 bg-gray-50 text-gray-700 text-center font-bold font-mono text-sm border-r border-gray-200">
                                         {level}
                                       </td>
                                       {Array.from({ length: 20 }, (_, i) => {
