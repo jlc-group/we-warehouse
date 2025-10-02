@@ -58,7 +58,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
 
   // Product type selection state
-  const [selectedProductType, setSelectedProductType] = useState<ProductType | ''>('');
+  const [selectedProductType, setSelectedProductType] = useState<ProductType | undefined>(undefined);
 
   // Consistent product selection across locations
   const [applyToAllLocations, setApplyToAllLocations] = useState(true);
@@ -77,7 +77,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
     setProductCodeInputValue('');
     setIsProductCodeOpen(false);
     setIsNewProduct(false);
-    setSelectedProductType('');
+    setSelectedProductType(undefined);
     setRowFilter('all');
     setApplyToAllLocations(true);
   };
@@ -321,7 +321,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                 ประเภทสินค้า *
               </Label>
               <Select
-                value={selectedProductType}
+                value={selectedProductType || ''}
                 onValueChange={(value: ProductType) => {
                   setSelectedProductType(value);
                   // Reset product code when changing type
@@ -390,13 +390,20 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   <Hash className="h-4 w-4" />
                   รหัสสินค้า (SKU) *
                 </Label>
+                {!selectedProductType && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    กรุณาเลือกประเภทสินค้าก่อน
+                  </p>
+                )}
                 <div className="relative">
                   <Button
                     variant="outline"
                     role="combobox"
                     aria-expanded={isProductCodeOpen}
                     className="w-full justify-between"
-                    onClick={() => setIsProductCodeOpen(!isProductCodeOpen)}
+                    disabled={!selectedProductType}
+                    onClick={() => selectedProductType && setIsProductCodeOpen(!isProductCodeOpen)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
