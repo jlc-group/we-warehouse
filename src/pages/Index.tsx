@@ -63,6 +63,8 @@ import { PurchaseOrdersList } from '@/components/PurchaseOrdersList';
 import { FulfillmentQueue } from '@/components/FulfillmentQueue';
 import { WarehousePickingSystem } from '@/components/WarehousePickingSystem';
 import { ProductMasterList } from '@/components/ProductMasterList';
+import { DepartmentTransferDashboard } from '@/components/DepartmentTransferDashboard';
+import { InboundOutboundDashboard } from '@/components/InboundOutboundDashboard';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -845,7 +847,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-9 bg-white border border-gray-200">
+          <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 lg:grid-cols-10 bg-white border border-gray-200">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -872,7 +874,11 @@ const Index = memo(() => {
             </TabsTrigger>
             <TabsTrigger value="transfers" className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100">
               <Truck className="h-4 w-4 text-orange-600" />
-              <span className="hidden sm:inline text-orange-600 font-medium">ใบย้ายสินค้า</span>
+              <span className="hidden sm:inline text-orange-600 font-medium">จัดการการย้าย</span>
+            </TabsTrigger>
+            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100">
+              <PackagePlus className="h-4 w-4 text-teal-600" />
+              <span className="hidden sm:inline text-teal-600 font-medium">รับเข้า-ส่งออก</span>
             </TabsTrigger>
             <TabsTrigger value="bill-clearing" className="flex items-center gap-2 bg-red-50 hover:bg-red-100">
               <CreditCard className="h-4 w-4 text-red-600" />
@@ -1087,9 +1093,32 @@ const Index = memo(() => {
           </TabsContent>
 
           <TabsContent value="transfers" className="space-y-4">
-            <WarehouseTransferDashboard
-              onCreateTransfer={() => setIsWarehouseTransferModalOpen(true)}
-            />
+            <Tabs defaultValue="warehouse-transfer" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                <TabsTrigger value="warehouse-transfer" className="flex items-center gap-2">
+                  <Warehouse className="h-4 w-4" />
+                  ย้ายข้าม Warehouse
+                </TabsTrigger>
+                <TabsTrigger value="department-transfer" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  ย้ายข้ามแผนก
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="warehouse-transfer" className="space-y-4">
+                <WarehouseTransferDashboard
+                  onCreateTransfer={() => setIsWarehouseTransferModalOpen(true)}
+                />
+              </TabsContent>
+
+              <TabsContent value="department-transfer" className="space-y-4">
+                <DepartmentTransferDashboard />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="inbound-outbound" className="space-y-4">
+            <InboundOutboundDashboard />
           </TabsContent>
 
           <TabsContent value="bill-clearing" className="space-y-4">
