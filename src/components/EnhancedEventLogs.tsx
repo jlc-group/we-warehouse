@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Activity, AlertCircle, CheckCircle, XCircle, Info, Search, Filter } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle, XCircle, Info, Search, Filter, Eye, Move } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { EventDetailModal } from '@/components/EventDetailModal';
 
 interface SystemEvent {
   id: string;
@@ -30,17 +32,21 @@ interface SystemEvent {
 
 export function EnhancedEventLogs() {
   const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [transfers, setTransfers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const { toast } = useToast();
 
   const fetchEvents = useCallback(async () => {
     try {
       setLoading(true);
 
-      let query = supabase
+      // Fetch system events
+      let eventsQuery = supabase
         .from('system_events')
         .select('*')
         .order('created_at', { ascending: false })
@@ -48,18 +54,25 @@ export function EnhancedEventLogs() {
 
       // Apply filters
       if (severityFilter !== 'ALL') {
-        query = query.eq('severity_level', severityFilter);
+        eventsQuery = eventsQuery.eq('severity_level', severityFilter);
       }
 
       if (categoryFilter !== 'ALL') {
-        query = query.eq('event_category', categoryFilter);
+        eventsQuery = eventsQuery.eq('event_category', categoryFilter);
       }
 
       if (searchTerm) {
-        query = query.or(`description.ilike.%${searchTerm}%,event_title.ilike.%${searchTerm}%,event_description.ilike.%${searchTerm}%,event_type.ilike.%${searchTerm}%`);
+        eventsQuery = eventsQuery.or(`description.ilike.%${searchTerm}%,event_title.ilike.%${searchTerm}%,event_description.ilike.%${searchTerm}%,event_type.ilike.%${searchTerm}%`);
       }
 
-      const { data, error } = await query;
+      const { data, error } = await eventsQuery;
+
+      // Fetch warehouse transfers
+      const { data: transfersData, error: transfersError } = await supabase
+        .from('warehouse_transfers_view')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) {
         console.error('Fetch events error:', error);
@@ -111,6 +124,14 @@ export function EnhancedEventLogs() {
       }
 
       setEvents(data || []);
+
+      if (!transfersError && transfersData) {
+        setTransfers(transfersData);
+        console.log('✅ Loaded warehouse transfers:', transfersData.length);
+      } else if (transfersError) {
+        console.log('ℹ️ Warehouse transfers not available:', transfersError.message);
+        setTransfers([]);
+      }
     } catch (error) {
       console.error('Error fetching system events:', error);
       toast({
@@ -189,15 +210,31 @@ export function EnhancedEventLogs() {
     }
   };
 
-  const filteredEvents = events.filter(event => {
-    const matchesSearch = !searchTerm ||
-      (event.description && event.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (event.event_title && event.event_title.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (event.event_description && event.event_description.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      event.event_type.toLowerCase().includes(searchTerm.toLowerCase());
+  // Combine events and transfers, then filter
+  const allActivities = [
+    ...events.map(e => ({ ...e, _type: 'event' })),
+    ...transfers.map(t => ({
+      ...t,
+      _type: 'transfer',
+      event_category: 'warehouse_transfer',
+      severity_level: t.status === 'completed' ? 'SUCCESS' : t.status === 'cancelled' ? 'ERROR' : 'INFO'
+    }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    const matchesSeverity = severityFilter === 'ALL' || event.severity_level === severityFilter;
-    const matchesCategory = categoryFilter === 'ALL' || event.event_category === categoryFilter;
+  const filteredEvents = allActivities.filter(item => {
+    const isTransfer = item._type === 'transfer';
+
+    const matchesSearch = !searchTerm || (
+      (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.event_title && item.event_title.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.event_description && item.event_description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.event_type && item.event_type.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (isTransfer && item.transfer_number && item.transfer_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (isTransfer && item.title && item.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const matchesSeverity = severityFilter === 'ALL' || item.severity_level === severityFilter;
+    const matchesCategory = categoryFilter === 'ALL' || item.event_category === categoryFilter;
 
     return matchesSearch && matchesSeverity && matchesCategory;
   });
@@ -218,17 +255,29 @@ export function EnhancedEventLogs() {
     );
   }
 
-  const categories = [...new Set(events.map(e => e.event_category))];
+  const categories = [...new Set(allActivities.map(e => e.event_category))];
+
+  const handleViewDetail = (item: any) => {
+    setSelectedEvent(item);
+    setDetailModalOpen(true);
+  };
 
   return (
-    <Card>
+    <>
+      <EventDetailModal
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
+        event={selectedEvent}
+      />
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className="h-5 w-5" />
           ประวัติเหตุการณ์ระบบ
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          รายการ {filteredEvents.length} เหตุการณ์จากทั้งหมด {events.length} รายการ
+          รายการ {filteredEvents.length} เหตุการณ์จากทั้งหมด {allActivities.length} รายการ
+          {transfers.length > 0 && ` (รวมการย้ายสินค้า ${transfers.length} รายการ)`}
         </p>
 
         {/* Filters */}
@@ -281,70 +330,100 @@ export function EnhancedEventLogs() {
                 }
               </div>
             ) : (
-              filteredEvents.map((event, index) => (
+              filteredEvents.map((event, index) => {
+                const isTransfer = event._type === 'transfer';
+                return (
                 <div key={event.id}>
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
                     <div className="flex-shrink-0 mt-1">
-                      {getSeverityIcon(event.severity_level)}
+                      {isTransfer ? <Move className="h-4 w-4 text-blue-600" /> : getSeverityIcon(event.severity_level)}
                     </div>
 
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant={getSeverityBadgeVariant(event.severity_level)}>
-                            {getSeverityText(event.severity_level)}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {event.event_category}
-                          </Badge>
+                          {isTransfer ? (
+                            <>
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                🚚 การย้ายสินค้า
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {event.transfer_number}
+                              </Badge>
+                            </>
+                          ) : (
+                            <>
+                              <Badge variant={getSeverityBadgeVariant(event.severity_level)}>
+                                {getSeverityText(event.severity_level)}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {event.event_category}
+                              </Badge>
+                            </>
+                          )}
                           <span className="text-sm text-muted-foreground">
                             {format(new Date(event.created_at), 'dd/MM/yyyy HH:mm:ss')}
                           </span>
                         </div>
                       </div>
 
-                      {event.event_title && (
-                        <p className="text-sm font-semibold text-foreground">{event.event_title}</p>
-                      )}
-                      {event.event_description && (
-                        <p className="text-sm text-muted-foreground">{event.event_description}</p>
-                      )}
-                      {!event.event_title && !event.event_description && event.description && (
-                        <p className="text-sm font-medium">{event.description}</p>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-muted-foreground">ประเภท:</span>
-                          <span className="font-mono text-xs">{event.event_type}</span>
-                        </div>
-
-                        {event.source_table && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-muted-foreground">ตาราง:</span>
-                            <span className="font-mono text-xs">{event.source_table}</span>
+                      {isTransfer ? (
+                        <>
+                          <p className="text-sm font-semibold text-foreground">{event.title}</p>
+                          {event.description && (
+                            <p className="text-sm text-muted-foreground">{event.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-xs">
+                            {event.source_warehouse_name && event.target_warehouse_name && (
+                              <span className="text-muted-foreground">
+                                {event.source_warehouse_name} → {event.target_warehouse_name}
+                              </span>
+                            )}
+                            {event.total_items > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {event.total_items} รายการ
+                              </Badge>
+                            )}
                           </div>
-                        )}
+                        </>
+                      ) : (
+                        <>
+                          {event.event_title && (
+                            <p className="text-sm font-semibold text-foreground">{event.event_title}</p>
+                          )}
+                          {event.event_description && (
+                            <p className="text-sm text-muted-foreground">{event.event_description}</p>
+                          )}
+                          {!event.event_title && !event.event_description && event.description && (
+                            <p className="text-sm font-medium">{event.description}</p>
+                          )}
+                        </>
+                      )}
 
-                        {event.metadata && Object.keys(event.metadata).length > 0 && (
-                          <div className="col-span-full">
-                            <span className="text-muted-foreground text-xs">ข้อมูลเพิ่มเติม:</span>
-                            <pre className="text-xs bg-muted/50 p-2 rounded mt-1 overflow-x-auto">
-                              {JSON.stringify(event.metadata, null, 2)}
-                            </pre>
-                          </div>
-                        )}
+                      {/* ปุ่มดูรายละเอียด */}
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetail(event)}
+                          className="text-xs"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          ดูรายละเอียด
+                        </Button>
                       </div>
                     </div>
                   </div>
 
                   {index < filteredEvents.length - 1 && <Separator className="my-2" />}
                 </div>
-              ))
+              );
+              })
             )}
           </div>
         </ScrollArea>
       </CardContent>
     </Card>
+    </>
   );
 }
