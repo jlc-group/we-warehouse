@@ -336,10 +336,10 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={PRODUCT_TYPES.FG}>
-                    🎯 FG - สินค้าสำเร็จรูป (Finished Goods)
+                    🏭 FG - สินค้าสำเร็จรูป
                   </SelectItem>
                   <SelectItem value={PRODUCT_TYPES.PK}>
-                    📦 PK - วัสดุบรรจุภัณฑ์ (Packaging)
+                    📦 PK - วัสดุบรรจุภัณฑ์
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -388,7 +388,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
               <div className="space-y-2">
                 <Label htmlFor="productCode" className="flex items-center gap-2">
                   <Hash className="h-4 w-4" />
-                  รหัสสินค้า *
+                  รหัสสินค้า (SKU) *
                 </Label>
                 <div className="relative">
                   <Button
