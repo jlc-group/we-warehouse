@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { EventLoggingService } from '@/services/eventLoggingService';
 
 // Types for Warehouse Transfer
 export interface WarehouseTransfer {
@@ -212,6 +213,18 @@ export const useCreateWarehouseTransfer = () => {
         throw fetchError;
       }
 
+      // Log event to system_events
+      await EventLoggingService.logTransferCreated({
+        transfer_id: createdTransfer.id,
+        transfer_number: createdTransfer.transfer_number,
+        title: createdTransfer.title,
+        source_warehouse_name: createdTransfer.source_warehouse_name || 'N/A',
+        target_warehouse_name: createdTransfer.target_warehouse_name || 'N/A',
+        total_items: createdTransfer.total_items || 0,
+        priority: createdTransfer.priority,
+        created_by: transferData.created_by
+      });
+
       return createdTransfer as WarehouseTransfer;
     },
     onSuccess: (data) => {
@@ -241,6 +254,13 @@ export const useUpdateTransferStatus = () => {
       notes?: string;
       userId?: string;
     }) => {
+      // Get current transfer data for logging
+      const { data: currentTransfer } = await supabase
+        .from('warehouse_transfers_view')
+        .select('*')
+        .eq('id', transferId)
+        .single();
+
       const updateData: any = {
         status,
         updated_at: new Date().toISOString()
@@ -273,6 +293,18 @@ export const useUpdateTransferStatus = () => {
         throw error;
       }
 
+      // Log status change to system_events
+      if (currentTransfer) {
+        await EventLoggingService.logTransferStatusUpdate({
+          transfer_id: transferId,
+          transfer_number: currentTransfer.transfer_number,
+          old_status: currentTransfer.status,
+          new_status: status,
+          updated_by: userId,
+          notes: notes
+        });
+      }
+
       return data as WarehouseTransfer;
     },
     onSuccess: (data) => {
@@ -302,14 +334,19 @@ export const useExecuteWarehouseTransfer = () => {
 
   return useMutation({
     mutationFn: async (transferId: string) => {
-      // First get transfer details
+      // First get transfer details with warehouse names
       const { data: transfer, error: transferError } = await supabase
-        .from('warehouse_transfers')
+        .from('warehouse_transfers_view')
         .select('*')
         .eq('id', transferId)
         .single();
 
       if (transferError || !transfer) {
+        await EventLoggingService.logTransferError({
+          transfer_id: transferId,
+          error_message: 'Transfer not found',
+          error_details: transferError
+        });
         throw new Error('Transfer not found');
       }
 
@@ -320,6 +357,12 @@ export const useExecuteWarehouseTransfer = () => {
         .eq('transfer_id', transferId);
 
       if (itemsError) {
+        await EventLoggingService.logTransferError({
+          transfer_id: transferId,
+          transfer_number: transfer.transfer_number,
+          error_message: 'Failed to get transfer items',
+          error_details: itemsError
+        });
         throw itemsError;
       }
 
@@ -340,8 +383,19 @@ export const useExecuteWarehouseTransfer = () => {
       const errors = results.filter(result => result.error);
       if (errors.length > 0) {
         console.error('Errors updating inventory items:', errors);
+        await EventLoggingService.logTransferError({
+          transfer_id: transferId,
+          transfer_number: transfer.transfer_number,
+          error_message: `Failed to update ${errors.length} items`,
+          error_details: errors
+        });
         throw new Error(`Failed to update ${errors.length} items`);
       }
+
+      // Calculate duration
+      const durationMinutes = transfer.started_at
+        ? Math.round((Date.now() - new Date(transfer.started_at).getTime()) / (1000 * 60))
+        : null;
 
       // Update transfer status to completed
       const { error: statusError } = await supabase
@@ -349,16 +403,30 @@ export const useExecuteWarehouseTransfer = () => {
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
-          actual_duration_minutes: transfer.started_at
-            ? Math.round((Date.now() - new Date(transfer.started_at).getTime()) / (1000 * 60))
-            : null,
+          actual_duration_minutes: durationMinutes,
           updated_at: new Date().toISOString()
         })
         .eq('id', transferId);
 
       if (statusError) {
+        await EventLoggingService.logTransferError({
+          transfer_id: transferId,
+          transfer_number: transfer.transfer_number,
+          error_message: 'Failed to update transfer status to completed',
+          error_details: statusError
+        });
         throw statusError;
       }
+
+      // Log successful execution
+      await EventLoggingService.logTransferExecuted({
+        transfer_id: transferId,
+        transfer_number: transfer.transfer_number,
+        source_warehouse_name: transfer.source_warehouse_name || 'N/A',
+        target_warehouse_name: transfer.target_warehouse_name || 'N/A',
+        items_moved: items.length,
+        duration_minutes: durationMinutes || undefined
+      });
 
       return { success: true, itemsUpdated: items.length };
     },
