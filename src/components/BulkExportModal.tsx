@@ -50,19 +50,33 @@ interface Customer {
   customer_code: string;
 }
 
-interface SelectedItem {
-  inventoryItem: InventoryItem;
-  exportQuantity: number; // รวมเป็นชิ้น
-  level1: number;
-  level2: number;
-  level3: number;
-}
-
 interface CustomerAllocation {
   customerId: string;
   customerName: string;
   customerCode: string;
-  quantity: number; // รวมเป็นชิ้น
+  // จำนวนแต่ละหน่วย
+  level1: number;  // ลัง
+  level2: number;  // กล่อง
+  level3: number;  // ชิ้น
+  // อัตราแปลง (snapshot)
+  unitLevel1Name: string;
+  unitLevel2Name: string;
+  unitLevel3Name: string;
+  unitLevel1Rate: number;
+  unitLevel2Rate: number;
+  // คำนวณอัตโนมัติ
+  totalPieces: number;
+}
+
+interface SelectedItem {
+  inventoryItem: InventoryItem;
+  allocations: CustomerAllocation[];  // หลายลูกค้าต่อสินค้าได้!
+  totalAllocated: {
+    level1: number;
+    level2: number;
+    level3: number;
+    pieces: number;
+  };
 }
 
 interface BulkExportModalProps {
@@ -74,17 +88,17 @@ interface BulkExportModalProps {
 export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryItemsProp }: BulkExportModalProps) {
   const [step, setStep] = useState<'select_items' | 'allocate_customers' | 'summary'>('select_items');
 
-  // Step 1: เลือกสินค้าจากหลาย Location
+  // Step 1: เลือกสินค้าจากหลาย Location (ไม่ใส่จำนวน)
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [productSearchTerm, setProductSearchTerm] = useState('');
   const [productTypeFilter, setProductTypeFilter] = useState<'all' | 'FG' | 'PK'>('all');
 
   // Product type mapping from products table
   const [productTypeMap, setProductTypeMap] = useState<Record<string, string>>({});
 
-  // Step 2: แบ่งจำนวนให้ลูกค้า
+  // Step 2: แบ่งจำนวนให้ลูกค้า (ใส่จำนวนเป็นหน่วย)
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [allocations, setAllocations] = useState<CustomerAllocation[]>([]);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
 
   // Step 3: สรุปและยืนยัน
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -166,10 +180,13 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
     setSelectedItems(prev => [...prev, {
       inventoryItem: item,
-      exportQuantity: 0,
-      level1: 0,
-      level2: 0,
-      level3: 0
+      allocations: [],  // เริ่มต้นไม่มีลูกค้า
+      totalAllocated: {
+        level1: 0,
+        level2: 0,
+        level3: 0,
+        pieces: 0
+      }
     }]);
   };
 
@@ -177,63 +194,163 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
     setSelectedItems(prev => prev.filter(si => si.inventoryItem.id !== itemId));
   };
 
-  const handleUpdateQuantity = (itemId: string, level: 'level1' | 'level2' | 'level3', value: number) => {
+  // เพิ่มลูกค้าให้กับสินค้า
+  const handleAddCustomerToItem = (itemId: string, customer: Customer) => {
     setSelectedItems(prev => prev.map(si => {
       if (si.inventoryItem.id !== itemId) return si;
 
-      const updated = { ...si, [level]: Math.max(0, value) };
+      // ตรวจสอบว่ามีลูกค้านี้อยู่แล้วหรือไม่
+      const exists = si.allocations.find(a => a.customerId === customer.id);
+      if (exists) {
+        toast.warning(`${customer.customer_name} ถูกเพิ่มแล้ว`);
+        return si;
+      }
 
-      // คำนวณรวมเป็นชิ้น
-      const totalPieces =
-        updated.level1 * si.inventoryItem.unit_level1_rate +
-        updated.level2 * si.inventoryItem.unit_level2_rate +
-        updated.level3;
+      // เพิ่มลูกค้าใหม่
+      const newAllocation: CustomerAllocation = {
+        customerId: customer.id,
+        customerName: customer.customer_name,
+        customerCode: customer.customer_code,
+        level1: 0,
+        level2: 0,
+        level3: 0,
+        unitLevel1Name: si.inventoryItem.unit_level1_name || 'ลัง',
+        unitLevel2Name: si.inventoryItem.unit_level2_name || 'กล่อง',
+        unitLevel3Name: si.inventoryItem.unit_level3_name || 'ชิ้น',
+        unitLevel1Rate: si.inventoryItem.unit_level1_rate || 0,
+        unitLevel2Rate: si.inventoryItem.unit_level2_rate || 0,
+        totalPieces: 0
+      };
 
-      return { ...updated, exportQuantity: totalPieces };
+      return {
+        ...si,
+        allocations: [...si.allocations, newAllocation]
+      };
     }));
   };
 
+  // ลบลูกค้าออกจากสินค้า
+  const handleRemoveCustomerFromItem = (itemId: string, customerId: string) => {
+    setSelectedItems(prev => prev.map(si => {
+      if (si.inventoryItem.id !== itemId) return si;
+
+      const newAllocations = si.allocations.filter(a => a.customerId !== customerId);
+      const totalAllocated = calculateTotalAllocated(newAllocations, si.inventoryItem);
+
+      return {
+        ...si,
+        allocations: newAllocations,
+        totalAllocated
+      };
+    }));
+  };
+
+  // อัปเดตจำนวนของลูกค้าในสินค้า
+  const handleUpdateAllocation = (
+    itemId: string,
+    customerId: string,
+    level: 'level1' | 'level2' | 'level3',
+    value: number
+  ) => {
+    setSelectedItems(prev => prev.map(si => {
+      if (si.inventoryItem.id !== itemId) return si;
+
+      const newAllocations = si.allocations.map(alloc => {
+        if (alloc.customerId !== customerId) return alloc;
+
+        const updated = { ...alloc, [level]: Math.max(0, value) };
+
+        // คำนวณ totalPieces
+        updated.totalPieces =
+          updated.level1 * updated.unitLevel1Rate +
+          updated.level2 * updated.unitLevel2Rate +
+          updated.level3;
+
+        return updated;
+      });
+
+      const totalAllocated = calculateTotalAllocated(newAllocations, si.inventoryItem);
+
+      return {
+        ...si,
+        allocations: newAllocations,
+        totalAllocated
+      };
+    }));
+  };
+
+  // ส่งทั้งหมดให้ลูกค้า 1 คน (Quick Mode)
+  const handleAssignAllToCustomer = (itemId: string, customer: Customer) => {
+    setSelectedItems(prev => prev.map(si => {
+      if (si.inventoryItem.id !== itemId) return si;
+
+      const allocation: CustomerAllocation = {
+        customerId: customer.id,
+        customerName: customer.customer_name,
+        customerCode: customer.customer_code,
+        level1: si.inventoryItem.unit_level1_quantity || 0,
+        level2: si.inventoryItem.unit_level2_quantity || 0,
+        level3: si.inventoryItem.unit_level3_quantity || 0,
+        unitLevel1Name: si.inventoryItem.unit_level1_name || 'ลัง',
+        unitLevel2Name: si.inventoryItem.unit_level2_name || 'กล่อง',
+        unitLevel3Name: si.inventoryItem.unit_level3_name || 'ชิ้น',
+        unitLevel1Rate: si.inventoryItem.unit_level1_rate || 0,
+        unitLevel2Rate: si.inventoryItem.unit_level2_rate || 0,
+        totalPieces: calculateTotalPieces(si.inventoryItem)
+      };
+
+      const totalAllocated = {
+        level1: allocation.level1,
+        level2: allocation.level2,
+        level3: allocation.level3,
+        pieces: allocation.totalPieces
+      };
+
+      return {
+        ...si,
+        allocations: [allocation],  // แทนที่ allocations ทั้งหมด
+        totalAllocated
+      };
+    }));
+
+    toast.success(`กำหนดส่งทั้งหมดให้ ${customer.customer_name}`);
+  };
+
+  // Helper: คำนวณ totalAllocated
+  const calculateTotalAllocated = (allocations: CustomerAllocation[], item: InventoryItem) => {
+    const total = allocations.reduce(
+      (acc, alloc) => ({
+        level1: acc.level1 + alloc.level1,
+        level2: acc.level2 + alloc.level2,
+        level3: acc.level3 + alloc.level3,
+        pieces: acc.pieces + alloc.totalPieces
+      }),
+      { level1: 0, level2: 0, level3: 0, pieces: 0 }
+    );
+
+    return total;
+  };
+
   const getTotalExportPieces = (): number => {
-    return selectedItems.reduce((sum, si) => sum + si.exportQuantity, 0);
-  };
-
-  const handleAddCustomer = (customer: Customer) => {
-    const exists = allocations.find(a => a.customerId === customer.id);
-    if (exists) {
-      toast.warning(`${customer.customer_name} ถูกเลือกแล้ว`);
-      return;
-    }
-
-    setAllocations(prev => [...prev, {
-      customerId: customer.id,
-      customerName: customer.customer_name,
-      customerCode: customer.customer_code,
-      quantity: 0
-    }]);
-  };
-
-  const handleRemoveCustomer = (customerId: string) => {
-    setAllocations(prev => prev.filter(a => a.customerId !== customerId));
-  };
-
-  const handleUpdateAllocation = (customerId: string, quantity: number) => {
-    setAllocations(prev => prev.map(a =>
-      a.customerId === customerId ? { ...a, quantity: Math.max(0, quantity) } : a
-    ));
-  };
-
-  const getTotalAllocated = (): number => {
-    return allocations.reduce((sum, a) => sum + a.quantity, 0);
+    return selectedItems.reduce((sum, si) => sum + si.totalAllocated.pieces, 0);
   };
 
   const canProceedToAllocate = (): boolean => {
-    return selectedItems.length > 0 && getTotalExportPieces() > 0;
+    return selectedItems.length > 0;
   };
 
   const canProceedToSummary = (): boolean => {
-    const totalExport = getTotalExportPieces();
-    const totalAlloc = getTotalAllocated();
-    return allocations.length > 0 && totalAlloc > 0 && totalAlloc <= totalExport;
+    // ต้องมีอย่างน้อย 1 สินค้าที่มีการแบ่งให้ลูกค้าแล้ว
+    const hasAllocations = selectedItems.some(si => si.allocations.length > 0);
+
+    // ตรวจสอบว่าไม่มีสินค้าไหนถูกแบ่งเกิน
+    const noOverAllocation = selectedItems.every(si => {
+      const item = si.inventoryItem;
+      const totalPieces = calculateTotalPieces(item);
+      return si.totalAllocated.pieces <= totalPieces;
+    });
+
+    return hasAllocations && noOverAllocation;
   };
 
   const handleSubmit = async () => {
@@ -245,53 +362,19 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
     setIsSubmitting(true);
 
     try {
-      // สำหรับแต่ละลูกค้า
-      for (const allocation of allocations) {
-        if (allocation.quantity === 0) continue;
+      let totalCustomers = 0;
+      let totalExports = 0;
 
-        let remainingToExport = allocation.quantity;
+      // สำหรับแต่ละสินค้า
+      for (const selectedItem of selectedItems) {
+        if (selectedItem.allocations.length === 0) continue;
 
-        // หักจากแต่ละ Location ตามลำดับ
-        for (const selectedItem of selectedItems) {
-          if (remainingToExport <= 0) break;
-          if (selectedItem.exportQuantity === 0) continue;
+        const item = selectedItem.inventoryItem;
+        const location = item.location;
 
-          const exportFromThisItem = Math.min(remainingToExport, selectedItem.exportQuantity);
-
-          const item = selectedItem.inventoryItem;
-          const location = item.location;
-
-          // คำนวณสต็อกใหม่
-          let newLevel1 = item.unit_level1_quantity - selectedItem.level1;
-          let newLevel2 = item.unit_level2_quantity - selectedItem.level2;
-          let newLevel3 = item.unit_level3_quantity - selectedItem.level3;
-
-          // อัปเดตสต็อก
-          const { error: updateError } = await supabase
-            .from('inventory_items')
-            .update({
-              unit_level1_quantity: newLevel1,
-              unit_level2_quantity: newLevel2,
-              unit_level3_quantity: newLevel3
-            })
-            .eq('id', item.id);
-
-          if (updateError) throw updateError;
-
-          // บันทึกประวัติ inventory_movements
-          await supabase.from('inventory_movements').insert({
-            inventory_item_id: item.id,
-            movement_type: 'out',
-            quantity_boxes_before: item.unit_level1_quantity,
-            quantity_loose_before: item.unit_level2_quantity,
-            quantity_boxes_after: newLevel1,
-            quantity_loose_after: newLevel2,
-            quantity_boxes_change: -selectedItem.level1,
-            quantity_loose_change: -selectedItem.level2,
-            location_before: location,
-            location_after: `ลูกค้า: ${allocation.customerName}`,
-            notes: `ส่งออกแบบหลายรายการ - ${exportFromThisItem} ชิ้น`
-          });
+        // สำหรับแต่ละลูกค้าในสินค้านี้
+        for (const allocation of selectedItem.allocations) {
+          if (allocation.totalPieces === 0) continue;
 
           // บันทึก customer_exports
           await supabase.from('customer_exports').insert({
@@ -301,15 +384,15 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
             product_name: item.product_name,
             product_code: item.sku,
             inventory_item_id: item.id,
-            quantity_exported: exportFromThisItem,
-            quantity_level1: selectedItem.level1,
-            quantity_level2: selectedItem.level2,
-            quantity_level3: selectedItem.level3,
-            unit_level1_name: item.unit_level1_name,
-            unit_level2_name: item.unit_level2_name,
-            unit_level3_name: item.unit_level3_name,
-            unit_level1_rate: item.unit_level1_rate,
-            unit_level2_rate: item.unit_level2_rate,
+            quantity_exported: allocation.totalPieces,
+            quantity_level1: allocation.level1,
+            quantity_level2: allocation.level2,
+            quantity_level3: allocation.level3,
+            unit_level1_name: allocation.unitLevel1Name,
+            unit_level2_name: allocation.unitLevel2Name,
+            unit_level3_name: allocation.unitLevel3Name,
+            unit_level1_rate: allocation.unitLevel1Rate,
+            unit_level2_rate: allocation.unitLevel2Rate,
             from_location: location,
             notes: 'ส่งออกแบบหลายรายการพร้อมกัน',
             user_id: '00000000-0000-0000-0000-000000000000'
@@ -321,40 +404,81 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
             event_category: 'stock_movement',
             event_action: 'bulk_export',
             event_title: 'ส่งออกหลายรายการ',
-            event_description: `ส่งออก ${item.product_name} จาก ${location} จำนวน ${exportFromThisItem} ชิ้น ไปยัง ${allocation.customerName}`,
+            event_description: `ส่งออก ${item.product_name} จาก ${location} จำนวน ${allocation.totalPieces} ชิ้น ไปยัง ${allocation.customerName}`,
             metadata: {
               item_id: item.id,
               product_name: item.product_name,
-              quantity: exportFromThisItem,
+              quantity: allocation.totalPieces,
               location: location,
               customer_id: allocation.customerId,
-              customer_name: allocation.customerName
+              customer_name: allocation.customerName,
+              level1: allocation.level1,
+              level2: allocation.level2,
+              level3: allocation.level3
             },
             user_id: '00000000-0000-0000-0000-000000000000'
           });
 
-          // ลบ item ถ้าสต็อกเป็น 0
-          if (newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0) {
-            await supabase.from('inventory_items').delete().eq('id', item.id);
+          totalExports++;
+        }
 
-            await supabase.from('system_events').insert({
-              event_type: 'location',
-              event_category: 'location_management',
-              event_action: 'location_cleared',
-              event_title: `ตำแหน่ง ${location} ว่างแล้ว`,
-              event_description: `สินค้า ${item.product_name} ถูกส่งออกหมดจาก ${location}`,
-              metadata: { location, product_name: item.product_name },
-              location_context: location,
-              status: 'success',
-              user_id: '00000000-0000-0000-0000-000000000000'
-            });
-          }
+        // คำนวณสต็อกใหม่ (หักรวมจากทุกลูกค้า)
+        const newLevel1 = item.unit_level1_quantity - selectedItem.totalAllocated.level1;
+        const newLevel2 = item.unit_level2_quantity - selectedItem.totalAllocated.level2;
+        const newLevel3 = item.unit_level3_quantity - selectedItem.totalAllocated.level3;
 
-          remainingToExport -= exportFromThisItem;
+        // อัปเดตสต็อก
+        const { error: updateError } = await supabase
+          .from('inventory_items')
+          .update({
+            unit_level1_quantity: newLevel1,
+            unit_level2_quantity: newLevel2,
+            unit_level3_quantity: newLevel3
+          })
+          .eq('id', item.id);
+
+        if (updateError) throw updateError;
+
+        // บันทึกประวัติ inventory_movements
+        await supabase.from('inventory_movements').insert({
+          inventory_item_id: item.id,
+          movement_type: 'out',
+          quantity_boxes_before: item.unit_level1_quantity,
+          quantity_loose_before: item.unit_level2_quantity,
+          quantity_boxes_after: newLevel1,
+          quantity_loose_after: newLevel2,
+          quantity_boxes_change: -selectedItem.totalAllocated.level1,
+          quantity_loose_change: -selectedItem.totalAllocated.level2,
+          location_before: location,
+          location_after: `ส่งออกให้ ${selectedItem.allocations.length} ลูกค้า`,
+          notes: `ส่งออกแบบหลายรายการ - รวม ${selectedItem.totalAllocated.pieces} ชิ้น`
+        });
+
+        // ลบ item ถ้าสต็อกเป็น 0
+        if (newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0) {
+          await supabase.from('inventory_items').delete().eq('id', item.id);
+
+          await supabase.from('system_events').insert({
+            event_type: 'location',
+            event_category: 'location_management',
+            event_action: 'location_cleared',
+            event_title: `ตำแหน่ง ${location} ว่างแล้ว`,
+            event_description: `สินค้า ${item.product_name} ถูกส่งออกหมดจาก ${location}`,
+            metadata: { location, product_name: item.product_name },
+            location_context: location,
+            status: 'success',
+            user_id: '00000000-0000-0000-0000-000000000000'
+          });
         }
       }
 
-      toast.success(`ส่งออกสินค้าสำเร็จ ${allocations.length} ลูกค้า!`);
+      // นับจำนวนลูกค้าทั้งหมด (ไม่ซ้ำ)
+      const uniqueCustomers = new Set(
+        selectedItems.flatMap(si => si.allocations.map(a => a.customerId))
+      );
+      totalCustomers = uniqueCustomers.size;
+
+      toast.success(`ส่งออกสำเร็จ ${totalExports} รายการ ให้ ${totalCustomers} ลูกค้า!`);
 
       // รีเซ็ตและปิด Modal
       handleClose();
@@ -373,17 +497,17 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
   const handleClose = () => {
     setStep('select_items');
     setSelectedItems([]);
-    setAllocations([]);
-    setSearchTerm('');
+    setProductSearchTerm('');
+    setCustomerSearchTerm('');
     onOpenChange(false);
   };
 
   const filteredInventory = inventoryItems.filter(item => {
     // Filter by search term
     const matchesSearch =
-      item.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.sku && item.sku.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      item.location.toLowerCase().includes(searchTerm.toLowerCase());
+      item.product_name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+      (item.sku && item.sku.toLowerCase().includes(productSearchTerm.toLowerCase())) ||
+      item.location.toLowerCase().includes(productSearchTerm.toLowerCase());
 
     // Filter by product type
     if (productTypeFilter === 'all') return matchesSearch;
@@ -394,8 +518,8 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
   });
 
   const filteredCustomers = customers.filter(c =>
-    c.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.customer_code.toLowerCase().includes(searchTerm.toLowerCase())
+    c.customer_name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+    c.customer_code.toLowerCase().includes(customerSearchTerm.toLowerCase())
   );
 
   return (
@@ -453,8 +577,8 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                   </CardTitle>
                   <Input
                     placeholder="ค้นหาสินค้า, SKU, Location..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    value={productSearchTerm}
+                    onChange={(e) => setProductSearchTerm(e.target.value)}
                   />
                   {/* Filter ประเภทสินค้า */}
                   <div className="flex gap-2 pt-2">
@@ -615,111 +739,32 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
                         {/* แสดงสต็อกคงเหลือ */}
                         <div className="bg-muted/50 rounded p-2 text-xs">
-                          <span className="font-semibold text-muted-foreground">สต็อกคงเหลือ: </span>
-                          <span className="font-medium">
-                            {si.inventoryItem.unit_level1_quantity > 0 && `${si.inventoryItem.unit_level1_quantity} ${si.inventoryItem.unit_level1_name} `}
-                            {si.inventoryItem.unit_level2_quantity > 0 && `${si.inventoryItem.unit_level2_quantity} ${si.inventoryItem.unit_level2_name} `}
-                            {si.inventoryItem.unit_level3_quantity > 0 && `${si.inventoryItem.unit_level3_quantity} ${si.inventoryItem.unit_level3_name}`}
-                          </span>
-                        </div>
-
-                        {/* กรอกจำนวนที่จะส่งออก */}
-                        <div className="space-y-2">
-                          <Label className="text-xs font-semibold text-primary">📦 เลือกจำนวนที่ต้องการส่งออก:</Label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {/* ลัง */}
-                            <div className="border-2 border-orange-200 rounded-lg p-2 bg-orange-50/50">
-                              <Label className="text-xs font-semibold text-orange-700 flex items-center justify-between">
-                                <span>🏭 {si.inventoryItem.unit_level1_name}</span>
-                                <Badge variant="outline" className="text-[10px] bg-white">{si.inventoryItem.unit_level1_quantity}</Badge>
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={si.inventoryItem.unit_level1_quantity}
-                                value={si.level1}
-                                onChange={(e) => handleUpdateQuantity(si.inventoryItem.id, 'level1', parseInt(e.target.value) || 0)}
-                                className="h-9 mt-1 text-center font-semibold border-orange-300 focus:border-orange-500"
-                                placeholder="0"
-                              />
-                              <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                = {si.level1 * si.inventoryItem.unit_level1_rate} ชิ้น
-                              </p>
-                            </div>
-
-                            {/* กล่อง */}
-                            <div className="border-2 border-blue-200 rounded-lg p-2 bg-blue-50/50">
-                              <Label className="text-xs font-semibold text-blue-700 flex items-center justify-between">
-                                <span>📦 {si.inventoryItem.unit_level2_name}</span>
-                                <Badge variant="outline" className="text-[10px] bg-white">{si.inventoryItem.unit_level2_quantity}</Badge>
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={si.inventoryItem.unit_level2_quantity}
-                                value={si.level2}
-                                onChange={(e) => handleUpdateQuantity(si.inventoryItem.id, 'level2', parseInt(e.target.value) || 0)}
-                                className="h-9 mt-1 text-center font-semibold border-blue-300 focus:border-blue-500"
-                                placeholder="0"
-                              />
-                              <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                = {si.level2 * si.inventoryItem.unit_level2_rate} ชิ้น
-                              </p>
-                            </div>
-
-                            {/* ชิ้น (เศษ) */}
-                            <div className="border-2 border-green-200 rounded-lg p-2 bg-green-50/50">
-                              <Label className="text-xs font-semibold text-green-700 flex items-center justify-between">
-                                <span>🔢 {si.inventoryItem.unit_level3_name}</span>
-                                <Badge variant="outline" className="text-[10px] bg-white">{si.inventoryItem.unit_level3_quantity}</Badge>
-                              </Label>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={si.inventoryItem.unit_level3_quantity}
-                                value={si.level3}
-                                onChange={(e) => handleUpdateQuantity(si.inventoryItem.id, 'level3', parseInt(e.target.value) || 0)}
-                                className="h-9 mt-1 text-center font-semibold border-green-300 focus:border-green-500"
-                                placeholder="0"
-                              />
-                              <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                (เศษ)
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* สรุปรวม */}
-                        <div className="border-t pt-2">
-                          <div className="flex items-center justify-between bg-primary/5 rounded p-2">
-                            <span className="text-xs font-semibold text-primary">✨ รวมที่จะส่งออก:</span>
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-primary">{si.exportQuantity.toLocaleString()} {si.inventoryItem.unit_level3_name}</p>
-                              {(si.level1 > 0 || si.level2 > 0 || si.level3 > 0) && (
-                                <p className="text-[10px] text-muted-foreground">
-                                  ({si.level1 > 0 && `${si.level1} ${si.inventoryItem.unit_level1_name}`}
-                                  {si.level1 > 0 && si.level2 > 0 && ' + '}
-                                  {si.level2 > 0 && `${si.level2} ${si.inventoryItem.unit_level2_name}`}
-                                  {(si.level1 > 0 || si.level2 > 0) && si.level3 > 0 && ' + '}
-                                  {si.level3 > 0 && `${si.level3} ${si.inventoryItem.unit_level3_name}`})
-                                </p>
-                              )}
-                            </div>
+                          <span className="font-semibold text-muted-foreground">สต็อกพร้อมส่ง: </span>
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {si.inventoryItem.unit_level1_quantity > 0 && (
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px]">
+                                {si.inventoryItem.unit_level1_quantity} {si.inventoryItem.unit_level1_name}
+                              </Badge>
+                            )}
+                            {si.inventoryItem.unit_level2_quantity > 0 && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                                {si.inventoryItem.unit_level2_quantity} {si.inventoryItem.unit_level2_name}
+                              </Badge>
+                            )}
+                            {si.inventoryItem.unit_level3_quantity > 0 && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
+                                {si.inventoryItem.unit_level3_quantity} {si.inventoryItem.unit_level3_name}
+                              </Badge>
+                            )}
+                            <Badge variant="default" className="text-[10px]">
+                              รวม: {calculateTotalPieces(si.inventoryItem)} ชิ้น
+                            </Badge>
                           </div>
                         </div>
                       </div>
                     );
                   })
                 )}
-
-
-                  {selectedItems.length > 0 && (
-                    <div className="border-t pt-2 mt-2">
-                      <p className="text-sm font-semibold">
-                        รวมทั้งหมด: {getTotalExportPieces().toLocaleString()} ชิ้น
-                      </p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </div>
@@ -741,120 +786,283 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
         {/* Step 2: แบ่งจำนวนให้ลูกค้า */}
         {step === 'allocate_customers' && (
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center justify-between">
-                  <span>จำนวนสินค้าที่จะส่งออก</span>
-                  <Badge variant="secondary" className="text-base">
-                    {getTotalExportPieces().toLocaleString()} ชิ้น
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            {/* แสดงสินค้าแต่ละรายการ */}
+            <div className="space-y-3">
+              {selectedItems.map((selectedItem, idx) => {
+                const item = selectedItem.inventoryItem;
+                const productType = item.sku ? productTypeMap[item.sku] : undefined;
+                const stockRemaining = {
+                  level1: (item.unit_level1_quantity || 0) - selectedItem.totalAllocated.level1,
+                  level2: (item.unit_level2_quantity || 0) - selectedItem.totalAllocated.level2,
+                  level3: (item.unit_level3_quantity || 0) - selectedItem.totalAllocated.level3,
+                  pieces: calculateTotalPieces(item) - selectedItem.totalAllocated.pieces
+                };
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* รายชื่อลูกค้า */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">เลือกลูกค้า</CardTitle>
-                  <Input
-                    placeholder="ค้นหาลูกค้า..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </CardHeader>
-                <CardContent className="max-h-96 overflow-y-auto">
-                  <div className="space-y-2">
-                    {filteredCustomers.map(customer => (
-                      <div
-                        key={customer.id}
-                        className="flex items-center justify-between p-2 border rounded hover:bg-accent cursor-pointer"
-                        onClick={() => handleAddCustomer(customer)}
-                      >
-                        <div>
-                          <p className="font-medium text-sm">{customer.customer_name}</p>
-                          <p className="text-xs text-muted-foreground">{customer.customer_code}</p>
-                        </div>
-                        <Plus className="h-4 w-4" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ลูกค้าที่เลือกและจำนวน */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    แบ่งจำนวนให้ลูกค้า ({allocations.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="max-h-96 overflow-y-auto space-y-2">
-                  {allocations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      ยังไม่ได้เลือกลูกค้า
-                    </p>
-                  ) : (
-                    allocations.map(alloc => (
-                      <div key={alloc.customerId} className="border rounded-lg p-3 space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{alloc.customerName}</p>
-                            <p className="text-xs text-muted-foreground">{alloc.customerCode}</p>
+                return (
+                  <Card key={item.id} className="border-2">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-primary">#{idx + 1}</span>
+                            <h3 className="font-semibold">{item.product_name}</h3>
                           </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{item.sku}</Badge>
+                            {productType === 'FG' && (
+                              <Badge className="text-xs bg-green-100 text-green-700">🏭 FG</Badge>
+                            )}
+                            {productType === 'PK' && (
+                              <Badge className="text-xs bg-blue-100 text-blue-700">📦 PK</Badge>
+                            )}
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              {item.location}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">สต็อกทั้งหมด</p>
+                          <div className="flex gap-1 flex-wrap justify-end">
+                            {(item.unit_level1_quantity || 0) > 0 && (
+                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                {item.unit_level1_quantity} {item.unit_level1_name}
+                              </Badge>
+                            )}
+                            {(item.unit_level2_quantity || 0) > 0 && (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                {item.unit_level2_quantity} {item.unit_level2_name}
+                              </Badge>
+                            )}
+                            {(item.unit_level3_quantity || 0) > 0 && (
+                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                {item.unit_level3_quantity} {item.unit_level3_name}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs font-semibold mt-1">
+                            = {calculateTotalPieces(item).toLocaleString()} {item.unit_level3_name}
+                          </p>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="space-y-3">
+                      {/* Quick Mode: ส่งทั้งหมดให้ลูกค้า 1 คน */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <Label className="text-xs font-semibold text-blue-900 mb-2 block">
+                          ⚡ ส่งทั้งหมดให้ลูกค้า (Quick Mode)
+                        </Label>
+                        <div className="flex gap-2">
+                          <select
+                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                            value=""
+                            onChange={(e) => {
+                              const customer = customers.find(c => c.id === e.target.value);
+                              if (customer) {
+                                handleAssignAllToCustomer(item.id, customer);
+                                e.target.value = '';
+                              }
+                            }}
+                          >
+                            <option value="">เลือกลูกค้า...</option>
+                            {customers.map(c => (
+                              <option key={c.id} value={c.id}>{c.customer_name} ({c.customer_code})</option>
+                            ))}
+                          </select>
                           <Button
                             size="sm"
-                            variant="ghost"
-                            onClick={() => handleRemoveCustomer(alloc.customerId)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                            disabled={customers.length === 0}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            ส่งหมด →
                           </Button>
                         </div>
-
-                        <div>
-                          <Label className="text-xs">จำนวน (ชิ้น)</Label>
-                          <Input
-                            type="number"
-                            min="0"
-                            max={getTotalExportPieces()}
-                            value={alloc.quantity}
-                            onChange={(e) => handleUpdateAllocation(alloc.customerId, parseInt(e.target.value) || 0)}
-                            placeholder="0"
-                          />
-                        </div>
                       </div>
-                    ))
-                  )}
 
-                  {allocations.length > 0 && (
-                    <div className="border-t pt-2 mt-2 space-y-1">
-                      <p className="text-sm">
-                        แบ่งแล้ว: <span className="font-semibold">{getTotalAllocated().toLocaleString()}</span> ชิ้น
-                      </p>
-                      <p className="text-sm">
-                        เหลือ: <span className="font-semibold">{(getTotalExportPieces() - getTotalAllocated()).toLocaleString()}</span> ชิ้น
-                      </p>
-                      {getTotalAllocated() > getTotalExportPieces() && (
-                        <p className="text-sm text-destructive flex items-center gap-1">
-                          <AlertCircle className="h-4 w-4" />
-                          แบ่งเกินจำนวนที่มี!
-                        </p>
+                      {/* ลูกค้าที่เลือกไว้แล้ว */}
+                      {selectedItem.allocations.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold">ลูกค้าที่เลือก ({selectedItem.allocations.length})</Label>
+
+                          {selectedItem.allocations.map((allocation) => (
+                            <div key={allocation.customerId} className="border rounded-lg p-3 space-y-2 bg-white">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium text-sm">{allocation.customerName}</p>
+                                  <p className="text-xs text-muted-foreground">{allocation.customerCode}</p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleRemoveCustomerFromItem(item.id, allocation.customerId)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+
+                              {/* Unit Inputs */}
+                              <div className="grid grid-cols-3 gap-2">
+                                {/* ลัง */}
+                                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-2">
+                                  <Label className="text-xs font-semibold text-orange-700 flex items-center justify-between">
+                                    <span>🏭 {item.unit_level1_name}</span>
+                                    <Badge variant="outline" className="text-[10px] bg-white">
+                                      {item.unit_level1_quantity}
+                                    </Badge>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level1_quantity}
+                                    value={allocation.level1}
+                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level1', parseInt(e.target.value) || 0)}
+                                    className="h-9 mt-1 text-center font-semibold border-orange-300 focus:border-orange-500"
+                                    placeholder="0"
+                                  />
+                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
+                                    × {item.unit_level1_rate} = {allocation.level1 * (item.unit_level1_rate || 0)} ชิ้น
+                                  </p>
+                                </div>
+
+                                {/* กล่อง */}
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-2">
+                                  <Label className="text-xs font-semibold text-blue-700 flex items-center justify-between">
+                                    <span>📦 {item.unit_level2_name}</span>
+                                    <Badge variant="outline" className="text-[10px] bg-white">
+                                      {item.unit_level2_quantity}
+                                    </Badge>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level2_quantity}
+                                    value={allocation.level2}
+                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level2', parseInt(e.target.value) || 0)}
+                                    className="h-9 mt-1 text-center font-semibold border-blue-300 focus:border-blue-500"
+                                    placeholder="0"
+                                  />
+                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
+                                    × {item.unit_level2_rate} = {allocation.level2 * (item.unit_level2_rate || 0)} ชิ้น
+                                  </p>
+                                </div>
+
+                                {/* ชิ้น */}
+                                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-2">
+                                  <Label className="text-xs font-semibold text-green-700 flex items-center justify-between">
+                                    <span>🔢 {item.unit_level3_name}</span>
+                                    <Badge variant="outline" className="text-[10px] bg-white">
+                                      {item.unit_level3_quantity}
+                                    </Badge>
+                                  </Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max={item.unit_level3_quantity}
+                                    value={allocation.level3}
+                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level3', parseInt(e.target.value) || 0)}
+                                    className="h-9 mt-1 text-center font-semibold border-green-300 focus:border-green-500"
+                                    placeholder="0"
+                                  />
+                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
+                                    (เศษ)
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* รวม */}
+                              <div className="bg-primary/10 rounded-lg p-2 text-center">
+                                <span className="text-xs font-semibold text-primary">
+                                  รวม: {allocation.totalPieces.toLocaleString()} {item.unit_level3_name}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+
+                      {/* เพิ่มลูกค้าเพิ่มเติม */}
+                      <div className="border-t pt-2">
+                        <Label className="text-xs text-muted-foreground mb-2 block">เพิ่มลูกค้าเพิ่มเติม</Label>
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                          value=""
+                          onChange={(e) => {
+                            const customer = customers.find(c => c.id === e.target.value);
+                            if (customer) {
+                              handleAddCustomerToItem(item.id, customer);
+                              e.target.value = '';
+                            }
+                          }}
+                        >
+                          <option value="">+ เลือกลูกค้า...</option>
+                          {customers
+                            .filter(c => !selectedItem.allocations.find(a => a.customerId === c.id))
+                            .map(c => (
+                              <option key={c.id} value={c.id}>{c.customer_name} ({c.customer_code})</option>
+                            ))}
+                        </select>
+                      </div>
+
+                      {/* Stock Remaining */}
+                      <div className="bg-muted rounded-lg p-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">คงเหลือ:</span>
+                          <div className="flex gap-1">
+                            {stockRemaining.level1 > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-orange-50">
+                                {stockRemaining.level1} {item.unit_level1_name}
+                              </Badge>
+                            )}
+                            {stockRemaining.level2 > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-blue-50">
+                                {stockRemaining.level2} {item.unit_level2_name}
+                              </Badge>
+                            )}
+                            {stockRemaining.level3 > 0 && (
+                              <Badge variant="outline" className="text-[10px] bg-green-50">
+                                {stockRemaining.level3} {item.unit_level3_name}
+                              </Badge>
+                            )}
+                            <Badge variant={stockRemaining.pieces >= 0 ? "default" : "destructive"} className="text-[10px]">
+                              {stockRemaining.pieces} ชิ้น
+                            </Badge>
+                          </div>
+                        </div>
+                        {stockRemaining.pieces < 0 && (
+                          <p className="text-[10px] text-destructive mt-1 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            แบ่งเกินจำนวนที่มี!
+                          </p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
+
+            {/* Summary */}
+            <Card className="bg-primary/5">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">รวมทั้งหมด:</span>
+                  <Badge variant="default" className="text-base px-3 py-1">
+                    {getTotalExportPieces().toLocaleString()} ชิ้น
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep('select_items')}>
-                ย้อนกลับ
+                ← ย้อนกลับ
               </Button>
               <Button
                 onClick={() => setStep('summary')}
                 disabled={!canProceedToSummary()}
               >
-                ต่อไป: สรุปรายการ
+                ต่อไป: สรุปรายการ →
               </Button>
             </div>
           </div>
@@ -868,73 +1076,115 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                 <CardTitle className="text-sm">สรุปรายการส่งออก</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* สรุปสินค้า */}
-                <div>
-                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    สินค้าที่จะส่งออก ({selectedItems.length} รายการ)
-                  </h4>
-                  <div className="space-y-1">
-                    {selectedItems.map(si => (
-                      <div key={si.inventoryItem.id} className="text-sm flex items-center justify-between p-2 bg-muted rounded">
-                        <div>
-                          <span className="font-medium">{si.inventoryItem.product_name}</span>
-                          <span className="text-muted-foreground ml-2">@ {si.inventoryItem.location}</span>
+                {/* สรุปแบบละเอียด: แต่ละสินค้ากับลูกค้า */}
+                {selectedItems.map((selectedItem, idx) => {
+                  const item = selectedItem.inventoryItem;
+                  const productType = item.sku ? productTypeMap[item.sku] : undefined;
+
+                  return (
+                    <div key={item.id} className="border rounded-lg p-3 space-y-2">
+                      {/* Product Header */}
+                      <div className="flex items-start justify-between border-b pb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-primary">#{idx + 1}</span>
+                            <h4 className="font-semibold text-sm">{item.product_name}</h4>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{item.sku}</Badge>
+                            {productType === 'FG' && (
+                              <Badge className="text-xs bg-green-100 text-green-700">🏭 FG</Badge>
+                            )}
+                            {productType === 'PK' && (
+                              <Badge className="text-xs bg-blue-100 text-blue-700">📦 PK</Badge>
+                            )}
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              {item.location}
+                            </div>
+                          </div>
                         </div>
-                        <Badge variant="outline">
-                          {si.level1 > 0 && `${si.level1} ${si.inventoryItem.unit_level1_name}`}
-                          {si.level1 > 0 && si.level2 > 0 && ' + '}
-                          {si.level2 > 0 && `${si.level2} ${si.inventoryItem.unit_level2_name}`}
-                          {(si.level1 > 0 || si.level2 > 0) && si.level3 > 0 && ' + '}
-                          {si.level3 > 0 && `${si.level3} ${si.inventoryItem.unit_level3_name}`}
-                          {' '}({si.exportQuantity.toLocaleString()} ชิ้น)
-                        </Badge>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">รวมส่งออก</p>
+                          <Badge variant="default">
+                            {selectedItem.totalAllocated.pieces.toLocaleString()} ชิ้น
+                          </Badge>
+                        </div>
                       </div>
-                    ))}
-                    <div className="text-sm font-semibold pt-2 border-t">
-                      รวม: {getTotalExportPieces().toLocaleString()} ชิ้น
+
+                      {/* Customer Allocations */}
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          ส่งให้ลูกค้า ({selectedItem.allocations.length} ราย):
+                        </p>
+                        {selectedItem.allocations.map(allocation => (
+                          <div key={allocation.customerId} className="bg-muted/50 rounded p-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">{allocation.customerName}</p>
+                                <p className="text-xs text-muted-foreground">{allocation.customerCode}</p>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-xs space-x-1">
+                                  {allocation.level1 > 0 && (
+                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 text-[10px]">
+                                      {allocation.level1} {allocation.unitLevel1Name}
+                                    </Badge>
+                                  )}
+                                  {allocation.level2 > 0 && (
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 text-[10px]">
+                                      {allocation.level2} {allocation.unitLevel2Name}
+                                    </Badge>
+                                  )}
+                                  {allocation.level3 > 0 && (
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 text-[10px]">
+                                      {allocation.level3} {allocation.unitLevel3Name}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs font-semibold text-primary mt-1">
+                                  = {allocation.totalPieces.toLocaleString()} ชิ้น
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* สรุปรวมทั้งหมด */}
+                <div className="border-t pt-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-primary/5 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground mb-1">จำนวนสินค้า</p>
+                      <p className="text-lg font-bold text-primary">
+                        {selectedItems.length} รายการ
+                      </p>
+                    </div>
+                    <div className="bg-primary/5 rounded-lg p-3">
+                      <p className="text-xs text-muted-foreground mb-1">จำนวนลูกค้า</p>
+                      <p className="text-lg font-bold text-primary">
+                        {new Set(selectedItems.flatMap(si => si.allocations.map(a => a.customerId))).size} ราย
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-green-900">รวมส่งออกทั้งหมด:</span>
+                      <span className="text-xl font-bold text-green-700">
+                        {getTotalExportPieces().toLocaleString()} ชิ้น
+                      </span>
                     </div>
                   </div>
                 </div>
-
-                {/* สรุปลูกค้า */}
-                <div>
-                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    แบ่งส่งให้ลูกค้า ({allocations.length} ราย)
-                  </h4>
-                  <div className="space-y-1">
-                    {allocations.map(alloc => (
-                      <div key={alloc.customerId} className="text-sm flex items-center justify-between p-2 bg-muted rounded">
-                        <div>
-                          <span className="font-medium">{alloc.customerName}</span>
-                          <span className="text-muted-foreground ml-2">({alloc.customerCode})</span>
-                        </div>
-                        <Badge>{alloc.quantity.toLocaleString()} ชิ้น</Badge>
-                      </div>
-                    ))}
-                    <div className="text-sm font-semibold pt-2 border-t">
-                      รวม: {getTotalAllocated().toLocaleString()} ชิ้น
-                    </div>
-                  </div>
-                </div>
-
-                {/* คำเตือน */}
-                {getTotalAllocated() < getTotalExportPieces() && (
-                  <div className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                    <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
-                    <div className="text-sm">
-                      <p className="font-semibold text-yellow-800">สินค้าเหลือ {(getTotalExportPieces() - getTotalAllocated()).toLocaleString()} ชิ้น</p>
-                      <p className="text-yellow-700">จำนวนที่แบ่งให้ลูกค้าน้อยกว่าจำนวนที่เลือก สินค้าที่เหลือจะยังคงอยู่ในคลัง</p>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep('allocate_customers')}>
-                ย้อนกลับ
+                ← ย้อนกลับ
               </Button>
               <Button
                 onClick={handleSubmit}
