@@ -75,6 +75,7 @@ export default function UnitConversionSettings() {
   }
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [productTypeFilter, setProductTypeFilter] = useState<'all' | 'FG' | 'PK'>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedConversionRate, setSelectedConversionRate] = useState<any>(null);
@@ -100,27 +101,35 @@ export default function UnitConversionSettings() {
     return products;
   }, [products, conversionRates]);
 
-  // Filter conversion rates by search term
+  // Filter conversion rates by search term and product type
   const filteredConversionRates = useMemo(() => {
     console.log('🔍 useMemo filteredConversionRates triggered', {
       conversionRatesLength: conversionRates.length,
       searchTerm,
+      productTypeFilter,
       hasConversionRates: conversionRates.length > 0
     });
 
-    if (!searchTerm) {
-      console.log('✅ No search term, returning all', conversionRates.length, 'records');
-      return conversionRates;
+    let filtered = conversionRates;
+
+    // Filter by product type
+    if (productTypeFilter !== 'all') {
+      filtered = filtered.filter(rate => rate.product_type === productTypeFilter);
+      console.log(`✅ After product type filter (${productTypeFilter}):`, filtered.length, 'records');
     }
 
-    const filtered = conversionRates.filter(rate =>
-      rate.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rate.product_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(rate =>
+        rate.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rate.product_name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      console.log('✅ After search filter:', filtered.length, 'records');
+    }
 
-    console.log('✅ Filtered results:', filtered.length, 'records');
+    console.log('✅ Final filtered results:', filtered.length, 'records');
     return filtered;
-  }, [conversionRates, searchTerm]);
+  }, [conversionRates, searchTerm, productTypeFilter]);
 
   // Paginate filtered results
   const paginatedConversionRates = useMemo(() => {
@@ -142,10 +151,10 @@ export default function UnitConversionSettings() {
 
   const totalPages = Math.ceil(filteredConversionRates.length / itemsPerPage);
 
-  // Reset to page 1 when search term changes
+  // Reset to page 1 when search term or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, productTypeFilter]);
 
   const handleAdd = async () => {
     try {
@@ -387,16 +396,58 @@ export default function UnitConversionSettings() {
           </Button>
         </div>
 
-        {/* Search and Add Button */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <Input
-              placeholder="ค้นหารหัสสินค้าหรือชื่อสินค้า..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        {/* Search, Filter and Add Button */}
+        <div className="space-y-3">
+          {/* Product Type Filter Buttons */}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setProductTypeFilter('all')}
+              className={`transition-all ${
+                productTypeFilter === 'all'
+                  ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                  : 'hover:bg-accent'
+              }`}
+            >
+              ✨ ทั้งหมด
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setProductTypeFilter('FG')}
+              className={`transition-all ${
+                productTypeFilter === 'FG'
+                  ? 'bg-green-600 text-white border-green-600 shadow-md hover:bg-green-700'
+                  : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+              }`}
+            >
+              🏭 FG - สินค้าสำเร็จรูป
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setProductTypeFilter('PK')}
+              className={`transition-all ${
+                productTypeFilter === 'PK'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700'
+                  : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+              }`}
+            >
+              📦 PK - วัสดุบรรจุภัณฑ์
+            </Button>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+
+          {/* Search and Add */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="ค้นหารหัสสินค้าหรือชื่อสินค้า..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="flex items-center gap-2">
                 <Plus className="h-4 w-4" />
@@ -511,6 +562,7 @@ export default function UnitConversionSettings() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Conversion Rates Table */}
