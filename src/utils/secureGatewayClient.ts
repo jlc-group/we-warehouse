@@ -536,18 +536,35 @@ export const secureGatewayClient = {
             productId = product.id;
           }
 
-          // Validate conversion rates are positive numbers
-          if (payload.updates.unit_level1_rate && payload.updates.unit_level1_rate <= 0) {
-            throw new Error('อัตราแปลงหน่วยระดับ 1 ต้องเป็นจำนวนบวก');
+          // Whitelist only allowed fields for update
+          const allowedUpdates: Record<string, any> = {};
+
+          if (payload.updates.unit_level1_name !== undefined) {
+            allowedUpdates.unit_level1_name = payload.updates.unit_level1_name;
           }
-          if (payload.updates.unit_level2_rate && payload.updates.unit_level2_rate <= 0) {
-            throw new Error('อัตราแปลงหน่วยระดับ 2 ต้องเป็นจำนวนบวก');
+          if (payload.updates.unit_level1_rate !== undefined) {
+            if (payload.updates.unit_level1_rate <= 0) {
+              throw new Error('อัตราแปลงหน่วยระดับ 1 ต้องเป็นจำนวนบวก');
+            }
+            allowedUpdates.unit_level1_rate = payload.updates.unit_level1_rate;
+          }
+          if (payload.updates.unit_level2_name !== undefined) {
+            allowedUpdates.unit_level2_name = payload.updates.unit_level2_name;
+          }
+          if (payload.updates.unit_level2_rate !== undefined) {
+            if (payload.updates.unit_level2_rate <= 0) {
+              throw new Error('อัตราแปลงหน่วยระดับ 2 ต้องเป็นจำนวนบวก');
+            }
+            allowedUpdates.unit_level2_rate = payload.updates.unit_level2_rate;
+          }
+          if (payload.updates.unit_level3_name !== undefined) {
+            allowedUpdates.unit_level3_name = payload.updates.unit_level3_name;
           }
 
           const { data, error } = await supabase
             .from('product_conversion_rates')
             .update({
-              ...payload.updates,
+              ...allowedUpdates,
               updated_at: new Date().toISOString()
             })
             .eq('product_id', productId)

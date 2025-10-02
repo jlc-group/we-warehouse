@@ -55,10 +55,10 @@ export function InventoryTable({ items }: InventoryTableProps) {
       const multiLevelItem: any = {
         unit_level1_name: extendedItem.unit_level1_name,
         unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
-        unit_level1_conversion_rate: extendedItem.unit_level1_rate || 0,
+        unit_level1_rate: extendedItem.unit_level1_rate || 0,
         unit_level2_name: extendedItem.unit_level2_name,
         unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
-        unit_level2_conversion_rate: extendedItem.unit_level2_rate || 0,
+        unit_level2_rate: extendedItem.unit_level2_rate || 0,
         unit_level3_name: extendedItem.unit_level3_name,
         unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
       };

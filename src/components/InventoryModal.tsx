@@ -45,10 +45,10 @@ interface InventoryModalProps {
     // New multi-level unit fields
     unit_level1_name?: string | null;
     unit_level1_quantity?: number;
-    unit_level1_conversion_rate?: number;
+    unit_level1_rate?: number;
     unit_level2_name?: string | null;
     unit_level2_quantity?: number;
-    unit_level2_conversion_rate?: number;
+    unit_level2_rate?: number;
     unit_level3_name?: string | null;
     unit_level3_quantity?: number;
     warehouse_id?: string | null;
@@ -147,10 +147,10 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
         setMultiLevelData({
           unit_level1_name: null, // Will be set from conversion rates
           unit_level1_quantity: extendedItem.unit_level1_quantity || 0,
-          unit_level1_conversion_rate: 0, // Will be set from conversion rates
+          unit_level1_rate: 0, // Will be set from conversion rates
           unit_level2_name: null, // Will be set from conversion rates
           unit_level2_quantity: extendedItem.unit_level2_quantity || 0,
-          unit_level2_conversion_rate: 0, // Will be set from conversion rates
+          unit_level2_rate: 0, // Will be set from conversion rates
           unit_level3_name: 'ชิ้น', // Will be set from conversion rates
           unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
         });
@@ -184,9 +184,9 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       setMultiLevelData(prev => ({
         ...prev,
         unit_level1_name: getCurrentConversionRate.unit_level1_name || 'ลัง',
-        unit_level1_conversion_rate: getCurrentConversionRate.unit_level1_rate || 1,
+        unit_level1_rate: getCurrentConversionRate.unit_level1_rate || 1,
         unit_level2_name: getCurrentConversionRate.unit_level2_name || 'กล่อง',
-        unit_level2_conversion_rate: getCurrentConversionRate.unit_level2_rate || 1,
+        unit_level2_rate: getCurrentConversionRate.unit_level2_rate || 1,
         unit_level3_name: getCurrentConversionRate.unit_level3_name || 'ชิ้น',
       }));
     }
@@ -316,10 +316,10 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
       // Multi-level unit data
       unit_level1_name: multiLevelData.unit_level1_name,
       unit_level1_quantity: multiLevelData.unit_level1_quantity,
-      unit_level1_conversion_rate: multiLevelData.unit_level1_conversion_rate,
+      unit_level1_rate: multiLevelData.unit_level1_rate,
       unit_level2_name: multiLevelData.unit_level2_name,
       unit_level2_quantity: multiLevelData.unit_level2_quantity,
-      unit_level2_conversion_rate: multiLevelData.unit_level2_conversion_rate,
+      unit_level2_rate: multiLevelData.unit_level2_rate,
       unit_level3_name: multiLevelData.unit_level3_name,
       unit_level3_quantity: multiLevelData.unit_level3_quantity,
       warehouse_id: selectedWarehouseId,
@@ -635,8 +635,8 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                       min="0"
                       className="h-8"
                       placeholder="เช่น 504"
-                      value={multiLevelData.unit_level1_conversion_rate || ''}
-                      onChange={(e) => updateMultiLevelData({ unit_level1_conversion_rate: parseInt(e.target.value) || 0 })}
+                      value={multiLevelData.unit_level1_rate || ''}
+                      onChange={(e) => updateMultiLevelData({ unit_level1_rate: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                 </div>
@@ -680,8 +680,8 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
                       min="0"
                       className="h-8"
                       placeholder="เช่น 6"
-                      value={multiLevelData.unit_level2_conversion_rate || ''}
-                      onChange={(e) => updateMultiLevelData({ unit_level2_conversion_rate: parseInt(e.target.value) || 0 })}
+                      value={multiLevelData.unit_level2_rate || ''}
+                      onChange={(e) => updateMultiLevelData({ unit_level2_rate: parseInt(e.target.value) || 0 })}
                     />
                   </div>
                 </div>

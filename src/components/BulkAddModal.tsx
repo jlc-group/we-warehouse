@@ -29,6 +29,8 @@ interface BulkAddModalProps {
     box_quantity: number;
     loose_quantity: number;
     pieces_quantity: number;
+    unit_level1_rate?: number;
+    unit_level2_rate?: number;
   }) => void;
   availableLocations: string[];
   inventoryItems: InventoryItem[];
@@ -42,6 +44,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   const [quantityBoxes, setQuantityBoxes] = useState(0);
   const [quantityLoose, setQuantityLoose] = useState(0);
   const [quantityPieces, setQuantityPieces] = useState(0);
+  const [conversionRates, setConversionRates] = useState({ unit_level1_rate: 144, unit_level2_rate: 12 });
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set());
   const [customLocation, setCustomLocation] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
@@ -50,6 +53,30 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
   // Performance: Use deferred value for search to reduce re-renders
   const deferredLocationSearch = useDeferredValue(locationSearch);
+
+  // Fetch conversion rates from database
+  const fetchConversionRates = async (sku: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('product_conversion_rates')
+        .select('unit_level1_rate, unit_level2_rate')
+        .eq('sku', sku)
+        .single();
+
+      if (!error && data) {
+        setConversionRates({
+          unit_level1_rate: data.unit_level1_rate || 144,
+          unit_level2_rate: data.unit_level2_rate || 12
+        });
+      } else {
+        // Use default if not found
+        setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+      }
+    } catch (error) {
+      console.error('Error fetching conversion rates:', error);
+      setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+    }
+  };
 
   // Product management states - now using useProducts hook
   const { products } = useProducts();
@@ -122,6 +149,8 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
       box_quantity: quantityBoxes,
       loose_quantity: quantityLoose,
       pieces_quantity: quantityPieces,
+      unit_level1_rate: conversionRates.unit_level1_rate,
+      unit_level2_rate: conversionRates.unit_level2_rate,
     });
 
     resetForm();
@@ -169,7 +198,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   }, [allProductCodes, productCodeInputValue]);
 
   // Auto-fill product name when product code changes
-  const handleProductCodeChange = (value: string) => {
+  const handleProductCodeChange = async (value: string) => {
     setProductCode(value);
     setProductCodeInputValue(value);
 
@@ -178,6 +207,8 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
     if (mappedName) {
       setProductName(mappedName);
       setIsNewProduct(false);
+      // Fetch conversion rates
+      await fetchConversionRates(value.toUpperCase());
       return;
     }
 
@@ -189,9 +220,12 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
     if (foundProduct) {
       setProductName(foundProduct.product_name);
       setIsNewProduct(false);
+      // Fetch conversion rates
+      await fetchConversionRates(foundProduct.sku_code);
     } else if (value === '') {
       setProductName('');
       setIsNewProduct(false);
+      setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
     } else {
       // New product
       setIsNewProduct(true);

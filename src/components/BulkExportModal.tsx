@@ -88,6 +88,10 @@ interface BulkExportModalProps {
 export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryItemsProp }: BulkExportModalProps) {
   const [step, setStep] = useState<'select_items' | 'allocate_customers' | 'summary'>('select_items');
 
+  // เพิ่ม state สำหรับ PO Number และ Invoice Number
+  const [poNumber, setPoNumber] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+
   // Step 1: เลือกสินค้าจากหลาย Location (ไม่ใส่จำนวน)
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -376,6 +380,13 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
         for (const allocation of selectedItem.allocations) {
           if (allocation.totalPieces === 0) continue;
 
+          // สร้าง notes รวม PO และ Invoice
+          const notes = [
+            'ส่งออกแบบหลายรายการพร้อมกัน',
+            poNumber ? `PO: ${poNumber}` : null,
+            invoiceNumber ? `Invoice: ${invoiceNumber}` : null
+          ].filter(Boolean).join(' | ');
+
           // บันทึก customer_exports
           await supabase.from('customer_exports').insert({
             customer_id: allocation.customerId,
@@ -394,17 +405,17 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
             unit_level1_rate: allocation.unitLevel1Rate,
             unit_level2_rate: allocation.unitLevel2Rate,
             from_location: location,
-            notes: 'ส่งออกแบบหลายรายการพร้อมกัน',
+            notes: notes,
             user_id: '00000000-0000-0000-0000-000000000000'
           });
 
-          // บันทึก system_events
+          // บันทึก system_events พร้อม PO และ Invoice ใน metadata
           await supabase.from('system_events').insert({
             event_type: 'inventory',
             event_category: 'stock_movement',
             event_action: 'bulk_export',
             event_title: 'ส่งออกหลายรายการ',
-            event_description: `ส่งออก ${item.product_name} จาก ${location} จำนวน ${allocation.totalPieces} ชิ้น ไปยัง ${allocation.customerName}`,
+            event_description: `ส่งออก ${item.product_name} จาก ${location} จำนวน ${allocation.totalPieces} ชิ้น ไปยัง ${allocation.customerName}${poNumber ? ` (PO: ${poNumber})` : ''}${invoiceNumber ? ` (Invoice: ${invoiceNumber})` : ''}`,
             metadata: {
               item_id: item.id,
               product_name: item.product_name,
@@ -414,7 +425,9 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
               customer_name: allocation.customerName,
               level1: allocation.level1,
               level2: allocation.level2,
-              level3: allocation.level3
+              level3: allocation.level3,
+              po_number: poNumber || null,
+              invoice_number: invoiceNumber || null
             },
             user_id: '00000000-0000-0000-0000-000000000000'
           });
@@ -499,6 +512,8 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
     setSelectedItems([]);
     setProductSearchTerm('');
     setCustomerSearchTerm('');
+    setPoNumber('');
+    setInvoiceNumber('');
     onOpenChange(false);
   };
 
@@ -1071,6 +1086,48 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
         {/* Step 3: สรุปและยืนยัน */}
         {step === 'summary' && (
           <div className="space-y-4">
+            {/* ฟอร์มกรอก PO และ Invoice */}
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  📋 ข้อมูล PO และ Invoice (ไม่บังคับ)
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="po_number" className="text-sm font-medium">
+                      PO Number
+                    </Label>
+                    <Input
+                      id="po_number"
+                      placeholder="เช่น PO-2025-001"
+                      value={poNumber}
+                      onChange={(e) => setPoNumber(e.target.value)}
+                      className="bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invoice_number" className="text-sm font-medium">
+                      Invoice Number
+                    </Label>
+                    <Input
+                      id="invoice_number"
+                      placeholder="เช่น INV-2025-001"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      className="bg-white"
+                    />
+                  </div>
+                </div>
+                {(poNumber || invoiceNumber) && (
+                  <div className="mt-3 text-xs text-blue-700 bg-blue-100 rounded p-2">
+                    ℹ️ ข้อมูลนี้จะบันทึกในประวัติการส่งออกทุกรายการ
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">สรุปรายการส่งออก</CardTitle>

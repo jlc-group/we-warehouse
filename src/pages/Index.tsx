@@ -466,6 +466,8 @@ const Index = memo(() => {
     box_quantity: number;
     loose_quantity: number;
     pieces_quantity: number;
+    unit_level1_rate?: number;
+    unit_level2_rate?: number;
   }) => {
     try {
       console.log('🚀 handleBulkSave started:', {
@@ -489,6 +491,8 @@ const Index = memo(() => {
           unit_level1_quantity: itemData.box_quantity,
           unit_level2_quantity: itemData.loose_quantity,
           unit_level3_quantity: itemData.pieces_quantity,
+          unit_level1_rate: itemData.unit_level1_rate || 144,
+          unit_level2_rate: itemData.unit_level2_rate || 12,
           // Add warehouse and user information
           warehouse_id: 'c6f43c5a-3949-46fd-9165-a3cd6e0b7509', // Default to main warehouse
           user_id: '00000000-0000-0000-0000-000000000000' // Default user ID for system
