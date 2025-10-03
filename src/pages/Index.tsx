@@ -66,6 +66,7 @@ import { ProductMasterList } from '@/components/ProductMasterList';
 import { DepartmentTransferDashboard } from '@/components/DepartmentTransferDashboard';
 import { InboundOutboundDashboard } from '@/components/InboundOutboundDashboard';
 import { ProductManagementPage } from '@/components/ProductManagementPage';
+import { FloatingActionMenu } from '@/components/FloatingActionMenu';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -1367,6 +1368,19 @@ const Index = memo(() => {
         {/* Resource Monitor Component - Temporarily disabled to fix WebSocket conflicts */}
         {/* <ResourceMonitor /> */}
       </div>
+
+      {/* Floating Action Menu - ปุ่มลอยมุมขวาล่าง */}
+      <FloatingActionMenu
+        onAddItem={() => {
+          setSelectedLocation('');
+          setSelectedItem(undefined);
+          setIsModalOpen(true);
+        }}
+        onTransferItem={() => setIsTransferModalOpen(true)}
+        onExportItem={() => setIsManualExportModalOpen(true)}
+        onScanQR={() => setShowScanner(true)}
+        onBulkExport={() => setIsBulkExportModalOpen(true)}
+      />
     </div>
   );
 });
