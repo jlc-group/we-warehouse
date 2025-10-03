@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContextSimple";
 import { InventoryProvider } from "@/contexts/InventoryContext";
 import { ProductsProvider } from "@/contexts/ProductsContext";
+import { LocationQRProvider } from "@/contexts/LocationQRContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ReactProfiler } from "@/debug/ReactProfiler";
 import "@/debug/intervalDetector"; // CRITICAL: Import to activate interval monitoring
@@ -51,9 +52,10 @@ const App = () => (
             <AuthProvider>
               <ReactProfiler id="ProductsProvider">
                 <ProductsProvider>
-                  <ReactProfiler id="InventoryProvider">
-                    <InventoryProvider>
-                      <Routes>
+                  <LocationQRProvider>
+                    <ReactProfiler id="InventoryProvider">
+                      <InventoryProvider>
+                        <Routes>
                       <Route
                         path="/"
                         element={
@@ -74,11 +76,12 @@ const App = () => (
                           </AuthGuard>
                         }
                       />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                      </Routes>
-                    </InventoryProvider>
-                  </ReactProfiler>
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </InventoryProvider>
+                    </ReactProfiler>
+                  </LocationQRProvider>
                 </ProductsProvider>
               </ReactProfiler>
             </AuthProvider>
