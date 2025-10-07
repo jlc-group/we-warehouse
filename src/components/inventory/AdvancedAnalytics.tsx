@@ -57,9 +57,13 @@ interface ABCAnalysis {
   description: string;
 }
 
-function AdvancedAnalytics() {
+interface AdvancedAnalyticsProps {
+  warehouseId?: string;
+}
+
+function AdvancedAnalytics({ warehouseId }: AdvancedAnalyticsProps = {}) {
   const { user } = useAuth();
-  const { items, permissions } = useDepartmentInventory();
+  const { items, permissions } = useDepartmentInventory(warehouseId);
   const [timeRange, setTimeRange] = useState<'7days' | '30days' | '90days'>('30days');
 
   // Calculate inventory trends (simulated data based on current inventory)

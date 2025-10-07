@@ -9,6 +9,8 @@ import { MovementLogs } from '@/components/MovementLogs';
 import { EnhancedEventLogs } from '@/components/EnhancedEventLogs';
 import { EnhancedOverview } from '@/components/EnhancedOverview';
 import { ExportHistory } from '@/components/ExportHistory';
+import { CustomerExportDashboard } from '@/components/CustomerExportDashboard';
+import { UnifiedExportHistory } from '@/components/UnifiedExportHistory';
 import { QRCodeManager } from '@/components/QRCodeManager';
 import { DataRecovery } from '@/components/DataRecovery';
 import { DataExport } from '@/components/DataExport';
@@ -24,6 +26,7 @@ import { DisabledComponent } from '@/components/DisabledComponents';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
 import { BulkExportModal } from '@/components/BulkExportModal';
+import { DebugExportData } from '@/components/DebugExportData';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -67,6 +70,8 @@ import { DepartmentTransferDashboard } from '@/components/DepartmentTransferDash
 import { InboundOutboundDashboard } from '@/components/InboundOutboundDashboard';
 import { ProductManagementPage } from '@/components/ProductManagementPage';
 import { FloatingActionMenu } from '@/components/FloatingActionMenu';
+import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage';
+import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -128,7 +133,7 @@ const Index = memo(() => {
     refetch,
     clearAllData,
     getItemsAtLocation
-  } = useDepartmentInventory();
+  } = useDepartmentInventory(selectedWarehouseId);
 
   // CRITICAL: Ultra-stable memoization to prevent cascade re-renders
   const stableInventoryItems = useMemo(() => {
@@ -849,7 +854,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-9 bg-white border border-gray-200 h-auto">
+          <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-11 bg-white border border-gray-200 h-auto">
             <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
@@ -858,9 +863,17 @@ const Index = memo(() => {
               <Package className="h-4 w-4 text-purple-600" />
               <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
             </TabsTrigger>
+            <TabsTrigger value="warehouse-management" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
+              <Warehouse className="h-4 w-4 text-green-600" />
+              <span className="hidden md:inline text-green-600 font-medium">จัดการคลัง</span>
+            </TabsTrigger>
             <TabsTrigger value="table" className="flex items-center gap-2 h-12">
               <Table className="h-4 w-4" />
               <span className="hidden sm:inline">ตารางข้อมูล</span>
+            </TabsTrigger>
+            <TabsTrigger value="stock-overview" className="flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100">
+              <Grid3X3 className="h-4 w-4 text-blue-600" />
+              <span className="hidden md:inline text-blue-600 font-medium">สรุปสต็อก</span>
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2 h-12">
               <BarChart3 className="h-4 w-4" />
@@ -897,6 +910,7 @@ const Index = memo(() => {
           <TabsContent value="overview" className="space-y-4">
             <EnhancedOverview
               items={inventoryItems}
+              warehouseId={selectedWarehouseId}
               onShelfClick={handleShelfClick}
               onAddItem={() => setIsModalOpen(true)}
               onTransferItem={() => setIsTransferModalOpen(true)}
@@ -953,6 +967,10 @@ const Index = memo(() => {
             </Tabs>
           </TabsContent>
 
+          <TabsContent value="warehouse-management" className="space-y-4">
+            <WarehouseManagementPage />
+          </TabsContent>
+
           <TabsContent value="table" className="space-y-4">
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
@@ -991,6 +1009,10 @@ const Index = memo(() => {
             )}
           </TabsContent>
 
+          <TabsContent value="stock-overview" className="space-y-4">
+            <StockOverviewPage warehouseId={selectedWarehouseId} />
+          </TabsContent>
+
           <TabsContent value="analytics" className="space-y-4">
             {loading ? (
               <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
@@ -1023,17 +1045,17 @@ const Index = memo(() => {
 
                 <TabsContent value="analysis" className="space-y-4">
                   <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
-                    <AdvancedAnalytics />
+                    <AdvancedAnalytics warehouseId={selectedWarehouseId} />
                   </Suspense>
                 </TabsContent>
 
                 <TabsContent value="forecasting" className="space-y-4">
                   <div className="grid gap-4">
                     <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
-                      <ForecastingDashboard />
+                      <ForecastingDashboard warehouseId={selectedWarehouseId} />
                     </Suspense>
                     <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
-                      <BatchManagement />
+                      <BatchManagement warehouseId={selectedWarehouseId} />
                     </Suspense>
                   </div>
                 </TabsContent>
@@ -1049,14 +1071,26 @@ const Index = memo(() => {
 
 
           <TabsContent value="history" className="space-y-4">
-            <Tabs defaultValue="export_history" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue="debug_export" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-6">
+                <TabsTrigger value="debug_export" className="bg-yellow-100">🐛 Debug</TabsTrigger>
                 <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
+                <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
+                <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
                 <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
                 <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
               </TabsList>
+              <TabsContent value="debug_export">
+                <DebugExportData />
+              </TabsContent>
               <TabsContent value="export_history">
                 <ExportHistory />
+              </TabsContent>
+              <TabsContent value="customer_dashboard">
+                <CustomerExportDashboard />
+              </TabsContent>
+              <TabsContent value="unified_export">
+                <UnifiedExportHistory />
               </TabsContent>
               <TabsContent value="movement_logs">
                 <MovementLogs />

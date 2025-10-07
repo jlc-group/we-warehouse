@@ -22,6 +22,7 @@ import { normalizeLocation } from '@/utils/locationUtils';
 
 interface MonitorDashboardSimpleProps {
   items: InventoryItem[];
+  warehouseId?: string;
   onLocationClick?: (location: string) => void;
 }
 
@@ -51,9 +52,19 @@ const getProductCategoryColor = (sku: string, productName: string): { bg: string
   return { bg: 'bg-gray-100', border: 'border-gray-400', text: 'text-gray-800', category: 'อื่นๆ' };
 };
 
-export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashboardSimpleProps) {
+export function MonitorDashboardSimple({ items, warehouseId, onLocationClick }: MonitorDashboardSimpleProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Filter items by warehouse if warehouseId is provided
+  const filteredItems = useMemo(() => {
+    if (!warehouseId) return items;
+    return items.filter(item => {
+      // If item has no warehouse_id, show it in all warehouses
+      if (!item.warehouse_id) return true;
+      return item.warehouse_id === warehouseId;
+    });
+  }, [items, warehouseId]);
 
   // Helpers for quantity fields across schemas
   const getCartonQty = (item: any) => Number(item.unit_level1_quantity ?? item.carton_quantity_legacy ?? 0) || 0;
@@ -90,7 +101,7 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
   const categoryStats = useMemo(() => {
     const stats = new Map<string, { count: number; color: any; totalQty: number; locations: Set<string> }>();
 
-    items.forEach(item => {
+    filteredItems.forEach(item => {
       const color = getProductCategoryColor(item.sku || '', item.product_name || '');
       const normalized = normalizeLocation(item.location);
       const qty = getCartonQty(item) + getBoxQty(item);
@@ -113,13 +124,13 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
       ...data,
       locationCount: data.locations.size
     }));
-  }, [items]);
+  }, [filteredItems]);
 
   // Overall statistics
   const overallStats = useMemo(() => {
-    const totalItems = items.length;
-    const occupiedLocations = new Set(items.map(item => normalizeLocation(item.location))).size;
-    const totalQuantity = items.reduce((sum, item) => sum + getCartonQty(item) + getBoxQty(item), 0);
+    const totalItems = filteredItems.length;
+    const occupiedLocations = new Set(filteredItems.map(item => normalizeLocation(item.location))).size;
+    const totalQuantity = filteredItems.reduce((sum, item) => sum + getCartonQty(item) + getBoxQty(item), 0);
 
     return {
       totalItems,
@@ -128,13 +139,13 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
       availableLocations: 2080 - occupiedLocations, // A-Z (26) * 4 levels * 20 positions
       categories: categoryStats.length
     };
-  }, [items, categoryStats]);
+  }, [filteredItems, categoryStats]);
 
   // Top locations by item count
   const topLocations = useMemo(() => {
     const locationMap = new Map<string, { items: InventoryItem[]; totalQty: number }>();
 
-    items.forEach(item => {
+    filteredItems.forEach(item => {
       const normalized = normalizeLocation(item.location);
       const existing = locationMap.get(normalized) || { items: [], totalQty: 0 };
       existing.items.push(item);
@@ -153,7 +164,7 @@ export function MonitorDashboardSimple({ items, onLocationClick }: MonitorDashbo
       }))
       .sort((a, b) => b.itemCount - a.itemCount)
       .slice(0, 10);
-  }, [items]);
+  }, [filteredItems]);
 
   const toggleFullscreen = () => {
     if (!isFullscreen) {

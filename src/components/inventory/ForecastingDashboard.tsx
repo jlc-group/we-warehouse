@@ -60,9 +60,13 @@ interface StockoutRisk {
   impact: 'critical' | 'moderate' | 'minimal';
 }
 
-function ForecastingDashboard() {
+interface ForecastingDashboardProps {
+  warehouseId?: string;
+}
+
+function ForecastingDashboard({ warehouseId }: ForecastingDashboardProps = {}) {
   const { user } = useAuth();
-  const { items, permissions } = useDepartmentInventory();
+  const { items, permissions } = useDepartmentInventory(warehouseId);
   const [timeHorizon, setTimeHorizon] = useState<'7days' | '30days' | '90days'>('30days');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 

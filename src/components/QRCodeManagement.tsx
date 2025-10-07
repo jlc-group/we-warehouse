@@ -54,7 +54,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   useEffect(() => {
     const fetchWarehouseLocations = async () => {
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('warehouse_locations')
           .select('location_code')
           .eq('is_active', true)
@@ -65,7 +65,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
           return;
         }
 
-        const locations = data?.map(loc => loc.location_code) || [];
+        const locations = (data || []).map((loc: any) => loc.location_code);
         setWarehouseLocations(locations);
       } catch (error) {
         console.error('Error fetching warehouse locations:', error);

@@ -46,9 +46,13 @@ interface ExpiryAlert {
   actionRequired: string;
 }
 
-function BatchManagement() {
+interface BatchManagementProps {
+  warehouseId?: string;
+}
+
+function BatchManagement({ warehouseId }: BatchManagementProps = {}) {
   const { user } = useAuth();
-  const { items, permissions, updateItem } = useDepartmentInventory();
+  const { items, permissions, updateItem } = useDepartmentInventory(warehouseId);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [isAddBatchModalOpen, setIsAddBatchModalOpen] = useState(false);

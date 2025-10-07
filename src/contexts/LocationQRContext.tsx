@@ -1,27 +1,21 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { locationQRService } from '@/services/locationQRService';
+import { locationQRService, LocationQRCode } from '@/services/locationQRService';
 
-interface QRCode {
-  id: string;
-  location: string;
-  qr_data: string;
-  created_at: string;
-}
-
+// Use the same interface from the service
 interface LocationQRContextType {
-  qrCodes: QRCode[];
+  qrCodes: LocationQRCode[];
   loading: boolean;
   error: Error | null;
-  getQRByLocation: (location: string) => QRCode | undefined;
-  generateQR: (location: string) => Promise<QRCode | null>;
-  bulkGenerateQR: (locations: string[], items: any[]) => Promise<void>;
+  getQRByLocation: (location: string) => LocationQRCode | undefined;
+  generateQR: (location: string) => Promise<LocationQRCode | null>;
+  bulkGenerateQR: (locations: string[]) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
 const LocationQRContext = createContext<LocationQRContextType | undefined>(undefined);
 
 export function LocationQRProvider({ children }: { children: ReactNode }) {
-  const [qrCodes, setQRCodes] = useState<QRCode[]>([]);
+  const [qrCodes, setQRCodes] = useState<LocationQRCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -31,10 +25,13 @@ export function LocationQRProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const codes = await locationQRService.getAllQRCodes();
-      setQRCodes(codes);
-
-      console.log(`✅ LocationQRContext: Loaded ${codes.length} QR codes`);
+      const result = await locationQRService.getAllQRCodes();
+      if (result.data) {
+        setQRCodes(result.data);
+        console.log(`✅ LocationQRContext: Loaded ${result.data.length} QR codes`);
+      } else if (result.error) {
+        throw new Error(result.error);
+      }
     } catch (err) {
       console.error('❌ LocationQRContext: Error fetching QR codes:', err);
       setError(err as Error);
@@ -54,27 +51,31 @@ export function LocationQRProvider({ children }: { children: ReactNode }) {
 
   const generateQR = useCallback(async (location: string) => {
     try {
-      const newQR = await locationQRService.generateQRCode(location);
-      if (newQR) {
-        setQRCodes(prev => [...prev, newQR]);
+      const result = await locationQRService.generateQRForLocation(location);
+      if (result.data) {
+        setQRCodes(prev => [...prev, result.data!]);
+        return result.data;
       }
-      return newQR;
+      return null;
     } catch (err) {
       console.error('❌ Error generating QR:', err);
       return null;
     }
   }, []);
 
-  const bulkGenerateQR = useCallback(async (locations: string[], items: any[]) => {
+  const bulkGenerateQR = useCallback(async (locations: string[]) => {
     try {
       console.log(`📦 Bulk generating ${locations.length} QR codes...`);
-      const newCodes = await locationQRService.bulkGenerateQRCodes(locations, items);
-      setQRCodes(prev => [...prev, ...newCodes]);
-      console.log(`✅ Bulk generated ${newCodes.length} QR codes`);
+      const result = await locationQRService.bulkGenerateQR(locations);
+      if (result.data) {
+        console.log(`✅ Bulk generated: ${result.data.successCount} successful, ${result.data.failedCount} failed`);
+        // Refetch all QR codes after bulk generation
+        await fetchQRCodes();
+      }
     } catch (err) {
       console.error('❌ Error bulk generating QR codes:', err);
     }
-  }, []);
+  }, [fetchQRCodes]);
 
   const value: LocationQRContextType = {
     qrCodes,

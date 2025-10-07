@@ -48,6 +48,7 @@ import { getProductType } from '@/data/sampleInventory';
 
 interface EnhancedOverviewProps {
   items: InventoryItem[];
+  warehouseId?: string;
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onAddItem: () => void;
   onTransferItem: () => void;
@@ -69,6 +70,7 @@ interface ActivityItem {
 // CRITICAL: Memoized component to prevent unnecessary re-renders
 export const EnhancedOverview = memo(({
   items,
+  warehouseId,
   onShelfClick,
   onAddItem,
   onTransferItem,
@@ -1334,7 +1336,7 @@ export const EnhancedOverview = memo(({
       </div>
 
       {viewMode === 'monitor' ? (
-        <MonitorDashboardSimple items={items} onLocationClick={onShelfClick} />
+        <MonitorDashboardSimple items={items} warehouseId={warehouseId} onLocationClick={onShelfClick} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Visual Grid - Main Area */}
@@ -1390,6 +1392,7 @@ export const EnhancedOverview = memo(({
                   ) : (
                     <ShelfGrid
                       items={items}
+                      warehouseId={warehouseId}
                       onShelfClick={onShelfClick}
                       onQRCodeClick={async (location) => {
                         if (!getQRByLocation(location)) {

@@ -13,6 +13,7 @@ import { formatLocation, normalizeLocation, displayLocation } from '@/utils/loca
 
 interface ShelfGridProps {
   items: InventoryItem[];
+  warehouseId?: string;
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onQRCodeClick?: (location: string) => void;
   selectedItems?: InventoryItem[];
@@ -176,6 +177,7 @@ const getLocationStatus = (locationItems: InventoryItem[]): LocationStatus => {
 
 export const ShelfGrid = memo(function ShelfGrid({
   items,
+  warehouseId,
   onShelfClick,
   onQRCodeClick,
   selectedItems = [],
@@ -211,6 +213,16 @@ export const ShelfGrid = memo(function ShelfGrid({
   //   // Track real-time updates for visual indicators
   // }, [items]);
 
+  // Filter items by warehouse if warehouseId is provided
+  const warehouseFilteredItems = useMemo(() => {
+    if (!warehouseId) return items;
+    return items.filter(item => {
+      // If item has no warehouse_id, show it in all warehouses
+      if (!item.warehouse_id) return true;
+      return item.warehouse_id === warehouseId;
+    });
+  }, [items, warehouseId]);
+
   // Handle QR scan success
   const handleScanSuccess = useCallback((location: string, data: any) => {
     setShowScanner(false);
@@ -243,14 +255,14 @@ export const ShelfGrid = memo(function ShelfGrid({
     const productCodes = new Set<string>();
 
     // Guard against undefined items
-    if (!items || !Array.isArray(items)) {
+    if (!warehouseFilteredItems || !Array.isArray(warehouseFilteredItems)) {
       return {
         uniqueLots: [],
         uniqueProductCodes: []
       };
     }
 
-    items.forEach(item => {
+    warehouseFilteredItems.forEach(item => {
       if (item.lot) lots.add(item.lot);
       if (item.sku) productCodes.add(item.sku);
     });
@@ -259,16 +271,16 @@ export const ShelfGrid = memo(function ShelfGrid({
       uniqueLots: Array.from(lots).sort(),
       uniqueProductCodes: Array.from(productCodes).sort()
     };
-  }, [items]);
+  }, [warehouseFilteredItems]);
 
   // Create a map for multiple items per location (with normalized locations)
   const itemsByLocation = useMemo(() => {
     // Guard against undefined items
-    if (!items || !Array.isArray(items)) {
+    if (!warehouseFilteredItems || !Array.isArray(warehouseFilteredItems)) {
       return {};
     }
 
-    const locationMap = items.reduce((acc, item) => {
+    const locationMap = warehouseFilteredItems.reduce((acc, item) => {
       const normalizedLocation = normalizeLocation(item.location);
       if (!acc[normalizedLocation]) {
         acc[normalizedLocation] = [];
@@ -280,16 +292,16 @@ export const ShelfGrid = memo(function ShelfGrid({
     // Location mapping optimized
 
     return locationMap;
-  }, [items]);
+  }, [warehouseFilteredItems]);
 
-  // Filter items based on current filter state
+  // Filter items based on current filter state (search, lot, product code)
   const filteredItems = useMemo(() => {
     // Guard against undefined items
-    if (!items || !Array.isArray(items)) {
+    if (!warehouseFilteredItems || !Array.isArray(warehouseFilteredItems)) {
       return [];
     }
 
-    return items.filter(item => {
+    return warehouseFilteredItems.filter(item => {
       const matchesSearch = filters.searchQuery === '' ||
         item.product_name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
         item.sku.toLowerCase().includes(filters.searchQuery.toLowerCase());
@@ -299,7 +311,7 @@ export const ShelfGrid = memo(function ShelfGrid({
 
       return matchesSearch && matchesLot && matchesProductCode;
     });
-  }, [items, filters]);
+  }, [warehouseFilteredItems, filters]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     const normalizedLocation = normalizeLocation(location);
