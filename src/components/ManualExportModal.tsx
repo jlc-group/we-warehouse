@@ -32,7 +32,8 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
     quantityLevel3: '', // ชิ้น
     notes: '',
     selectedItemId: '',
-    poReference: ''
+    poReference: '',
+    unitPrice: '' // ราคาต่อหน่วย (ต่อชิ้น)
   });
 
   // Helper function: คำนวณสต็อกรวมจากทุกหน่วย (ลัง/กล่อง/ชิ้น)
@@ -305,37 +306,53 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         throw movementError;
       }
 
-      // 3. บันทึกข้อมูลการส่งออกในตาราง customer_exports (ถ้ามี)
-      try {
-        await supabase
-          .from('customer_exports')
-          .insert({
-            customer_id: formData.customerId, // เชื่อมกับตาราง customers
-            customer_name: selectedCustomer.customer_name,
-            customer_code: selectedCustomer.customer_code,
-            product_name: selectedItem.product_name,
-            product_code: selectedItem.sku || null,
-            inventory_item_id: formData.selectedItemId,
-            quantity_exported: exportedTotal,
-            unit: exportDescription.join(' + '),
-            // เพิ่มข้อมูลหน่วยแยก + ชื่อหน่วย
-            quantity_level1: reqLevel1,
-            quantity_level2: reqLevel2,
-            quantity_level3: reqLevel3,
-            unit_level1_name: selectedItem.unit_level1_name || 'ลัง',
-            unit_level2_name: selectedItem.unit_level2_name || 'กล่อง',
-            unit_level3_name: selectedItem.unit_level3_name || 'ชิ้น',
-            unit_level1_rate: selectedItem.unit_level1_rate || 144,
-            unit_level2_rate: selectedItem.unit_level2_rate || 12,
-            from_location: location,
-            notes: formData.notes || null,
-            po_reference: formData.poReference || null,
-            user_id: '00000000-0000-0000-0000-000000000000'
-          });
-      } catch (customerExportError) {
-        // Ignore if table doesn't exist yet
-        console.warn('customer_exports table may not exist:', customerExportError);
+      // 3. บันทึกข้อมูลการส่งออกในตาราง customer_exports
+      const unitPrice = parseFloat(formData.unitPrice) || null;
+      const totalValue = unitPrice ? unitPrice * exportedTotal : null;
+
+      console.log('💾 [Export] Saving to customer_exports:', {
+        customer: selectedCustomer.customer_name,
+        product: selectedItem.product_name,
+        quantity: exportedTotal,
+        unit_price: unitPrice,
+        total_value: totalValue
+      });
+
+      const { data: exportRecord, error: customerExportError } = await supabase
+        .from('customer_exports')
+        .insert({
+          customer_id: formData.customerId,
+          customer_name: selectedCustomer.customer_name,
+          customer_code: selectedCustomer.customer_code,
+          product_name: selectedItem.product_name,
+          product_code: selectedItem.sku || null,
+          inventory_item_id: formData.selectedItemId,
+          quantity_exported: exportedTotal,
+          unit: exportDescription.join(' + '),
+          quantity_level1: reqLevel1,
+          quantity_level2: reqLevel2,
+          quantity_level3: reqLevel3,
+          unit_level1_name: selectedItem.unit_level1_name || 'ลัง',
+          unit_level2_name: selectedItem.unit_level2_name || 'กล่อง',
+          unit_level3_name: selectedItem.unit_level3_name || 'ชิ้น',
+          unit_level1_rate: selectedItem.unit_level1_rate || 144,
+          unit_level2_rate: selectedItem.unit_level2_rate || 12,
+          from_location: location,
+          notes: formData.notes || null,
+          po_reference: formData.poReference || null,
+          unit_price: unitPrice,
+          total_value: totalValue,
+          user_id: '00000000-0000-0000-0000-000000000000'
+        })
+        .select();
+
+      if (customerExportError) {
+        console.error('❌ [Export] Failed to save to customer_exports:', customerExportError);
+        console.error('Error details:', JSON.stringify(customerExportError, null, 2));
+        throw customerExportError; // Throw error แทนที่จะ ignore
       }
+
+      console.log('✅ [Export] Successfully saved to customer_exports:', exportRecord);
 
       // 4. บันทึก event log
       await supabase
@@ -410,7 +427,8 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
         quantityLevel3: '',
         notes: '',
         selectedItemId: '',
-        poReference: ''
+        poReference: '',
+        unitPrice: ''
       });
 
       // Show success toast with location status
@@ -628,6 +646,29 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
               value={formData.poReference}
               onChange={(e) => setFormData({ ...formData, poReference: e.target.value })}
             />
+          </div>
+
+          {/* Unit Price */}
+          <div className="space-y-2">
+            <Label htmlFor="unitPrice">ราคาต่อหน่วย (บาท/ชิ้น)</Label>
+            <Input
+              id="unitPrice"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="เช่น 25.50"
+              value={formData.unitPrice}
+              onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+            />
+            {formData.unitPrice && selectedItem && (
+              <p className="text-xs text-muted-foreground">
+                มูลค่ารวม: {(parseFloat(formData.unitPrice) * (
+                  (parseInt(formData.quantityLevel1) || 0) * (selectedItem.unit_level1_rate || 0) +
+                  (parseInt(formData.quantityLevel2) || 0) * (selectedItem.unit_level2_rate || 0) +
+                  (parseInt(formData.quantityLevel3) || 0)
+                )).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} บาท
+              </p>
+            )}
           </div>
 
           {/* Quantity - แยกเป็น 3 หน่วย */}

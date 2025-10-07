@@ -396,18 +396,70 @@ export class WarehouseManagementService {
   }
 
   /**
-   * ดึงรายการสินค้าในคลัง
+   * ดึงรายการสินค้าในคลัง พร้อม product_type จาก products table
+   * ใช้ Manual JOIN เพราะไม่มี Foreign Key
    */
   static async getWarehouseInventory(warehouseId: string) {
     try {
-      const { data, error } = await supabase
+      console.log('🔍 [getWarehouseInventory] Starting manual JOIN for warehouse:', warehouseId);
+
+      // Step 1: Get inventory items
+      const { data: items, error: itemsError } = await supabase
         .from('inventory_items')
         .select('*')
         .eq('warehouse_id', warehouseId)
         .order('product_name');
 
-      if (error) throw error;
-      return data || [];
+      if (itemsError) throw itemsError;
+      if (!items || items.length === 0) {
+        console.log('🔍 [getWarehouseInventory] No items found');
+        return [];
+      }
+
+      console.log('🔍 [getWarehouseInventory] Found', items.length, 'inventory items');
+
+      // Step 2: Get unique SKUs
+      const uniqueSkus = [...new Set(items.map(item => item.sku))];
+      console.log('🔍 [getWarehouseInventory] Unique SKUs:', uniqueSkus.length);
+
+      // Step 3: Fetch products for these SKUs
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('sku_code, product_type')
+        .in('sku_code', uniqueSkus);
+
+      if (productsError) {
+        console.warn('⚠️ [getWarehouseInventory] Warning fetching products:', productsError);
+        // Continue without product_type if products fetch fails
+        return items.map(item => ({ ...item, product_type: null }));
+      }
+
+      console.log('🔍 [getWarehouseInventory] Found', products?.length || 0, 'products');
+
+      // Step 4: Create SKU -> product_type map
+      const skuTypeMap: Record<string, string> = {};
+      (products || []).forEach(p => {
+        skuTypeMap[p.sku_code] = p.product_type;
+      });
+
+      console.log('🔍 [getWarehouseInventory] Created SKU type map with', Object.keys(skuTypeMap).length, 'entries');
+
+      // Step 5: Merge data
+      const enrichedItems = items.map(item => ({
+        ...item,
+        product_type: skuTypeMap[item.sku] || null,
+      }));
+
+      // Count by type
+      const typeCounts = enrichedItems.reduce((acc, item) => {
+        const type = item.product_type || 'UNKNOWN';
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      console.log('✅ [getWarehouseInventory] Product type distribution:', typeCounts);
+
+      return enrichedItems;
     } catch (error) {
       console.error('Error fetching warehouse inventory:', error);
       throw error;

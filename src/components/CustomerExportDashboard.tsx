@@ -28,6 +28,8 @@ import {
   ArrowDown,
   Filter,
   User,
+  Download,
+  CalendarIcon,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -35,6 +37,7 @@ import { format, parseISO, subDays } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d', '#ffc658', '#ff7c7c'];
 
@@ -47,9 +50,11 @@ interface CustomerExport {
   quantity_exported: number;
   from_location: string;
   created_at: string;
+  unit_price?: number;
+  total_value?: number;
 }
 
-type DateFilter = 'today' | '7days' | '30days';
+type DateFilter = 'today' | '7days' | '30days' | 'custom';
 
 export const CustomerExportDashboard = () => {
   const { toast } = useToast();
@@ -57,10 +62,12 @@ export const CustomerExportDashboard = () => {
   const [exports, setExports] = useState<CustomerExport[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('30days');
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>();
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>();
 
   useEffect(() => {
     loadExportData();
-  }, [dateFilter]);
+  }, [dateFilter, customStartDate, customEndDate]);
 
   const loadExportData = async () => {
     try {
@@ -70,24 +77,41 @@ export const CustomerExportDashboard = () => {
       // Calculate date range
       const now = new Date();
       let startDate: Date;
+      let endDate: Date = now;
 
-      switch (dateFilter) {
-        case 'today':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          break;
-        case '7days':
-          startDate = subDays(now, 7);
-          break;
-        case '30days':
-          startDate = subDays(now, 30);
-          break;
+      if (dateFilter === 'custom') {
+        if (!customStartDate) {
+          setLoading(false);
+          return;
+        }
+        startDate = customStartDate;
+        endDate = customEndDate || now;
+      } else {
+        switch (dateFilter) {
+          case 'today':
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            break;
+          case '7days':
+            startDate = subDays(now, 7);
+            break;
+          case '30days':
+            startDate = subDays(now, 30);
+            break;
+          default:
+            startDate = subDays(now, 30);
+        }
       }
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('customer_exports')
-        .select('id, product_name, product_code, customer_name, quantity_exported, from_location, created_at')
-        .gte('created_at', format(startDate, 'yyyy-MM-dd'))
-        .order('created_at', { ascending: false });
+        .select('id, product_name, product_code, product_type, customer_name, quantity_exported, from_location, created_at, unit_price, total_value')
+        .gte('created_at', format(startDate, 'yyyy-MM-dd'));
+
+      if (dateFilter === 'custom' && customEndDate) {
+        query = query.lte('created_at', format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -223,6 +247,78 @@ export const CustomerExportDashboard = () => {
     );
   };
 
+  const exportToCSV = () => {
+    try {
+      // สร้าง CSV header
+      const headers = [
+        'วันที่',
+        'เวลา',
+        'ลูกค้า',
+        'รหัสสินค้า',
+        'ชื่อสินค้า',
+        'ประเภท',
+        'จำนวน (ชิ้น)',
+        'ราคา/หน่วย',
+        'มูลค่ารวม',
+        'ตำแหน่ง'
+      ];
+
+      // สร้าง CSV rows
+      const rows = filteredExports.map(exp => [
+        format(parseISO(exp.created_at), 'dd/MM/yyyy', { locale: th }),
+        format(parseISO(exp.created_at), 'HH:mm', { locale: th }),
+        exp.customer_name,
+        exp.product_code,
+        exp.product_name,
+        exp.product_type || '-',
+        exp.quantity_exported,
+        exp.unit_price ? exp.unit_price.toFixed(2) : '-',
+        exp.total_value ? exp.total_value.toFixed(2) : '-',
+        exp.from_location
+      ]);
+
+      // สร้าง CSV content
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      // Download
+      const blob = new Blob(['\ufeff' + csvContent], {
+        type: 'text/csv;charset=utf-8;'
+      });
+
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      const dateRange = dateFilter === 'custom' && customStartDate
+        ? `${format(customStartDate, 'yyyyMMdd')}-${format(customEndDate || new Date(), 'yyyyMMdd')}`
+        : dateFilter;
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', `export_dashboard_${dateRange}_${new Date().getTime()}.csv`);
+      link.style.visibility = 'hidden';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: '✅ Export สำเร็จ',
+        description: `ดาวน์โหลดข้อมูล ${filteredExports.length} รายการแล้ว`,
+      });
+    } catch (error) {
+      console.error('Error exporting:', error);
+      toast({
+        title: '❌ เกิดข้อผิดพลาด',
+        description: 'ไม่สามารถ export ข้อมูลได้',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -249,13 +345,19 @@ export const CustomerExportDashboard = () => {
                 วิเคราะห์และติดตามการส่งออกของลูกค้าแต่ละราย
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={loadExportData}>
-              รีเฟรช
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={loadExportData}>
+                รีเฟรช
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             {/* Customer Filter */}
             <Popover>
               <PopoverTrigger asChild>
@@ -317,7 +419,56 @@ export const CustomerExportDashboard = () => {
               >
                 30 วัน
               </Button>
+              <Button
+                variant={dateFilter === 'custom' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setDateFilter('custom')}
+              >
+                กำหนดเอง
+              </Button>
             </div>
+
+            {/* Custom Date Range Picker */}
+            {dateFilter === 'custom' && (
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[140px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customStartDate ? format(customStartDate, 'dd MMM yyyy', { locale: th }) : 'เริ่มต้น'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customStartDate}
+                      onSelect={setCustomStartDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <span className="text-sm text-muted-foreground">ถึง</span>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-[140px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {customEndDate ? format(customEndDate, 'dd MMM yyyy', { locale: th }) : 'สิ้นสุด'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customEndDate}
+                      onSelect={setCustomEndDate}
+                      initialFocus
+                      disabled={(date) => customStartDate ? date < customStartDate : false}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -440,6 +591,45 @@ export const CustomerExportDashboard = () => {
 
       {/* Charts Row 2 */}
       <div className="grid gap-4 md:grid-cols-2">
+        {/* Top Customers Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ลูกค้าที่ส่งออกมากที่สุด</CardTitle>
+            <CardDescription>Top 10 ลูกค้าตามจำนวนชิ้น</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              // Calculate top customers by quantity
+              const customerMap = new Map<string, number>();
+              filteredExports.forEach(exp => {
+                const current = customerMap.get(exp.customer_name) || 0;
+                customerMap.set(exp.customer_name, current + exp.quantity_exported);
+              });
+
+              const topCustomers = Array.from(customerMap.entries())
+                .map(([name, quantity]) => ({ name, quantity }))
+                .sort((a, b) => b.quantity - a.quantity)
+                .slice(0, 10);
+
+              return topCustomers.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={topCustomers} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={120} />
+                    <Tooltip />
+                    <Bar dataKey="quantity" fill="#8884D8" name="จำนวน (ชิ้น)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  ไม่มีข้อมูล
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
         {/* Product Type Distribution */}
         <Card>
           <CardHeader>

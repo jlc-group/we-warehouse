@@ -1,5 +1,6 @@
-import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 type Product = {
   id: string;
@@ -114,16 +115,9 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      // Import supabase client with timeout
-      const { supabase } = await Promise.race([
-        import('@/integrations/supabase/client'),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Import timeout')), 5000)
-        )
-      ]);
-
-      // Fetch real data from Supabase with reduced timeout and specific columns
-      const fetchPromise = supabase
+      // Fetch real data from Supabase with optimized query
+      // Use abortSignal for better timeout handling
+      const { data: products, error } = await (supabase as any)
         .from('products')
         .select(`
           id,
@@ -148,13 +142,8 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(500);
-
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Fetch timeout after 10 seconds')), 10000)
-      );
-
-      const { data: products, error } = await Promise.race([fetchPromise, timeoutPromise]);
+        .limit(200) // Reduced from 500 to speed up
+        .abortSignal(AbortSignal.timeout(15000)); // 15 second timeout with proper abort signal
 
       if (error) {
         console.error('ProductsContext: Supabase error:', error);
@@ -213,11 +202,8 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
 
   const addProduct = useCallback(async (productData: ProductInsert): Promise<Product | null> => {
     try {
-      // Import supabase here to avoid circular dependencies
-      const { supabase } = await import('@/integrations/supabase/client');
-
       // Insert into Supabase database
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('products')
         .insert([productData])
         .select()

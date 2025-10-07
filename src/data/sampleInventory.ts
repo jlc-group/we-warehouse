@@ -18,10 +18,30 @@ export const PRODUCT_NAME_MAPPING: Record<string, string> = {
 
 // Helper functions
 export const getProductType = (sku: string): ProductType => {
-  // Default logic for determining product type from SKU
-  if (sku.startsWith('L')) return 'FG'; // Finished Goods
-  if (sku.startsWith('P')) return 'PK'; // Packaging
-  if (sku.startsWith('R')) return 'RM'; // Raw Materials
+  // Packaging materials - จากชื่อ prefix ที่พบจริงในระบบ
+  const pkPrefixes = ['BOX-', 'SCH-', 'TB-', 'CT-', 'SPOUT-', 'CAP-', 'LID-', 'BAG-', 'POUCH-', 'TUBE-'];
+
+  if (pkPrefixes.some(prefix => sku.startsWith(prefix))) {
+    return 'PK'; // Packaging
+  }
+
+  // Finished Goods - สินค้าสำเร็จรูป (ส่วนใหญ่ขึ้นต้นด้วย L หรือไม่มี prefix พิเศษ)
+  if (sku.startsWith('L') || sku.startsWith('FG-') || sku.startsWith('PROD-')) {
+    return 'FG';
+  }
+
+  // Raw Materials
+  if (sku.startsWith('RM-') || sku.startsWith('R-')) {
+    return 'RM';
+  }
+
+  // Default: ถ้าไม่ตรงเงื่อนไขข้างบน ให้ดูว่ามี - อยู่หรือไม่
+  // ถ้ามี - น่าจะเป็น PK (เพราะ PK ใช้ pattern CODE-XXX)
+  // ถ้าไม่มี - น่าจะเป็น FG (เพราะ FG ใช้ L-series โดยตรง)
+  if (sku.includes('-')) {
+    return 'PK';
+  }
+
   return 'FG'; // Default to Finished Goods
 };
 

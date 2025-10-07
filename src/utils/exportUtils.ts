@@ -135,6 +135,68 @@ export const exportInventoryToCSV = (items: InventoryItem[], filename?: string) 
   exportToCSV(exportData, filename || 'warehouse_inventory');
 };
 
+// Export Stock Overview data to CSV
+export interface StockOverviewExportItem {
+  skuCode: string;
+  productName: string;
+  productType: string;
+  brand?: string;
+  locationCount: number;
+  totalPieces: number;
+  totalCartons: number;
+  locations: string[];
+  hasStock: boolean;
+}
+
+export const exportStockOverviewToCSV = (items: StockOverviewExportItem[], filename: string = 'stock_overview') => {
+  // Define CSV headers
+  const headers = [
+    'รหัส SKU',
+    'ชื่อสินค้า',
+    'ประเภทสินค้า',
+    'แบรนด์',
+    'จำนวนตำแหน่ง',
+    'จำนวนชิ้นรวม',
+    'จำนวนลังรวม',
+    'ตำแหน่ง',
+    'มีสต็อก'
+  ];
+
+  // Convert data to CSV format
+  const csvContent = [
+    headers.join(','),
+    ...items.map(item => [
+      `"${item.skuCode}"`,
+      `"${item.productName}"`,
+      `"${item.productType}"`,
+      `"${item.brand || '-'}"`,
+      item.locationCount,
+      item.totalPieces,
+      item.totalCartons,
+      `"${item.locations.join(', ')}"`,
+      item.hasStock ? 'ใช่' : 'ไม่มี'
+    ].join(','))
+  ].join('\n');
+
+  // Create and download file
+  const blob = new Blob(['\ufeff' + csvContent], {
+    type: 'text/csv;charset=utf-8;'
+  });
+
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+};
+
 // Export summary by location
 export const exportLocationSummary = (items: InventoryItem[]) => {
   const locationSummary = items.reduce((acc, item) => {

@@ -20,14 +20,14 @@ export interface CustomerExportStats {
 
 export class CustomerExportService {
   /**
-   * ดึงข้อมูลสรุปการส่งออกของลูกค้าทั้งหมด (Optimized version)
+   * ดึงข้อมูลสรุปการส่งออกของลูกค้าทั้งหมดจากตาราง customer_exports
    */
   static async getCustomerExportStats(
     startDate?: string,
     endDate?: string
   ): Promise<CustomerExportStats[]> {
     try {
-      console.log('📊 Fetching customer export stats...');
+      console.log('📊 Fetching customer export stats from customer_exports...');
       const startTime = performance.now();
 
       // Step 1: ดึงข้อมูล customers ทั้งหมด
@@ -48,41 +48,32 @@ export class CustomerExportService {
 
       console.log(`Found ${customers.length} customers`);
 
-      // Step 2: ดึงข้อมูล orders พร้อม order_items count
-      let ordersQuery = supabase
-        .from('customer_orders')
-        .select(`
-          id,
-          customer_id,
-          order_number,
-          order_date,
-          status,
-          total_amount,
-          final_amount,
-          created_at
-        `)
-        .order('order_date', { ascending: false });
+      // Step 2: ดึงข้อมูลการส่งออกจาก customer_exports
+      let exportsQuery = supabase
+        .from('customer_exports')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       // กรองตามวันที่
       if (startDate) {
-        ordersQuery = ordersQuery.gte('order_date', startDate);
+        exportsQuery = exportsQuery.gte('created_at', startDate);
       }
       if (endDate) {
-        ordersQuery = ordersQuery.lte('order_date', endDate);
+        exportsQuery = exportsQuery.lte('created_at', endDate);
       }
 
-      const { data: orders, error: ordersError } = await ordersQuery;
+      const { data: exports, error: exportsError } = await exportsQuery;
 
-      if (ordersError) {
-        console.error('Error fetching orders:', ordersError);
-        throw ordersError;
+      if (exportsError) {
+        console.error('Error fetching customer exports:', exportsError);
+        throw exportsError;
       }
 
-      console.log(`Found ${orders?.length || 0} orders`);
+      console.log(`Found ${exports?.length || 0} export records`);
 
-      if (!orders || orders.length === 0) {
-        // ถ้าไม่มี orders ให้คืนข้อมูลลูกค้าที่มี orders = 0
-        return customers.map(c => ({
+      if (!exports || exports.length === 0) {
+        // ถ้าไม่มีการส่งออก ให้คืนข้อมูลว่าง
+        return customers.map((c: any) => ({
           customer_id: c.id,
           customer_name: c.customer_name,
           customer_code: c.customer_code,
@@ -94,32 +85,11 @@ export class CustomerExportService {
         }));
       }
 
-      // Step 3: ดึง order_items count
-      const orderIds = orders.map(o => o.id);
-      const { data: orderItems, error: itemsError } = await supabase
-        .from('order_items')
-        .select('order_id, id')
-        .in('order_id', orderIds);
-
-      if (itemsError) {
-        console.error('Error fetching order items:', itemsError);
-        // ถ้า error ให้ใช้ 0 แทน
-      }
-
-      // สร้าง Map เก็บจำนวน items ต่อ order
-      const orderItemsCount = new Map<string, number>();
-      if (orderItems) {
-        orderItems.forEach(item => {
-          const count = orderItemsCount.get(item.order_id) || 0;
-          orderItemsCount.set(item.order_id, count + 1);
-        });
-      }
-
-      // Step 4: จัดกลุ่มตาม customer
+      // Step 3: จัดกลุ่มตาม customer
       const customerMap = new Map<string, CustomerExportStats>();
 
       // Initialize all customers
-      customers.forEach(customer => {
+      customers.forEach((customer: any) => {
         customerMap.set(customer.id, {
           customer_id: customer.id,
           customer_name: customer.customer_name,
@@ -132,40 +102,82 @@ export class CustomerExportService {
         });
       });
 
-      // เพิ่มข้อมูล orders
-      orders.forEach(order => {
-        const stats = customerMap.get(order.customer_id);
-        if (!stats) return; // skip orders ที่ไม่มีลูกค้า
+      // Step 4: จัดกลุ่มการส่งออกตามลูกค้าและวันที่
+      // สร้าง unique key สำหรับแยก "order" (วันที่ + ลูกค้า + PO)
+      const orderGroupMap = new Map<string, {
+        customer_id: string;
+        export_date: string;
+        po_reference: string | null;
+        exports: any[];
+      }>();
 
-        const itemsCount = orderItemsCount.get(order.id) || 0;
-        const orderAmount = order.final_amount || order.total_amount || 0;
-        const orderDate = order.order_date || order.created_at || '';
+      exports.forEach((exp: any) => {
+        const exportDate = exp.created_at?.split('T')[0] || '';
+        const groupKey = `${exp.customer_id}_${exportDate}_${exp.po_reference || 'NO_PO'}`;
+        
+        if (!orderGroupMap.has(groupKey)) {
+          orderGroupMap.set(groupKey, {
+            customer_id: exp.customer_id || '',
+            export_date: exportDate,
+            po_reference: exp.po_reference,
+            exports: []
+          });
+        }
+        
+        orderGroupMap.get(groupKey)!.exports.push(exp);
+      });
 
-        stats.total_orders += 1;
-        stats.total_amount += orderAmount;
-        stats.total_items += itemsCount;
-
-        // อัปเดตวันที่ล่าสุด
-        if (!stats.last_order_date || orderDate > stats.last_order_date) {
-          stats.last_order_date = orderDate;
+      // Step 5: รวมข้อมูลสำหรับแต่ละลูกค้า
+      orderGroupMap.forEach((orderGroup) => {
+        const stats = customerMap.get(orderGroup.customer_id);
+        if (!stats) {
+          // ถ้าไม่มีลูกค้าในระบบ ให้สร้างใหม่
+          const firstExport = orderGroup.exports[0];
+          customerMap.set(orderGroup.customer_id, {
+            customer_id: orderGroup.customer_id,
+            customer_name: firstExport.customer_name || 'Unknown',
+            customer_code: firstExport.customer_code || 'N/A',
+            total_orders: 0,
+            total_amount: 0,
+            total_items: 0,
+            last_order_date: null,
+            orders: [],
+          });
         }
 
-        stats.orders.push({
-          id: order.id,
-          order_number: order.order_number,
-          order_date: orderDate,
-          status: order.status || 'pending',
-          total_amount: orderAmount,
+        const customerStats = customerMap.get(orderGroup.customer_id)!;
+        
+        // คำนวณยอดรวมของ order นี้
+        const orderTotal = orderGroup.exports.reduce((sum, exp) => sum + (exp.total_value || 0), 0);
+        const itemsCount = orderGroup.exports.length;
+        
+        customerStats.total_orders += 1;
+        customerStats.total_amount += orderTotal;
+        customerStats.total_items += itemsCount;
+
+        // อัปเดตวันที่ล่าสุด
+        if (!customerStats.last_order_date || orderGroup.export_date > customerStats.last_order_date) {
+          customerStats.last_order_date = orderGroup.export_date;
+        }
+
+        // สร้าง "order" จากการส่งออกแต่ละกลุ่ม
+        const firstExport = orderGroup.exports[0];
+        customerStats.orders.push({
+          id: firstExport.id,
+          order_number: orderGroup.po_reference || `EXP-${orderGroup.export_date}`,
+          order_date: orderGroup.export_date,
+          status: 'delivered', // การส่งออกถือว่าส่งแล้ว
+          total_amount: orderTotal,
           items_count: itemsCount,
         });
       });
 
       const result = Array.from(customerMap.values())
-        .filter(c => c.total_orders > 0) // แสดงเฉพาะลูกค้าที่มี orders
+        .filter(c => c.total_orders > 0) // แสดงเฉพาะลูกค้าที่มีการส่งออก
         .sort((a, b) => b.total_amount - a.total_amount);
 
       const endTime = performance.now();
-      console.log(`✅ Processed ${result.length} customers with orders in ${(endTime - startTime).toFixed(2)}ms`);
+      console.log(`✅ Processed ${result.length} customers with exports in ${(endTime - startTime).toFixed(2)}ms`);
 
       return result;
     } catch (error) {
@@ -175,7 +187,7 @@ export class CustomerExportService {
   }
 
   /**
-   * ดึงข้อมูลรายละเอียดการส่งออกของลูกค้าเฉพาะราย
+   * ดึงข้อมูลรายละเอียดการส่งออกของลูกค้าเฉพาะราย (จาก customer_exports)
    */
   static async getCustomerExportDetails(customerId: string) {
     try {
@@ -187,22 +199,55 @@ export class CustomerExportService {
 
       if (customerError) throw customerError;
 
-      const { data: orders, error: ordersError } = await supabase
-        .from('customer_orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            products (
-              product_name,
-              sku_code
-            )
-          )
-        `)
+      // ดึงข้อมูลการส่งออกจาก customer_exports แทน customer_orders
+      const { data: exports, error: exportsError } = await (supabase as any)
+        .from('customer_exports')
+        .select('*')
         .eq('customer_id', customerId)
-        .order('order_date', { ascending: false });
+        .order('created_at', { ascending: false });
 
-      if (ordersError) throw ordersError;
+      if (exportsError) throw exportsError;
+
+      // จัดกลุ่มการส่งออกตามวันที่และ PO
+      const orderGroups = new Map<string, any[]>();
+      
+      exports?.forEach((exp: any) => {
+        const exportDate = exp.created_at?.split('T')[0] || '';
+        const groupKey = `${exportDate}_${exp.po_reference || 'NO_PO'}`;
+        
+        if (!orderGroups.has(groupKey)) {
+          orderGroups.set(groupKey, []);
+        }
+        orderGroups.get(groupKey)!.push(exp);
+      });
+
+      // แปลงเป็นรูปแบบ orders
+      const orders = Array.from(orderGroups.entries()).map(([key, items]) => {
+        const firstItem = items[0];
+        const totalValue = items.reduce((sum, item) => sum + (item.total_value || 0), 0);
+        
+        return {
+          id: firstItem.id,
+          order_number: firstItem.po_reference || `EXP-${key.split('_')[0]}`,
+          order_date: firstItem.created_at?.split('T')[0],
+          status: 'delivered',
+          total_amount: totalValue,
+          final_amount: totalValue,
+          created_at: firstItem.created_at,
+          order_items: items.map(item => ({
+            id: item.id,
+            product_name: item.product_name,
+            product_code: item.product_code,
+            quantity: item.quantity_exported,
+            unit_price: item.unit_price,
+            total: item.total_value,
+            products: {
+              product_name: item.product_name,
+              sku_code: item.product_code
+            }
+          }))
+        };
+      });
 
       return {
         customer,
