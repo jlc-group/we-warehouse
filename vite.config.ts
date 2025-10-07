@@ -85,8 +85,9 @@ export default defineConfig(({ mode }) => ({
           // Vendor chunks for faster builds
           if (id.includes('node_modules')) {
             if (id.includes('@supabase')) return 'supabase';
-            if (id.includes('react') || id.includes('react-dom')) return 'react';
-            if (id.includes('@radix-ui')) return 'radix';
+            // ✅ ลบการแยก React และ Radix ออก - ให้อยู่กับ vendor เพื่อป้องกัน loading order issues
+            // if (id.includes('react') || id.includes('react-dom')) return 'react';
+            // if (id.includes('@radix-ui')) return 'radix';
             return 'vendor';
           }
         },
@@ -135,6 +136,10 @@ export default defineConfig(({ mode }) => ({
       'react/jsx-runtime',
       'react-router-dom',
       'lucide-react',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-select',
+      '@radix-ui/react-toast',
     ].concat(mode === 'development' ? [
       // Additional dev-only includes
       '@supabase/supabase-js',
