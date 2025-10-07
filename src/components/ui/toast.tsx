@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentPropsWithoutRef, type ElementRef } from "react";
+import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type ReactElement } from "react";
 import * as ToastPrimitives from "@radix-ui/react-toast";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
@@ -96,7 +96,7 @@ ToastDescription.displayName = ToastPrimitives.Description.displayName;
 
 type ToastProps = ComponentPropsWithoutRef<typeof Toast>;
 
-type ToastActionElement = React.ReactElement<typeof ToastAction>;
+type ToastActionElement = ReactElement<typeof ToastAction>;
 
 export {
   type ToastProps,

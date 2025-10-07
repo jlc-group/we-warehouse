@@ -25,7 +25,7 @@ import {
 import { useInventory } from '@/hooks/useInventory';
 // Fulfillment hooks removed - using placeholder functionality
 type PendingOrderItem = any;
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 // ใช้ PendingOrderItem จาก useFulfillment hook แล้ว
 

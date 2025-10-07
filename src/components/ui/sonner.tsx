@@ -1,26 +1,30 @@
-import { type ComponentProps } from "react";
-import { useTheme } from "next-themes";
-import { Toaster as Sonner, toast } from "sonner";
+// Using react-hot-toast instead of sonner (Vite compatibility)
+import toast, { Toaster as HotToaster } from 'react-hot-toast';
 
-type ToasterProps = ComponentProps<typeof Sonner>;
-
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
-
+const Toaster = () => {
   return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
+    <HotToaster
+      position="top-center"
       toastOptions={{
-        classNames: {
-          toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton: "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton: "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
+        duration: 4000,
+        style: {
+          background: 'hsl(var(--background))',
+          color: 'hsl(var(--foreground))',
+          border: '1px solid hsl(var(--border))',
+        },
+        success: {
+          iconTheme: {
+            primary: 'hsl(var(--primary))',
+            secondary: 'hsl(var(--primary-foreground))',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: 'hsl(var(--destructive))',
+            secondary: 'hsl(var(--destructive-foreground))',
+          },
         },
       }}
-      {...props}
     />
   );
 };

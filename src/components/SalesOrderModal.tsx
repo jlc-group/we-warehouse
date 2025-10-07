@@ -26,7 +26,7 @@ import { CustomerSelector, type Customer } from '@/components/CustomerSelector';
 import { ProductOrderGrid, type OrderItem } from '@/components/ProductOrderGrid';
 import { OrderCalculator, type OrderTotals } from '@/components/OrderCalculator';
 import { useCreateSalesOrder, type CreateSalesOrderData } from '@/hooks/useSalesOrders';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface SalesOrderModalProps {
   trigger?: ReactNode;
@@ -67,7 +67,7 @@ const initialFormData: OrderFormData = {
   priority: 'normal',
 };
 
-export const SalesOrderModal: React.FC<SalesOrderModalProps> = ({
+export const SalesOrderModal = ({
   trigger,
   isOpen,
   onOpenChange,

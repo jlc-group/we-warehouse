@@ -9,7 +9,7 @@ import { CompactWarehouseSelector } from '@/components/WarehouseSelector';
 import { useWarehouses } from '@/hooks/useWarehouse';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { formatUnitsDisplay } from '@/utils/unitCalculations';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { ProductTypeBadge } from '@/components/ProductTypeBadge';
 
 interface WarehouseTransferModalProps {

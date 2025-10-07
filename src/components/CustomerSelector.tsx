@@ -65,7 +65,7 @@ const initialFormData: NewCustomerFormData = {
   notes: '',
 };
 
-export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
+export const CustomerSelector = ({
   selectedCustomer,
   onCustomerSelect,
   className,

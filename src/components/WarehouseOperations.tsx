@@ -19,7 +19,7 @@ import type {
   AssignmentStatus
 } from '@/integrations/supabase/types-3phase';
 
-export const WarehouseOperations: React.FC = () => {
+export const WarehouseOperations = () => {
   const { toast } = useToast();
   const { user } = useAuth();
 

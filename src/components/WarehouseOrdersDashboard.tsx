@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 // Order hooks removed - using placeholder functionality
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { formatCurrency } from '@/utils/formatters';
 
 interface AcceptOrderDialogProps {

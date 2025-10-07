@@ -19,7 +19,7 @@ import {
 type SortField = 'product_name' | 'sku' | 'product_type';
 type SortDirection = 'asc' | 'desc';
 import { useProductsSummary } from '@/hooks/useProductsSummary';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface ConversionRateManagementProps {
   onEditConversion?: (product: any) => void;

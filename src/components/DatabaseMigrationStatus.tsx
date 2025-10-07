@@ -21,10 +21,10 @@ import {
   AlertCircle,
   XCircle
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 // Emergency Database Status Component
-export const DatabaseMigrationStatus: React.FC = () => {
+export const DatabaseMigrationStatus = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [testResults, setTestResults] = useState<any>(null);
 

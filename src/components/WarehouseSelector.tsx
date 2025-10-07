@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Warehouse, Building2, Plus, Settings } from 'lucide-react';
 import { useWarehouses, useWarehouseStats } from '@/hooks/useWarehouse';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface WarehouseSelectorProps {
   selectedWarehouseId?: string;

@@ -19,7 +19,7 @@ import { useCreateWarehouseTransfer, type CreateWarehouseTransferData } from '@/
 import type { InventoryItem } from '@/hooks/useInventory';
 import { formatUnitsDisplay } from '@/utils/unitCalculations';
 import { ProductTypeBadge } from '@/components/ProductTypeBadge';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface EnhancedWarehouseTransferModalProps {
   isOpen: boolean;

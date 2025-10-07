@@ -31,7 +31,7 @@ import {
 // FallbackWarehouseService removed - using 3-phase system only
 import { useToast } from '@/hooks/use-toast';
 
-export const AccountingDashboard: React.FC = () => {
+export const AccountingDashboard = () => {
   const { toast } = useToast();
 
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);

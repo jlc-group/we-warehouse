@@ -32,7 +32,7 @@ interface MultiLocationProductSelectorProps {
   }) => void;
 }
 
-export const MultiLocationProductSelector: React.FC<MultiLocationProductSelectorProps> = ({
+export const MultiLocationProductSelector = ({
   onProductSelected
 }) => {
   const { toast } = useToast();

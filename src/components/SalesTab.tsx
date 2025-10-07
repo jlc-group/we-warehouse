@@ -34,11 +34,11 @@ import { useSalesOrders, useSalesOrderStats, formatOrderStatus, formatPaymentSta
 import { useActiveCustomers } from '@/hooks/useCustomers';
 import { useEmergencyFallback } from '@/components/EmergencyFallback';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { emergencyReset, clearReactQueryCache } from '@/utils/debugUtils';
 import { runCustomerDebugTest, clearCustomerMockDataFlags } from '@/utils/customerDebugUtils';
 
-export const SalesTab: React.FC = () => {
+export const SalesTab = () => {
   const [isCreateOrderModalOpen, setIsCreateOrderModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');

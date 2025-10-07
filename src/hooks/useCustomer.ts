@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
 import type { Customer, CustomerInsert, CustomerUpdate } from '@/integrations/supabase/types';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 // Hook สำหรับดึงข้อมูลลูกค้าทั้งหมด
 export function useCustomers() {

@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { useConversionRates, ConversionRateInput } from '@/hooks/useConversionRates';
 import { useProducts } from '@/contexts/ProductsContext';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 export default function UnitConversionSettings() {
   console.log('🎨 UnitConversionSettings: Component rendering...');

@@ -9,7 +9,7 @@ import {
   AssignmentStatus,
   InventoryItem
 } from '@/integrations/supabase/types-3phase';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 export class WarehouseAssignmentService {
 

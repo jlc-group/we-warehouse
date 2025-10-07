@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Hash, Package, Info, Copy, Check } from 'lucide-react';
-import { useState } from 'react';
+import { MouseEvent, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
 interface SKUDisplayProps {
@@ -85,7 +85,7 @@ export function SKUDisplay({
     lg: { sku: 'text-base px-3 py-1.5', product: 'text-base', icon: 'h-4 w-4' }
   };
 
-  const handleCopy = async (e?: React.MouseEvent) => {
+  const handleCopy = async (e?: MouseEvent) => {
     if (e) e.stopPropagation();
 
     try {

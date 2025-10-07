@@ -38,7 +38,7 @@ interface PurchaseOrdersListProps {
   onCreateFulfillment?: (poNumber: string) => void;
 }
 
-export const PurchaseOrdersList: React.FC<PurchaseOrdersListProps> = ({
+export const PurchaseOrdersList = ({
   onCreateFulfillment
 }) => {
   const {

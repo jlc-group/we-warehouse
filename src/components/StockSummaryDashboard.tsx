@@ -7,7 +7,7 @@ import { StockSummaryFilters, useFilteredProducts, type FilterOptions } from './
 import { StockSummaryTable } from './StockSummaryTable';
 import { useProductsSummary, useProductsSummaryMeta, type ProductSummary } from '@/hooks/useProductsSummary';
 import { useStockSummaryStats } from '@/hooks/useStockSummaryStats';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 export function StockSummaryDashboard() {
   const query = useProductsSummary();

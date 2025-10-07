@@ -8,7 +8,7 @@ interface FulfillmentModeSelectorProps {
   onSelectManualMode: () => void;
 }
 
-export const FulfillmentModeSelector: React.FC<FulfillmentModeSelectorProps> = ({
+export const FulfillmentModeSelector = ({
   onSelectPOMode,
   onSelectManualMode
 }) => {

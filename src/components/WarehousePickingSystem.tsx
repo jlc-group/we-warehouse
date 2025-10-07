@@ -48,7 +48,7 @@ interface PickingLocation {
   isCompleted: boolean;
 }
 
-export const WarehousePickingSystem: React.FC = () => {
+export const WarehousePickingSystem = () => {
   const { fulfillmentTasks, updateTaskStatus, cancelFulfillmentItem, confirmTaskShipment } = usePurchaseOrders();
   const { items: inventoryItems } = useInventory();
   const { toast } = useToast();
@@ -503,7 +503,7 @@ interface LocationOption {
   selected_quantity: number;
 }
 
-const PickingItemRow: React.FC<PickingItemRowProps> = ({ item, onPick, onCancel, onNavigateToLocation }) => {
+const PickingItemRow = ({ item, onPick, onCancel, onNavigateToLocation }) => {
   const [pickQuantity, setPickQuantity] = useState(item.requested_quantity);
   const [showDialog, setShowDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);

@@ -8,7 +8,7 @@ import { useAvailableProductsForSales } from '@/hooks/useProductsSummary';
 import { AlertCircle, CheckCircle, Database, Users, Package, ShoppingCart } from 'lucide-react';
 
 // Component สำหรับแสดงสถานะการเชื่อมต่อฐานข้อมูล
-export const SalesSystemDebug: React.FC = () => {
+export const SalesSystemDebug = () => {
   const { data: customers, isLoading: customersLoading, error: customersError } = useCustomers();
   const { data: orders, isLoading: ordersLoading, error: ordersError } = useSalesOrders();
   const { data: products, isLoading: productsLoading, error: productsError } = useAvailableProductsForSales();

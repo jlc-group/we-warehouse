@@ -26,7 +26,7 @@ import {
 import { useSingleOrder, useUpdateOrderStatus, orderStatusOptions, orderTypeOptions, priorityOptions } from '@/hooks/useOrder';
 import { useCustomers } from '@/hooks/useCustomer';
 import { useInventory } from '@/hooks/useInventory';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { th } from 'date-fns/locale';
 

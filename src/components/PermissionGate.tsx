@@ -24,7 +24,7 @@ interface AccessDeniedProps {
   compact?: boolean;
 }
 
-const AccessDenied: React.FC<AccessDeniedProps> = ({
+const AccessDenied = ({
   permission,
   feature,
   requiredRole,
@@ -107,7 +107,7 @@ const AccessDenied: React.FC<AccessDeniedProps> = ({
   );
 };
 
-export const PermissionGate: React.FC<PermissionGateProps> = ({
+export const PermissionGate = ({
   permission,
   children,
   fallback,
@@ -151,7 +151,7 @@ export const PermissionGate: React.FC<PermissionGateProps> = ({
 };
 
 // Specialized components for common use cases
-export const FinanceGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
+export const FinanceGate = ({
   children,
   compact = false
 }) => (
@@ -165,7 +165,7 @@ export const FinanceGate: React.FC<{ children: ReactNode; compact?: boolean }> =
   </PermissionGate>
 );
 
-export const SalesGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
+export const SalesGate = ({
   children,
   compact = false
 }) => (
@@ -179,7 +179,7 @@ export const SalesGate: React.FC<{ children: ReactNode; compact?: boolean }> = (
   </PermissionGate>
 );
 
-export const AccountingGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
+export const AccountingGate = ({
   children,
   compact = false
 }) => (
@@ -193,7 +193,7 @@ export const AccountingGate: React.FC<{ children: ReactNode; compact?: boolean }
   </PermissionGate>
 );
 
-export const FinancialReportsGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
+export const FinancialReportsGate = ({
   children,
   compact = false
 }) => (
@@ -207,7 +207,7 @@ export const FinancialReportsGate: React.FC<{ children: ReactNode; compact?: boo
   </PermissionGate>
 );
 
-export const AdminGate: React.FC<{ children: ReactNode; compact?: boolean }> = ({
+export const AdminGate = ({
   children,
   compact = false
 }) => (

@@ -31,7 +31,7 @@ interface ManualFulfillmentModalProps {
   onSuccess?: () => void;
 }
 
-export const ManualFulfillmentModal: React.FC<ManualFulfillmentModalProps> = ({
+export const ManualFulfillmentModal = ({
   isOpen,
   onClose,
   onSuccess

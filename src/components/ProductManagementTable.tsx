@@ -26,7 +26,7 @@ import {
 import { Settings, Search, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { useProducts } from '@/contexts/ProductsContext';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import type { Database } from '@/integrations/supabase/types';
 
 type Product = Database['public']['Tables']['products']['Row'];

@@ -26,7 +26,7 @@ import { useSalesOrders } from '@/hooks/useSalesOrders';
 import { useAvailableProductsForSales } from '@/hooks/useProductsSummary';
 
 // Main emergency dashboard component
-export const SalesSystemEmergencyDashboard: React.FC = () => {
+export const SalesSystemEmergencyDashboard = () => {
   const [databaseStatus, setDatabaseStatus] = useState<DatabaseStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());

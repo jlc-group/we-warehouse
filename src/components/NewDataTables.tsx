@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Package, Search, RefreshCw, AlertTriangle, Clock, ChevronUp, ChevronDown, Download } from 'lucide-react';
 import { useProductsSummary } from '@/hooks/useProductsSummary';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { exportProductSummaryToCSV } from '@/utils/exportUtils';
 
 type SortField = 'product_name' | 'sku' | 'total_level1_quantity' | 'total_pieces' | 'stock_status' | 'product_type';

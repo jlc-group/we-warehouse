@@ -20,7 +20,7 @@ import {
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useCustomers } from '@/hooks/useCustomer';
 import { useWarehouses } from '@/hooks/useWarehouse';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 interface ExportJob {
   id: string;

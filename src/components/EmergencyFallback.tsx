@@ -1,4 +1,4 @@
-
+import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,7 @@ interface EmergencyFallbackProps {
 }
 
 // Emergency fallback component สำหรับกรณีที่ระบบมีปัญหา
-export const EmergencyFallback: React.FC<EmergencyFallbackProps> = ({
+export const EmergencyFallback = ({
   title = "ระบบไม่พร้อมใช้งาน",
   description = "กรุณาติดตั้งฐานข้อมูลก่อนใช้งาน",
   error,
@@ -157,7 +157,7 @@ export const EmergencyFallback: React.FC<EmergencyFallbackProps> = ({
 
 // Hook สำหรับตรวจสอบสถานะฐานข้อมูล
 export const useEmergencyFallback = (error: any) => {
-  const isDatabaseError = React.useMemo(() => {
+  const isDatabaseError = useMemo(() => {
     if (!error) return false;
     const errorMessage = error.message || error.toString();
     return errorMessage.includes('404') ||
@@ -167,7 +167,7 @@ export const useEmergencyFallback = (error: any) => {
            errorMessage.includes('Bad Request');
   }, [error]);
 
-  const shouldShowFallback = React.useMemo(() => {
+  const shouldShowFallback = useMemo(() => {
     return !!error && isDatabaseError;
   }, [error, isDatabaseError]);
 

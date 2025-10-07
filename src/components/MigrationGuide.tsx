@@ -18,10 +18,10 @@ import {
   Play,
   FileText
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 // Complete migration guide component
-export const MigrationGuide: React.FC = () => {
+export const MigrationGuide = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     overview: true
   });

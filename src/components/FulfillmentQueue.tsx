@@ -46,7 +46,7 @@ import {
   type FulfillmentStatus
 } from '@/services/purchaseOrderService';
 
-export const FulfillmentQueue: React.FC = () => {
+export const FulfillmentQueue = () => {
   const {
     fulfillmentTasks,
     updateTaskStatus,
