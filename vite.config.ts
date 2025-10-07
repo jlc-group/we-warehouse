@@ -71,17 +71,31 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     // Force cache busting for production builds
     assetsInlineLimit: 0,
+    // Optimize build speed for Cloudflare Pages
+    minify: 'esbuild', // Faster than terser
+    target: 'esnext',
     rollupOptions: {
       output: {
         // Add entryFileNames with hash to force new bundle names
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]',
-        // Let Vite handle chunking automatically - no manual chunks
-        manualChunks: undefined,
+        // Optimize chunking to speed up build
+        manualChunks: (id) => {
+          // Vendor chunks for faster builds
+          if (id.includes('node_modules')) {
+            if (id.includes('@supabase')) return 'supabase';
+            if (id.includes('react') || id.includes('react-dom')) return 'react';
+            if (id.includes('@radix-ui')) return 'radix';
+            return 'vendor';
+          }
+        },
       },
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1000,
+    // Speed up build
+    reportCompressedSize: false,
+    cssCodeSplit: true,
   },
   plugins: [
     react({
