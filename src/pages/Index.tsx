@@ -26,7 +26,6 @@ import { DisabledComponent } from '@/components/DisabledComponents';
 import { DisabledUserProfile } from '@/components/DisabledUserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
 import { BulkExportModal } from '@/components/BulkExportModal';
-import { DebugExportData } from '@/components/DebugExportData';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -1071,18 +1070,14 @@ const Index = memo(() => {
 
 
           <TabsContent value="history" className="space-y-4">
-            <Tabs defaultValue="debug_export" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="debug_export" className="bg-yellow-100">🐛 Debug</TabsTrigger>
+            <Tabs defaultValue="export_history" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
                 <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
                 <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
                 <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
                 <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
               </TabsList>
-              <TabsContent value="debug_export">
-                <DebugExportData />
-              </TabsContent>
               <TabsContent value="export_history">
                 <ExportHistory />
               </TabsContent>
