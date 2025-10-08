@@ -71,8 +71,8 @@ import { ProductManagementPage } from '@/components/ProductManagementPage';
 import { FloatingActionMenu } from '@/components/FloatingActionMenu';
 import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage';
 import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
-import { ExternalSalesTab } from '@/components/ExternalSalesTab';
-// import { PackingListTab } from '@/components/PackingListTab'; // ปิดชั่วคราว - รอ backend endpoint
+// import { ExternalSalesTab } from '@/components/ExternalSalesTab'; // ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้
+import { PackingListTab } from '@/components/PackingListTab';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -937,15 +937,15 @@ const Index = memo(() => {
                   <Package className="h-4 w-4" />
                   งานจัดสินค้า
                 </TabsTrigger>
-                {/* ปิดชั่วคราว - รอ backend endpoint /api/sales/packing-list */}
-                {/* <TabsTrigger value="packing-list" className="flex items-center gap-2">
+                <TabsTrigger value="packing-list" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   รายการแพค (Packing List)
-                </TabsTrigger> */}
-                <TabsTrigger value="external-sales" className="flex items-center gap-2">
+                </TabsTrigger>
+                {/* ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้ */}
+                {/* <TabsTrigger value="external-sales" className="flex items-center gap-2">
                   <DatabaseIcon className="h-4 w-4" />
                   ข้อมูลขาย (External)
-                </TabsTrigger>
+                </TabsTrigger> */}
               </TabsList>
 
               <TabsContent value="po-list" className="space-y-4">
@@ -975,14 +975,14 @@ const Index = memo(() => {
                 </Tabs>
               </TabsContent>
 
-              {/* ปิดชั่วคราว - รอ backend endpoint /api/sales/packing-list */}
-              {/* <TabsContent value="packing-list" className="space-y-4">
+              <TabsContent value="packing-list" className="space-y-4">
                 <PackingListTab />
-              </TabsContent> */}
-
-              <TabsContent value="external-sales" className="space-y-4">
-                <ExternalSalesTab />
               </TabsContent>
+
+              {/* ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้ */}
+              {/* <TabsContent value="external-sales" className="space-y-4">
+                <ExternalSalesTab />
+              </TabsContent> */}
             </Tabs>
           </TabsContent>
 
