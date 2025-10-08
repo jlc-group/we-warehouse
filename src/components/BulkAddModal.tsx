@@ -13,7 +13,9 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useProducts } from '@/hooks/useProducts';
+import { useProductsSummary } from '@/hooks/useProductsSummary';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
+import { productHelpers } from '@/utils/productHelpers';
 
 type Product = Database['public']['Tables']['products']['Row'];
 
@@ -78,8 +80,40 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
     }
   };
 
-  // Product management states - now using useProducts hook
+  // Product management states - now using useProductsSummary with fallback to useProducts
   const { products } = useProducts();
+  const { data: productsSummaryResult } = useProductsSummary();
+
+  // Use products from ProductsSummary first, fallback to useProducts
+  const availableProducts = useMemo(() => {
+    if (productsSummaryResult?.data) {
+      // Convert ProductSummary to Product format for productHelpers
+      return productsSummaryResult.data.map(p => ({
+        id: p.product_id,
+        sku_code: p.sku,
+        product_name: p.product_name,
+        product_type: p.product_type,
+        is_active: p.is_active,
+        category: p.category,
+        subcategory: p.subcategory,
+        brand: p.brand,
+        unit_of_measure: p.unit_of_measure,
+        unit_cost: p.unit_cost,
+        description: p.description,
+        // Add other required fields with defaults
+        created_at: '',
+        updated_at: '',
+        dimensions: '',
+        manufacturing_country: '',
+        max_stock_level: 0,
+        reorder_level: 0,
+        weight: 0,
+        storage_conditions: ''
+      }));
+    }
+    return products;
+  }, [productsSummaryResult, products]);
+
   const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
   const [isNewProduct, setIsNewProduct] = useState(false);
   const [productCodeInputValue, setProductCodeInputValue] = useState('');
@@ -137,13 +171,16 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   };
 
   const handleSave = () => {
-    if (!productName.trim() || !productCode.trim() || selectedLocations.size === 0) {
+    // Use productCodeInputValue if productCode is empty (user typed but didn't press Enter)
+    const finalProductCode = productCode.trim() || productCodeInputValue.trim();
+
+    if (!productName.trim() || !finalProductCode || selectedLocations.size === 0) {
       return;
     }
 
     onSave(Array.from(selectedLocations).map(loc => normalizeLocation(loc)), {
       product_name: productName.trim(),
-      sku: productCode.trim(),
+      sku: finalProductCode,
       lot: lot.trim() || undefined,
       mfd: mfd || undefined,
       box_quantity: quantityBoxes,
@@ -167,65 +204,33 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
   // Get all available product codes filtered by product type
   const allProductCodes = useMemo(() => {
-    if (!selectedProductType) {
-      // If no product type selected, show all products
-      const mappingCodes = Object.keys(PRODUCT_NAME_MAPPING);
-      const dbCodes = products.map(p => p.sku_code);
-      const allCodes = [...new Set([...mappingCodes, ...dbCodes])];
-      return allCodes.sort();
-    }
-
-    // Filter products by selected type
-    const typedProducts = getProductsByType(selectedProductType);
-    const typedCodes = typedProducts.map(p => p.code);
-
-    // Filter database products to only include those matching the selected type
-    const dbCodes = products
-      .filter(p => p.product_type === selectedProductType)
-      .map(p => p.sku_code);
-
-    const allCodes = [...new Set([...typedCodes, ...dbCodes])];
-    return allCodes.sort();
-  }, [products, selectedProductType]);
+    return productHelpers.getAllProductCodes(availableProducts, selectedProductType);
+  }, [availableProducts, selectedProductType]);
 
   // Filter product codes based on search
   const filteredProductCodes = useMemo(() => {
-    if (!productCodeInputValue) return allProductCodes;
-    return allProductCodes.filter(code =>
-      code.toLowerCase().includes(productCodeInputValue.toLowerCase()) ||
-      PRODUCT_NAME_MAPPING[code]?.toLowerCase().includes(productCodeInputValue.toLowerCase())
-    );
-  }, [allProductCodes, productCodeInputValue]);
+    return productHelpers.getFilteredProductCodes(availableProducts, productCodeInputValue, selectedProductType);
+  }, [availableProducts, productCodeInputValue, selectedProductType]);
 
   // Auto-fill product name when product code changes
   const handleProductCodeChange = async (value: string) => {
     setProductCode(value);
     setProductCodeInputValue(value);
 
-    // Find product name from mapping first
-    const mappedName = PRODUCT_NAME_MAPPING[value.toUpperCase()];
-    if (mappedName) {
-      setProductName(mappedName);
-      setIsNewProduct(false);
-      // Fetch conversion rates
-      await fetchConversionRates(value.toUpperCase());
-      return;
-    }
-
-    // Find from products database
-    const foundProduct = products.find(
-      product => product.sku_code.toLowerCase() === value.toLowerCase()
-    );
-
-    if (foundProduct) {
-      setProductName(foundProduct.product_name);
-      setIsNewProduct(false);
-      // Fetch conversion rates
-      await fetchConversionRates(foundProduct.sku_code);
-    } else if (value === '') {
+    if (value === '') {
       setProductName('');
       setIsNewProduct(false);
       setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+      return;
+    }
+
+    // Use productHelpers to get product display name
+    const displayName = productHelpers.getProductDisplayName(availableProducts, value);
+    if (displayName) {
+      setProductName(displayName);
+      setIsNewProduct(false);
+      // Fetch conversion rates
+      await fetchConversionRates(value.toUpperCase());
     } else {
       // New product
       setIsNewProduct(true);
@@ -240,12 +245,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
   // Check if product code is new (not in mapping or DB)
   const checkIfNewProduct = (code: string) => {
-    if (!code.trim()) return false;
-    const existsInMapping = !!PRODUCT_NAME_MAPPING[code.toUpperCase()];
-    const existsInDatabase = products.some(
-      product => product.sku_code.toLowerCase() === code.toLowerCase()
-    );
-    return !existsInMapping && !existsInDatabase;
+    return productHelpers.isNewProduct(availableProducts, code);
   };
 
   // Helper function to get inventory count at location
@@ -508,11 +508,19 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                                   />
                                   <div className="flex flex-col">
                                     <span className="font-mono font-medium">{code}</span>
-                                    {PRODUCT_NAME_MAPPING[code] && (
-                                      <span className="text-xs text-muted-foreground">
-                                        {PRODUCT_NAME_MAPPING[code]}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const productInfo = productHelpers.getProductDisplayInfo(availableProducts, code);
+                                      return productInfo.name && (
+                                        <div className="flex flex-col text-xs text-muted-foreground">
+                                          <span>{productInfo.name}</span>
+                                          {productInfo.brand && productInfo.category && (
+                                            <span className="text-xs opacity-60">
+                                              {productInfo.brand} • {productInfo.category}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </CommandItem>
                               ))}
@@ -761,10 +769,10 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
           <Button variant="outline" onClick={handleClose} className="flex-1">
             ยกเลิก
           </Button>
-          <Button 
-            onClick={handleSave} 
+          <Button
+            onClick={handleSave}
             className="flex-1"
-            disabled={!productName.trim() || !productCode.trim() || selectedLocations.size === 0}
+            disabled={!productName.trim() || !productCodeInputValue.trim() || selectedLocations.size === 0}
           >
             บันทึก ({selectedLocations.size} ตำแหน่ง)
           </Button>
