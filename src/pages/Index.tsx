@@ -928,7 +928,7 @@ const Index = memo(() => {
 
           <TabsContent value="purchase-orders" className="space-y-4">
             <Tabs value={purchaseOrdersSubTab} onValueChange={setPurchaseOrdersSubTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="po-list" className="flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   รายการ Purchase Orders
