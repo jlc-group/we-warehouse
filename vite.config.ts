@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
     hmr: mode === 'development' ? {
       overlay: true, // Show errors in overlay
     } : false, // Enable HMR only in development
