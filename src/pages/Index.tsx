@@ -45,7 +45,7 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
@@ -71,6 +71,8 @@ import { ProductManagementPage } from '@/components/ProductManagementPage';
 import { FloatingActionMenu } from '@/components/FloatingActionMenu';
 import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage';
 import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
+import { ExternalSalesTab } from '@/components/ExternalSalesTab';
+// import { PackingListTab } from '@/components/PackingListTab'; // ปิดชั่วคราว - รอ backend endpoint
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -926,7 +928,7 @@ const Index = memo(() => {
 
           <TabsContent value="purchase-orders" className="space-y-4">
             <Tabs value={purchaseOrdersSubTab} onValueChange={setPurchaseOrdersSubTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
                 <TabsTrigger value="po-list" className="flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
                   รายการ Purchase Orders
@@ -934,6 +936,15 @@ const Index = memo(() => {
                 <TabsTrigger value="fulfillment" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   งานจัดสินค้า
+                </TabsTrigger>
+                {/* ปิดชั่วคราว - รอ backend endpoint /api/sales/packing-list */}
+                {/* <TabsTrigger value="packing-list" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  รายการแพค (Packing List)
+                </TabsTrigger> */}
+                <TabsTrigger value="external-sales" className="flex items-center gap-2">
+                  <DatabaseIcon className="h-4 w-4" />
+                  ข้อมูลขาย (External)
                 </TabsTrigger>
               </TabsList>
 
@@ -962,6 +973,15 @@ const Index = memo(() => {
                     <WarehousePickingSystem />
                   </TabsContent>
                 </Tabs>
+              </TabsContent>
+
+              {/* ปิดชั่วคราว - รอ backend endpoint /api/sales/packing-list */}
+              {/* <TabsContent value="packing-list" className="space-y-4">
+                <PackingListTab />
+              </TabsContent> */}
+
+              <TabsContent value="external-sales" className="space-y-4">
+                <ExternalSalesTab />
               </TabsContent>
             </Tabs>
           </TabsContent>
