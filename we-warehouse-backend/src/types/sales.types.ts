@@ -289,7 +289,7 @@ export interface SalesOrderResponse {
   arcode: string | null;
   arname: string | null;
   totalamount: number | null;
-  docstatus: string | null;
+  docstatus?: string | null; // Optional - column doesn't exist in CSSALE table
   items?: SalesLineItemResponse[];
 }
 
