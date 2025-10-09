@@ -6,8 +6,8 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // API Configuration
-// Use environment variable for production HTTPS compatibility
-const JLC_API_BASE = import.meta.env.VITE_JLC_API_BASE || 'http://jhserver.dyndns.info:82';
+// Use VITE_SALES_API_URL to connect to we-warehouse-backend
+const API_BASE = import.meta.env.VITE_SALES_API_URL || 'http://localhost:3001/api/sales';
 
 // TypeScript Interfaces
 export interface PurchaseOrderHeader {
@@ -126,7 +126,7 @@ export class PurchaseOrderService {
       if (params.date_to) queryParams.append('date_to', params.date_to);
       if (params.top) queryParams.append('top', params.top.toString());
 
-      const url = `${JLC_API_BASE}/jhdb/purchase-orders?${queryParams.toString()}`;
+      const url = `${API_BASE}/purchase-orders?${queryParams.toString()}`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -154,7 +154,7 @@ export class PurchaseOrderService {
    */
   static async fetchPODetails(po_number: string): Promise<PurchaseOrderFull> {
     try {
-      const url = `${JLC_API_BASE}/jhdb/purchase-orders/${encodeURIComponent(po_number)}`;
+      const url = `${API_BASE}/purchase-orders/${encodeURIComponent(po_number)}`;
 
       const response = await fetch(url, {
         method: 'GET',

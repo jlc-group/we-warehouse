@@ -21,16 +21,11 @@ export default {
     }
 
     try {
-      // Backend endpoints mapping
+      // Backend endpoints mapping - ทั้งหมดชี้ไปที่ backend :3001
       const backends = [
         {
           prefix: '/api/sales',
           target: 'http://jhserver.dyndns.info:3001',
-          replacePath: false // เก็บ path เดิม
-        },
-        {
-          prefix: '/jhdb',
-          target: 'http://jhserver.dyndns.info:82',
           replacePath: false // เก็บ path เดิม
         }
       ];
