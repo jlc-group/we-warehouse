@@ -92,7 +92,8 @@ export const PackingListTab = () => {
   const today = new Date().toISOString().split('T')[0];
 
   // Check if user can view prices (Finance permission)
-  const canViewPrices = user && hasPermission('finance.view');
+  // ซ่อนมูลค่าทั้งหมดตามคำขอ
+  const canViewPrices = false; // user && hasPermission('finance.view');
 
   // State
   const [selectedDate, setSelectedDate] = useState(today);

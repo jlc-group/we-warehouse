@@ -17,8 +17,7 @@ export class SQLServerService {
       const pool = await getConnection();
       let query = `
         SELECT
-          DOCNO, DOCDATE, TAXNO, ARCODE, ARNAME,
-          TOTALAMOUNT, DOCSTATUS, SHIPDATE, CREATEDATE
+          DOCNO, DOCDATE, TAXNO, ARCODE, ARNAME, TOTALAMOUNT
         FROM CSSALE
         WHERE 1=1
       `;
@@ -41,10 +40,11 @@ export class SQLServerService {
         request.input('arcode', sql.VarChar, params.arcode);
       }
 
-      if (params?.docstatus) {
-        query += ' AND DOCSTATUS = @docstatus';
-        request.input('docstatus', sql.VarChar, params.docstatus);
-      }
+      // Note: DOCSTATUS column removed - doesn't exist in CSSALE table
+      // if (params?.docstatus) {
+      //   query += ' AND DOCSTATUS = @docstatus';
+      //   request.input('docstatus', sql.VarChar, params.docstatus);
+      // }
 
       // Order by date descending
       query += ' ORDER BY DOCDATE DESC, DOCNO DESC';
@@ -63,7 +63,6 @@ export class SQLServerService {
         arcode: row.ARCODE,
         arname: row.ARNAME,
         totalamount: row.TOTALAMOUNT,
-        docstatus: row.DOCSTATUS,
       }));
     } catch (error) {
       console.error('Error fetching sales orders:', error);
@@ -119,7 +118,6 @@ export class SQLServerService {
         arcode: header.ARCODE,
         arname: header.ARNAME,
         totalamount: header.TOTALAMOUNT,
-        docstatus: header.DOCSTATUS,
         items,
       };
     } catch (error) {

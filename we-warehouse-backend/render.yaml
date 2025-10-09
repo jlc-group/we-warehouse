@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: we-warehouse-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DB_SERVER
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://we-warehouse.pages.dev,https://we-warehouse-api-proxy.software-dept.workers.dev

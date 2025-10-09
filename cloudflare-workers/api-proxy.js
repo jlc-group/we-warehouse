@@ -21,29 +21,13 @@ export default {
     }
 
     try {
-      // Backend endpoints mapping - ทั้งหมดชี้ไปที่ backend :3001
-      const backends = [
-        {
-          prefix: '/api/sales',
-          target: 'http://jhserver.dyndns.info:3001',
-          replacePath: false // เก็บ path เดิม
-        }
-      ];
+      // Backend target - proxy all requests to backend :3001
+      const BACKEND_URL = 'http://jhserver.dyndns.info:3001';
 
-      let targetUrl = null;
+      // Proxy all paths to backend (health, api/sales, api/customers, etc.)
+      const targetUrl = BACKEND_URL + url.pathname + url.search;
 
-      // Match backend และสร้าง URL
-      for (const backend of backends) {
-        if (url.pathname.startsWith(backend.prefix)) {
-          // เก็บ path เดิมทั้งหมด
-          targetUrl = backend.target + url.pathname + url.search;
-          break;
-        }
-      }
-
-      if (!targetUrl) {
-        return new Response('Not Found', { status: 404, headers: corsHeaders });
-      }
+      console.log(`[Worker] Proxying: ${url.pathname} → ${targetUrl}`);
 
       // Forward request with proper headers
       const forwardHeaders = new Headers(request.headers);

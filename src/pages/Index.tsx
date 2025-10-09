@@ -860,9 +860,14 @@ const Index = memo(() => {
               <PieChart className="h-4 w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
             </TabsTrigger>
-            <TabsTrigger value="purchase-orders" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
+            {/* ซ่อนแท็บ Purchase Orders ไว้ก่อน */}
+            {/* <TabsTrigger value="purchase-orders" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <Package className="h-4 w-4 text-purple-600" />
               <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
+            </TabsTrigger> */}
+            <TabsTrigger value="packing-list" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
+              <Package className="h-4 w-4 text-purple-600" />
+              <span className="hidden sm:inline text-purple-600 font-medium">รายการแพค</span>
             </TabsTrigger>
             <TabsTrigger value="warehouse-management" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
               <Warehouse className="h-4 w-4 text-green-600" />
@@ -926,7 +931,8 @@ const Index = memo(() => {
             />
           </TabsContent>
 
-          <TabsContent value="purchase-orders" className="space-y-4">
+          {/* ซ่อน TabsContent ของ Purchase Orders ไว้ก่อน */}
+          {/* <TabsContent value="purchase-orders" className="space-y-4">
             <Tabs value={purchaseOrdersSubTab} onValueChange={setPurchaseOrdersSubTab} className="space-y-4">
               <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="po-list" className="flex items-center gap-2">
@@ -941,18 +947,13 @@ const Index = memo(() => {
                   <Package className="h-4 w-4" />
                   รายการแพค (Packing List)
                 </TabsTrigger>
-                {/* ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้ */}
-                {/* <TabsTrigger value="external-sales" className="flex items-center gap-2">
-                  <DatabaseIcon className="h-4 w-4" />
-                  ข้อมูลขาย (External)
-                </TabsTrigger> */}
               </TabsList>
 
               <TabsContent value="po-list" className="space-y-4">
                 <PurchaseOrdersList onCreateFulfillment={handleTaskCreated} />
-              </TabsContent>
+              </TabsContent> */}
 
-              <TabsContent value="fulfillment" className="space-y-4">
+              {/* <TabsContent value="fulfillment" className="space-y-4">
                 <Tabs defaultValue="queue" className="space-y-4">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="queue" className="flex items-center gap-2">
@@ -975,15 +976,11 @@ const Index = memo(() => {
                 </Tabs>
               </TabsContent>
 
-              <TabsContent value="packing-list" className="space-y-4">
-                <PackingListTab />
-              </TabsContent>
-
-              {/* ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้ */}
-              {/* <TabsContent value="external-sales" className="space-y-4">
-                <ExternalSalesTab />
-              </TabsContent> */}
             </Tabs>
+          </TabsContent> */}
+
+          <TabsContent value="packing-list" className="space-y-4">
+            <PackingListTab />
           </TabsContent>
 
           <TabsContent value="warehouse-management" className="space-y-4">
