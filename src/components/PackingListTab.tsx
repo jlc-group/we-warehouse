@@ -3,8 +3,8 @@
  * แสดงรายการที่ต้องแพคและจัดส่งในแต่ละวัน
  */
 
-// API Configuration - ใช้ /api เสมอเพื่อให้ Vite proxy ทำงาน
-const SALES_API_BASE = '/api';
+// API Configuration - ใช้ environment variable สำหรับ production
+const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
