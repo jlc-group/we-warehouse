@@ -21,18 +21,27 @@ export default {
     }
 
     try {
-      // Backend endpoints
-      const backends = {
-        '/api/sales': 'http://localhost:3001/api/sales',
-        '/jhdb': 'http://jhserver.dyndns.info:82/jhdb',
-      };
+      // Backend endpoints mapping
+      const backends = [
+        {
+          prefix: '/api/sales',
+          target: 'http://jhserver.dyndns.info:3001',
+          replacePath: false // เก็บ path เดิม
+        },
+        {
+          prefix: '/jhdb',
+          target: 'http://jhserver.dyndns.info:82',
+          replacePath: false // เก็บ path เดิม
+        }
+      ];
 
       let targetUrl = null;
 
-      // Match backend
-      for (const [prefix, backend] of Object.entries(backends)) {
-        if (url.pathname.startsWith(prefix)) {
-          targetUrl = backend + url.pathname.slice(prefix.length) + url.search;
+      // Match backend และสร้าง URL
+      for (const backend of backends) {
+        if (url.pathname.startsWith(backend.prefix)) {
+          // เก็บ path เดิมทั้งหมด
+          targetUrl = backend.target + url.pathname + url.search;
           break;
         }
       }
@@ -41,11 +50,14 @@ export default {
         return new Response('Not Found', { status: 404, headers: corsHeaders });
       }
 
-      // Forward request
+      // Forward request with proper headers
+      const forwardHeaders = new Headers(request.headers);
+      forwardHeaders.delete('host'); // ลบ host header เพื่อไม่ให้เกิด conflict
+
       const response = await fetch(targetUrl, {
         method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' ? await request.text() : undefined,
+        headers: forwardHeaders,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.text() : undefined,
       });
 
       // Clone and add CORS headers
