@@ -21,8 +21,8 @@ export default {
     }
 
     try {
-      // Backend target - proxy all requests to backend :3001
-      const BACKEND_URL = 'http://jhserver.dyndns.info:3001';
+      // Backend target - proxy all requests to Render backend
+      const BACKEND_URL = 'https://we-warehouse.onrender.com';
 
       // Proxy all paths to backend (health, api/sales, api/customers, etc.)
       const targetUrl = BACKEND_URL + url.pathname + url.search;
