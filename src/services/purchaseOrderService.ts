@@ -6,7 +6,8 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // API Configuration
-const JLC_API_BASE = 'http://jhserver.dyndns.info:82';
+// Use environment variable for production HTTPS compatibility
+const JLC_API_BASE = import.meta.env.VITE_JLC_API_BASE || 'http://jhserver.dyndns.info:82';
 
 // TypeScript Interfaces
 export interface PurchaseOrderHeader {
