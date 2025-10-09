@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { hasPermission as checkPermission } from '@/config/permissions';
 
 // Types สำหรับ User
 interface User {
@@ -170,9 +171,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Permission functions with memoization
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
-
-    // Import permission system
-    const { hasPermission: checkPermission } = require('@/config/permissions');
     return checkPermission(user.role_level, permission);
   }, [user]);
 

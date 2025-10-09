@@ -97,10 +97,18 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
   const handleScanSuccess = (decodedText: string, decodedResult: any) => {
 
     try {
-      // Parse the scanned URL to extract location information
-      const url = new URL(decodedText);
-      const location = url.searchParams.get('location');
-      const action = url.searchParams.get('action');
+      let location = '';
+      let action = 'view';
+      
+      // Try to parse as URL
+      try {
+        const url = new URL(decodedText);
+        location = url.searchParams.get('location') || '';
+        action = url.searchParams.get('action') || 'view';
+      } catch {
+        // If not a URL, treat as plain location string
+        location = decodedText.trim();
+      }
 
       if (!location) {
         throw new Error('ไม่พบข้อมูลตำแหน่งใน QR Code');

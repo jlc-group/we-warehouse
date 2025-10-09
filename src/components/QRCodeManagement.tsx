@@ -79,7 +79,8 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   const allLocations = useMemo(() => {
     const inventoryLocations = [...new Set(items.map(item => item.location))];
     const combinedLocations = [...new Set([...inventoryLocations, ...warehouseLocations])];
-    return combinedLocations.sort();
+    // กรองเฉพาะ location ที่มีค่า (ไม่ใช่ empty string, null, undefined)
+    return combinedLocations.filter(loc => loc && loc.trim().length > 0).sort();
   }, [items, warehouseLocations]);
 
   // Get locations that don't have QR codes yet

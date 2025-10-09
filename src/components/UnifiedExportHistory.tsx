@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -579,7 +579,7 @@ export function UnifiedExportHistory() {
                     </TableHeader>
                     <TableBody>
                       {customerGroups.map((group) => (
-                        <React.Fragment key={group.customer_name}>
+                        <Fragment key={group.customer_name}>
                           <TableRow
                             className="cursor-pointer hover:bg-muted/50"
                             onClick={() => setExpandedId(expandedId === group.customer_name ? null : group.customer_name)}
@@ -654,7 +654,7 @@ export function UnifiedExportHistory() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </React.Fragment>
+                        </Fragment>
                       ))}
                     </TableBody>
                   </Table>
@@ -685,7 +685,7 @@ export function UnifiedExportHistory() {
                       {productGroups.map((group) => {
                         const groupKey = `${group.product_code}_${group.product_name}`;
                         return (
-                          <React.Fragment key={groupKey}>
+                          <Fragment key={groupKey}>
                             <TableRow
                               className="cursor-pointer hover:bg-muted/50"
                               onClick={() => setExpandedId(expandedId === groupKey ? null : groupKey)}
@@ -754,7 +754,7 @@ export function UnifiedExportHistory() {
                                 </TableCell>
                               </TableRow>
                             )}
-                          </React.Fragment>
+                          </Fragment>
                         );
                       })}
                     </TableBody>

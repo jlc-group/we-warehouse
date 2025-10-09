@@ -1200,7 +1200,7 @@ const Index = memo(() => {
               {showAdminFeatures && (
                 <TabsContent value="locations" className="space-y-4">
                   <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
-                    <DisabledComponent name="Location Management" />
+                    <LocationManagement />
                   </Suspense>
                 </TabsContent>
               )}

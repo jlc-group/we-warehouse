@@ -3,8 +3,8 @@
  * แสดงรายการที่ต้องแพคและจัดส่งในแต่ละวัน
  */
 
-// API Configuration
-const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
+// API Configuration - ใช้ /api เสมอเพื่อให้ Vite proxy ทำงาน
+const SALES_API_BASE = '/api';
 
 import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,7 +107,7 @@ export const PackingListTab = () => {
     staleTime: 30000, // 30 seconds
   });
 
-  const packingOrders = data?.data || [];
+  const packingOrders = useMemo(() => data?.data || [], [data]);
 
   // Filter by customer (client-side)
   const filteredOrders = useMemo(() => {
@@ -151,7 +151,7 @@ export const PackingListTab = () => {
     }>();
 
     filteredOrders.forEach(order => {
-      order.ITEMS.forEach((item: any) => {
+      (order.ITEMS || []).forEach((item: any) => {
         const key = item.PRODUCTCODE;
         if (!summary.has(key)) {
           summary.set(key, {
@@ -176,6 +176,13 @@ export const PackingListTab = () => {
     const totalOrders = filteredOrders.length;
     const totalAmount = filteredOrders.reduce((sum, order) => sum + (order.TOTALAMOUNT || 0), 0);
     const totalItems = filteredOrders.reduce((sum, order) => sum + (order.ITEM_COUNT || 0), 0);
+    
+    // คำนวณจำนวนชิ้นทั้งหมด (รวม QUANTITY)
+    const totalQuantity = filteredOrders.reduce((sum, order) => {
+      const orderQty = (order.ITEMS || []).reduce((itemSum, item) => itemSum + (item.QUANTITY || 0), 0);
+      return sum + orderQty;
+    }, 0);
+    
     const uniqueCustomers = new Set(filteredOrders.map(o => o.ARCODE)).size;
     const uniqueTaxNos = ordersByTaxNo.size;
 
@@ -183,6 +190,7 @@ export const PackingListTab = () => {
       totalOrders,
       totalAmount,
       totalItems,
+      totalQuantity, // จำนวนชิ้นทั้งหมด
       uniqueCustomers,
       uniqueTaxNos
     };
@@ -196,7 +204,8 @@ export const PackingListTab = () => {
     setSelectedDate(tomorrow.toISOString().split('T')[0]);
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (!amount && amount !== 0) return '฿0.00';
     return `฿${amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
@@ -297,7 +306,7 @@ export const PackingListTab = () => {
                   <option value="">ทุกลูกค้า ({uniqueCustomers.length})</option>
                   {uniqueCustomers.map(([code, name]) => (
                     <option key={code} value={code}>
-                      {code} - {name.length > 30 ? name.substring(0, 30) + '...' : name}
+                      {code} - {(name || '').length > 30 ? (name || '').substring(0, 30) + '...' : (name || '')}
                     </option>
                   ))}
                 </select>
@@ -355,12 +364,13 @@ export const PackingListTab = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">รายการสินค้า</p>
+                <p className="text-sm font-medium text-gray-600">จำนวนชิ้นทั้งหมด</p>
                 {isLoading ? (
                   <div className="h-8 w-16 bg-gray-200 animate-pulse rounded mt-1" />
                 ) : (
-                  <p className="text-2xl font-bold text-gray-900">{summary.totalItems}</p>
+                  <p className="text-2xl font-bold text-gray-900">{summary.totalQuantity?.toLocaleString()}</p>
                 )}
+                <p className="text-xs text-gray-500 mt-1">{summary.totalItems} รายการ</p>
               </div>
               <CheckCircle2 className="h-8 w-8 text-purple-500" />
             </div>
@@ -432,7 +442,7 @@ export const PackingListTab = () => {
                       <TableCell className="font-mono">{product.productCode}</TableCell>
                       <TableCell>{product.productName}</TableCell>
                       <TableCell className="text-right font-bold text-blue-600">
-                        {product.totalQuantity.toLocaleString()}
+                        {(product.totalQuantity || 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline">{product.unitCode}</Badge>
@@ -573,17 +583,17 @@ export const PackingListTab = () => {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {order.ITEMS.map((item) => (
+                                  {(order.ITEMS || []).map((item) => (
                                     <TableRow key={item.LINEID}>
                                       <TableCell className="font-mono">
                                         {item.PRODUCTCODE}
                                       </TableCell>
                                       <TableCell>{item.PRODUCTNAME}</TableCell>
                                       <TableCell className="text-right font-semibold">
-                                        {item.QUANTITY.toLocaleString()}
+                                        {(item.QUANTITY || 0).toLocaleString()}
                                       </TableCell>
                                       <TableCell>
-                                        <Badge variant="outline">{item.UNIT}</Badge>
+                                        <Badge variant="outline">{item.UNIT || '-'}</Badge>
                                       </TableCell>
                                       {/* Show price columns ONLY for Finance role */}
                                       {canViewPrices && (

@@ -107,18 +107,47 @@ export class LocationQRService {
         }
       });
 
-      // Save to database
-      const { data, error } = await supabase
+      // Check if QR exists for this location
+      const { data: existing } = await supabase
         .from('location_qr_codes')
-        .insert({
-          location: normalizedLocation,
-          qr_code_data: qrUrl,
-          qr_image_url: qrImageDataURL,
-          inventory_snapshot: locationData,
-          is_active: true
-        })
-        .select()
+        .select('id')
+        .eq('location', normalizedLocation)
+        .eq('is_active', true)
         .single();
+
+      let data, error;
+      
+      if (existing) {
+        // Update existing QR
+        const result = await supabase
+          .from('location_qr_codes')
+          .update({
+            qr_code_data: qrUrl,
+            qr_image_url: qrImageDataURL,
+            inventory_snapshot: locationData,
+            last_updated: new Date().toISOString()
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        data = result.data;
+        error = result.error;
+      } else {
+        // Create new QR
+        const result = await supabase
+          .from('location_qr_codes')
+          .insert({
+            location: normalizedLocation,
+            qr_code_data: qrUrl,
+            qr_image_url: qrImageDataURL,
+            inventory_snapshot: locationData,
+            is_active: true
+          })
+          .select()
+          .single();
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Error creating QR code:', error);

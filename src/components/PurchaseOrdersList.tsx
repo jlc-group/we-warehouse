@@ -33,6 +33,7 @@ import {
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import { PurchaseOrderService } from '@/services/purchaseOrderService';
 import type { PurchaseOrderHeader } from '@/services/purchaseOrderService';
+import { PurchaseOrderStats } from '@/components/PurchaseOrderStats';
 
 interface PurchaseOrdersListProps {
   onCreateFulfillment?: (poNumber: string) => void;
@@ -43,6 +44,7 @@ export const PurchaseOrdersList = ({
 }) => {
   const {
     purchaseOrders,
+    fulfillmentTasks,
     selectedPO,
     loading,
     detailsLoading,
@@ -99,6 +101,13 @@ export const PurchaseOrdersList = ({
 
   return (
     <div className="space-y-6">
+      {/* Statistics Dashboard */}
+      <PurchaseOrderStats
+        purchaseOrders={purchaseOrders}
+        fulfillmentTasks={fulfillmentTasks}
+        loading={loading}
+      />
+
       {/* Header with Search and Refresh */}
       <Card>
         <CardHeader>
