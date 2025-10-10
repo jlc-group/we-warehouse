@@ -298,7 +298,7 @@ export const WarehousePickingSystem = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
               <div>
                 <div className="text-sm text-gray-500">กำหนดส่ง</div>
                 <div className="font-medium">
@@ -393,17 +393,18 @@ export const WarehousePickingSystem = () => {
 
         {/* Warehouse Map Modal */}
         <Dialog open={showWarehouseMap} onOpenChange={setShowWarehouseMap}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                แผนผังคลังสินค้า - ตำแหน่ง: {highlightedLocation}
+          <DialogContent className="max-w-full h-full sm:max-w-4xl sm:max-h-[80vh] overflow-y-auto">
+            <DialogHeader className="p-4 sm:p-6">
+              <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="hidden sm:inline">แผนผังคลังสินค้า - ตำแหน่ง: {highlightedLocation}</span>
+                <span className="sm:hidden truncate">แผนผัง: {highlightedLocation}</span>
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">
                 คลิกที่ตำแหน่งในแผนผังเพื่อเลือกพื้นที่ทำงาน
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <ShelfGrid
                 items={inventoryItems || []}
                 onShelfClick={handleShelfClick}
@@ -412,6 +413,7 @@ export const WarehousePickingSystem = () => {
                 <Button
                   variant="outline"
                   onClick={() => setShowWarehouseMap(false)}
+                  className="h-11 sm:h-10 w-full sm:w-auto"
                 >
                   ปิด
                 </Button>
