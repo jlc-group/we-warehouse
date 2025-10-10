@@ -75,6 +75,8 @@ import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 import { PackingListTab } from '@/components/PackingListTab';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileMenuSheet } from '@/components/MobileMenuSheet';
+import { FinanceDashboard } from '@/components/FinanceDashboard';
+import { SalesListTab } from '@/components/SalesListTab';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -859,7 +861,7 @@ const Index = memo(() => {
 
         {/* Navigation Tabs - Hidden on mobile, replaced by Bottom Nav */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="hidden lg:grid w-full grid-cols-11 bg-white border border-gray-200 h-auto">
+          <TabsList className="hidden lg:grid w-full grid-cols-10 bg-white border border-gray-200 h-auto">
             <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
               <PieChart className="h-4 w-4" />
               <span>ภาพรวม</span>
@@ -884,6 +886,10 @@ const Index = memo(() => {
               <BarChart3 className="h-4 w-4" />
               <span>Analytics & แผนก</span>
             </TabsTrigger>
+            <TabsTrigger value="finance" className="flex items-center gap-2 h-12 bg-yellow-50 hover:bg-yellow-100">
+              <CreditCard className="h-4 w-4 text-yellow-600" />
+              <span className="text-yellow-600 font-medium">การเงิน</span>
+            </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2 h-12">
               <Archive className="h-4 w-4" />
               <span>ประวัติ</span>
@@ -891,18 +897,6 @@ const Index = memo(() => {
             <TabsTrigger value="transfers" className="flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100">
               <Truck className="h-4 w-4 text-orange-600" />
               <span className="text-orange-600 font-medium">จัดการการย้าย</span>
-            </TabsTrigger>
-            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100">
-              <PackagePlus className="h-4 w-4 text-teal-600" />
-              <span className="text-teal-600 font-medium">รับเข้า-ส่งออก</span>
-            </TabsTrigger>
-            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100">
-              <CreditCard className="h-4 w-4 text-red-600" />
-              <span className="text-red-600 font-medium">เคลียร์บิล</span>
-            </TabsTrigger>
-            <TabsTrigger value="bill-status" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
-              <BarChart3 className="h-4 w-4 text-purple-600" />
-              <span className="text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
             <TabsTrigger value="qr" className="flex items-center gap-2 h-12">
               <QrCode className="h-4 w-4" />
@@ -1140,26 +1134,57 @@ const Index = memo(() => {
             <InboundOutboundDashboard />
           </TabsContent>
 
-          <TabsContent value="bill-clearing" className="space-y-4">
-            <FallbackBanner
-              show={isFallbackMode || !features.billClearing}
-              type="info"
-              title="ระบบ Bill Clearing อยู่ในโหมดสำรอง"
-              description="ฐานข้อมูลยังไม่มีตารางสำหรับระบบ Bill Clearing ครบถ้วน การทำงานจะใช้ข้อมูลเดิมและฟังก์ชันสำรอง"
-              showMigrationButton={true}
-            />
-            <OrderStatusDashboard userRole="bill_clearer" />
-          </TabsContent>
+          <TabsContent value="finance" className="space-y-4">
+            <Tabs defaultValue="dashboard" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
+                <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Dashboard การเงิน
+                </TabsTrigger>
+                <TabsTrigger value="sales-list" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  รายการขายทั้งหมด
+                </TabsTrigger>
+                <TabsTrigger value="bill-clearing" className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  เคลียร์บิล
+                </TabsTrigger>
+                <TabsTrigger value="bill-status" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  ตรวจสอบสถานะ
+                </TabsTrigger>
+              </TabsList>
 
-          <TabsContent value="bill-status" className="space-y-4">
-            <FallbackBanner
-              show={isFallbackMode || !features.orderStatusHistory}
-              type="info"
-              title="ระบบตรวจสอบสถานะอยู่ในโหมดสำรอง"
-              description="การติดตามประวัติสถานะและสิทธิ์จะใช้ข้อมูลเริ่มต้น เมื่อ apply migration แล้วจะมีข้อมูลครบถ้วน"
-              showMigrationButton={true}
-            />
-            <OrderStatusDashboard userRole="bill_checker" />
+              <TabsContent value="dashboard">
+                <FinanceDashboard />
+              </TabsContent>
+
+              <TabsContent value="sales-list">
+                <SalesListTab />
+              </TabsContent>
+
+              <TabsContent value="bill-clearing">
+                <FallbackBanner
+                  show={isFallbackMode || !features.billClearing}
+                  type="info"
+                  title="ระบบ Bill Clearing อยู่ในโหมดสำรอง"
+                  description="ฐานข้อมูลยังไม่มีตารางสำหรับระบบ Bill Clearing ครบถ้วน การทำงานจะใช้ข้อมูลเดิมและฟังก์ชันสำรอง"
+                  showMigrationButton={true}
+                />
+                <OrderStatusDashboard userRole="bill_clearer" />
+              </TabsContent>
+
+              <TabsContent value="bill-status">
+                <FallbackBanner
+                  show={isFallbackMode || !features.orderStatusHistory}
+                  type="info"
+                  title="ระบบตรวจสอบสถานะอยู่ในโหมดสำรอง"
+                  description="การติดตามประวัติสถานะและสิทธิ์จะใช้ข้อมูลเริ่มต้น เมื่อ apply migration แล้วจะมีข้อมูลครบถ้วน"
+                  showMigrationButton={true}
+                />
+                <OrderStatusDashboard userRole="bill_checker" />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="qr" className="space-y-4">
