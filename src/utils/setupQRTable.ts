@@ -1,1 +1,0 @@
-export const setupQRTable = () => Promise.resolve({ success: true });

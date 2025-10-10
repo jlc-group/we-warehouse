@@ -261,17 +261,17 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   const isProduction = currentUrl.includes('lovableproject.com') || currentUrl.includes('vercel.app');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Environment Info */}
       <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-4">
-          <div className="flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="space-y-1">
-              <div className="font-medium text-blue-900">Environment Debug Info</div>
-              <div className="text-sm text-blue-700 space-y-1">
-                <div>Current URL: <code className="bg-blue-100 px-1 rounded">{currentUrl}</code></div>
-                <div>Environment: <Badge variant={isProduction ? "default" : "secondary"}>{isProduction ? "Production" : "Development"}</Badge></div>
+        <CardContent className="pt-3 sm:pt-4 p-3 sm:p-6">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <Info className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="font-medium text-blue-900 text-sm sm:text-base">Environment Debug Info</div>
+              <div className="text-xs sm:text-sm text-blue-700 space-y-1">
+                <div className="break-all">Current URL: <code className="bg-blue-100 px-1 rounded text-[10px] sm:text-xs">{currentUrl}</code></div>
+                <div>Environment: <Badge variant={isProduction ? "default" : "secondary"} className="text-xs">{isProduction ? "Production" : "Development"}</Badge></div>
                 <div>QR Codes in DB: {qrCodes.length}</div>
               </div>
             </div>
@@ -281,28 +281,32 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
 
       {/* Header */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5" />
-            จัดการ QR Code สำหรับตำแหน่งคลัง
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">จัดการ QR Code สำหรับตำแหน่งคลัง</span>
+            <span className="sm:hidden">จัดการ QR Code</span>
           </CardTitle>
         </CardHeader>
       </Card>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'manage' | 'print' | 'debug')} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="manage" className="flex items-center gap-2">
-            <Grid3X3 className="h-4 w-4" />
-            จัดการ QR Code
+        <TabsList className="grid w-full grid-cols-3 h-11 sm:h-10">
+          <TabsTrigger value="manage" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <Grid3X3 className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">จัดการ QR Code</span>
+            <span className="sm:hidden">จัดการ</span>
           </TabsTrigger>
-          <TabsTrigger value="print" className="flex items-center gap-2">
-            <Printer className="h-4 w-4" />
-            พิมพ์ QR Code ({filteredQRCodes.length})
+          <TabsTrigger value="print" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <Printer className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">พิมพ์ QR Code ({filteredQRCodes.length})</span>
+            <span className="sm:hidden">พิมพ์ ({filteredQRCodes.length})</span>
           </TabsTrigger>
-          <TabsTrigger value="debug" className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Debug & Test
+          <TabsTrigger value="debug" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+            <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Debug & Test</span>
+            <span className="sm:hidden">Debug</span>
           </TabsTrigger>
         </TabsList>
 
@@ -310,23 +314,23 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
       <Card>
         <CardContent className="space-y-4">
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{qrCodes.length}</div>
-              <div className="text-sm text-gray-600">QR Codes ทั้งหมด</div>
+              <div className="text-xl sm:text-2xl font-bold text-blue-600">{qrCodes.length}</div>
+              <div className="text-xs sm:text-sm text-gray-600">QR Codes ทั้งหมด</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{allLocations.length}</div>
-              <div className="text-sm text-gray-600">ตำแหน่งทั้งหมด</div>
-              <div className="text-xs text-gray-500">({warehouseLocations.length} warehouse)</div>
+              <div className="text-xl sm:text-2xl font-bold text-green-600">{allLocations.length}</div>
+              <div className="text-xs sm:text-sm text-gray-600">ตำแหน่งทั้งหมด</div>
+              <div className="text-[10px] sm:text-xs text-gray-500">({warehouseLocations.length} warehouse)</div>
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">{locationsWithoutQR.length}</div>
-              <div className="text-sm text-gray-600">ยังไม่มี QR</div>
+              <div className="text-xl sm:text-2xl font-bold text-orange-600">{locationsWithoutQR.length}</div>
+              <div className="text-xs sm:text-sm text-gray-600">ยังไม่มี QR</div>
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">{Math.round((qrCodes.length / Math.max(allLocations.length, 1)) * 100)}%</div>
-              <div className="text-sm text-gray-600">ความครอบคลุม</div>
+              <div className="text-xl sm:text-2xl font-bold text-purple-600">{Math.round((qrCodes.length / Math.max(allLocations.length, 1)) * 100)}%</div>
+              <div className="text-xs sm:text-sm text-gray-600">ความครอบคลุม</div>
             </div>
           </div>
 
@@ -349,31 +353,33 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
           )}
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
             <Button
               onClick={handleBulkGenerate}
               disabled={isGenerating || locationsWithoutQR.length === 0}
-              className="flex items-center gap-2"
+              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
             >
               <Plus className="h-4 w-4" />
-              สร้าง QR ทั้งหมด ({locationsWithoutQR.length})
+              <span className="hidden sm:inline">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
+              <span className="sm:hidden">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
             </Button>
 
             <Button
               onClick={handleRegenerateAll}
               disabled={isGenerating || allLocations.length === 0}
               variant="outline"
-              className="flex items-center gap-2"
+              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
             >
               <RefreshCw className="h-4 w-4" />
-              สร้าง QR ใหม่ทั้งหมด
+              <span className="hidden sm:inline">สร้าง QR ใหม่ทั้งหมด</span>
+              <span className="sm:hidden">สร้างใหม่</span>
             </Button>
 
             <Button
               onClick={() => setShowRangeGenerator(true)}
               disabled={isGenerating}
               variant="outline"
-              className="flex items-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
+              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
             >
               <Grid3X3 className="h-4 w-4" />
               สร้างจาก Range
@@ -383,7 +389,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
               onClick={refetch}
               variant="outline"
               disabled={loading}
-              className="flex items-center gap-2"
+              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
@@ -392,7 +398,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             <Button
               onClick={() => setShowScanner(true)}
               variant="default"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
             >
               <Scan className="h-4 w-4" />
               สแกน QR Code
@@ -401,21 +407,22 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             {/* Single location generation */}
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="flex items-center gap-2">
+                <Button variant="outline" className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2">
                   <QrCode className="h-4 w-4" />
-                  สร้าง QR ตำแหน่งเดียว
+                  <span className="hidden sm:inline">สร้าง QR ตำแหน่งเดียว</span>
+                  <span className="sm:hidden">สร้าง 1 ตำแหน่ง</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-full h-auto sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
-                  <DialogDescription>
+                  <DialogTitle className="text-base sm:text-lg">สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
+                  <DialogDescription className="text-sm">
                     เลือกตำแหน่งที่ต้องการสร้าง QR Code
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 sm:h-10">
                       <SelectValue placeholder="เลือกตำแหน่ง" />
                     </SelectTrigger>
                     <SelectContent>
@@ -434,7 +441,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                       }
                     }}
                     disabled={!selectedLocation || isGenerating}
-                    className="w-full"
+                    className="h-11 sm:h-10 w-full"
                   >
                     สร้าง QR Code
                   </Button>
@@ -447,14 +454,14 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
 
       {/* Search */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4 sm:pt-6">
           <div className="flex items-center space-x-2">
             <Search className="h-4 w-4 text-gray-400" />
             <Input
               placeholder="ค้นหาตำแหน่ง..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
+              className="h-11 sm:h-10 flex-1"
             />
           </div>
         </CardContent>
@@ -486,17 +493,17 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
 
             return (
               <Card key={qrCode.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center justify-between text-lg">
+                <CardHeader className="p-3 sm:pb-3 sm:p-6">
+                  <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-base sm:text-lg">
                     <span className="flex items-center gap-2">
                       <MapPin className="h-4 w-4" />
                       {qrCode.location}
                     </span>
                     <div className="flex gap-2">
-                      <Badge variant={qrCode.is_active ? "default" : "secondary"}>
+                      <Badge variant={qrCode.is_active ? "default" : "secondary"} className="text-xs">
                         {qrCode.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}
                       </Badge>
-                      <Badge variant={isUrlFormat ? "default" : "destructive"}>
+                      <Badge variant={isUrlFormat ? "default" : "destructive"} className="text-xs">
                         {isUrlFormat ? "URL" : "JSON"}
                       </Badge>
                     </div>
@@ -542,15 +549,16 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 sm:flex gap-2">
                     <Button
                       onClick={() => downloadQRCode(qrCode)}
                       size="sm"
                       variant="outline"
-                      className="flex-1"
+                      className="h-9 sm:h-8 flex-1 text-xs"
                     >
                       <Download className="h-3 w-3 mr-1" />
-                      ดาวน์โหลด
+                      <span className="hidden sm:inline">ดาวน์โหลด</span>
+                      <span className="sm:hidden">ดาวน์โหลด</span>
                     </Button>
 
                     <Dialog>
@@ -559,13 +567,14 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                           onClick={() => setSelectedQRCode(qrCode)}
                           size="sm"
                           variant="outline"
+                          className="h-9 sm:h-8"
                         >
                           <Eye className="h-3 w-3" />
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="max-w-md">
+                      <DialogContent className="max-w-full h-auto sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>QR Code - {qrCode.location}</DialogTitle>
+                          <DialogTitle className="text-base sm:text-lg">QR Code - {qrCode.location}</DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4">
                           {qrCode.qr_image_url && (
@@ -573,11 +582,11 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                               <img
                                 src={qrCode.qr_image_url}
                                 alt={`QR Code for ${qrCode.location}`}
-                                className="w-48 h-48 border rounded"
+                                className="w-40 h-40 sm:w-48 sm:h-48 border rounded"
                               />
                             </div>
                           )}
-                          <div className="text-sm space-y-2">
+                          <div className="text-xs sm:text-sm space-y-2">
                             <div><strong>ตำแหน่ง:</strong> {qrCode.location}</div>
                             <div><strong>สถานะ:</strong> {qrCode.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</div>
                             <div><strong>รูปแบบ:</strong> {isUrlFormat ? 'URL (ใหม่)' : 'JSON (เก่า)'}</div>
@@ -594,6 +603,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                       size="sm"
                       variant="secondary"
                       disabled={isGenerating}
+                      className="h-9 sm:h-8"
                     >
                       <RefreshCw className="h-3 w-3" />
                     </Button>
@@ -602,6 +612,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                       onClick={() => deleteQRCode(qrCode.id)}
                       size="sm"
                       variant="destructive"
+                      className="h-9 sm:h-8"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -616,19 +627,20 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
       {/* Locations without QR */}
       {locationsWithoutQR.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Archive className="h-4 w-4" />
-              ตำแหน่งที่ยังไม่มี QR Code ({locationsWithoutQR.length})
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Archive className="h-4 w-4 sm:h-5 sm:w-5" />
+              <span className="hidden sm:inline">ตำแหน่งที่ยังไม่มี QR Code ({locationsWithoutQR.length})</span>
+              <span className="sm:hidden">ไม่มี QR ({locationsWithoutQR.length})</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             <div className="flex flex-wrap gap-2">
               {locationsWithoutQR.map(location => (
                 <Badge
                   key={location}
                   variant="outline"
-                  className="cursor-pointer hover:bg-blue-50"
+                  className="cursor-pointer hover:bg-blue-50 text-xs sm:text-sm h-8 sm:h-auto"
                   onClick={() => handleGenerateQR(location)}
                 >
                   {location}
@@ -648,13 +660,13 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
 
       {/* Range Generator Dialog */}
       <Dialog open={showRangeGenerator} onOpenChange={setShowRangeGenerator}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-full h-auto sm:max-w-md overflow-y-auto max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Grid3X3 className="h-5 w-5" />
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5" />
               สร้าง QR Code จาก Range
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               กำหนดช่วงของตำแหน่งที่ต้องการสร้าง QR Code
             </DialogDescription>
           </DialogHeader>
@@ -663,21 +675,23 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             {/* Row Range */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-sm font-medium">แถวเริ่มต้น</label>
+                <label className="text-xs sm:text-sm font-medium">แถวเริ่มต้น</label>
                 <Input
                   value={rangeConfig.startRow}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, startRow: e.target.value.toUpperCase() }))}
                   placeholder="A"
                   maxLength={1}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">แถวสุดท้าย</label>
+                <label className="text-xs sm:text-sm font-medium">แถวสุดท้าย</label>
                 <Input
                   value={rangeConfig.endRow}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, endRow: e.target.value.toUpperCase() }))}
                   placeholder="Z"
                   maxLength={1}
+                  className="h-11 sm:h-10"
                 />
               </div>
             </div>
@@ -685,23 +699,25 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             {/* Level Range */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-sm font-medium">ชั้นเริ่มต้น</label>
+                <label className="text-xs sm:text-sm font-medium">ชั้นเริ่มต้น</label>
                 <Input
                   type="number"
                   value={rangeConfig.startLevel}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, startLevel: parseInt(e.target.value) || 1 }))}
                   min={1}
                   max={10}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">ชั้นสุดท้าย</label>
+                <label className="text-xs sm:text-sm font-medium">ชั้นสุดท้าย</label>
                 <Input
                   type="number"
                   value={rangeConfig.endLevel}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, endLevel: parseInt(e.target.value) || 5 }))}
                   min={1}
                   max={10}
+                  className="h-11 sm:h-10"
                 />
               </div>
             </div>
@@ -709,34 +725,36 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
             {/* Position Range */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-sm font-medium">ตำแหน่งเริ่มต้น</label>
+                <label className="text-xs sm:text-sm font-medium">ตำแหน่งเริ่มต้น</label>
                 <Input
                   type="number"
                   value={rangeConfig.startPosition}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, startPosition: parseInt(e.target.value) || 1 }))}
                   min={1}
                   max={99}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">ตำแหน่งสุดท้าย</label>
+                <label className="text-xs sm:text-sm font-medium">ตำแหน่งสุดท้าย</label>
                 <Input
                   type="number"
                   value={rangeConfig.endPosition}
                   onChange={(e) => setRangeConfig(prev => ({ ...prev, endPosition: parseInt(e.target.value) || 10 }))}
                   min={1}
                   max={99}
+                  className="h-11 sm:h-10"
                 />
               </div>
             </div>
 
             {/* Preview */}
             <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-sm font-medium mb-2">ตัวอย่าง:</div>
-              <div className="text-sm text-gray-600">
+              <div className="text-xs sm:text-sm font-medium mb-2">ตัวอย่าง:</div>
+              <div className="text-xs sm:text-sm text-gray-600">
                 จะสร้าง {generateLocationRange().length} ตำแหน่ง
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-[10px] sm:text-xs text-gray-500 mt-1">
                 เช่น: {generateLocationRange().slice(0, 3).join(', ')}...
               </div>
             </div>
@@ -745,14 +763,14 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
               <Button
                 onClick={() => setShowRangeGenerator(false)}
                 variant="outline"
-                className="flex-1"
+                className="h-11 sm:h-10 flex-1"
               >
                 ยกเลิก
               </Button>
               <Button
                 onClick={handleGenerateFromRange}
                 disabled={isGenerating}
-                className="flex-1"
+                className="h-11 sm:h-10 flex-1"
               >
                 สร้าง QR Code
               </Button>
@@ -765,24 +783,24 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
         {/* Print View Tab */}
         <TabsContent value="print" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Printer className="h-5 w-5" />
+            <CardHeader className="p-4 sm:p-6 space-y-4">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <Printer className="h-4 w-4 sm:h-5 sm:w-5" />
                 QR Code สำหรับพิมพ์
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="ค้นหาตำแหน่ง (เช่น A01-01)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="h-11 sm:h-10 pl-10"
                   />
                 </div>
                 <Button
                   onClick={() => window.print()}
-                  className="flex items-center gap-2"
+                  className="h-11 sm:h-10 flex items-center justify-center gap-2"
                   variant="outline"
                 >
                   <Printer className="h-4 w-4" />
@@ -882,11 +900,11 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
         {/* Debug & Test Tab */}
         <TabsContent value="debug" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>🔧 Debug & Diagnostic Tools</CardTitle>
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">🔧 Debug & Diagnostic Tools</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Debug tools have been removed for production deployment.</p>
+            <CardContent className="p-4 sm:p-6">
+              <p className="text-sm sm:text-base text-muted-foreground">Debug tools have been removed for production deployment.</p>
             </CardContent>
           </Card>
         </TabsContent>
