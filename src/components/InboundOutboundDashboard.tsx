@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -6,8 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   PackageCheck, PackageX, TruckIcon, Factory, Building2, Users2,
   Construction, ArrowDownToLine, ArrowUpFromLine, FileCheck,
-  Barcode, ClipboardCheck
+  Barcode, ClipboardCheck, List
 } from 'lucide-react';
+import { InboundReceiptModal } from '@/components/InboundReceiptModal';
+import { InboundReceiptList } from '@/components/InboundReceiptList';
 
 /**
  * InboundOutboundDashboard - Placeholder for Inbound/Outbound operations
@@ -30,6 +33,11 @@ import {
  * - Add PO integration for inbound tracking
  */
 export function InboundOutboundDashboard() {
+  // State for modals
+  const [showInboundFGModal, setShowInboundFGModal] = useState(false);
+  const [showInboundPKModal, setShowInboundPKModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'operations' | 'history'>('operations');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -38,18 +46,37 @@ export function InboundOutboundDashboard() {
           <h2 className="text-2xl font-bold">การรับเข้า-ส่งออกสินค้า</h2>
           <p className="text-muted-foreground">จัดการการรับเข้าและส่งออกสินค้าจาก/ไปยังแหล่งต่างๆ</p>
         </div>
+        <div className="flex gap-2">
+          <Button
+            variant={activeTab === 'operations' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('operations')}
+          >
+            <PackageCheck className="h-4 w-4 mr-2" />
+            ดำเนินการ
+          </Button>
+          <Button
+            variant={activeTab === 'history' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('history')}
+          >
+            <List className="h-4 w-4 mr-2" />
+            ประวัติ
+          </Button>
+        </div>
       </div>
 
-      {/* Development Notice */}
-      <Alert className="border-blue-200 bg-blue-50">
-        <Construction className="h-4 w-4 text-blue-600" />
-        <AlertTitle className="text-blue-800">ระบบกำลังพัฒนา</AlertTitle>
-        <AlertDescription className="text-blue-700">
-          ระบบการรับเข้า-ส่งออกสินค้าอยู่ระหว่างการพัฒนา UI นี้เตรียมไว้สำหรับการรวมระบบในอนาคต
-        </AlertDescription>
-      </Alert>
+      {/* Conditional View */}
+      {activeTab === 'operations' ? (
+        <>
+          {/* Success Notice */}
+          <Alert className="border-green-200 bg-green-50">
+            <PackageCheck className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-800">ระบบรับเข้าสินค้าพร้อมใช้งาน ✅</AlertTitle>
+            <AlertDescription className="text-green-700">
+              สามารถบันทึกการรับเข้าสินค้าจากโรงงาน/ซัพพลายเออร์ได้แล้ว
+            </AlertDescription>
+          </Alert>
 
-      <Tabs defaultValue="inbound" className="space-y-4">
+          <Tabs defaultValue="inbound" className="space-y-4">
         <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
           <TabsTrigger value="inbound" className="flex items-center gap-2">
             <ArrowDownToLine className="h-4 w-4" />
@@ -96,7 +123,7 @@ export function InboundOutboundDashboard() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button disabled className="flex-1">
+                  <Button onClick={() => setShowInboundFGModal(true)} className="flex-1">
                     <PackageCheck className="h-4 w-4 mr-2" />
                     รับสินค้าจากโรงงาน
                   </Button>
@@ -136,7 +163,7 @@ export function InboundOutboundDashboard() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button disabled className="flex-1">
+                  <Button onClick={() => setShowInboundPKModal(true)} className="flex-1">
                     <PackageCheck className="h-4 w-4 mr-2" />
                     รับสินค้าจากซัพพลายเออร์
                   </Button>
@@ -264,6 +291,30 @@ export function InboundOutboundDashboard() {
           </div>
         </CardContent>
       </Card>
+        </>
+      ) : (
+        /* History View */
+        <InboundReceiptList />
+      )}
+
+      {/* Modals */}
+      <InboundReceiptModal
+        isOpen={showInboundFGModal}
+        onClose={() => setShowInboundFGModal(false)}
+        onSuccess={() => {
+          setShowInboundFGModal(false);
+          // Refresh data if needed
+        }}
+      />
+
+      <InboundReceiptModal
+        isOpen={showInboundPKModal}
+        onClose={() => setShowInboundPKModal(false)}
+        onSuccess={() => {
+          setShowInboundPKModal(false);
+          // Refresh data if needed
+        }}
+      />
     </div>
   );
 }
