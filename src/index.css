@@ -4,6 +4,21 @@
 
 /* Warehouse Inventory Management Design System */
 
+/* Mobile-first responsive base */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
 @layer base {
   :root {
     /* Background & Surface */
