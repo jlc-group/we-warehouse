@@ -78,19 +78,20 @@ function LocationSelectionModal({ isOpen, onClose, orderItem, onLocationSelect }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            เลือก Location สำหรับ {orderItem.product_name}
+      <DialogContent className="max-w-full h-full sm:max-w-4xl sm:max-h-[80vh] overflow-y-auto">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">เลือก Location สำหรับ {orderItem.product_name}</span>
+            <span className="sm:hidden truncate">เลือก Location</span>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {/* Order Item Info */}
           <Card>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+            <CardContent className="pt-3 sm:pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-xs sm:text-sm">
                 <div>
                   <strong>ใบสั่ง:</strong> {orderItem.order_number}
                 </div>
@@ -281,33 +282,33 @@ export function WarehouseFulfillmentDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-gray-500" />
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">รอจัด</p>
-                <p className="text-2xl font-bold text-gray-900">{statisticsData.pending}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">รอจัด</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900">{statisticsData.pending}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5 text-blue-500" />
+              <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               <div>
-                <p className="text-sm font-medium text-blue-600">กำหนด Location</p>
-                <p className="text-2xl font-bold text-blue-900">{statisticsData.assigned}</p>
+                <p className="text-xs sm:text-sm font-medium text-blue-600 truncate">กำหนด Location</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-900">{statisticsData.assigned}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
               <Package className="h-5 w-5 text-yellow-500" />
               <div>
