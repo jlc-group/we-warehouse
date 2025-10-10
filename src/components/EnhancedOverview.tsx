@@ -1407,57 +1407,60 @@ export const EnhancedOverview = memo(({
 
             <TabsContent value="table">
               <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" />
-                      ตารางภาพรวมตำแหน่ง
-                      <Badge variant="outline" className="text-xs">
-                        {stats.occupiedLocations}/{2080} ตำแหน่ง
+                <CardHeader className="p-3 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                      <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <span className="hidden sm:inline">ตารางภาพรวมตำแหน่ง</span>
+                      <span className="sm:hidden">ตารางตำแหน่ง</span>
+                      <Badge variant="outline" className="text-[10px] sm:text-xs">
+                        {stats.occupiedLocations}/{2080}
                       </Badge>
                     </CardTitle>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => exportGridToExcel()}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
                       >
-                        <FileSpreadsheet className="h-4 w-4" />
-                        Export Excel
+                        <FileSpreadsheet className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Export Excel</span>
+                        <span className="sm:hidden">Excel</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => exportGridToPDF()}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
                       >
-                        <Download className="h-4 w-4" />
-                        Export PDF
+                        <Download className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="hidden sm:inline">Export PDF</span>
+                        <span className="sm:hidden">PDF</span>
                       </Button>
                       
                       <Dialog open={showAddRowDialog} onOpenChange={setShowAddRowDialog}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="flex items-center gap-2">
-                            <Plus className="h-4 w-4" />
+                          <Button variant="outline" size="sm" className="flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm hidden sm:flex">
+                            <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                             เพิ่มแถว
                           </Button>
                         </DialogTrigger>
-                      <DialogContent className="sm:max-w-md">
+                      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
                         <DialogHeader>
-                          <DialogTitle>เพิ่มแถวใหม่</DialogTitle>
+                          <DialogTitle className="text-base sm:text-lg">เพิ่มแถวใหม่</DialogTitle>
                         </DialogHeader>
-                        <div className="space-y-4 py-4">
+                        <div className="space-y-3 sm:space-y-4 py-3 sm:py-4">
                           <div className="space-y-2">
-                            <Label htmlFor="rowName">ชื่อแถว (ตัวอักษร A-Z เท่านั้น)</Label>
+                            <Label htmlFor="rowName" className="text-xs sm:text-sm">ชื่อแถว (ตัวอักษร A-Z เท่านั้น)</Label>
                             <Input
                               id="rowName"
                               placeholder="เช่น O, P, Q..."
                               value={newRowName}
                               onChange={(e) => setNewRowName(e.target.value.toUpperCase())}
                               maxLength={1}
-                              className="text-center font-mono text-lg"
+                              className="text-center font-mono text-base sm:text-lg h-11 sm:h-10"
                             />
                           </div>
                           {newRowName && (() => {
