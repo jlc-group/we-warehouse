@@ -332,18 +332,18 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto bg-white">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
             เพิ่มสินค้าหลายตำแหน่ง
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             เพิ่มสินค้าชนิดเดียวกันในหลายตำแหน่งพร้อมกัน
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-6 py-2 sm:py-4 px-4 sm:px-6">
           {/* Product Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">ข้อมูลสินค้า</h3>
@@ -365,7 +365,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   setIsNewProduct(false);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11 sm:h-10">
                   <SelectValue placeholder="เลือกประเภทสินค้า" />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,7 +415,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
                   placeholder="กรอกชื่อสินค้า"
-                  className={isNewProduct ? "border-orange-300 focus-visible:ring-orange-500" : ""}
+                  className={`h-11 sm:h-10 ${isNewProduct ? "border-orange-300 focus-visible:ring-orange-500" : ""}`}
                 />
               </div>
 
@@ -435,7 +435,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                     variant="outline"
                     role="combobox"
                     aria-expanded={isProductCodeOpen}
-                    className="w-full justify-between"
+                    className="w-full justify-between h-11 sm:h-10"
                     disabled={!selectedProductType}
                     onClick={() => selectedProductType && setIsProductCodeOpen(!isProductCodeOpen)}
                     onKeyDown={(e) => {
@@ -547,6 +547,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   value={lot}
                   onChange={(e) => setLot(e.target.value)}
                   placeholder="กรอก Lot (ถ้ามี)"
+                  className="h-11 sm:h-10"
                 />
               </div>
 
@@ -557,11 +558,12 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   type="date"
                   value={mfd}
                   onChange={(e) => setMfd(e.target.value)}
+                  className="h-11 sm:h-10"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="quantityBoxes">จำนวนลัง</Label>
                 <Input
@@ -570,6 +572,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   min="0"
                   value={quantityBoxes}
                   onChange={(e) => setQuantityBoxes(parseInt(e.target.value) || 0)}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -580,6 +583,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   min="0"
                   value={quantityLoose}
                   onChange={(e) => setQuantityLoose(parseInt(e.target.value) || 0)}
+                  className="h-11 sm:h-10"
                 />
               </div>
               <div className="space-y-2">
@@ -590,6 +594,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   min="0"
                   value={quantityPieces}
                   onChange={(e) => setQuantityPieces(parseInt(e.target.value) || 0)}
+                  className="h-11 sm:h-10"
                 />
               </div>
             </div>
@@ -611,12 +616,14 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                 value={customLocation}
                 onChange={(e) => setCustomLocation(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCustomLocation()}
+                className="h-11 sm:h-10"
               />
               <Button
                 type="button"
                 onClick={handleAddCustomLocation}
                 disabled={!customLocation.trim()}
                 size="sm"
+                className="h-11 sm:h-10 px-3 sm:px-4"
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -661,18 +668,18 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
               </div>
 
               {/* Location Search and Filter */}
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="ค้นหาตำแหน่ง (เช่น A1 หรือ A1/1)"
                     value={locationSearch}
                     onChange={(e) => setLocationSearch(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-11 sm:h-10"
                   />
                 </div>
                 <Select value={rowFilter} onValueChange={setRowFilter}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full sm:w-40 h-11 sm:h-10">
                     <SelectValue placeholder="แถว" />
                   </SelectTrigger>
                   <SelectContent className="max-h-60 overflow-y-auto">
@@ -685,7 +692,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                   </SelectContent>
                 </Select>
                 <Select value={locationFilter} onValueChange={(value: 'all' | 'empty' | 'occupied') => setLocationFilter(value)}>
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger className="w-full sm:w-40 h-11 sm:h-10">
                     <Filter className="h-4 w-4 mr-2" />
                     <SelectValue />
                   </SelectTrigger>
@@ -713,7 +720,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
                     💡 แสดง {filteredLocations.length} ตำแหน่ง - ใช้ filter หรือค้นหาเพื่อลดจำนวน
                   </div>
                 )}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                   {filteredLocations.length > 0 ? (
                     // Performance: Limit rendering to first 500 items to prevent forced reflows
                     filteredLocations.slice(0, 500).map(locationData => (
@@ -765,13 +772,13 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={handleClose} className="flex-1">
+        <div className="flex gap-2 pt-3 sm:pt-4 px-4 sm:px-6 pb-4">
+          <Button variant="outline" onClick={handleClose} className="flex-1 h-11 sm:h-10">
             ยกเลิก
           </Button>
           <Button
             onClick={handleSave}
-            className="flex-1"
+            className="flex-1 h-11 sm:h-10"
             disabled={!productName.trim() || !productCodeInputValue.trim() || selectedLocations.size === 0}
           >
             บันทึก ({selectedLocations.size} ตำแหน่ง)
