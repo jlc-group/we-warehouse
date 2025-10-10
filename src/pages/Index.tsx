@@ -638,15 +638,16 @@ const Index = memo(() => {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="w-full mx-auto px-4 py-8 space-y-8 max-w-[1920px]">
+      <div className="w-full mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8 max-w-[1920px]">
         {/* Header */}
         <Card className="bg-white border border-gray-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-6 w-6" />
-                  ระบบจัดการคลัง Inventory Warehouse
+          <CardHeader className="p-3 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Package className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="hidden sm:inline">ระบบจัดการคลัง Inventory Warehouse</span>
+                  <span className="sm:hidden">คลังสินค้า</span>
                 </CardTitle>
 
                 {/* Warehouse Selector */}
@@ -654,13 +655,13 @@ const Index = memo(() => {
                   selectedWarehouseId={selectedWarehouseId}
                   onWarehouseChange={setSelectedWarehouseId}
                   showAddButton={true}
-                  className="min-w-0"
+                  className="min-w-0 w-full sm:w-auto"
                 />
               </div>
 
               {/* User Profile Section */}
-              <div className="flex items-center gap-4">
-                <div className="text-right">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <div className="text-right hidden sm:block">
                   <p className="text-sm font-medium">{user?.role || 'ผู้ใช้งาน'}</p>
                   <div className="flex items-center gap-2">
                     {user?.department && (
@@ -684,8 +685,8 @@ const Index = memo(() => {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                      <Avatar className="h-9 w-9">
+                    <Button variant="ghost" className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-full">
+                      <Avatar className="h-8 w-8 sm:h-9 sm:w-9">
                         <AvatarImage src={user?.avatar_url} alt={user?.full_name || 'User'} />
                         <AvatarFallback>
                           {userInitials}
@@ -752,20 +753,20 @@ const Index = memo(() => {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="bg-white">
+          <CardContent className="bg-white p-3 sm:p-6">
             {loading && (
-              <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mb-4 sm:mb-6 p-3 sm:p-6 bg-blue-50 border border-blue-200 rounded-lg">
                 <ComponentLoadingFallback componentName="ระบบคลังสินค้า" />
               </div>
             )}
 
             {!loading && inventoryItems.length === 0 && (
-              <div className="mb-6 p-6 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="text-center space-y-4">
-                  <div className="text-orange-600 text-lg font-semibold">
+              <div className="mb-4 sm:mb-6 p-3 sm:p-6 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="text-center space-y-2 sm:space-y-4">
+                  <div className="text-orange-600 text-base sm:text-lg font-semibold">
                     📦 ไม่พบข้อมูลในระบบ
                   </div>
-                  <p className="text-muted-foreground">
+                  <p className="text-sm sm:text-base text-muted-foreground">
                     ระบบไม่พบข้อมูลสินค้าในคลัง กรุณาใช้แท็บ "กู้คืนข้อมูล" เพื่อเพิ่มข้อมูล
                   </p>
                 </div>
@@ -773,12 +774,12 @@ const Index = memo(() => {
             )}
 
             {!loading && inventoryItems.length > 0 && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="text-green-700 font-medium">
+              <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="text-sm sm:text-base text-green-700 font-medium">
                     ✅ พบข้อมูลสินค้า {inventoryItems.length} รายการ
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs sm:text-sm text-muted-foreground">
                     สถานะ: {connectionStatus === 'connected' ? '🟢 เชื่อมต่อแล้ว' :
                            connectionStatus === 'connecting' ? '🟡 กำลังเชื่อมต่อ...' :
                            '🔴 ไม่สามารถเชื่อมต่อได้'}
@@ -787,9 +788,9 @@ const Index = memo(() => {
               </div>
             )}
             
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <p className="text-muted-foreground">
+                <p className="text-sm sm:text-base text-muted-foreground">
                   {loading ? 'กำลังโหลด...' : `จำนวนสินค้าทั้งหมด: ${inventoryItems.length} รายการ`}
                 </p>
                 {accessSummary && (
@@ -797,12 +798,12 @@ const Index = memo(() => {
                     🔒 เข้าถึงได้ {accessSummary.accessibleItems}/{accessSummary.totalItems} รายการ ({accessSummary.accessPercentage}%)
                   </p>
                 )}
-                <p className="text-sm text-success mt-2">
+                <p className="text-xs sm:text-sm text-success mt-1 sm:mt-2">
                   ✅ ระบบพร้อมใช้งาน
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 {permissions.canAdd && (
                   <Button
                     variant="outline"
@@ -855,59 +856,61 @@ const Index = memo(() => {
 
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-11 bg-white border border-gray-200 h-auto">
-            <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
-              <PieChart className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-11 bg-white border border-gray-200 h-auto overflow-x-auto">
+            <TabsTrigger value="overview" className="flex items-center gap-1 sm:gap-2 h-10 sm:h-12 text-xs sm:text-sm">
+              <PieChart className="h-3 w-3 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">ภาพรวม</span>
+              <span className="sm:hidden">หน้าแรก</span>
             </TabsTrigger>
             {/* ซ่อนแท็บ Purchase Orders ไว้ก่อน */}
             {/* <TabsTrigger value="purchase-orders" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <Package className="h-4 w-4 text-purple-600" />
               <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
             </TabsTrigger> */}
-            <TabsTrigger value="packing-list" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
-              <Package className="h-4 w-4 text-purple-600" />
+            <TabsTrigger value="packing-list" className="flex items-center gap-1 sm:gap-2 h-10 sm:h-12 bg-purple-50 hover:bg-purple-100 text-xs sm:text-sm">
+              <Package className="h-3 w-3 sm:h-4 sm:w-4 text-purple-600" />
               <span className="hidden sm:inline text-purple-600 font-medium">รายการแพค</span>
+              <span className="sm:hidden text-purple-600">แพค</span>
             </TabsTrigger>
-            <TabsTrigger value="warehouse-management" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
+            <TabsTrigger value="warehouse-management" className="hidden lg:flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100 text-sm">
               <Warehouse className="h-4 w-4 text-green-600" />
-              <span className="hidden md:inline text-green-600 font-medium">จัดการคลัง</span>
+              <span className="text-green-600 font-medium">จัดการคลัง</span>
             </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2 h-12">
+            <TabsTrigger value="table" className="hidden sm:flex items-center gap-2 h-12 text-sm">
               <Table className="h-4 w-4" />
-              <span className="hidden sm:inline">ตารางข้อมูล</span>
+              <span>ตารางข้อมูล</span>
             </TabsTrigger>
-            <TabsTrigger value="stock-overview" className="flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100">
+            <TabsTrigger value="stock-overview" className="hidden md:flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100 text-sm">
               <Grid3X3 className="h-4 w-4 text-blue-600" />
-              <span className="hidden md:inline text-blue-600 font-medium">สรุปสต็อก</span>
+              <span className="text-blue-600 font-medium">สรุปสต็อก</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2 h-12">
+            <TabsTrigger value="analytics" className="hidden lg:flex items-center gap-2 h-12 text-sm">
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden md:inline">Analytics & แผนก</span>
+              <span>Analytics & แผนก</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2 h-12">
+            <TabsTrigger value="history" className="hidden md:flex items-center gap-2 h-12 text-sm">
               <Archive className="h-4 w-4" />
-              <span className="hidden sm:inline">ประวัติ</span>
+              <span>ประวัติ</span>
             </TabsTrigger>
-            <TabsTrigger value="transfers" className="flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100">
+            <TabsTrigger value="transfers" className="hidden lg:flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100 text-sm">
               <Truck className="h-4 w-4 text-orange-600" />
-              <span className="hidden md:inline text-orange-600 font-medium">จัดการการย้าย</span>
+              <span className="text-orange-600 font-medium">จัดการการย้าย</span>
             </TabsTrigger>
-            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100">
+            <TabsTrigger value="inbound-outbound" className="hidden lg:flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100 text-sm">
               <PackagePlus className="h-4 w-4 text-teal-600" />
-              <span className="hidden md:inline text-teal-600 font-medium">รับเข้า-ส่งออก</span>
+              <span className="text-teal-600 font-medium">รับเข้า-ส่งออก</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100">
+            <TabsTrigger value="bill-clearing" className="hidden lg:flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100 text-sm">
               <CreditCard className="h-4 w-4 text-red-600" />
-              <span className="hidden md:inline text-red-600 font-medium">เคลียร์บิล</span>
+              <span className="text-red-600 font-medium">เคลียร์บิล</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-status" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
+            <TabsTrigger value="bill-status" className="hidden lg:flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100 text-sm">
               <BarChart3 className="h-4 w-4 text-purple-600" />
-              <span className="hidden md:inline text-purple-600 font-medium">ตรวจสอบสถานะ</span>
+              <span className="text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
-            <TabsTrigger value="qr" className="flex items-center gap-2 h-12">
+            <TabsTrigger value="qr" className="hidden sm:flex items-center gap-2 h-12 text-sm">
               <QrCode className="h-4 w-4" />
-              <span className="hidden sm:inline">QR & ตำแหน่ง</span>
+              <span>QR & ตำแหน่ง</span>
             </TabsTrigger>
             {/* Admin tab removed from navbar as requested */}
           </TabsList>
