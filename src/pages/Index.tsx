@@ -1136,7 +1136,7 @@ const Index = memo(() => {
 
           <TabsContent value="finance" className="space-y-4">
             <Tabs defaultValue="dashboard" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Dashboard การเงิน
@@ -1144,10 +1144,6 @@ const Index = memo(() => {
                 <TabsTrigger value="sales-list" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   รายการขายทั้งหมด
-                </TabsTrigger>
-                <TabsTrigger value="bill-clearing" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  เคลียร์บิล
                 </TabsTrigger>
                 <TabsTrigger value="bill-status" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
@@ -1163,17 +1159,6 @@ const Index = memo(() => {
                 <SalesListTab />
               </TabsContent>
 
-              <TabsContent value="bill-clearing">
-                <FallbackBanner
-                  show={isFallbackMode || !features.billClearing}
-                  type="info"
-                  title="ระบบ Bill Clearing อยู่ในโหมดสำรอง"
-                  description="ฐานข้อมูลยังไม่มีตารางสำหรับระบบ Bill Clearing ครบถ้วน การทำงานจะใช้ข้อมูลเดิมและฟังก์ชันสำรอง"
-                  showMigrationButton={true}
-                />
-                <OrderStatusDashboard userRole="bill_clearer" />
-              </TabsContent>
-
               <TabsContent value="bill-status">
                 <FallbackBanner
                   show={isFallbackMode || !features.orderStatusHistory}
@@ -1184,6 +1169,18 @@ const Index = memo(() => {
                 />
                 <OrderStatusDashboard userRole="bill_checker" />
               </TabsContent>
+
+              {/* ซ่อน Bill Clearing ไว้ก่อน - ยังไม่ได้ใช้งาน */}
+              {/* <TabsContent value="bill-clearing">
+                <FallbackBanner
+                  show={isFallbackMode || !features.billClearing}
+                  type="info"
+                  title="ระบบ Bill Clearing อยู่ในโหมดสำรอง"
+                  description="ฐานข้อมูลยังไม่มีตารางสำหรับระบบ Bill Clearing ครบถ้วน การทำงานจะใช้ข้อมูลเดิมและฟังก์ชันสำรอง"
+                  showMigrationButton={true}
+                />
+                <OrderStatusDashboard userRole="bill_clearer" />
+              </TabsContent> */}
             </Tabs>
           </TabsContent>
 
