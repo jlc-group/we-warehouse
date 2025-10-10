@@ -298,31 +298,33 @@ export function LocationTransferModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ArrowLeftRight className="h-5 w-5" />
-            ย้ายสินค้าจาก Location {fromLocationId}
+      <DialogContent className="max-w-full h-full sm:max-w-4xl sm:max-h-[80vh] overflow-y-auto">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <ArrowLeftRight className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">ย้ายสินค้าจาก Location {fromLocationId}</span>
+            <span className="sm:hidden">ย้ายสินค้า ({fromLocationId})</span>
           </DialogTitle>
-          <DialogDescription>
-            เลือกสินค้าและปลายทางที่ต้องการย้าย ระบบจะบันทึกประวัติการย้ายโดยอัตโนมัติ
+          <DialogDescription className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">เลือกสินค้าและปลายทางที่ต้องการย้าย ระบบจะบันทึกประวัติการย้ายโดยอัตโนมัติ</span>
+            <span className="sm:hidden">เลือกสินค้าและปลายทาง</span>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
           {/* Destination Selection */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
+            <CardHeader className="pb-2 sm:pb-3">
+              <CardTitle className="text-sm sm:text-base flex items-center gap-2">
+                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                 เลือกปลายทาง
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="to-location">ตำแหน่งปลายทาง</Label>
+                <Label htmlFor="to-location" className="text-xs sm:text-sm">ตำแหน่งปลายทาง</Label>
                 <Select value={toLocation} onValueChange={setToLocation}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
                     <SelectValue placeholder="เลือกตำแหน่งปลายทาง..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -337,11 +339,12 @@ export function LocationTransferModal({
                 </Select>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
                 <div className="flex items-center gap-2 text-blue-800">
-                  <Package className="h-4 w-4" />
-                  <span className="text-sm font-medium">
-                    💡 เลือกสินค้าแล้วระบุจำนวนที่ต้องการย้าย สามารถย้ายบางส่วนหรือทั้งหมดได้
+                  <Package className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-sm font-medium">
+                    <span className="hidden sm:inline">💡 เลือกสินค้าแล้วระบุจำนวนที่ต้องการย้าย สามารถย้ายบางส่วนหรือทั้งหมดได้</span>
+                    <span className="sm:hidden">เลือกสินค้าและระบุจำนวน</span>
                   </span>
                 </div>
               </div>
@@ -350,42 +353,44 @@ export function LocationTransferModal({
 
           {/* Item Selection */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center justify-between">
+            <CardHeader className="pb-2 sm:pb-3">
+              <CardTitle className="text-sm sm:text-base flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
                 <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  เลือกสินค้าที่ต้องการย้าย
+                  <Package className="h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">เลือกสินค้าที่ต้องการย้าย</span>
+                  <span className="sm:hidden">เลือกสินค้า</span>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <Button variant="outline" size="sm" onClick={handleSelectAll}>
+                <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm w-full sm:w-auto">
+                  <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none">
                     {Object.values(transferItems).every(item => item.selected) ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
                   </Button>
-                  <div className="text-gray-500">
-                    เลือก {selectedCount} รายการ ({totalSelectedPieces.toLocaleString()} ชิ้น)
+                  <div className="text-gray-500 text-xs sm:text-sm">
+                    <span className="hidden sm:inline">เลือก {selectedCount} รายการ ({totalSelectedPieces.toLocaleString()} ชิ้น)</span>
+                    <span className="sm:hidden">{selectedCount} รายการ</span>
                   </div>
                 </div>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 sm:space-y-4">
               {inventory.map((item) => {
                 const transferItem = transferItems[item.id];
                 if (!transferItem) return null;
 
                 return (
-                  <div key={item.id} className={`border rounded-lg p-4 ${transferItem.selected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
-                    <div className="flex items-start gap-4">
+                  <div key={item.id} className={`border rounded-lg p-3 sm:p-4 ${transferItem.selected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                    <div className="flex items-start gap-2 sm:gap-4">
                       <Checkbox
                         checked={transferItem.selected}
                         onCheckedChange={() => handleItemToggle(item.id)}
-                        className="mt-1"
+                        className="mt-1 h-5 w-5 sm:h-4 sm:w-4"
                       />
 
-                      <div className="flex-1 space-y-3">
+                      <div className="flex-1 space-y-2 sm:space-y-3 min-w-0">
                         <div>
-                          <div className="font-medium">{item.product_name}</div>
-                          <div className="text-sm text-gray-500 font-mono">{item.sku}</div>
+                          <div className="font-medium text-sm sm:text-base truncate">{item.product_name}</div>
+                          <div className="text-xs sm:text-sm text-gray-500 font-mono truncate">{item.sku}</div>
                           {item.lot && (
-                            <div className="text-xs text-gray-400">LOT: {item.lot}</div>
+                            <div className="text-[10px] sm:text-xs text-gray-400">LOT: {item.lot}</div>
                           )}
                         </div>
 
@@ -419,9 +424,9 @@ export function LocationTransferModal({
                             </div>
 
                             {/* ป้อนจำนวนที่ย้าย */}
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                               <div className="space-y-2">
-                                <Label className="text-xs font-medium text-blue-700">
+                                <Label className="text-[10px] sm:text-xs font-medium text-blue-700">
                                   🔵 ย้าย {item.unit_level1_name}
                                 </Label>
                                 <div className="relative">
@@ -431,16 +436,16 @@ export function LocationTransferModal({
                                     max={item.unit_level1_quantity}
                                     value={transferItem.transferQuantities.level1}
                                     onChange={(e) => handleQuantityChange(item.id, 'level1', e.target.value)}
-                                    className="text-center font-medium border-blue-300 focus:border-blue-500"
+                                    className="text-center font-medium border-blue-300 focus:border-blue-500 h-11 sm:h-10 text-xs sm:text-sm"
                                     placeholder="0"
                                   />
-                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                  <div className="text-[10px] sm:text-xs text-gray-500 mt-1 text-center">
                                     สูงสุด: {item.unit_level1_quantity}
                                   </div>
                                 </div>
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-xs font-medium text-green-700">
+                                <Label className="text-[10px] sm:text-xs font-medium text-green-700">
                                   🟢 ย้าย {item.unit_level2_name}
                                 </Label>
                                 <div className="relative">
@@ -450,16 +455,16 @@ export function LocationTransferModal({
                                     max={item.unit_level2_quantity}
                                     value={transferItem.transferQuantities.level2}
                                     onChange={(e) => handleQuantityChange(item.id, 'level2', e.target.value)}
-                                    className="text-center font-medium border-green-300 focus:border-green-500"
+                                    className="text-center font-medium border-green-300 focus:border-green-500 h-11 sm:h-10 text-xs sm:text-sm"
                                     placeholder="0"
                                   />
-                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                  <div className="text-[10px] sm:text-xs text-gray-500 mt-1 text-center">
                                     สูงสุด: {item.unit_level2_quantity}
                                   </div>
                                 </div>
                               </div>
                               <div className="space-y-2">
-                                <Label className="text-xs font-medium text-purple-700">
+                                <Label className="text-[10px] sm:text-xs font-medium text-purple-700">
                                   🟣 ย้าย {item.unit_level3_name}
                                 </Label>
                                 <div className="relative">
@@ -469,10 +474,10 @@ export function LocationTransferModal({
                                     max={item.unit_level3_quantity}
                                     value={transferItem.transferQuantities.level3}
                                     onChange={(e) => handleQuantityChange(item.id, 'level3', e.target.value)}
-                                    className="text-center font-medium border-purple-300 focus:border-purple-500"
+                                    className="text-center font-medium border-purple-300 focus:border-purple-500 h-11 sm:h-10 text-xs sm:text-sm"
                                     placeholder="0"
                                   />
-                                  <div className="text-xs text-gray-500 mt-1 text-center">
+                                  <div className="text-[10px] sm:text-xs text-gray-500 mt-1 text-center">
                                     สูงสุด: {item.unit_level3_quantity}
                                   </div>
                                 </div>
@@ -630,17 +635,17 @@ export function LocationTransferModal({
           )}
         </div>
 
-        <div className="flex justify-end space-x-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose} disabled={loading}>
-            <X className="h-4 w-4 mr-2" />
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-3 sm:pt-4 border-t">
+          <Button variant="outline" onClick={onClose} disabled={loading} className="h-11 sm:h-10 text-xs sm:text-sm w-full sm:w-auto">
+            <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
             ยกเลิก
           </Button>
           <Button
             onClick={handleTransfer}
             disabled={loading || selectedCount === 0 || !toLocation}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-orange-600 hover:bg-orange-700 h-11 sm:h-10 text-xs sm:text-sm w-full sm:w-auto"
           >
-            <ArrowLeftRight className="h-4 w-4 mr-2" />
+            <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
             {loading ? 'กำลังย้าย...' : `ย้ายสินค้า (${selectedCount} รายการ)`}
           </Button>
         </div>
