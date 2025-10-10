@@ -154,13 +154,13 @@ export function LocationItemSelector({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
+      <DialogContent className="max-w-full h-full sm:max-w-4xl sm:max-h-[90vh] overflow-hidden">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MapPin className="h-4 w-4 sm:h-5 sm:w-5" />
             จัดการสินค้าในตำแหน่ง {displayLocation(location)}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             พบ {items.length} รายการสินค้าในตำแหน่งนี้ สามารถดู แก้ไข ลบ หรือเพิ่มรายการใหม่ได้
           </DialogDescription>
         </DialogHeader>
@@ -186,7 +186,7 @@ export function LocationItemSelector({
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-4">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
               <div className="text-center">
                 <div className="font-bold text-lg text-blue-600">{items.length}</div>
                 <div className="text-muted-foreground">รายการ</div>
@@ -224,21 +224,22 @@ export function LocationItemSelector({
         </Card>
 
         {/* Items List */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">รายการสินค้าในตำแหน่งนี้</h3>
+        <div className="space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+            <h3 className="text-base sm:text-lg font-semibold">รายการสินค้าในตำแหน่งนี้</h3>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {/* Add Item Button */}
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onAddNewItem}
-                className="flex items-center gap-2 text-green-600 border-green-200 hover:bg-green-50"
+                className="flex items-center gap-1 sm:gap-2 text-green-600 border-green-200 hover:bg-green-50 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
               >
-                <Plus className="h-4 w-4" />
-                เพิ่มสินค้า
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">เพิ่มสินค้า</span>
+                <span className="sm:hidden">เพิ่ม</span>
               </Button>
 
               {/* Export Button */}
@@ -246,10 +247,11 @@ export function LocationItemSelector({
                 variant="outline"
                 size="sm"
                 onClick={onExport}
-                className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50"
+                className="flex items-center gap-1 sm:gap-2 text-red-600 border-red-200 hover:bg-red-50 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
               >
-                <Send className="h-4 w-4" />
-                ส่งออก
+                <Send className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">ส่งออก</span>
+                <span className="sm:hidden">ส่ง</span>
               </Button>
 
               {/* Transfer Button */}
@@ -257,31 +259,32 @@ export function LocationItemSelector({
                 variant="outline"
                 size="sm"
                 onClick={onTransfer}
-                className="flex items-center gap-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                className="flex items-center gap-1 sm:gap-2 text-orange-600 border-orange-200 hover:bg-orange-50 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
               >
-                <ArrowLeftRight className="h-4 w-4" />
-                ย้าย
+                <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">ย้าย</span>
+                <span className="sm:hidden">ย้าย</span>
               </Button>
             </div>
           </div>
 
-          <ScrollArea className="h-[400px] w-full border rounded-lg">
-            <div className="p-4 space-y-3">
+          <ScrollArea className="h-[300px] sm:h-[400px] w-full border rounded-lg">
+            <div className="p-2 sm:p-4 space-y-2 sm:space-y-3">
               {items.map((item, index) => (
                 <Card key={item.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-2">
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-0">
+                      <div className="flex-1 space-y-2 w-full">
                         {/* Product Info */}
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                            <span className="text-sm font-bold text-blue-600">{index + 1}</span>
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs sm:text-sm font-bold text-blue-600">{index + 1}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h4 className="font-semibold text-gray-900 truncate">
+                            <h4 className="font-semibold text-sm sm:text-base text-gray-900 truncate">
                               {(item as any).product_name || item.sku}
                             </h4>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 mt-1">
                               <div className="flex items-center gap-1">
                                 <Hash className="h-3 w-3" />
                                 <span className="font-mono">{item.sku}</span>
@@ -295,7 +298,8 @@ export function LocationItemSelector({
                               {(item as any).mfd && (
                                 <div className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  <span>MFD: {new Date((item as any).mfd).toLocaleDateString('th-TH')}</span>
+                                  <span className="hidden sm:inline">MFD: {new Date((item as any).mfd).toLocaleDateString('th-TH')}</span>
+                                  <span className="sm:hidden">{new Date((item as any).mfd).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' })}</span>
                                 </div>
                               )}
                             </div>
@@ -303,32 +307,32 @@ export function LocationItemSelector({
                         </div>
 
                         {/* Quantity Info */}
-                        <div className="bg-gray-50 rounded p-3 ml-11 space-y-2">
+                        <div className="bg-gray-50 rounded p-2 sm:p-3 sm:ml-11 space-y-2">
                           {/* Individual Quantities */}
-                          <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
                             <div className="text-center">
-                              <div className="font-bold text-blue-600">{getCartonQty(item)}</div>
-                              <div className="text-xs text-gray-500">ลัง</div>
+                              <div className="font-bold text-sm sm:text-base text-blue-600">{getCartonQty(item)}</div>
+                              <div className="text-[10px] sm:text-xs text-gray-500">ลัง</div>
                             </div>
                             <div className="text-center">
-                              <div className="font-bold text-green-600">{getBoxQty(item)}</div>
-                              <div className="text-xs text-gray-500">กล่อง</div>
+                              <div className="font-bold text-sm sm:text-base text-green-600">{getBoxQty(item)}</div>
+                              <div className="text-[10px] sm:text-xs text-gray-500">กล่อง</div>
                             </div>
                             <div className="text-center">
-                              <div className="font-bold text-purple-600">{getPiecesQty(item)}</div>
-                              <div className="text-xs text-gray-500">ชิ้น</div>
+                              <div className="font-bold text-sm sm:text-base text-purple-600">{getPiecesQty(item)}</div>
+                              <div className="text-[10px] sm:text-xs text-gray-500">ชิ้น</div>
                             </div>
                           </div>
-                          
+
                           {/* Total Summary */}
-                          <div className="flex items-center justify-center gap-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 py-2 px-3 rounded-md">
-                            <Package className="h-3 w-3 text-orange-600" />
+                          <div className="flex items-center justify-center gap-1 sm:gap-2 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 py-1.5 sm:py-2 px-2 sm:px-3 rounded-md">
+                            <Package className="h-3 w-3 text-orange-600 flex-shrink-0" />
                             <div className="text-center">
-                              <div className="text-xs font-bold text-orange-800">
-                                รวมทั้งหมด: {calculateTotalPieces(item).totalPieces.toLocaleString()} ชิ้น
+                              <div className="text-[10px] sm:text-xs font-bold text-orange-800">
+                                รวม: {calculateTotalPieces(item).totalPieces.toLocaleString()} ชิ้น
                               </div>
                               {calculateTotalPieces(item).hasConversion && (
-                                <div className="text-xs text-orange-600 mt-0.5">
+                                <div className="text-[9px] sm:text-xs text-orange-600 mt-0.5">
                                   (คำนวณจากอัตราแปลง)
                                 </div>
                               )}
@@ -338,15 +342,15 @@ export function LocationItemSelector({
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex flex-col gap-2 ml-4">
+                      <div className="flex sm:flex-col gap-2 w-full sm:w-auto sm:ml-4">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => onSelectEdit(item)}
-                          className="flex items-center gap-2"
+                          className="flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
                         >
                           <Edit className="h-3 w-3" />
-                          แก้ไข
+                          <span>แก้ไข</span>
                         </Button>
 
                         {canDelete && (
@@ -355,25 +359,25 @@ export function LocationItemSelector({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="flex items-center gap-2 text-red-600 hover:text-red-700"
+                                className="flex items-center gap-1 sm:gap-2 text-red-600 hover:text-red-700 h-9 sm:h-8 text-xs sm:text-sm flex-1 sm:flex-none"
                               >
                                 <Trash2 className="h-3 w-3" />
-                                ลบ
+                                <span>ลบ</span>
                               </Button>
                             </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
                             <AlertDialogHeader>
-                              <AlertDialogTitle>ยืนยันการลบรายการ</AlertDialogTitle>
-                              <AlertDialogDescription>
+                              <AlertDialogTitle className="text-base sm:text-lg">ยืนยันการลบรายการ</AlertDialogTitle>
+                              <AlertDialogDescription className="text-xs sm:text-sm">
                                 คุณต้องการลบ "{(item as any).product_name || item.sku}" ออกจาก {displayLocation(location)} หรือไม่?
                                 ข้อมูลจะถูกลบออกจากระบบอย่างถาวร
                               </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                              <AlertDialogCancel className="h-11 sm:h-10 w-full sm:w-auto">ยกเลิก</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => handleDeleteConfirm(item.id)}
-                                className="bg-red-600 hover:bg-red-700"
+                                className="bg-red-600 hover:bg-red-700 h-11 sm:h-10 w-full sm:w-auto"
                                 disabled={deletingItemId === item.id}
                               >
                                 {deletingItemId === item.id ? 'กำลังลบ...' : 'ลบ'}
@@ -392,11 +396,12 @@ export function LocationItemSelector({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-gray-600">
-            💡 เลือกรายการเพื่อแก้ไข เพิ่มรายการใหม่ หรือลบรายการที่ไม่ต้องการ
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 pt-3 sm:pt-4 border-t">
+          <div className="text-xs sm:text-sm text-gray-600">
+            💡 <span className="hidden sm:inline">เลือกรายการเพื่อแก้ไข เพิ่มรายการใหม่ หรือลบรายการที่ไม่ต้องการ</span>
+            <span className="sm:hidden">แก้ไข เพิ่ม หรือลบรายการได้</span>
           </div>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} className="h-11 sm:h-10 w-full sm:w-auto">
             ปิด
           </Button>
         </div>
