@@ -539,61 +539,70 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            ส่งออกหลายรายการพร้อมกัน
+      <DialogContent className="max-w-full h-full sm:max-w-6xl sm:max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">ส่งออกหลายรายการพร้อมกัน</span>
+            <span className="sm:hidden">ส่งออกหลายรายการ</span>
           </DialogTitle>
-          <DialogDescription>
-            เลือกสินค้าจากหลาย Location และแบ่งส่งให้หลายลูกค้าในครั้งเดียว
+          <DialogDescription className="text-xs sm:text-sm">
+            <span className="hidden sm:inline">เลือกสินค้าจากหลาย Location และแบ่งส่งให้หลายลูกค้าในครั้งเดียว</span>
+            <span className="sm:hidden">เลือกสินค้าและแบ่งให้ลูกค้า</span>
           </DialogDescription>
         </DialogHeader>
 
         {/* Progress Indicator */}
-        <div className="flex items-center justify-center gap-2 mb-4">
+        <div className="flex items-center justify-center gap-1 sm:gap-2 mb-3 sm:mb-4 overflow-x-auto">
           <Button
             variant={step === 'select_items' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStep('select_items')}
+            className="h-9 sm:h-8 text-[10px] sm:text-xs flex-shrink-0"
           >
-            1. เลือกสินค้า
+            <span className="hidden sm:inline">1. เลือกสินค้า</span>
+            <span className="sm:hidden">1. เลือก</span>
           </Button>
-          <Separator className="w-8" />
+          <Separator className="w-4 sm:w-8" />
           <Button
             variant={step === 'allocate_customers' ? 'default' : 'outline'}
             size="sm"
             onClick={() => canProceedToAllocate() && setStep('allocate_customers')}
             disabled={!canProceedToAllocate()}
+            className="h-9 sm:h-8 text-[10px] sm:text-xs flex-shrink-0"
           >
-            2. แบ่งให้ลูกค้า
+            <span className="hidden sm:inline">2. แบ่งให้ลูกค้า</span>
+            <span className="sm:hidden">2. แบ่ง</span>
           </Button>
-          <Separator className="w-8" />
+          <Separator className="w-4 sm:w-8" />
           <Button
             variant={step === 'summary' ? 'default' : 'outline'}
             size="sm"
             onClick={() => canProceedToSummary() && setStep('summary')}
             disabled={!canProceedToSummary()}
+            className="h-9 sm:h-8 text-[10px] sm:text-xs flex-shrink-0"
           >
-            3. สรุปและยืนยัน
+            <span className="hidden sm:inline">3. สรุปและยืนยัน</span>
+            <span className="sm:hidden">3. ยืนยัน</span>
           </Button>
         </div>
 
         {/* Step 1: เลือกสินค้า */}
         {step === 'select_items' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
               {/* รายการสินค้าทั้งหมด */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm flex items-center justify-between">
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="text-xs sm:text-sm flex items-center justify-between">
                     <span>รายการสินค้าในคลัง</span>
-                    <Badge variant="secondary">{filteredInventory.length} รายการ</Badge>
+                    <Badge variant="secondary" className="text-[10px] sm:text-xs">{filteredInventory.length} รายการ</Badge>
                   </CardTitle>
                   <Input
                     placeholder="ค้นหาสินค้า, SKU, Location..."
                     value={productSearchTerm}
                     onChange={(e) => setProductSearchTerm(e.target.value)}
+                    className="h-11 sm:h-10 text-xs sm:text-sm"
                   />
                   {/* Filter ประเภทสินค้า */}
                   <div className="flex gap-2 pt-2">
