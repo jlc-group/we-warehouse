@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => ({
     css: {
       hmr: mode === 'development',
     },
-    // Optimize file watching for development vs production
-    watch: mode === 'development' ? {
+    // Optimize file watching - LIMIT scope to reduce overhead
+    watch: {
       ignored: [
         '**/node_modules/**',
         '**/dist/**',
@@ -36,42 +36,25 @@ export default defineConfig(({ mode }) => ({
         '**/*.log',
         '**/*.test.*',
         '**/*.spec.*',
-        '**/supabase/migrations/**'
-      ],
-      usePolling: false,
-      interval: 1000, // Faster updates in development
-      binaryInterval: 2000,
-    } : {
-      ignored: [
-        '**/node_modules/**',
-        '**/dist/**',
-        '**/.git/**',
-        '**/.*/**',
-        '**/coverage/**',
-        '**/temp/**',
-        '**/tmp/**',
-        '**/*.log',
-        '**/*.md',
-        '**/*.test.*',
-        '**/*.spec.*',
-        '**/CLAUDE.md',
-        '**/README.md',
         '**/supabase/migrations/**',
-        '**/src/data/**',
-        '**/src/integrations/supabase/types*.ts'
+        '**/.vite/**',
+        '**/package-lock.json',
+        '**/*.md'
       ],
       usePolling: false,
-      interval: 10000,
-      binaryInterval: 15000,
-      depth: 2,
+      // Reduce intervals to minimize file system load
+      interval: 2000,
+      binaryInterval: 3000,
+      depth: 3,
     },
-    // Fix WebSocket connection issues
+    // Fix WebSocket connection issues and file system performance
     fs: {
       strict: false,
+      cachedChecks: true, // Enable caching for better performance
     },
     // Development-friendly settings
-    open: mode === 'development' ? false : false, // Don't auto-open browser
-    cors: true, // Enable CORS to prevent refresh issues
+    open: false,
+    cors: true,
   },
   build: {
     outDir: "dist",
@@ -165,6 +148,9 @@ export default defineConfig(({ mode }) => ({
       jsx: 'automatic',
       jsxImportSource: 'react'
     },
+    // Speed up dependency pre-bundling
+    force: mode === 'development',
+    entries: mode === 'development' ? ['./src/main.tsx'] : undefined,
   },
   // Additional configuration for handling mixed module types
   define: {
