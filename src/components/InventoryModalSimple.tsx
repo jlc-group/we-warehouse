@@ -383,18 +383,18 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto bg-white">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
             {existingItem ? 'แก้ไขสินค้า' : 'เพิ่มสินค้าใหม่'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             {existingItem ? 'แก้ไขข้อมูลสินค้าในคลัง' : 'เพิ่มสินค้าใหม่เข้าสู่ระบบคลังสินค้า'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-3 sm:space-y-4 py-2 sm:py-4 px-4 sm:px-6">
           {/* Location Display */}
           <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
             <MapPin className="h-4 w-4 text-primary" />
@@ -446,7 +446,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                 setIsNewProduct(false);
               }}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-11 sm:h-10">
                 <SelectValue placeholder="เลือกประเภทสินค้า" />
               </SelectTrigger>
               <SelectContent>
@@ -498,7 +498,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                   }, 150);
                 }}
                 placeholder="กรอกรหัสสินค้า (เช่น L8A-40G)"
-                className="font-mono pr-10"
+                className="font-mono pr-10 h-11 sm:h-10"
                 autoComplete="off"
               />
               <Button
@@ -587,6 +587,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
               value={productName}
               onChange={(e) => setProductName(e.target.value)}
               placeholder="กรอกชื่อสินค้า"
+              className="h-11 sm:h-10"
             />
           </div>
 
@@ -598,6 +599,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
               value={lot}
               onChange={(e) => setLot(e.target.value)}
               placeholder="กรอก LOT (ถ้ามี)"
+              className="h-11 sm:h-10"
             />
           </div>
 
@@ -612,6 +614,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
               type="date"
               value={mfd}
               onChange={(e) => setMfd(e.target.value)}
+              className="h-11 sm:h-10"
             />
           </div>
 
@@ -629,8 +632,8 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                   </div>
                 )}
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <CardContent className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   {/* Level 1 Unit */}
                   {conversionRate.unit_level1_name && (
                     <div className="space-y-2">
@@ -643,7 +646,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                         value={level1Quantity}
                         onChange={(e) => setLevel1Quantity(parseInt(e.target.value) || 0)}
                         placeholder="0"
-                        className="text-center"
+                        className="text-center h-11 sm:h-10"
                       />
                       <div className="text-xs text-muted-foreground text-center">
                         1 {conversionRate.unit_level1_name} = {conversionRate.unit_level1_rate.toLocaleString('th-TH')} {conversionRate.unit_level3_name}
@@ -663,7 +666,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                         value={level2Quantity}
                         onChange={(e) => setLevel2Quantity(parseInt(e.target.value) || 0)}
                         placeholder="0"
-                        className="text-center"
+                        className="text-center h-11 sm:h-10"
                       />
                       <div className="text-xs text-muted-foreground text-center">
                         1 {conversionRate.unit_level2_name} = {conversionRate.unit_level2_rate.toLocaleString('th-TH')} {conversionRate.unit_level3_name}
@@ -682,7 +685,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                       value={level3Quantity}
                       onChange={(e) => setLevel3Quantity(parseInt(e.target.value) || 0)}
                       placeholder="0"
-                      className="text-center"
+                      className="text-center h-11 sm:h-10"
                     />
                     <div className="text-xs text-muted-foreground text-center">
                       หน่วยพื้นฐาน
@@ -721,7 +724,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                   {/* ลัง */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">ลัง</Label>
@@ -731,7 +734,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                       value={level1Quantity}
                       onChange={(e) => setLevel1Quantity(parseInt(e.target.value) || 0)}
                       placeholder="0"
-                      className="text-center"
+                      className="text-center h-11 sm:h-10"
                     />
                   </div>
 
@@ -744,7 +747,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                       value={level2Quantity}
                       onChange={(e) => setLevel2Quantity(parseInt(e.target.value) || 0)}
                       placeholder="0"
-                      className="text-center"
+                      className="text-center h-11 sm:h-10"
                     />
                   </div>
 
@@ -757,7 +760,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                       value={level3Quantity}
                       onChange={(e) => setLevel3Quantity(parseInt(e.target.value) || 0)}
                       placeholder="0"
-                      className="text-center"
+                      className="text-center h-11 sm:h-10"
                     />
                   </div>
                 </div>
@@ -771,13 +774,13 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 pt-4">
-          <Button variant="outline" onClick={onClose} className="flex-1">
+        <div className="flex gap-2 pt-3 sm:pt-4 px-4 sm:px-6 pb-4">
+          <Button variant="outline" onClick={onClose} className="flex-1 h-11 sm:h-10">
             ยกเลิก
           </Button>
           <Button
             onClick={handleSave}
-            className="flex-1"
+            className="flex-1 h-11 sm:h-10"
             disabled={!productName.trim() || !productCode.trim()}
           >
             บันทึก
