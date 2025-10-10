@@ -224,50 +224,53 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl mx-auto bg-white">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Scan className="h-5 w-5" />
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:h-auto mx-auto bg-white">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Scan className="h-4 w-4 sm:h-5 sm:w-5" />
             สแกน QR Code
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             สแกนหรือเลือก QR Code ที่ตำแหน่งคลังสินค้า
           </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'scan' | 'browse')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="scan" className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              สแกนกล้อง
+          <TabsList className="grid w-full grid-cols-2 h-11 sm:h-10">
+            <TabsTrigger value="scan" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Camera className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">สแกนกล้อง</span>
+              <span className="sm:hidden">สแกน</span>
             </TabsTrigger>
-            <TabsTrigger value="browse" className="flex items-center gap-2">
-              <List className="h-4 w-4" />
-              เลือกจากรายการ ({allQRCodes.length})
+            <TabsTrigger value="browse" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <List className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">เลือกจากรายการ ({allQRCodes.length})</span>
+              <span className="sm:hidden">รายการ ({allQRCodes.length})</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="scan" className="space-y-4">
+          <TabsContent value="scan" className="space-y-3 sm:space-y-4">
             {/* Camera Permission */}
             {cameraPermission === 'denied' && (
               <Card className="border-red-200 bg-red-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-red-800">
+                      <p className="text-xs sm:text-sm text-red-800">
                         ไม่สามารถเข้าถึงกล้องได้
                       </p>
-                      <p className="text-xs text-red-600 mt-1">
+                      <p className="text-[10px] sm:text-xs text-red-600 mt-1">
                         กรุณาอนุญาตการเข้าถึงกล้องในเบราว์เซอร์
                       </p>
                       <Button
                         size="sm"
-                        className="mt-2"
+                        className="mt-2 h-9 sm:h-8 text-xs sm:text-sm"
                         onClick={handlePermissionRequest}
                       >
-                        <Camera className="h-4 w-4 mr-1" />
-                        อนุญาตการเข้าถึงกล้อง
+                        <Camera className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        <span className="hidden sm:inline">อนุญาตการเข้าถึงกล้อง</span>
+                        <span className="sm:hidden">อนุญาต</span>
                       </Button>
                     </div>
                   </div>
@@ -278,11 +281,11 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
             {/* Scanner Container */}
             {!scanResult && !error && cameraPermission !== 'denied' && (
               <Card>
-                <CardContent className="p-4">
-                  <div className="text-center space-y-4">
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-center space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-center gap-2">
-                      <Camera className="h-5 w-5 text-primary" />
-                      <span className="text-sm font-medium">
+                      <Camera className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                      <span className="text-xs sm:text-sm font-medium">
                         {isScanning ? 'กำลังเปิดกล้อง...' : 'เตรียมสแกน QR Code'}
                       </span>
                     </div>
@@ -290,11 +293,11 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
                     <div
                       id="qr-scanner-container"
                       className="mx-auto max-w-sm"
-                      style={{ minHeight: '300px' }}
+                      style={{ minHeight: '250px' }}
                     />
 
                     {isScanning && (
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-[10px] sm:text-xs text-muted-foreground">
                         นำกล้องไปส่อง QR Code ที่ตำแหน่งคลัง
                       </div>
                     )}
@@ -306,43 +309,41 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
             {/* Scan Result */}
             {scanResult && (
               <Card className="border-green-200 bg-green-50">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-green-800">
-                    <CheckCircle className="h-5 w-5" />
+                <CardHeader className="pb-2 sm:pb-3">
+                  <CardTitle className="flex items-center gap-2 text-green-800 text-sm sm:text-base">
+                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                     สแกนสำเร็จ
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
+                <CardContent className="space-y-3">
+                  <div>
+                    <Badge variant="secondary" className="mb-2 text-xs sm:text-sm">
+                      ตำแหน่ง: {scanResult.location}
+                    </Badge>
+                  </div>
+
+                  <div className="text-xs sm:text-sm space-y-2">
                     <div>
-                      <Badge variant="secondary" className="mb-2">
-                        ตำแหน่ง: {scanResult.location}
-                      </Badge>
+                      <span className="font-medium">เวลาสแกน:</span>
+                      <span className="ml-2">{scanResult.timestamp.toLocaleString('th-TH')}</span>
                     </div>
 
-                    <div className="text-sm space-y-2">
+                    {scanResult.data.action && (
                       <div>
-                        <span className="font-medium">เวลาสแกน:</span>
-                        <span className="ml-2">{scanResult.timestamp.toLocaleString('th-TH')}</span>
+                        <span className="font-medium">การดำเนินการ:</span>
+                        <span className="ml-2">{scanResult.data.action}</span>
                       </div>
+                    )}
+                  </div>
 
-                      {scanResult.data.action && (
-                        <div>
-                          <span className="font-medium">การดำเนินการ:</span>
-                          <span className="ml-2">{scanResult.data.action}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-2 border-t">
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        onClick={() => onScanSuccess(scanResult.location, scanResult.data)}
-                      >
-                        ไปยังตำแหน่งนี้
-                      </Button>
-                    </div>
+                  <div className="pt-2 border-t">
+                    <Button
+                      size="sm"
+                      className="w-full h-11 sm:h-10 text-xs sm:text-sm"
+                      onClick={() => onScanSuccess(scanResult.location, scanResult.data)}
+                    >
+                      ไปยังตำแหน่งนี้
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -351,18 +352,18 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
             {/* Error State */}
             {error && (
               <Card className="border-red-200 bg-red-50">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm text-red-800 mb-2">{error}</p>
+                      <p className="text-xs sm:text-sm text-red-800 mb-2">{error}</p>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={handleRetry}
-                        className="border-red-300 text-red-700 hover:bg-red-100"
+                        className="border-red-300 text-red-700 hover:bg-red-100 h-9 sm:h-8 text-xs sm:text-sm"
                       >
-                        <RefreshCw className="h-4 w-4 mr-1" />
+                        <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         ลองใหม่
                       </Button>
                     </div>
@@ -372,25 +373,25 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
             )}
           </TabsContent>
 
-          <TabsContent value="browse" className="space-y-4">
+          <TabsContent value="browse" className="space-y-3 sm:space-y-4">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               <Input
                 placeholder="ค้นหาตำแหน่ง (เช่น A01-01)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-9 sm:pl-10 h-11 sm:h-10 text-xs sm:text-sm"
               />
             </div>
 
             {/* QR Code List */}
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-80 sm:max-h-96 overflow-y-auto">
               {filteredQRCodes.length === 0 ? (
                 <Card>
-                  <CardContent className="p-8 text-center">
-                    <QrCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-muted-foreground">
+                  <CardContent className="p-6 sm:p-8 text-center">
+                    <QrCode className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                    <p className="text-xs sm:text-sm text-muted-foreground">
                       {searchQuery ? 'ไม่พบ QR Code ที่ตรงกับการค้นหา' : 'ไม่มี QR Code ในระบบ'}
                     </p>
                   </CardContent>
@@ -399,27 +400,27 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
                 <div className="grid gap-2">
                   {filteredQRCodes.map((qrCode) => (
                     <Card key={qrCode.location} className="hover:bg-slate-50 cursor-pointer transition-colors">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3 sm:p-4">
                         <div
-                          className="flex items-center justify-between"
+                          className="flex items-center justify-between gap-2"
                           onClick={() => handleQRCodeSelect(qrCode)}
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                             <div className="flex-shrink-0">
-                              <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center">
-                                <QrCode className="h-4 w-4 text-primary" />
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-primary/10 rounded flex items-center justify-center">
+                                <QrCode className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
                               </div>
                             </div>
-                            <div>
-                              <div className="font-medium">{qrCode.location}</div>
-                              <div className="text-sm text-muted-foreground">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-sm sm:text-base truncate">{qrCode.location}</div>
+                              <div className="text-xs sm:text-sm text-muted-foreground truncate">
                                 {qrCode.description || 'ตำแหน่งคลังสินค้า'}
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <Badge variant="outline">เลือก</Badge>
+                          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground hidden sm:block" />
+                            <Badge variant="outline" className="text-[10px] sm:text-xs">เลือก</Badge>
                           </div>
                         </div>
                       </CardContent>
@@ -430,7 +431,7 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
             </div>
 
             {filteredQRCodes.length > 0 && (
-              <div className="text-xs text-center text-muted-foreground pt-2 border-t">
+              <div className="text-[10px] sm:text-xs text-center text-muted-foreground pt-2 border-t">
                 แสดง {filteredQRCodes.length} จาก {allQRCodes.length} QR Code ทั้งหมด
               </div>
             )}
@@ -438,9 +439,9 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
         </Tabs>
 
         {/* Close Button */}
-        <div className="flex justify-end pt-4 border-t">
-          <Button variant="outline" onClick={handleClose}>
-            <X className="h-4 w-4 mr-1" />
+        <div className="flex justify-end pt-3 sm:pt-4 border-t">
+          <Button variant="outline" onClick={handleClose} className="h-11 sm:h-10 text-xs sm:text-sm">
+            <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
             ปิด
           </Button>
         </div>
