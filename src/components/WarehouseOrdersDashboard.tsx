@@ -43,15 +43,15 @@ function AcceptOrderDialog({ isOpen, onClose, order, onAccept, isLoading }: Acce
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>รับงาน: {order?.order_number}</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">รับงาน: {order?.order_number}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded">
-            <h4 className="font-medium text-blue-900">รายละเอียดใบสั่งขาย</h4>
-            <div className="mt-2 space-y-1 text-sm text-blue-700">
+        <div className="space-y-3 sm:space-y-4">
+          <div className="p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded">
+            <h4 className="font-medium text-blue-900 text-sm sm:text-base">รายละเอียดใบสั่งขาย</h4>
+            <div className="mt-2 space-y-1 text-xs sm:text-sm text-blue-700">
               <p><strong>ลูกค้า:</strong> {order?.customer_name}</p>
               <p><strong>ยอดรวม:</strong> {formatCurrency(order?.total_amount || 0)}</p>
               <p><strong>วันที่สั่ง:</strong> {new Date(order?.order_date).toLocaleDateString('th-TH')}</p>
@@ -59,30 +59,31 @@ function AcceptOrderDialog({ isOpen, onClose, order, onAccept, isLoading }: Acce
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notes">หมายเหตุการรับงาน (ไม่บังคับ)</Label>
+            <Label htmlFor="notes" className="text-xs sm:text-sm">หมายเหตุการรับงาน (ไม่บังคับ)</Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="ระบุหมายเหตุเพิ่มเติม..."
               rows={3}
+              className="text-xs sm:text-sm"
             />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isLoading} className="h-11 sm:h-10 w-full sm:w-auto">
             ยกเลิก
           </Button>
-          <Button onClick={handleAccept} disabled={isLoading} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={handleAccept} disabled={isLoading} className="bg-green-600 hover:bg-green-700 h-11 sm:h-10 w-full sm:w-auto">
             {isLoading ? (
               <>
-                <Clock className="mr-2 h-4 w-4 animate-spin" />
+                <Clock className="mr-2 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
                 กำลังรับงาน...
               </>
             ) : (
               <>
-                <CheckCircle className="mr-2 h-4 w-4" />
+                <CheckCircle className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                 รับงาน
               </>
             )}
@@ -177,38 +178,38 @@ export function WarehouseOrdersDashboard() {
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <Package className="h-5 w-5 text-blue-500" />
+              <Package className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">งานรอรับทั้งหมด</p>
-                <p className="text-2xl font-bold text-blue-600">{totalOrders}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">งานรอรับทั้งหมด</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600">{totalOrders}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-orange-500" />
+              <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-orange-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">เกิน 24 ชั่วโมง</p>
-                <p className="text-2xl font-bold text-orange-600">{urgentOrders}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">เกิน 24 ชั่วโมง</p>
+                <p className="text-xl sm:text-2xl font-bold text-orange-600">{urgentOrders}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <Truck className="h-5 w-5 text-green-500" />
+              <Truck className="h-4 w-4 sm:h-5 sm:w-5 text-green-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">พร้อมดำเนินการ</p>
-                <p className="text-2xl font-bold text-green-600">{totalOrders}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600">พร้อมดำเนินการ</p>
+                <p className="text-xl sm:text-2xl font-bold text-green-600">{totalOrders}</p>
               </div>
             </div>
           </CardContent>
@@ -217,9 +218,9 @@ export function WarehouseOrdersDashboard() {
 
       {/* Orders Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
+        <CardHeader className="p-3 sm:p-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
             รายการงานรอรับ
           </CardTitle>
         </CardHeader>
