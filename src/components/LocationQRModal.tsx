@@ -224,21 +224,21 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5" />
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:h-auto sm:max-h-[80vh] overflow-y-auto">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <QrCode className="h-4 w-4 sm:h-5 sm:w-5" />
             QR Code - ตำแหน่ง {location}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             สร้างและดาวน์โหลด QR Code สำหรับตำแหน่ง {location} รวมข้อมูลสินค้าทั้งหมดในตำแหน่งนี้
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 sm:space-y-6 py-2 sm:py-4 px-4 sm:px-6">
           {/* QR Code Display */}
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-48 h-48 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center p-2">
+          <div className="flex flex-col items-center space-y-3 sm:space-y-4">
+            <div className="w-40 h-40 sm:w-48 sm:h-48 bg-white border-2 border-gray-200 rounded-lg flex items-center justify-center p-2">
               <canvas
                 ref={canvasRef}
                 className="max-w-full max-h-full"
@@ -246,12 +246,12 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
               />
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 justify-center">
               {!existingQR ? (
-                <Button 
-                  onClick={handleGenerateQR} 
-                  variant="default" 
-                  className="flex items-center gap-2" 
+                <Button
+                  onClick={handleGenerateQR}
+                  variant="default"
+                  className="flex items-center gap-2 h-11 sm:h-10 text-sm"
                   disabled={qrLoading}
                 >
                   {qrLoading ? (
@@ -263,18 +263,20 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                 </Button>
               ) : (
                 <>
-                  <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2" disabled={!qrCodeDataURL}>
+                  <Button onClick={downloadQR} variant="outline" className="flex items-center gap-2 h-11 sm:h-10 text-xs sm:text-sm" disabled={!qrCodeDataURL}>
                     <Download className="h-4 w-4" />
-                    ดาวน์โหลด QR Code
+                    <span className="hidden sm:inline">ดาวน์โหลด QR Code</span>
+                    <span className="sm:hidden">ดาวน์โหลด</span>
                   </Button>
                   <Button
                     onClick={generatePrintableQR}
                     variant="default"
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 h-11 sm:h-10 text-xs sm:text-sm"
                     disabled={!qrCodeDataURL}
                   >
                     <Printer className="h-4 w-4" />
-                    พิมพ์พร้อมข้อความ
+                    <span className="hidden sm:inline">พิมพ์พร้อมข้อความ</span>
+                    <span className="sm:hidden">พิมพ์</span>
                   </Button>
                   <Button
                     onClick={() => {
@@ -289,7 +291,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                       }
                     }}
                     variant="outline"
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 h-11 sm:h-10 text-xs sm:text-sm"
                     disabled={!qrCodeDataURL || !navigator.share}
                   >
                     <QrCode className="h-4 w-4" />
@@ -302,33 +304,33 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
 
           {/* Location Summary */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
+            <CardHeader className="p-3 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
                 ข้อมูลตำแหน่ง
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{totals.items}</div>
-                  <div className="text-sm text-gray-600">รายการสินค้า</div>
+            <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-4">
+                <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
+                  <div className="text-lg sm:text-2xl font-bold text-blue-600">{totals.items}</div>
+                  <div className="text-[10px] sm:text-sm text-gray-600">รายการสินค้า</div>
                 </div>
-                <div className="text-center p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{totals.level1}</div>
-                  <div className="text-sm text-gray-600">ลัง</div>
+                <div className="text-center p-2 sm:p-3 bg-green-50 rounded-lg">
+                  <div className="text-lg sm:text-2xl font-bold text-green-600">{totals.level1}</div>
+                  <div className="text-[10px] sm:text-sm text-gray-600">ลัง</div>
                 </div>
-                <div className="text-center p-3 bg-orange-50 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{totals.level2}</div>
-                  <div className="text-sm text-gray-600">กล่อง</div>
+                <div className="text-center p-2 sm:p-3 bg-orange-50 rounded-lg">
+                  <div className="text-lg sm:text-2xl font-bold text-orange-600">{totals.level2}</div>
+                  <div className="text-[10px] sm:text-sm text-gray-600">กล่อง</div>
                 </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{totals.level3}</div>
-                  <div className="text-sm text-gray-600">ชิ้น</div>
+                <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg">
+                  <div className="text-lg sm:text-2xl font-bold text-purple-600">{totals.level3}</div>
+                  <div className="text-[10px] sm:text-sm text-gray-600">ชิ้น</div>
                 </div>
-                <div className="text-center p-3 bg-indigo-50 rounded-lg">
-                  <div className="text-2xl font-bold text-indigo-600">{productGroups.length}</div>
-                  <div className="text-sm text-gray-600">ประเภทสินค้า</div>
+                <div className="text-center p-2 sm:p-3 bg-indigo-50 rounded-lg col-span-2 sm:col-span-1">
+                  <div className="text-lg sm:text-2xl font-bold text-indigo-600">{productGroups.length}</div>
+                  <div className="text-[10px] sm:text-sm text-gray-600">ประเภทสินค้า</div>
                 </div>
               </div>
             </CardContent>
@@ -337,30 +339,30 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
           {/* Product List */}
           {locationItems.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
+              <CardHeader className="p-3 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
+                  <Package className="h-3 w-3 sm:h-4 sm:w-4" />
                   สินค้าในตำแหน่งนี้
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="p-3 sm:p-6">
+                <div className="space-y-2 sm:space-y-3">
                   {productGroups.map(([sku, groupItems]) => (
-                    <div key={sku} className="border rounded-lg p-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="font-medium">{groupItems[0].product_name}</div>
-                          <div className="text-sm text-gray-500 font-mono">{sku}</div>
+                    <div key={sku} className="border rounded-lg p-2 sm:p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-xs sm:text-sm truncate">{groupItems[0].product_name}</div>
+                          <div className="text-[10px] sm:text-sm text-gray-500 font-mono truncate">{sku}</div>
                           {groupItems.length > 1 && (
-                            <div className="text-xs text-blue-600">
+                            <div className="text-[10px] sm:text-xs text-blue-600">
                               {groupItems.length} Lot ที่แตกต่างกัน
                             </div>
                           )}
                         </div>
-                        <div className="text-right space-y-1">
+                        <div className="text-right space-y-0.5 sm:space-y-1 flex-shrink-0">
                           {/* Level 1 Units (ลัง) */}
                           {groupItems.some(item => (item.unit_level1_quantity || 0) > 0) && (
-                            <div className="text-sm">
+                            <div className="text-xs sm:text-sm">
                               <span className="font-medium">
                                 {groupItems.reduce((sum, item) => sum + (item.unit_level1_quantity || 0), 0)}
                               </span>
@@ -369,7 +371,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                           )}
                           {/* Level 2 Units (กล่อง) */}
                           {groupItems.some(item => (item.unit_level2_quantity || 0) > 0) && (
-                            <div className="text-sm">
+                            <div className="text-xs sm:text-sm">
                               <span className="font-medium">
                                 {groupItems.reduce((sum, item) => sum + (item.unit_level2_quantity || 0), 0)}
                               </span>
@@ -378,7 +380,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                           )}
                           {/* Level 3 Units (ชิ้น) */}
                           {groupItems.some(item => (item.unit_level3_quantity || 0) > 0) && (
-                            <div className="text-sm">
+                            <div className="text-xs sm:text-sm">
                               <span className="font-medium">
                                 {groupItems.reduce((sum, item) => sum + (item.unit_level3_quantity || 0), 0)}
                               </span>
@@ -386,7 +388,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                             </div>
                           )}
                           {/* Total Pieces */}
-                          <div className="text-sm text-indigo-600 font-semibold border-t pt-1">
+                          <div className="text-xs sm:text-sm text-indigo-600 font-semibold border-t pt-0.5 sm:pt-1">
                             <span>รวม: </span>
                             <span className="font-bold">
                               {groupItems.reduce((sum, item) => sum + calculateTotalPieces(item), 0)}
@@ -400,18 +402,18 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                       {groupItems.length > 1 && (
                         <div className="mt-2 pt-2 border-t space-y-1">
                           {groupItems.map((item, index) => (
-                            <div key={index} className="flex items-center justify-between text-xs">
-                              <span className="flex items-center gap-2">
-                                <Badge variant="outline">{item.lot || 'ไม่ระบุ LOT'}</Badge>
+                            <div key={index} className="flex items-start sm:items-center justify-between text-[10px] sm:text-xs gap-2">
+                              <span className="flex items-center gap-1 sm:gap-2 flex-wrap min-w-0">
+                                <Badge variant="outline" className="text-[10px] sm:text-xs">{item.lot || 'ไม่ระบุ LOT'}</Badge>
                                 {item.mfd && (
-                                  <span className="text-gray-500">MFD: {item.mfd}</span>
+                                  <span className="text-gray-500 text-[10px] sm:text-xs">MFD: {item.mfd}</span>
                                 )}
                               </span>
-                              <span className="text-gray-600">
+                              <span className="text-gray-600 text-right flex-shrink-0 text-[10px] sm:text-xs">
                                 {item.unit_level1_quantity && item.unit_level1_quantity > 0 && `${item.unit_level1_quantity}${item.unit_level1_name || 'ลัง'} `}
                                 {item.unit_level2_quantity && item.unit_level2_quantity > 0 && `${item.unit_level2_quantity}${item.unit_level2_name || 'กล่อง'} `}
                                 {item.unit_level3_quantity && item.unit_level3_quantity > 0 && `${item.unit_level3_quantity}${item.unit_level3_name || 'ชิ้น'}`}
-                                <span className="text-indigo-600 ml-2">(รวม: {calculateTotalPieces(item)} ชิ้น)</span>
+                                <span className="text-indigo-600 ml-1 sm:ml-2 block sm:inline">(รวม: {calculateTotalPieces(item)} ชิ้น)</span>
                               </span>
                             </div>
                           ))}
@@ -427,10 +429,10 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
           {/* Empty State */}
           {locationItems.length === 0 && (
             <Card>
-              <CardContent className="p-8 text-center">
-                <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-600 mb-2">ตำแหน่งว่าง</h3>
-                <p className="text-gray-500">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-3 sm:mb-4" />
+                <h3 className="text-base sm:text-lg font-medium text-gray-600 mb-1 sm:mb-2">ตำแหน่งว่าง</h3>
+                <p className="text-sm sm:text-base text-gray-500">
                   ยังไม่มีสินค้าในตำแหน่งนี้
                 </p>
               </CardContent>
@@ -440,17 +442,17 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
           {/* QR Status */}
           {existingQR && (
             <Card className="bg-green-50 border-green-200">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <QrCode className="h-4 w-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">QR Code พร้อมใช้งาน</span>
+                    <span className="text-xs sm:text-sm font-medium text-green-800">QR Code พร้อมใช้งาน</span>
                   </div>
-                  <div className="text-xs text-green-600">
+                  <div className="text-[10px] sm:text-xs text-green-600">
                     สร้างเมื่อ: {new Date(existingQR.generated_at || existingQR.created_at).toLocaleString('th-TH')}
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-green-700">
+                <div className="mt-2 text-[10px] sm:text-xs text-green-700">
                   📱 สแกน QR Code นี้เพื่อดูข้อมูลล่าสุดของตำแหน่ง {location}
                 </div>
               </CardContent>
@@ -458,7 +460,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
           )}
 
           {/* Last Updated */}
-          <div className="flex items-center justify-center text-xs text-gray-500">
+          <div className="flex items-center justify-center text-[10px] sm:text-xs text-gray-500">
             <Clock className="h-3 w-3 mr-1" />
             ข้อมูลอัพเดต: {new Date().toLocaleString('th-TH')}
           </div>
