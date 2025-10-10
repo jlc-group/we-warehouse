@@ -317,9 +317,9 @@ export function InboundReceiptModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:h-auto md:max-w-3xl lg:max-w-5xl sm:max-h-[90vh] overflow-y-auto sm:rounded-lg">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <Package className="h-5 w-5" />
             รับเข้าสินค้า (Goods Receipt)
           </DialogTitle>
@@ -328,7 +328,7 @@ export function InboundReceiptModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 p-4 sm:p-0">
           {/* Error Alert */}
           {error && (
             <Alert variant="destructive">
@@ -340,11 +340,11 @@ export function InboundReceiptModal({
           {/* Receipt Type Selection */}
           <Card>
             <CardContent className="pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Label>ประเภทการรับเข้า *</Label>
                   <Select value={receiptType} onValueChange={(value) => setReceiptType(value as ReceiptType)}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 sm:h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -370,7 +370,7 @@ export function InboundReceiptModal({
                 <div className="space-y-2">
                   <Label>คลังที่รับเข้า</Label>
                   <Select value={selectedWarehouseId} onValueChange={setSelectedWarehouseId}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-11 sm:h-10">
                       <SelectValue placeholder="เลือกคลัง..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -384,13 +384,14 @@ export function InboundReceiptModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-4">
                 <div className="space-y-2">
                   <Label>ชื่อผู้ส่ง/ซัพพลายเออร์ *</Label>
                   <Input
                     value={supplierName}
                     onChange={(e) => setSupplierName(e.target.value)}
                     placeholder="บริษัท ABC จำกัด"
+                    className="h-11 sm:h-10"
                   />
                 </div>
 
@@ -400,11 +401,12 @@ export function InboundReceiptModal({
                     value={supplierCode}
                     onChange={(e) => setSupplierCode(e.target.value)}
                     placeholder="SUP001"
+                    className="h-11 sm:h-10"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 mt-4">
                 {receiptType.startsWith('po_') && (
                   <div className="space-y-2">
                     <Label>เลขที่ PO *</Label>
@@ -412,6 +414,7 @@ export function InboundReceiptModal({
                       value={poNumberInput}
                       onChange={(e) => setPoNumberInput(e.target.value)}
                       placeholder="PO-2024-001"
+                      className="h-11 sm:h-10"
                     />
                   </div>
                 )}
@@ -422,6 +425,7 @@ export function InboundReceiptModal({
                     value={deliveryNoteNumber}
                     onChange={(e) => setDeliveryNoteNumber(e.target.value)}
                     placeholder="DN-2024-001"
+                    className="h-11 sm:h-10"
                   />
                 </div>
               </div>
@@ -442,7 +446,7 @@ export function InboundReceiptModal({
           <Card>
             <CardContent className="pt-6">
               <Label>เพิ่มสินค้า</Label>
-              <div className="flex gap-2 mt-2">
+              <div className="flex flex-col sm:flex-row gap-2 mt-2">
                 <Select
                   value={selectedProduct?.id || ''}
                   onValueChange={(value) => {
@@ -451,7 +455,7 @@ export function InboundReceiptModal({
                   }}
                   disabled={loadingProducts}
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="flex-1 h-11 sm:h-10">
                     <SelectValue placeholder={loadingProducts ? 'กำลังโหลด...' : 'เลือกสินค้า...'} />
                   </SelectTrigger>
                   <SelectContent>
@@ -462,7 +466,7 @@ export function InboundReceiptModal({
                     ))}
                   </SelectContent>
                 </Select>
-                <Button onClick={handleAddItem} disabled={!selectedProduct}>
+                <Button onClick={handleAddItem} disabled={!selectedProduct} className="h-11 sm:h-10 w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" />
                   เพิ่ม
                 </Button>
@@ -475,8 +479,8 @@ export function InboundReceiptModal({
             <Card>
               <CardContent className="pt-6">
                 <Label className="mb-4 block">รายการสินค้า ({items.length} รายการ)</Label>
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <Table className="min-w-[800px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>สินค้า</TableHead>
@@ -563,11 +567,11 @@ export function InboundReceiptModal({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
+        <DialogFooter className="flex-col-reverse sm:flex-row gap-2 p-4 sm:p-6">
+          <Button variant="outline" onClick={handleClose} disabled={loading} className="w-full sm:w-auto h-11 sm:h-10">
             ยกเลิก
           </Button>
-          <Button onClick={handleSubmit} disabled={loading || items.length === 0}>
+          <Button onClick={handleSubmit} disabled={loading || items.length === 0} className="w-full sm:w-auto h-11 sm:h-10">
             {loading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
