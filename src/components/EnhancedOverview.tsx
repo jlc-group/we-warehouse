@@ -1297,23 +1297,23 @@ export const EnhancedOverview = memo(({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Mode Selector */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Mode Selector - Responsive */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <Tabs value={viewMode} onValueChange={(value: string) => setViewMode(value as 'work' | 'monitor')}>
-          <TabsList className="grid w-[400px] grid-cols-2">
-            <TabsTrigger value="work" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+          <TabsList className="grid w-full sm:w-[400px] grid-cols-2">
+            <TabsTrigger value="work" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Settings className="h-3 w-3 sm:h-4 sm:w-4" />
               โหมดใช้งาน
             </TabsTrigger>
-            <TabsTrigger value="monitor" className="flex items-center gap-2">
-              <Monitor className="h-4 w-4" />
+            <TabsTrigger value="monitor" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Monitor className="h-3 w-3 sm:h-4 sm:w-4" />
               โหมดมอนิเตอร์
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -1323,7 +1323,7 @@ export const EnhancedOverview = memo(({
             <FileSpreadsheet className="h-4 w-4" />
             Export รายละเอียด
           </Button>
-          
+
           <Badge variant="outline" className="flex items-center gap-1">
             <Palette className="h-3 w-3" />
             แยกสีตามประเภท
@@ -1338,28 +1338,28 @@ export const EnhancedOverview = memo(({
       {viewMode === 'monitor' ? (
         <MonitorDashboardSimple items={items} warehouseId={warehouseId} onLocationClick={onShelfClick} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
           {/* Visual Grid - Main Area */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-3 order-2 lg:order-1">
             <Tabs defaultValue="grid" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="grid">แผนผังคลัง</TabsTrigger>
-              <TabsTrigger value="table">ตารางรายการ</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 h-10 sm:h-auto">
+              <TabsTrigger value="grid" className="text-xs sm:text-sm">แผนผังคลัง</TabsTrigger>
+              <TabsTrigger value="table" className="text-xs sm:text-sm">ตารางรายการ</TabsTrigger>
             </TabsList>
 
             <TabsContent value="grid">
               <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Grid3X3 className="h-5 w-5" />
+                <CardHeader className="p-3 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                      <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5" />
                       แผนผังคลัง
                       <Badge variant="outline" className="text-xs">
                         เรียลไทม์
                       </Badge>
                     </CardTitle>
-                    
-                    <div className="flex items-center gap-2">
+
+                    <div className="hidden lg:flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -2416,8 +2416,8 @@ export const EnhancedOverview = memo(({
           </Tabs>
         </div>
 
-        {/* Right Sidebar */}
-        <div className="space-y-6">
+        {/* Right Sidebar - Hidden on mobile */}
+        <div className="hidden lg:block space-y-6 order-1 lg:order-2">
           {/* Quick Actions */}
           <Card>
             <CardHeader>
