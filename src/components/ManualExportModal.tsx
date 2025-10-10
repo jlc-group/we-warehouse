@@ -504,18 +504,18 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md !bg-white">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Send className="h-5 w-5 text-red-600" />
+      <DialogContent className="max-w-full h-full sm:max-w-md sm:h-auto !bg-white overflow-y-auto">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Send className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
             ส่งออกสินค้าไปยังลูกค้า
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs sm:text-sm">
             Location: <span className="font-semibold">{location}</span>
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 px-4 sm:px-6 pb-4">
           {/* Select Item */}
           <div className="space-y-2">
             <Label htmlFor="item">เลือกสินค้า *</Label>
@@ -531,7 +531,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
                 id="item"
                 value={formData.selectedItemId}
                 onChange={(e) => setFormData({ ...formData, selectedItemId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 font-mono text-sm"
+                className="w-full h-11 sm:h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 font-mono text-xs sm:text-sm"
                 required
               >
                 <option value="">-- เลือกสินค้า --</option>
@@ -555,28 +555,28 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
 
           {/* Selected Item Info */}
           {selectedItem && (
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-blue-900">
+            <div className="p-2 sm:p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1 sm:space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs sm:text-sm font-semibold text-blue-900 truncate">
                   📦 {selectedItem.product_name}
                 </span>
                 {getActualStock(selectedItem) === 0 && (
-                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                  <span className="px-2 py-1 bg-red-100 text-red-700 text-[10px] sm:text-xs font-semibold rounded flex-shrink-0">
                     ⚠️ สต็อกหมด
                   </span>
                 )}
               </div>
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs text-blue-700">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-blue-700">
                   <span>📍 Location:</span>
                   <span className="font-semibold">{selectedItem.location}</span>
                   <span className="text-blue-500">|</span>
                   <span>🏷️ SKU:</span>
-                  <span className="font-semibold">{selectedItem.sku || 'N/A'}</span>
+                  <span className="font-semibold truncate">{selectedItem.sku || 'N/A'}</span>
                 </div>
                 <div className="pt-1 border-t border-blue-200">
-                  <div className="text-xs font-semibold text-blue-800 mb-1">📊 สต็อกคงเหลือ:</div>
-                  <div className="pl-3 space-y-0.5 text-xs text-blue-700">
+                  <div className="text-[10px] sm:text-xs font-semibold text-blue-800 mb-1">📊 สต็อกคงเหลือ:</div>
+                  <div className="pl-2 sm:pl-3 space-y-0.5 text-[10px] sm:text-xs text-blue-700">
                     {(selectedItem.unit_level1_quantity || 0) > 0 && (
                       <div>• {selectedItem.unit_level1_quantity} {selectedItem.unit_level1_name || 'ลัง'}
                         {selectedItem.unit_level1_rate > 0 && (
@@ -623,7 +623,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
                 id="customer"
                 value={formData.customerId}
                 onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full h-11 sm:h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-xs sm:text-sm"
                 required
               >
                 <option value="">-- เลือกลูกค้า --</option>
@@ -645,6 +645,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
               placeholder="เช่น PO-2024-001"
               value={formData.poReference}
               onChange={(e) => setFormData({ ...formData, poReference: e.target.value })}
+              className="h-11 sm:h-10"
             />
           </div>
 
@@ -659,6 +660,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
               placeholder="เช่น 25.50"
               value={formData.unitPrice}
               onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })}
+              className="h-11 sm:h-10"
             />
             {formData.unitPrice && selectedItem && (
               <p className="text-xs text-muted-foreground">
@@ -683,7 +685,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               {/* Level 1 - ลัง */}
               {selectedItem && (selectedItem.unit_level1_quantity > 0 || selectedItem.unit_level1_name) && (
                 <div className="space-y-1">
@@ -700,7 +702,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
                     value={formData.quantityLevel1}
                     onChange={(e) => setFormData({ ...formData, quantityLevel1: e.target.value })}
                     disabled={!selectedItem}
-                    className="text-center"
+                    className="text-center h-11 sm:h-10"
                   />
                 </div>
               )}
@@ -721,7 +723,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
                     value={formData.quantityLevel2}
                     onChange={(e) => setFormData({ ...formData, quantityLevel2: e.target.value })}
                     disabled={!selectedItem}
-                    className="text-center"
+                    className="text-center h-11 sm:h-10"
                   />
                 </div>
               )}
@@ -742,7 +744,7 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
                     value={formData.quantityLevel3}
                     onChange={(e) => setFormData({ ...formData, quantityLevel3: e.target.value })}
                     disabled={!selectedItem}
-                    className="text-center"
+                    className="text-center h-11 sm:h-10"
                   />
                 </div>
               )}
@@ -771,19 +773,19 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-2 pt-4">
+          <div className="flex gap-2 pt-3 sm:pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="flex-1"
+              className="flex-1 h-11 sm:h-10"
               disabled={loading}
             >
               ยกเลิก
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400"
+              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 h-11 sm:h-10"
               disabled={
                 loading ||
                 !formData.customerId ||
