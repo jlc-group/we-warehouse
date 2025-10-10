@@ -73,6 +73,8 @@ import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage
 import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 // import { ExternalSalesTab } from '@/components/ExternalSalesTab'; // ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้
 import { PackingListTab } from '@/components/PackingListTab';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { MobileMenuSheet } from '@/components/MobileMenuSheet';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -112,6 +114,7 @@ const Index = memo(() => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
   const [selectedItemsForTransfer, setSelectedItemsForTransfer] = useState<InventoryItem[]>([]);
   const [purchaseOrdersSubTab, setPurchaseOrdersSubTab] = useState<string>('po-list');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Custom hooks after useState hooks
   const { toast } = useToast();
@@ -637,7 +640,7 @@ const Index = memo(() => {
 
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-20 lg:pb-0">
       <div className="w-full mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8 max-w-[1920px]">
         {/* Header */}
         <Card className="bg-white border border-gray-200">
@@ -854,65 +857,57 @@ const Index = memo(() => {
           </CardContent>
         </Card>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs - Hidden on mobile, replaced by Bottom Nav */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-11 bg-white border border-gray-200 h-auto overflow-x-auto">
-            <TabsTrigger value="overview" className="flex items-center gap-1 sm:gap-2 h-10 sm:h-12 text-xs sm:text-sm">
-              <PieChart className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">ภาพรวม</span>
-              <span className="sm:hidden">หน้าแรก</span>
+          <TabsList className="hidden lg:grid w-full grid-cols-11 bg-white border border-gray-200 h-auto">
+            <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
+              <PieChart className="h-4 w-4" />
+              <span>ภาพรวม</span>
             </TabsTrigger>
-            {/* ซ่อนแท็บ Purchase Orders ไว้ก่อน */}
-            {/* <TabsTrigger value="purchase-orders" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
+            <TabsTrigger value="packing-list" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <Package className="h-4 w-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600 font-medium">PO & จัดสินค้า</span>
-            </TabsTrigger> */}
-            <TabsTrigger value="packing-list" className="flex items-center gap-1 sm:gap-2 h-10 sm:h-12 bg-purple-50 hover:bg-purple-100 text-xs sm:text-sm">
-              <Package className="h-3 w-3 sm:h-4 sm:w-4 text-purple-600" />
-              <span className="hidden sm:inline text-purple-600 font-medium">รายการแพค</span>
-              <span className="sm:hidden text-purple-600">แพค</span>
+              <span className="text-purple-600 font-medium">รายการแพค</span>
             </TabsTrigger>
-            <TabsTrigger value="warehouse-management" className="hidden lg:flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100 text-sm">
+            <TabsTrigger value="warehouse-management" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
               <Warehouse className="h-4 w-4 text-green-600" />
               <span className="text-green-600 font-medium">จัดการคลัง</span>
             </TabsTrigger>
-            <TabsTrigger value="table" className="hidden sm:flex items-center gap-2 h-12 text-sm">
+            <TabsTrigger value="table" className="flex items-center gap-2 h-12">
               <Table className="h-4 w-4" />
               <span>ตารางข้อมูล</span>
             </TabsTrigger>
-            <TabsTrigger value="stock-overview" className="hidden md:flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100 text-sm">
+            <TabsTrigger value="stock-overview" className="flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100">
               <Grid3X3 className="h-4 w-4 text-blue-600" />
               <span className="text-blue-600 font-medium">สรุปสต็อก</span>
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="hidden lg:flex items-center gap-2 h-12 text-sm">
+            <TabsTrigger value="analytics" className="flex items-center gap-2 h-12">
               <BarChart3 className="h-4 w-4" />
               <span>Analytics & แผนก</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="hidden md:flex items-center gap-2 h-12 text-sm">
+            <TabsTrigger value="history" className="flex items-center gap-2 h-12">
               <Archive className="h-4 w-4" />
               <span>ประวัติ</span>
             </TabsTrigger>
-            <TabsTrigger value="transfers" className="hidden lg:flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100 text-sm">
+            <TabsTrigger value="transfers" className="flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100">
               <Truck className="h-4 w-4 text-orange-600" />
               <span className="text-orange-600 font-medium">จัดการการย้าย</span>
             </TabsTrigger>
-            <TabsTrigger value="inbound-outbound" className="hidden lg:flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100 text-sm">
+            <TabsTrigger value="inbound-outbound" className="flex items-center gap-2 h-12 bg-teal-50 hover:bg-teal-100">
               <PackagePlus className="h-4 w-4 text-teal-600" />
               <span className="text-teal-600 font-medium">รับเข้า-ส่งออก</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-clearing" className="hidden lg:flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100 text-sm">
+            <TabsTrigger value="bill-clearing" className="flex items-center gap-2 h-12 bg-red-50 hover:bg-red-100">
               <CreditCard className="h-4 w-4 text-red-600" />
               <span className="text-red-600 font-medium">เคลียร์บิล</span>
             </TabsTrigger>
-            <TabsTrigger value="bill-status" className="hidden lg:flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100 text-sm">
+            <TabsTrigger value="bill-status" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
               <BarChart3 className="h-4 w-4 text-purple-600" />
               <span className="text-purple-600 font-medium">ตรวจสอบสถานะ</span>
             </TabsTrigger>
-            <TabsTrigger value="qr" className="hidden sm:flex items-center gap-2 h-12 text-sm">
+            <TabsTrigger value="qr" className="flex items-center gap-2 h-12">
               <QrCode className="h-4 w-4" />
               <span>QR & ตำแหน่ง</span>
             </TabsTrigger>
-            {/* Admin tab removed from navbar as requested */}
           </TabsList>
 
 
@@ -1418,18 +1413,35 @@ const Index = memo(() => {
         {/* <ResourceMonitor /> */}
       </div>
 
-      {/* Floating Action Menu - ปุ่มลอยมุมขวาล่าง */}
-      <FloatingActionMenu
-        onAddItem={() => {
-          setSelectedLocation('');
-          setSelectedItem(undefined);
-          setIsModalOpen(true);
-        }}
-        onTransferItem={() => setIsTransferModalOpen(true)}
-        onExportItem={() => setIsManualExportModalOpen(true)}
-        onScanQR={() => setShowScanner(true)}
-        onBulkExport={() => setIsBulkExportModalOpen(true)}
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onMoreClick={() => setShowMobileMenu(true)}
       />
+
+      {/* Mobile Menu Sheet */}
+      <MobileMenuSheet
+        open={showMobileMenu}
+        onOpenChange={setShowMobileMenu}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+      />
+
+      {/* Floating Action Menu - ปุ่มลอยมุมขวาล่าง (Desktop only) */}
+      <div className="hidden lg:block">
+        <FloatingActionMenu
+          onAddItem={() => {
+            setSelectedLocation('');
+            setSelectedItem(undefined);
+            setIsModalOpen(true);
+          }}
+          onTransferItem={() => setIsTransferModalOpen(true)}
+          onExportItem={() => setIsManualExportModalOpen(true)}
+          onScanQR={() => setShowScanner(true)}
+          onBulkExport={() => setIsBulkExportModalOpen(true)}
+        />
+      </div>
     </div>
   );
 });
