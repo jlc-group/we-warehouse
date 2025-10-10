@@ -76,7 +76,6 @@ import { PackingListTab } from '@/components/PackingListTab';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileMenuSheet } from '@/components/MobileMenuSheet';
 import { FinanceDashboard } from '@/components/FinanceDashboard';
-import { SalesListTab } from '@/components/SalesListTab';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -1136,14 +1135,10 @@ const Index = memo(() => {
 
           <TabsContent value="finance" className="space-y-4">
             <Tabs defaultValue="dashboard" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Dashboard การเงิน
-                </TabsTrigger>
-                <TabsTrigger value="sales-list" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  รายการขายทั้งหมด
                 </TabsTrigger>
                 <TabsTrigger value="bill-status" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
@@ -1153,10 +1148,6 @@ const Index = memo(() => {
 
               <TabsContent value="dashboard">
                 <FinanceDashboard />
-              </TabsContent>
-
-              <TabsContent value="sales-list">
-                <SalesListTab />
               </TabsContent>
 
               <TabsContent value="bill-status">
