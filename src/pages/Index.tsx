@@ -45,7 +45,7 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon, Table2, ArrowRightLeft } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
@@ -858,52 +858,42 @@ const Index = memo(() => {
           </CardContent>
         </Card>
 
-        {/* Navigation Tabs - Hidden on mobile, replaced by Bottom Nav */}
+        {/* Navigation Tabs - 5 Main Categories with Permission-based Access */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-          <TabsList className="hidden lg:grid w-full grid-cols-10 bg-white border border-gray-200 h-auto">
-            <TabsTrigger value="overview" className="flex items-center gap-2 h-12">
+          <TabsList className="hidden lg:grid w-full grid-cols-5 bg-white border border-gray-200 h-auto">
+            {/* 📊 ภาพรวม - Everyone can access */}
+            <TabsTrigger value="overview" className="flex items-center gap-2 h-12 hover:bg-gray-50">
               <PieChart className="h-4 w-4" />
-              <span>ภาพรวม</span>
+              <span>📊 ภาพรวม</span>
             </TabsTrigger>
-            <TabsTrigger value="packing-list" className="flex items-center gap-2 h-12 bg-purple-50 hover:bg-purple-100">
-              <Package className="h-4 w-4 text-purple-600" />
-              <span className="text-purple-600 font-medium">รายการแพค</span>
-            </TabsTrigger>
-            <TabsTrigger value="warehouse-management" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
+
+            {/* 📦 คลังสินค้า - Everyone can access */}
+            <TabsTrigger value="warehouse" className="flex items-center gap-2 h-12 bg-green-50 hover:bg-green-100">
               <Warehouse className="h-4 w-4 text-green-600" />
-              <span className="text-green-600 font-medium">จัดการคลัง</span>
+              <span className="text-green-600 font-medium">📦 คลังสินค้า</span>
             </TabsTrigger>
-            <TabsTrigger value="table" className="flex items-center gap-2 h-12">
-              <Table className="h-4 w-4" />
-              <span>ตารางข้อมูล</span>
-            </TabsTrigger>
-            <TabsTrigger value="stock-overview" className="flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100">
-              <Grid3X3 className="h-4 w-4 text-blue-600" />
-              <span className="text-blue-600 font-medium">สรุปสต็อก</span>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2 h-12">
-              <BarChart3 className="h-4 w-4" />
-              <span>Analytics & แผนก</span>
-            </TabsTrigger>
+
+            {/* 💰 การเงิน - Everyone can access */}
             <TabsTrigger value="finance" className="flex items-center gap-2 h-12 bg-yellow-50 hover:bg-yellow-100">
               <CreditCard className="h-4 w-4 text-yellow-600" />
-              <span className="text-yellow-600 font-medium">การเงิน</span>
+              <span className="text-yellow-600 font-medium">💰 การเงิน</span>
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2 h-12">
-              <Archive className="h-4 w-4" />
-              <span>ประวัติ</span>
+
+            {/* 📈 รายงาน - Everyone can access */}
+            <TabsTrigger value="reports" className="flex items-center gap-2 h-12 bg-blue-50 hover:bg-blue-100">
+              <BarChart3 className="h-4 w-4 text-blue-600" />
+              <span className="text-blue-600 font-medium">📈 รายงาน</span>
             </TabsTrigger>
-            <TabsTrigger value="transfers" className="flex items-center gap-2 h-12 bg-orange-50 hover:bg-orange-100">
-              <Truck className="h-4 w-4 text-orange-600" />
-              <span className="text-orange-600 font-medium">จัดการการย้าย</span>
-            </TabsTrigger>
-            <TabsTrigger value="qr" className="flex items-center gap-2 h-12">
-              <QrCode className="h-4 w-4" />
-              <span>QR & ตำแหน่ง</span>
+
+            {/* 🔧 เครื่องมือ - Everyone can access */}
+            <TabsTrigger value="tools" className="flex items-center gap-2 h-12 hover:bg-gray-50">
+              <Settings className="h-4 w-4" />
+              <span>🔧 เครื่องมือ</span>
             </TabsTrigger>
           </TabsList>
 
 
+          {/* 📊 ภาพรวม - Overview Tab */}
           <TabsContent value="overview" className="space-y-4">
             <EnhancedOverview
               items={inventoryItems}
@@ -922,217 +912,118 @@ const Index = memo(() => {
             />
           </TabsContent>
 
-          {/* ซ่อน TabsContent ของ Purchase Orders ไว้ก่อน */}
-          {/* <TabsContent value="purchase-orders" className="space-y-4">
-            <Tabs value={purchaseOrdersSubTab} onValueChange={setPurchaseOrdersSubTab} className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                <TabsTrigger value="po-list" className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  รายการ Purchase Orders
-                </TabsTrigger>
-                <TabsTrigger value="fulfillment" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  งานจัดสินค้า
+          {/* 📦 คลังสินค้า - Warehouse Tab with 6 sub-tabs */}
+          <TabsContent value="warehouse" className="space-y-4">
+            <Tabs defaultValue="packing-list" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-6 bg-white border border-gray-200">
+                <TabsTrigger value="inbound-outbound" className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  รับเข้า-ส่งออก
                 </TabsTrigger>
                 <TabsTrigger value="packing-list" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  รายการแพค (Packing List)
+                  รายการแพค
+                </TabsTrigger>
+                <TabsTrigger value="warehouse-management" className="flex items-center gap-2">
+                  <Warehouse className="h-4 w-4" />
+                  จัดการคลัง
+                </TabsTrigger>
+                <TabsTrigger value="stock-overview" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  สรุปสต็อก
+                </TabsTrigger>
+                <TabsTrigger value="table" className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4" />
+                  ตารางข้อมูล
+                </TabsTrigger>
+                <TabsTrigger value="transfers" className="flex items-center gap-2">
+                  <ArrowRightLeft className="h-4 w-4" />
+                  จัดการการย้าย
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="po-list" className="space-y-4">
-                <PurchaseOrdersList onCreateFulfillment={handleTaskCreated} />
-              </TabsContent> */}
+              <TabsContent value="inbound-outbound" className="space-y-4">
+                <InboundOutboundDashboard />
+              </TabsContent>
 
-              {/* <TabsContent value="fulfillment" className="space-y-4">
-                <Tabs defaultValue="queue" className="space-y-4">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="queue" className="flex items-center gap-2">
-                      <Package className="h-4 w-4" />
-                      งานจัดสินค้า
+              <TabsContent value="packing-list" className="space-y-4">
+                <PackingListTab />
+              </TabsContent>
+
+              <TabsContent value="warehouse-management" className="space-y-4">
+                <WarehouseManagementPage />
+              </TabsContent>
+
+              <TabsContent value="stock-overview" className="space-y-4">
+                <StockOverviewPage warehouseId={selectedWarehouseId} />
+              </TabsContent>
+
+              <TabsContent value="table" className="space-y-4">
+                {loading ? (
+                  <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+                ) : (
+                  <Tabs defaultValue="inventory" className="space-y-4">
+                    <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                      <TabsTrigger value="inventory" className="flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        รายการสต็อก
+                      </TabsTrigger>
+                      <TabsTrigger value="products" className="flex items-center gap-2">
+                        <Hash className="h-4 w-4" />
+                        สรุปสินค้า
+                      </TabsTrigger>
+                      <TabsTrigger value="product-management" className="flex items-center gap-2">
+                        <PackagePlus className="h-4 w-4" />
+                        จัดการข้อมูลสินค้า
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="inventory" className="space-y-4">
+                      <InventoryTable
+                        key={`inventory-table-${inventoryItems.length}`}
+                        items={inventoryItems}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="products" className="space-y-4">
+                      <ProductSummaryTable />
+                    </TabsContent>
+
+                    <TabsContent value="product-management" className="space-y-4">
+                      <ProductManagementPage />
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </TabsContent>
+
+              <TabsContent value="transfers" className="space-y-4">
+                <Tabs defaultValue="warehouse-transfer" className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+                    <TabsTrigger value="warehouse-transfer" className="flex items-center gap-2">
+                      <Warehouse className="h-4 w-4" />
+                      ย้ายข้าม Warehouse
                     </TabsTrigger>
-                    <TabsTrigger value="picking" className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      จัดสินค้าตามตำแหน่ง
+                    <TabsTrigger value="department-transfer" className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      ย้ายข้ามแผนก
                     </TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="queue">
-                    <FulfillmentQueue />
+                  <TabsContent value="warehouse-transfer" className="space-y-4">
+                    <WarehouseTransferDashboard
+                      onCreateTransfer={() => setIsWarehouseTransferModalOpen(true)}
+                    />
                   </TabsContent>
 
-                  <TabsContent value="picking">
-                    <WarehousePickingSystem />
+                  <TabsContent value="department-transfer" className="space-y-4">
+                    <DepartmentTransferDashboard />
                   </TabsContent>
                 </Tabs>
               </TabsContent>
-
-            </Tabs>
-          </TabsContent> */}
-
-          <TabsContent value="packing-list" className="space-y-4">
-            <PackingListTab />
-          </TabsContent>
-
-          <TabsContent value="warehouse-management" className="space-y-4">
-            <WarehouseManagementPage />
-          </TabsContent>
-
-          <TabsContent value="table" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <Tabs defaultValue="inventory" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                  <TabsTrigger value="inventory" className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    รายการสต็อก
-                  </TabsTrigger>
-                  <TabsTrigger value="products" className="flex items-center gap-2">
-                    <Hash className="h-4 w-4" />
-                    สรุปสินค้า
-                  </TabsTrigger>
-                  <TabsTrigger value="product-management" className="flex items-center gap-2">
-                    <PackagePlus className="h-4 w-4" />
-                    จัดการข้อมูลสินค้า
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="inventory" className="space-y-4">
-                  <InventoryTable
-                    key={`inventory-table-${inventoryItems.length}`}
-                    items={inventoryItems}
-                  />
-                </TabsContent>
-
-                <TabsContent value="products" className="space-y-4">
-                  <ProductSummaryTable />
-                </TabsContent>
-
-                <TabsContent value="product-management" className="space-y-4">
-                  <ProductManagementPage />
-                </TabsContent>
-              </Tabs>
-            )}
-          </TabsContent>
-
-          <TabsContent value="stock-overview" className="space-y-4">
-            <StockOverviewPage warehouseId={selectedWarehouseId} />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-            ) : (
-              <Tabs defaultValue="monitoring" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
-                  <TabsTrigger value="monitoring">📊 ภาพรวมและการติดตาม</TabsTrigger>
-                  <TabsTrigger value="alerts">🔔 การแจ้งเตือนและควบคุม</TabsTrigger>
-                  <TabsTrigger value="analysis">📈 การวิเคราะห์และประสิทธิภาพ</TabsTrigger>
-                  <TabsTrigger value="forecasting">🔮 การพยากรณ์และวางแผน</TabsTrigger>
-                  <TabsTrigger value="technical">🛠️ เทคนิคและระบบ</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="monitoring" className="space-y-4">
-                  <div className="grid gap-4">
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
-                      <InventoryAnalytics items={inventoryItems} />
-                    </Suspense>
-                    {showWarehouseTab && (
-                      <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
-                        <WarehouseDashboard />
-                      </Suspense>
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="alerts" className="space-y-4">
-                  <AlertsPanel />
-                </TabsContent>
-
-                <TabsContent value="analysis" className="space-y-4">
-                  <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
-                    <AdvancedAnalytics warehouseId={selectedWarehouseId} />
-                  </Suspense>
-                </TabsContent>
-
-                <TabsContent value="forecasting" className="space-y-4">
-                  <div className="grid gap-4">
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
-                      <ForecastingDashboard warehouseId={selectedWarehouseId} />
-                    </Suspense>
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
-                      <BatchManagement warehouseId={selectedWarehouseId} />
-                    </Suspense>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="technical" className="space-y-4">
-                  <div className="space-y-4">
-                    <DatabaseDebug />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            )}
-          </TabsContent>
-
-
-          <TabsContent value="history" className="space-y-4">
-            <Tabs defaultValue="export_history" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-5">
-                <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
-                <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
-                <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
-                <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
-                <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
-              </TabsList>
-              <TabsContent value="export_history">
-                <ExportHistory />
-              </TabsContent>
-              <TabsContent value="customer_dashboard">
-                <CustomerExportDashboard />
-              </TabsContent>
-              <TabsContent value="unified_export">
-                <UnifiedExportHistory />
-              </TabsContent>
-              <TabsContent value="movement_logs">
-                <MovementLogs />
-              </TabsContent>
-              <TabsContent value="system_events">
-                <EnhancedEventLogs />
-              </TabsContent>
             </Tabs>
           </TabsContent>
 
-          <TabsContent value="transfers" className="space-y-4">
-            <Tabs defaultValue="warehouse-transfer" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
-                <TabsTrigger value="warehouse-transfer" className="flex items-center gap-2">
-                  <Warehouse className="h-4 w-4" />
-                  ย้ายข้าม Warehouse
-                </TabsTrigger>
-                <TabsTrigger value="department-transfer" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  ย้ายข้ามแผนก
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="warehouse-transfer" className="space-y-4">
-                <WarehouseTransferDashboard
-                  onCreateTransfer={() => setIsWarehouseTransferModalOpen(true)}
-                />
-              </TabsContent>
-
-              <TabsContent value="department-transfer" className="space-y-4">
-                <DepartmentTransferDashboard />
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-
-          <TabsContent value="inbound-outbound" className="space-y-4">
-            <InboundOutboundDashboard />
-          </TabsContent>
-
+          {/* 💰 การเงิน - Finance Tab - Keep as is */}
           <TabsContent value="finance" className="space-y-4">
             <Tabs defaultValue="dashboard" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
@@ -1175,23 +1066,138 @@ const Index = memo(() => {
             </Tabs>
           </TabsContent>
 
-          <TabsContent value="qr" className="space-y-4">
-            <Tabs defaultValue="scanner" className="space-y-4">
+          {/* 📈 รายงาน - Reports Tab with 3 sub-tabs */}
+          <TabsContent value="reports" className="space-y-4">
+              <Tabs defaultValue="analytics" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                  <TabsTrigger value="analytics" className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Analytics
+                  </TabsTrigger>
+                  <TabsTrigger value="department-analytics" className="flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Analytics แผนก
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="flex items-center gap-2">
+                    <Archive className="h-4 w-4" />
+                    ประวัติ
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="analytics" className="space-y-4">
+                  {loading ? (
+                    <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+                  ) : (
+                    <Tabs defaultValue="monitoring" className="space-y-4">
+                      <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+                        <TabsTrigger value="monitoring">📊 ภาพรวมและการติดตาม</TabsTrigger>
+                        <TabsTrigger value="alerts">🔔 การแจ้งเตือนและควบคุม</TabsTrigger>
+                        <TabsTrigger value="analysis">📈 การวิเคราะห์และประสิทธิภาพ</TabsTrigger>
+                        <TabsTrigger value="forecasting">🔮 การพยากรณ์และวางแผน</TabsTrigger>
+                        <TabsTrigger value="technical">🛠️ เทคนิคและระบบ</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="monitoring" className="space-y-4">
+                        <div className="grid gap-4">
+                          <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
+                            <InventoryAnalytics items={inventoryItems} />
+                          </Suspense>
+                          {showWarehouseTab && (
+                            <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                              <WarehouseDashboard />
+                            </Suspense>
+                          )}
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="alerts" className="space-y-4">
+                        <AlertsPanel />
+                      </TabsContent>
+
+                      <TabsContent value="analysis" className="space-y-4">
+                        <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
+                          <AdvancedAnalytics warehouseId={selectedWarehouseId} />
+                        </Suspense>
+                      </TabsContent>
+
+                      <TabsContent value="forecasting" className="space-y-4">
+                        <div className="grid gap-4">
+                          <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
+                            <ForecastingDashboard warehouseId={selectedWarehouseId} />
+                          </Suspense>
+                          <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
+                            <BatchManagement warehouseId={selectedWarehouseId} />
+                          </Suspense>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="technical" className="space-y-4">
+                        <div className="space-y-4">
+                          <DatabaseDebug />
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="department-analytics" className="space-y-4">
+                  {showWarehouseTab && (
+                    <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                      <WarehouseDashboard />
+                    </Suspense>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="history" className="space-y-4">
+                  <Tabs defaultValue="export_history" className="space-y-4">
+                    <TabsList className="grid w-full grid-cols-5">
+                      <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
+                      <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
+                      <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
+                      <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
+                      <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="export_history">
+                      <ExportHistory />
+                    </TabsContent>
+                    <TabsContent value="customer_dashboard">
+                      <CustomerExportDashboard />
+                    </TabsContent>
+                    <TabsContent value="unified_export">
+                      <UnifiedExportHistory />
+                    </TabsContent>
+                    <TabsContent value="movement_logs">
+                      <MovementLogs />
+                    </TabsContent>
+                    <TabsContent value="system_events">
+                      <EnhancedEventLogs />
+                    </TabsContent>
+                  </Tabs>
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+
+          {/* 🔧 เครื่องมือ - Tools Tab with 3 sub-tabs */}
+          <TabsContent value="tools" className="space-y-4">
+            <Tabs defaultValue="qr-scanner" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                <TabsTrigger value="scanner" className="flex items-center gap-2">
+                <TabsTrigger value="qr-scanner" className="flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
                   📱 QR Scanner
                 </TabsTrigger>
-                <TabsTrigger value="management" className="flex items-center gap-2">
+                <TabsTrigger value="qr-management" className="flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
                   🏷️ จัดการ QR
                 </TabsTrigger>
                 {showAdminFeatures && (
-                  <TabsTrigger value="locations" className="flex items-center gap-2">
+                  <TabsTrigger value="location-management" className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
                     📍 จัดการตำแหน่ง
                   </TabsTrigger>
                 )}
               </TabsList>
 
-              <TabsContent value="scanner" className="space-y-4">
+              <TabsContent value="qr-scanner" className="space-y-4">
                 <QRCodeManager
                   items={inventoryItems}
                   onShelfClick={handleShelfClick}
@@ -1199,23 +1205,23 @@ const Index = memo(() => {
                 />
               </TabsContent>
 
-              <TabsContent value="management" className="space-y-4">
+              <TabsContent value="qr-management" className="space-y-4">
                 <Suspense fallback={<ComponentLoadingFallback componentName="QR Code Management" />}>
                   <QRCodeManagement items={inventoryItems} />
                 </Suspense>
               </TabsContent>
 
               {showAdminFeatures && (
-                <TabsContent value="locations" className="space-y-4">
+                <TabsContent value="location-management" className="space-y-4">
                   <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
                     <LocationManagement />
                   </Suspense>
                 </TabsContent>
               )}
-
             </Tabs>
           </TabsContent>
 
+          {/* Old management tab - can be removed or kept for admin */}
           <TabsContent value="management" className="space-y-4">
             <Tabs defaultValue="recovery" className="space-y-4">
               <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
