@@ -1,0 +1,783 @@
+import { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
+import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
+import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
+import type { InventoryItem } from '@/hooks/useInventory';
+import { useProducts } from '@/hooks/useProducts';
+import { useProductsSummary } from '@/hooks/useProductsSummary';
+import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
+import { productHelpers } from '@/utils/productHelpers';
+
+type Product = Database['public']['Tables']['products']['Row'];
+
+
+interface BulkAddModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (locations: string[], itemData: {
+    product_name: string;
+    sku: string;
+    lot?: string;
+    mfd?: string;
+    box_quantity: number;
+    loose_quantity: number;
+    pieces_quantity: number;
+    unit_level1_rate?: number;
+    unit_level2_rate?: number;
+  }) => void;
+  availableLocations: string[];
+  inventoryItems: InventoryItem[];
+}
+
+export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inventoryItems }: BulkAddModalProps) {
+  const [productName, setProductName] = useState('');
+  const [productCode, setProductCode] = useState('');
+  const [lot, setLot] = useState('');
+  const [mfd, setMfd] = useState('');
+  const [quantityBoxes, setQuantityBoxes] = useState(0);
+  const [quantityLoose, setQuantityLoose] = useState(0);
+  const [quantityPieces, setQuantityPieces] = useState(0);
+  const [conversionRates, setConversionRates] = useState({ unit_level1_rate: 144, unit_level2_rate: 12 });
+  const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set());
+  const [customLocation, setCustomLocation] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState<'all' | 'empty' | 'occupied'>('all');
+  const [rowFilter, setRowFilter] = useState<string>('all');
+
+  // Performance: Use deferred value for search to reduce re-renders
+  const deferredLocationSearch = useDeferredValue(locationSearch);
+
+  // Fetch conversion rates from database
+  const fetchConversionRates = async (sku: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('product_conversion_rates')
+        .select('unit_level1_rate, unit_level2_rate')
+        .eq('sku', sku)
+        .single();
+
+      if (!error && data) {
+        setConversionRates({
+          unit_level1_rate: data.unit_level1_rate || 144,
+          unit_level2_rate: data.unit_level2_rate || 12
+        });
+      } else {
+        // Use default if not found
+        setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+      }
+    } catch (error) {
+      console.error('Error fetching conversion rates:', error);
+      setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+    }
+  };
+
+  // Product management states - now using useProductsSummary with fallback to useProducts
+  const { products } = useProducts();
+  const { data: productsSummaryResult } = useProductsSummary();
+
+  // Use products from ProductsSummary first, fallback to useProducts
+  const availableProducts = useMemo(() => {
+    if (productsSummaryResult?.data) {
+      // Convert ProductSummary to Product format for productHelpers
+      return productsSummaryResult.data.map(p => ({
+        id: p.product_id,
+        sku_code: p.sku,
+        product_name: p.product_name,
+        product_type: p.product_type,
+        is_active: p.is_active,
+        category: p.category,
+        subcategory: p.subcategory,
+        brand: p.brand,
+        unit_of_measure: p.unit_of_measure,
+        unit_cost: p.unit_cost,
+        description: p.description,
+        // Add other required fields with defaults
+        created_at: '',
+        updated_at: '',
+        dimensions: '',
+        manufacturing_country: '',
+        max_stock_level: 0,
+        reorder_level: 0,
+        weight: 0,
+        storage_conditions: ''
+      }));
+    }
+    return products;
+  }, [productsSummaryResult, products]);
+
+  const [isProductCodeOpen, setIsProductCodeOpen] = useState(false);
+  const [isNewProduct, setIsNewProduct] = useState(false);
+  const [productCodeInputValue, setProductCodeInputValue] = useState('');
+
+  // Product type selection state
+  const [selectedProductType, setSelectedProductType] = useState<ProductType | undefined>(undefined);
+
+  // Consistent product selection across locations
+  const [applyToAllLocations, setApplyToAllLocations] = useState(true);
+
+  const resetForm = () => {
+    setProductName('');
+    setProductCode('');
+    setLot('');
+    setMfd('');
+    setQuantityBoxes(0);
+    setQuantityLoose(0);
+    setQuantityPieces(0);
+    setSelectedLocations(new Set());
+    setCustomLocation('');
+    setLocationSearch('');
+    setProductCodeInputValue('');
+    setIsProductCodeOpen(false);
+    setIsNewProduct(false);
+    setSelectedProductType(undefined);
+    setRowFilter('all');
+    setApplyToAllLocations(true);
+  };
+
+  const handleLocationToggle = (location: string) => {
+    const newSelected = new Set(selectedLocations);
+    if (newSelected.has(location)) {
+      newSelected.delete(location);
+    } else {
+      newSelected.add(location);
+      // Performance: Optimize location status check
+      // Only log warnings in development, not production
+      if (process.env.NODE_ENV === 'development') {
+        const locationStatus = locationsWithStatus.find(l => l.location === location);
+        if (locationStatus && !locationStatus.isEmpty) {
+          console.log(`⚠️ Warning: Location ${location} already has ${locationStatus.itemCount} items`);
+        }
+      }
+    }
+    setSelectedLocations(newSelected);
+  };
+
+  const handleAddCustomLocation = () => {
+    if (customLocation.trim()) {
+      const newSelected = new Set(selectedLocations);
+      newSelected.add(customLocation.trim());
+      setSelectedLocations(newSelected);
+      setCustomLocation('');
+    }
+  };
+
+  const handleSave = () => {
+    // Use productCodeInputValue if productCode is empty (user typed but didn't press Enter)
+    const finalProductCode = productCode.trim() || productCodeInputValue.trim();
+
+    if (!productName.trim() || !finalProductCode || selectedLocations.size === 0) {
+      return;
+    }
+
+    onSave(Array.from(selectedLocations).map(loc => normalizeLocation(loc)), {
+      product_name: productName.trim(),
+      sku: finalProductCode,
+      lot: lot.trim() || undefined,
+      mfd: mfd || undefined,
+      box_quantity: quantityBoxes,
+      loose_quantity: quantityLoose,
+      pieces_quantity: quantityPieces,
+      unit_level1_rate: conversionRates.unit_level1_rate,
+      unit_level2_rate: conversionRates.unit_level2_rate,
+    });
+
+    resetForm();
+    onClose();
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  // Products are now fetched via useProducts hook
+  // console.log('BulkAddModal: Using products from hook, count:', products?.length || 0);
+
+  // Get all available product codes filtered by product type
+  const allProductCodes = useMemo(() => {
+    return productHelpers.getAllProductCodes(availableProducts, selectedProductType);
+  }, [availableProducts, selectedProductType]);
+
+  // Filter product codes based on search
+  const filteredProductCodes = useMemo(() => {
+    return productHelpers.getFilteredProductCodes(availableProducts, productCodeInputValue, selectedProductType);
+  }, [availableProducts, productCodeInputValue, selectedProductType]);
+
+  // Auto-fill product name when product code changes
+  const handleProductCodeChange = async (value: string) => {
+    setProductCode(value);
+    setProductCodeInputValue(value);
+
+    if (value === '') {
+      setProductName('');
+      setIsNewProduct(false);
+      setConversionRates({ unit_level1_rate: 144, unit_level2_rate: 12 });
+      return;
+    }
+
+    // Use productHelpers to get product display name
+    const displayName = productHelpers.getProductDisplayName(availableProducts, value);
+    if (displayName) {
+      setProductName(displayName);
+      setIsNewProduct(false);
+      // Fetch conversion rates
+      await fetchConversionRates(value.toUpperCase());
+    } else {
+      // New product
+      setIsNewProduct(true);
+    }
+  };
+
+  // Handle product code select from dropdown
+  const handleProductCodeSelect = (code: string) => {
+    handleProductCodeChange(code);
+    setIsProductCodeOpen(false);
+  };
+
+  // Check if product code is new (not in mapping or DB)
+  const checkIfNewProduct = (code: string) => {
+    return productHelpers.isNewProduct(availableProducts, code);
+  };
+
+  // Helper function to get inventory count at location
+  const getLocationInventoryCount = useCallback((location: string) => {
+    return inventoryItems.filter(item =>
+      normalizeLocation(item.location) === normalizeLocation(location)
+    ).length;
+  }, [inventoryItems]);
+
+  // Helper function to check if location is empty
+  const isLocationEmpty = useCallback((location: string) => {
+    return getLocationInventoryCount(location) === 0;
+  }, [getLocationInventoryCount]);
+
+  // Get available rows from locations
+  const availableRows = useMemo(() => {
+    const rows = new Set<string>();
+    availableLocations.forEach(location => {
+      const match = location.match(/^([A-Z])/);
+      if (match) {
+        rows.add(match[1]);
+      }
+    });
+    return Array.from(rows).sort();
+  }, [availableLocations]);
+
+  // Enhanced location data with status
+  const locationsWithStatus = useMemo(() => {
+    const status = availableLocations.map(location => ({
+      location,
+      itemCount: getLocationInventoryCount(location),
+      isEmpty: isLocationEmpty(location)
+    }));
+
+    // Performance: Remove console.logs from render cycle
+    // console.log('BulkAddModal: Total available locations:', availableLocations.length);
+    // console.log('BulkAddModal: Empty locations:', status.filter(s => s.isEmpty).length);
+    // console.log('BulkAddModal: Occupied locations:', status.filter(s => !s.isEmpty).length);
+
+    return status;
+  }, [availableLocations, getLocationInventoryCount, isLocationEmpty]);
+
+  // Filter locations based on search and filter type
+  const filteredLocations = useMemo(() => {
+    // Performance: Use deferred search value to reduce filter calculations
+    const searchTerm = deferredLocationSearch.toLowerCase();
+
+    const filtered = locationsWithStatus.filter(locationData => {
+      // Apply search filter
+      const matchesSearch = !searchTerm || locationData.location.toLowerCase().includes(searchTerm);
+
+      // Apply type filter
+      const matchesFilter = locationFilter === 'all' ||
+        (locationFilter === 'empty' && locationData.isEmpty) ||
+        (locationFilter === 'occupied' && !locationData.isEmpty);
+
+      // Apply row filter
+      const matchesRow = (() => {
+        if (rowFilter === 'all') return true;
+        if (rowFilter === 'A-M') {
+          const row = locationData.location.charAt(0);
+          return row >= 'A' && row <= 'M';
+        }
+        if (rowFilter === 'N-Z') {
+          const row = locationData.location.charAt(0);
+          return row >= 'N' && row <= 'Z';
+        }
+        return locationData.location.startsWith(rowFilter + '/');
+      })();
+
+      return matchesSearch && matchesFilter && matchesRow;
+    });
+
+    // Performance: Remove console.logs from render cycle
+    // console.log('BulkAddModal: Filter applied -', {
+    //   search: locationSearch,
+    //   filter: locationFilter,
+    //   row: rowFilter,
+    //   resultCount: filtered.length
+    // });
+
+    return filtered;
+  }, [locationsWithStatus, deferredLocationSearch, locationFilter, rowFilter]);
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-full h-full sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto bg-white">
+        <DialogHeader className="p-4 sm:p-6">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+            เพิ่มสินค้าหลายตำแหน่ง
+          </DialogTitle>
+          <DialogDescription className="text-xs sm:text-sm">
+            เพิ่มสินค้าชนิดเดียวกันในหลายตำแหน่งพร้อมกัน
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 sm:space-y-6 py-2 sm:py-4 px-4 sm:px-6">
+          {/* Product Information */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">ข้อมูลสินค้า</h3>
+
+            {/* Product Type Selector */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                ประเภทสินค้า *
+              </Label>
+              <Select
+                value={selectedProductType || ''}
+                onValueChange={(value: ProductType) => {
+                  setSelectedProductType(value);
+                  // Reset product code when changing type
+                  setProductCode('');
+                  setProductCodeInputValue('');
+                  setProductName('');
+                  setIsNewProduct(false);
+                }}
+              >
+                <SelectTrigger className="h-11 sm:h-10">
+                  <SelectValue placeholder="เลือกประเภทสินค้า" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="FG">
+                    🏭 FG - สินค้าสำเร็จรูป
+                  </SelectItem>
+                  <SelectItem value="PK">
+                    📦 PK - วัสดุบรรจุภัณฑ์
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {selectedProductType && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedProductType === 'FG'
+                    ? '💡 สินค้าสำเร็จรูปพร้อมขาย'
+                    : '💡 วัสดุบรรจุภัณฑ์และอุปกรณ์'
+                  }
+                </p>
+              )}
+            </div>
+
+            {/* Apply to all locations checkbox */}
+            {selectedLocations.size > 1 && (
+              <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <Checkbox
+                  id="applyToAllLocations"
+                  checked={applyToAllLocations}
+                  onCheckedChange={(checked) => setApplyToAllLocations(checked as boolean)}
+                />
+                <Label
+                  htmlFor="applyToAllLocations"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  ใช้ข้อมูลสินค้าเดียวกันสำหรับทุกตำแหน่งที่เลือก ({selectedLocations.size} ตำแหน่ง)
+                </Label>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="productName" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  ชื่อสินค้า *
+                </Label>
+                <Input
+                  id="productName"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  placeholder="กรอกชื่อสินค้า"
+                  className={isNewProduct ? "border-orange-300 focus-visible:ring-orange-500" : ""}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="productCode" className="flex items-center gap-2">
+                  <Hash className="h-4 w-4" />
+                  รหัสสินค้า (SKU) *
+                </Label>
+                {!selectedProductType && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    กรุณาเลือกประเภทสินค้าก่อน
+                  </p>
+                )}
+                <div className="relative">
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={isProductCodeOpen}
+                    className="w-full justify-between"
+                    disabled={!selectedProductType}
+                    onClick={() => selectedProductType && setIsProductCodeOpen(!isProductCodeOpen)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (productCodeInputValue && filteredProductCodes.length === 0) {
+                          handleProductCodeChange(productCodeInputValue);
+                          setIsProductCodeOpen(false);
+                        }
+                      }
+                    }}
+                  >
+                    <span className={productCodeInputValue ? "font-mono" : "text-muted-foreground"}>
+                      {productCodeInputValue || "เลือกรหัสสินค้า"}
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  {(isProductCodeOpen && (filteredProductCodes.length > 0 || productCodeInputValue)) && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-md">
+                      <Command shouldFilter={false}>
+                        <div className="flex items-center border-b px-3">
+                          <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                          <Input
+                            placeholder="ค้นหารหัสสินค้า..."
+                            value={productCodeInputValue}
+                            onChange={(e) => {
+                              setProductCodeInputValue(e.target.value);
+                              setIsNewProduct(checkIfNewProduct(e.target.value));
+                            }}
+                            className="border-0 px-0 py-2 focus-visible:ring-0"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (productCodeInputValue && filteredProductCodes.length === 0) {
+                                  handleProductCodeChange(productCodeInputValue);
+                                  setIsProductCodeOpen(false);
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                        <CommandList className="max-h-60 overflow-auto">
+                          {productCodeInputValue && filteredProductCodes.length === 0 && (
+                            <CommandEmpty>
+                              <div className="p-3">
+                                <div className="flex items-center gap-2 text-sm text-green-700">
+                                  <Plus className="h-4 w-4" />
+                                  สร้างรหัสสินค้าใหม่:
+                                  <code className="font-mono font-bold bg-green-50 px-1 rounded">{productCodeInputValue}</code>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  กด Enter เพื่อใช้รหัสนี้
+                                </div>
+                              </div>
+                            </CommandEmpty>
+                          )}
+                          {filteredProductCodes.length > 0 && (
+                            <CommandGroup heading="รหัสสินค้าที่มีอยู่">
+                              {filteredProductCodes.map((code) => (
+                                <CommandItem
+                                  key={code}
+                                  value={code}
+                                  onSelect={() => handleProductCodeSelect(code)}
+                                  className="cursor-pointer"
+                                >
+                                  <Check
+                                    className={`mr-2 h-4 w-4 ${
+                                      productCodeInputValue === code ? 'opacity-100' : 'opacity-0'
+                                    }`}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-mono font-medium">{code}</span>
+                                    {(() => {
+                                      const productInfo = productHelpers.getProductDisplayInfo(availableProducts, code);
+                                      return productInfo.name && (
+                                        <div className="flex flex-col text-xs text-muted-foreground">
+                                          <span>{productInfo.name}</span>
+                                          {productInfo.brand && productInfo.category && (
+                                            <span className="text-xs opacity-60">
+                                              {productInfo.brand} • {productInfo.category}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </div>
+                  )}
+                </div>
+                {isNewProduct && (
+                  <p className="text-xs text-orange-600">
+                    💡 สินค้าใหม่ที่ยังไม่มีในระบบ กรุณากรอกชื่อสินค้า
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="lot">Lot</Label>
+                <Input
+                  id="lot"
+                  value={lot}
+                  onChange={(e) => setLot(e.target.value)}
+                  placeholder="กรอก Lot (ถ้ามี)"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="mfd">MFD</Label>
+                <Input
+                  id="mfd"
+                  type="date"
+                  value={mfd}
+                  onChange={(e) => setMfd(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="quantityBoxes">จำนวนลัง</Label>
+                <Input
+                  id="quantityBoxes"
+                  type="number"
+                  min="0"
+                  value={quantityBoxes}
+                  onChange={(e) => setQuantityBoxes(parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantityLoose">จำนวนกล่อง</Label>
+                <Input
+                  id="quantityLoose"
+                  type="number"
+                  min="0"
+                  value={quantityLoose}
+                  onChange={(e) => setQuantityLoose(parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="quantityPieces">จำนวนชิ้น</Label>
+                <Input
+                  id="quantityPieces"
+                  type="number"
+                  min="0"
+                  value={quantityPieces}
+                  onChange={(e) => setQuantityPieces(parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Location Selection */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium">เลือกตำแหน่ง</h3>
+              <Badge variant="secondary">
+                เลือกแล้ว {selectedLocations.size} ตำแหน่ง
+              </Badge>
+            </div>
+
+            {/* Custom Location Input */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="เพิ่มตำแหน่งใหม่ (เช่น A1/1)"
+                value={customLocation}
+                onChange={(e) => setCustomLocation(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCustomLocation()}
+              />
+              <Button
+                type="button"
+                onClick={handleAddCustomLocation}
+                disabled={!customLocation.trim()}
+                size="sm"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Selected Locations */}
+            {selectedLocations.size > 0 && (
+              <div className="space-y-2">
+                <Label>ตำแหน่งที่เลือก:</Label>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(selectedLocations).map(location => (
+                    <Badge
+                      key={location}
+                      variant="default"
+                      className="cursor-pointer hover:bg-destructive"
+                      onClick={() => handleLocationToggle(location)}
+                    >
+                      <MapPin className="h-3 w-3 mr-1" />
+                      {location}
+                      <Minus className="h-3 w-3 ml-1" />
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Available Locations */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>ตำแหน่งที่มีอยู่:</Label>
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="bg-green-50 text-green-700">
+                    ว่าง {locationsWithStatus.filter(l => l.isEmpty).length}
+                  </Badge>
+                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
+                    มีสินค้า {locationsWithStatus.filter(l => !l.isEmpty).length}
+                  </Badge>
+                  <Badge variant="outline">
+                    ทั้งหมด {availableLocations.length}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Location Search and Filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="ค้นหาตำแหน่ง (เช่น A1 หรือ A1/1)"
+                    value={locationSearch}
+                    onChange={(e) => setLocationSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={rowFilter} onValueChange={setRowFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="แถว" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60 overflow-y-auto">
+                    <SelectItem value="all">ทุกแถว A-Z</SelectItem>
+                    <SelectItem value="A-M">แถว A-M</SelectItem>
+                    <SelectItem value="N-Z">แถว N-Z</SelectItem>
+                    {availableRows.map(row => (
+                      <SelectItem key={row} value={row}>แถว {row}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={locationFilter} onValueChange={(value: 'all' | 'empty' | 'occupied') => setLocationFilter(value)}>
+                  <SelectTrigger className="w-40">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">ทั้งหมด</SelectItem>
+                    <SelectItem value="empty">ตำแหน่งว่าง</SelectItem>
+                    <SelectItem value="occupied">มีสินค้าแล้ว</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto border rounded-lg p-3">
+                {filteredLocations.length > 500 && (
+                  <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                    ⚠️ แสดงเพียง 500 ตำแหน่งแรก (จาก {filteredLocations.length} ที่พบ) - กรุณาใช้ filter หรือค้นหาเพื่อลดจำนวน
+                  </div>
+                )}
+                {filteredLocations.length > 200 && filteredLocations.length <= 500 && (
+                  <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded text-sm text-orange-700">
+                    ⚠️ แสดง {filteredLocations.length} ตำแหน่ง (จาก 2,080 ทั้งหมด) - แนะนำให้ใช้ filter หรือค้นหาเพื่อประสิทธิภาพที่ดีขึ้น
+                  </div>
+                )}
+                {filteredLocations.length > 100 && filteredLocations.length <= 200 && (
+                  <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-700">
+                    💡 แสดง {filteredLocations.length} ตำแหน่ง - ใช้ filter หรือค้นหาเพื่อลดจำนวน
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                  {filteredLocations.length > 0 ? (
+                    // Performance: Limit rendering to first 500 items to prevent forced reflows
+                    filteredLocations.slice(0, 500).map(locationData => (
+                      <div key={locationData.location} className={`flex items-start space-x-2 p-2 rounded-lg border ${
+                        locationData.isEmpty
+                          ? 'bg-green-50 border-green-200'
+                          : 'bg-yellow-50 border-yellow-200'
+                      }`}>
+                        <Checkbox
+                          id={locationData.location}
+                          checked={selectedLocations.has(locationData.location)}
+                          onCheckedChange={() => handleLocationToggle(locationData.location)}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            {locationData.isEmpty ? (
+                              <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
+                            ) : (
+                              <AlertTriangle className="h-3 w-3 text-yellow-600 flex-shrink-0" />
+                            )}
+                            <Label
+                              htmlFor={locationData.location}
+                              className="text-sm font-mono cursor-pointer truncate"
+                            >
+                              {displayLocation(locationData.location)}
+                            </Label>
+                          </div>
+                          <div className={`text-xs ${
+                            locationData.isEmpty ? 'text-green-600' : 'text-yellow-600'
+                          }`}>
+                            {locationData.isEmpty
+                              ? 'ว่าง'
+                              : `มี ${locationData.itemCount} รายการ (จะเพิ่มเข้าไป)`
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="col-span-full text-center text-muted-foreground py-4">
+                      {locationSearch ? 'ไม่พบตำแหน่งที่ค้นหา' : 'ไม่มีตำแหน่งให้เลือก'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-4">
+          <Button variant="outline" onClick={handleClose} className="flex-1">
+            ยกเลิก
+          </Button>
+          <Button
+            onClick={handleSave}
+            className="flex-1"
+            disabled={!productName.trim() || !productCodeInputValue.trim() || selectedLocations.size === 0}
+          >
+            บันทึก ({selectedLocations.size} ตำแหน่ง)
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

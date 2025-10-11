@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Warmup</title>
+  <meta charset="utf-8">
+</head>
+<body>
+  <script>
+    // Prevent Chrome Extension runtime errors
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      // Clear any pending extension messages
+      try {
+        chrome.runtime.onMessage.removeListener(() => {});
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    
+    // Simple warmup page - no extension interactions
+    console.log('Warmup page loaded successfully');
+  </script>
+</body>
+</html>
