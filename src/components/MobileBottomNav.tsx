@@ -11,7 +11,6 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContextSimple';
 
 interface NavButtonProps {
   icon: LucideIcon;
@@ -71,7 +70,7 @@ interface MobileBottomNavProps {
 
 /**
  * Bottom Navigation Bar สำหรับ Mobile
- * แสดง 5 เมนูหลักตามสิทธิ์ผู้ใช้
+ * แสดง 5 เมนูหลัก (ทุกคนเข้าถึงได้เหมือน Desktop)
  */
 export function MobileBottomNav({
   activeTab,
@@ -79,26 +78,18 @@ export function MobileBottomNav({
   onMoreClick,
   unreadCount
 }: MobileBottomNavProps) {
-  const { user } = useAuth();
-
-  // Define all possible tabs with role requirements
+  // Define all tabs - everyone can access (same as desktop)
   const allTabs = [
-    { value: 'overview', icon: PieChart, label: 'ภาพรวม', minRole: 1 },
-    { value: 'warehouse', icon: Warehouse, label: 'คลังสินค้า', minRole: 2, color: '#16a34a' },
-    { value: 'finance', icon: CreditCard, label: 'การเงิน', minRole: 3, color: '#ca8a04' },
-    { value: 'reports', icon: BarChart3, label: 'รายงาน', minRole: 3, color: '#2563eb' },
-    { value: 'tools', icon: Settings, label: 'เครื่องมือ', minRole: 2 },
+    { value: 'overview', icon: PieChart, label: 'ภาพรวม' },
+    { value: 'warehouse', icon: Warehouse, label: 'คลังสินค้า', color: '#16a34a' },
+    { value: 'finance', icon: CreditCard, label: 'การเงิน', color: '#ca8a04' },
+    { value: 'reports', icon: BarChart3, label: 'รายงาน', color: '#2563eb' },
+    { value: 'tools', icon: Settings, label: 'เครื่องมือ' },
   ];
 
-  // Filter tabs based on user role level
-  const visibleTabs = allTabs.filter(tab => {
-    if (!user) return tab.minRole === 1; // Guest/viewer only sees overview
-    return user.role_level >= tab.minRole;
-  });
-
   // Show up to 4 tabs + More button
-  const mainTabs = visibleTabs.slice(0, 4);
-  const hasMore = visibleTabs.length > 4;
+  const mainTabs = allTabs.slice(0, 4);
+  const hasMore = allTabs.length > 4;
 
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50 safe-area-inset-bottom">
