@@ -458,6 +458,111 @@ export class PurchaseOrderService {
   static getSourceTypeBadge(sourceType: FulfillmentSource): string {
     return sourceType === 'api' ? 'default' : 'secondary';
   }
+
+  // ============================================================================
+  // Reservation System Integration
+  // ============================================================================
+
+  /**
+   * ค้นหา inventory locations ทั้งหมดสำหรับสินค้า (รองรับ reservation)
+   * ใช้ View inventory_available เพื่อแสดง available stock ที่แท้จริง
+   */
+  static async findAllInventoryLocationsForProductWithReservation(
+    productName: string
+  ): Promise<Array<{
+    inventory_item_id: string;
+    location: string;
+    warehouse_code?: string;
+    total_stock: number;
+    reserved_stock: number;
+    available_stock: number;
+    unit_level1_name?: string;
+    unit_level2_name?: string;
+    unit_level3_name?: string;
+  }>> {
+    try {
+      const { data, error } = await supabase
+        .from('inventory_available')
+        .select(`
+          id,
+          location,
+          warehouse_code,
+          quantity,
+          reserved_quantity,
+          available_quantity,
+          unit_level1_name,
+          unit_level2_name,
+          unit_level3_name
+        `)
+        .eq('product_name', productName)
+        .gt('available_quantity', 0)  // แสดงเฉพาะที่มี available > 0
+        .order('available_quantity', { ascending: false });
+
+      if (error) {
+        console.error('Error finding inventory locations:', error);
+        return [];
+      }
+
+      return (data || []).map(item => ({
+        inventory_item_id: item.id,
+        location: item.location,
+        warehouse_code: item.warehouse_code,
+        total_stock: item.quantity,
+        reserved_stock: item.reserved_quantity,
+        available_stock: item.available_quantity,
+        unit_level1_name: item.unit_level1_name,
+        unit_level2_name: item.unit_level2_name,
+        unit_level3_name: item.unit_level3_name,
+      }));
+    } catch (error) {
+      console.error('Exception finding inventory locations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * ค้นหา inventory locations สำหรับสินค้า (backward compatible)
+   * Alias สำหรับ function เดิมที่ใช้อยู่
+   */
+  static async findAllInventoryLocationsForProduct(
+    productName: string
+  ): Promise<Array<{
+    inventory_item_id: string;
+    location: string;
+    available_stock: number;
+  }>> {
+    const locations = await this.findAllInventoryLocationsForProductWithReservation(productName);
+    return locations.map(loc => ({
+      inventory_item_id: loc.inventory_item_id,
+      location: loc.location,
+      available_stock: loc.available_stock,
+    }));
+  }
+
+  /**
+   * คำนวณ available stock แบบ real-time
+   */
+  static async getAvailableStockForItem(
+    inventoryItemId: string
+  ): Promise<number> {
+    try {
+      const { data, error } = await supabase
+        .from('inventory_available')
+        .select('available_quantity')
+        .eq('id', inventoryItemId)
+        .single();
+
+      if (error || !data) {
+        console.error('Error getting available stock:', error);
+        return 0;
+      }
+
+      return data.available_quantity;
+    } catch (error) {
+      console.error('Exception getting available stock:', error);
+      return 0;
+    }
+  }
 }
 
 export default PurchaseOrderService;

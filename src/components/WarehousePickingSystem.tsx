@@ -29,7 +29,8 @@ import {
   QrCode,
   AlertTriangle,
   XCircle,
-  Send
+  Send,
+  Lock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
@@ -38,6 +39,8 @@ import {
   type FulfillmentTask,
   type FulfillmentItem
 } from '@/services/purchaseOrderService';
+import { StockReservationService } from '@/services/stockReservationService';
+import type { MultiLevelQuantity } from '@/types/reservation';
 import { supabase } from '@/integrations/supabase/client';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { useInventory } from '@/hooks/useInventory';
@@ -98,50 +101,53 @@ export const WarehousePickingSystem = () => {
     try {
       if (!selectedTask) return;
 
-      // อัปเดต status เป็น 'picked' (ยังยกเลิกได้)
-      const newStatus = 'picked';
+      const userId = '00000000-0000-0000-0000-000000000000'; // TODO: ใช้ user ID จริง
+      const reservationIds: string[] = [];
 
+      // สร้าง reservations สำหรับทุก location ที่เลือก
+      if (selectedLocations && selectedLocations.length > 0) {
+        for (const loc of selectedLocations) {
+          if (loc.selected_quantity > 0) {
+            // สร้าง reservation
+            const result = await StockReservationService.createReservation({
+              inventory_item_id: loc.inventory_item_id,
+              fulfillment_item_id: item.id,
+              warehouse_code: 'A', // TODO: ดึงจาก warehouse context
+              location: loc.location,
+              quantities: {
+                level1_quantity: 0,
+                level2_quantity: 0,
+                level3_quantity: loc.selected_quantity,
+                total_quantity: loc.selected_quantity,
+              },
+              reserved_by: userId,
+              notes: `จัดสินค้าสำหรับ PO: ${selectedTask.po_number}`,
+            });
+
+            if (!result.success) {
+              throw new Error(result.error || 'ไม่สามารถจองสต็อกได้');
+            }
+
+            if (result.reservation_id) {
+              reservationIds.push(result.reservation_id);
+            }
+          }
+        }
+      }
+
+      // อัปเดต fulfillment_item status เป็น 'picked'
       const { error } = await supabase
         .from('fulfillment_items')
         .update({
           fulfilled_quantity: pickedQuantity,
-          status: newStatus,
+          status: 'picked',
           picked_at: new Date().toISOString(),
-          picked_by: '00000000-0000-0000-0000-000000000000', // TODO: ใช้ user ID จริง
+          picked_by: userId,
           updated_at: new Date().toISOString()
         })
         .eq('id', item.id);
 
       if (error) throw error;
-
-      // หักสต็อกจากทุก location ที่เลือก
-      if (selectedLocations && selectedLocations.length > 0) {
-        for (const loc of selectedLocations) {
-          if (loc.selected_quantity > 0) {
-            const { error: stockError } = await supabase
-              .from('inventory_items')
-              .update({
-                quantity: supabase.raw(`GREATEST(quantity - ${loc.selected_quantity}, 0)`)
-              })
-              .eq('id', loc.inventory_item_id);
-
-            if (stockError) {
-              console.error('Error deducting stock:', stockError);
-              throw stockError;
-            }
-          }
-        }
-      } else if (item.inventory_item_id) {
-        // Fallback: หักจาก location เดียว (เหมือนเดิม)
-        const { error: stockError } = await supabase
-          .from('inventory_items')
-          .update({
-            quantity: supabase.raw(`GREATEST(quantity - ${pickedQuantity}, 0)`)
-          })
-          .eq('id', item.inventory_item_id);
-
-        if (stockError) throw stockError;
-      }
 
       // Update local state
       setPickingLocations(prev =>
@@ -149,7 +155,7 @@ export const WarehousePickingSystem = () => {
           ...loc,
           items: loc.items.map(i =>
             i.id === item.id
-              ? { ...i, fulfilled_quantity: pickedQuantity, status: newStatus, picked_at: new Date().toISOString() }
+              ? { ...i, fulfilled_quantity: pickedQuantity, status: 'picked', picked_at: new Date().toISOString() }
               : i
           ),
           isCompleted: loc.items.every(i =>
@@ -163,15 +169,15 @@ export const WarehousePickingSystem = () => {
         : '';
 
       toast({
-        title: '✅ จัดสินค้าสำเร็จ',
-        description: `จัด ${item.product_name} จำนวน ${pickedQuantity} ${locationSummary} แล้ว (ยังยกเลิกได้)`
+        title: '✅ จองสต็อกสำเร็จ',
+        description: `จอง ${item.product_name} จำนวน ${pickedQuantity} ${locationSummary} (ยังยกเลิกได้)`
       });
 
     } catch (error) {
       console.error('Error picking item:', error);
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถบันทึกการจัดสินค้าได้',
+        description: error instanceof Error ? error.message : 'ไม่สามารถจองสต็อกได้',
         variant: 'destructive'
       });
     }
@@ -182,27 +188,52 @@ export const WarehousePickingSystem = () => {
     try {
       if (!selectedTask) return;
 
-      const result = await cancelFulfillmentItem(item.id);
+      const userId = '00000000-0000-0000-0000-000000000000'; // TODO: ใช้ user ID จริง
 
-      if (result.success) {
-        // Update local state
-        setPickingLocations(prev =>
-          prev.map(loc => ({
-            ...loc,
-            items: loc.items.map(i =>
-              i.id === item.id
-                ? { ...i, fulfilled_quantity: 0, status: 'pending', picked_at: undefined, picked_by: undefined }
-                : i
-            ),
-            isCompleted: false
-          }))
-        );
+      // ดึง reservations ของ item นี้
+      const reservations = await StockReservationService.getReservationsByFulfillmentItem(item.id);
+      const activeReservations = reservations.filter(r => r.status === 'active');
 
-        toast({
-          title: '✅ ยกเลิกสำเร็จ',
-          description: `ยกเลิกการจัด ${item.product_name} และคืนสต็อกแล้ว`
+      // ยกเลิก reservations ทั้งหมด
+      for (const reservation of activeReservations) {
+        await StockReservationService.cancelReservation({
+          reservation_id: reservation.id,
+          cancelled_by: userId,
+          reason: 'ยกเลิกการจัดสินค้า',
         });
       }
+
+      // อัปเดต fulfillment_item
+      const { error } = await supabase
+        .from('fulfillment_items')
+        .update({
+          fulfilled_quantity: 0,
+          status: 'pending',
+          picked_at: null,
+          picked_by: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setPickingLocations(prev =>
+        prev.map(loc => ({
+          ...loc,
+          items: loc.items.map(i =>
+            i.id === item.id
+              ? { ...i, fulfilled_quantity: 0, status: 'pending', picked_at: undefined, picked_by: undefined }
+              : i
+          ),
+          isCompleted: false
+        }))
+      );
+
+      toast({
+        title: '✅ ยกเลิกสำเร็จ',
+        description: `ยกเลิกการจอง ${item.product_name} และคืนสต็อกแล้ว`
+      });
     } catch (error) {
       console.error('Error canceling item:', error);
       toast({
@@ -213,28 +244,72 @@ export const WarehousePickingSystem = () => {
     }
   };
 
-  // ยืนยันการจัดส่ง (จะเปลี่ยน status จาก picked → completed และเปลี่ยน task เป็น shipped)
+  // ยืนยันการจัดส่ง (Fulfill reservations และหักสต็อกจริง)
   const handleConfirmShipment = async () => {
     if (!selectedTask) return;
 
     try {
-      const result = await confirmTaskShipment(selectedTask.id);
+      const userId = '00000000-0000-0000-0000-000000000000'; // TODO: ใช้ user ID จริง
 
-      if (result.success) {
-        setPickingMode(false);
-        setSelectedTask(null);
-        setPickingLocations([]);
+      // ดึง reservations ทั้งหมดของ task นี้
+      const allReservationIds: string[] = [];
 
-        toast({
-          title: '🎉 ยืนยันการจัดส่งสำเร็จ',
-          description: `PO ${selectedTask.po_number} พร้อมส่งมอบ (ยกเลิกไม่ได้แล้ว)`,
-        });
+      for (const location of pickingLocations) {
+        for (const item of location.items) {
+          if (item.status === 'picked') {
+            const reservations = await StockReservationService.getReservationsByFulfillmentItem(item.id);
+            const activeReservations = reservations.filter(r => r.status === 'active');
+            allReservationIds.push(...activeReservations.map(r => r.id));
+          }
+        }
       }
+
+      // Fulfill reservations ทั้งหมด (หักสต็อกจริง)
+      const fulfillResult = await StockReservationService.fulfillBulkReservations(
+        allReservationIds,
+        userId
+      );
+
+      if (!fulfillResult.success) {
+        throw new Error(`Fulfilled ${fulfillResult.fulfilled}, Failed ${fulfillResult.failed}`);
+      }
+
+      // อัปเดต fulfillment task status
+      const { error: taskError } = await supabase
+        .from('fulfillment_tasks')
+        .update({
+          status: 'shipped',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedTask.id);
+
+      if (taskError) throw taskError;
+
+      // อัปเดต items status เป็น completed
+      const { error: itemsError } = await supabase
+        .from('fulfillment_items')
+        .update({
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('fulfillment_task_id', selectedTask.id)
+        .eq('status', 'picked');
+
+      if (itemsError) throw itemsError;
+
+      setPickingMode(false);
+      setSelectedTask(null);
+      setPickingLocations([]);
+
+      toast({
+        title: '🎉 ยืนยันการจัดส่งสำเร็จ',
+        description: `PO ${selectedTask.po_number} หักสต็อกและพร้อมส่งมอบ (ยกเลิกไม่ได้แล้ว)`,
+      });
     } catch (error) {
       console.error('Error confirming shipment:', error);
       toast({
         title: '❌ เกิดข้อผิดพลาด',
-        description: 'ไม่สามารถยืนยันการจัดส่งได้',
+        description: error instanceof Error ? error.message : 'ไม่สามารถยืนยันการจัดส่งได้',
         variant: 'destructive'
       });
     }
