@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode } from 'lucide-react';
+import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode, Lock } from 'lucide-react';
 import { exportInventoryToCSV, exportLocationSummary } from '@/utils/exportUtils';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
@@ -171,6 +171,8 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   <TableHead>MFD</TableHead>
                   <TableHead className="text-right">จำนวนแยกหน่วย</TableHead>
                   <TableHead className="text-right">รวม (ชิ้น)</TableHead>
+                  <TableHead className="text-right">จองแล้ว</TableHead>
+                  <TableHead className="text-right">พร้อมใช้</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead className="text-center">Export</TableHead>
                 </TableRow>
@@ -181,7 +183,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   return (
                     <Fragment key={`location-${location}`}>
                       <TableRow key={`${location}-header`} className="bg-muted/20">
-                        <TableCell colSpan={10} className="font-medium text-muted-foreground">
+                        <TableCell colSpan={12} className="font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-3 w-3" />
                             {displayLocation(location)}
@@ -285,6 +287,71 @@ export function InventoryTable({ items }: InventoryTableProps) {
                                 );
                               })()}
                             </TableCell>
+
+                            {/* จองแล้ว (Reserved) */}
+                            <TableCell className="text-right">
+                              {(() => {
+                                const reserved = (item as any).reserved_quantity || 0;
+
+                                if (reserved > 0) {
+                                  return (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex flex-col items-end">
+                                            <div className="flex items-center gap-1">
+                                              <Lock className="h-3 w-3 text-orange-600" />
+                                              <span className="font-medium text-orange-600">
+                                                {reserved.toLocaleString('th-TH')}
+                                              </span>
+                                            </div>
+                                            <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-300">
+                                              กำลังจอง
+                                            </Badge>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>สต็อกที่ถูกจอง (ยังยกเลิกได้)</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  );
+                                }
+
+                                return (
+                                  <span className="text-muted-foreground">-</span>
+                                );
+                              })()}
+                            </TableCell>
+
+                            {/* พร้อมใช้ (Available) */}
+                            <TableCell className="text-right">
+                              {(() => {
+                                const level1 = (item as any).unit_level1_quantity || 0;
+                                const level2 = (item as any).unit_level2_quantity || 0;
+                                const level3 = (item as any).unit_level3_quantity || 0;
+                                const level1Rate = (item as any).unit_level1_rate || 0;
+                                const level2Rate = (item as any).unit_level2_rate || 0;
+
+                                const total = (level1 * level1Rate) + (level2 * level2Rate) + level3;
+                                const reserved = (item as any).reserved_quantity || 0;
+                                const available = total - reserved;
+
+                                return (
+                                  <div className="flex flex-col items-end">
+                                    <span className={`font-bold text-base ${available > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                      {available.toLocaleString('th-TH')}
+                                    </span>
+                                    {reserved > 0 && (
+                                      <span className="text-[10px] text-gray-500">
+                                        ({total} - {reserved})
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </TableCell>
+
                             <TableCell>{getStockBadge(item)}</TableCell>
                             <TableCell className="text-center">
                               <Button
