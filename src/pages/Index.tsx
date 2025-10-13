@@ -76,6 +76,7 @@ import { PackingListTab } from '@/components/PackingListTab';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileMenuSheet } from '@/components/MobileMenuSheet';
 import { FinanceDashboard } from '@/components/FinanceDashboard';
+import { ReservedStockDashboard } from '@/components/ReservedStockDashboard';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -1177,10 +1178,10 @@ const Index = memo(() => {
               </Tabs>
             </TabsContent>
 
-          {/* 🔧 เครื่องมือ - Tools Tab with 3 sub-tabs */}
+          {/* 🔧 เครื่องมือ - Tools Tab with 4 sub-tabs */}
           <TabsContent value="tools" className="space-y-4">
             <Tabs defaultValue="qr-scanner" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-4 bg-white border border-gray-200">
                 <TabsTrigger value="qr-scanner" className="flex items-center gap-2">
                   <QrCode className="h-4 w-4" />
                   📱 QR Scanner
@@ -1188,6 +1189,10 @@ const Index = memo(() => {
                 <TabsTrigger value="qr-management" className="flex items-center gap-2">
                   <QrCode className="h-4 w-4" />
                   🏷️ จัดการ QR
+                </TabsTrigger>
+                <TabsTrigger value="reserved-stock" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  🔒 Reserved Stock
                 </TabsTrigger>
                 {showAdminFeatures && (
                   <TabsTrigger value="location-management" className="flex items-center gap-2">
@@ -1209,6 +1214,10 @@ const Index = memo(() => {
                 <Suspense fallback={<ComponentLoadingFallback componentName="QR Code Management" />}>
                   <QRCodeManagement items={inventoryItems} />
                 </Suspense>
+              </TabsContent>
+
+              <TabsContent value="reserved-stock" className="space-y-4">
+                <ReservedStockDashboard />
               </TabsContent>
 
               {showAdminFeatures && (
