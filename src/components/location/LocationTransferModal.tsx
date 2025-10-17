@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeftRight, Save, X, Package, MapPin, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { generateAllWarehouseLocations } from '@/utils/locationUtils';
+import { LocationCombobox } from './LocationCombobox';
 
 interface LocationInventory {
   id: string;
@@ -323,20 +323,13 @@ export function LocationTransferModal({
             <CardContent className="space-y-3 sm:space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="to-location" className="text-xs sm:text-sm">ตำแหน่งปลายทาง</Label>
-                <Select value={toLocation} onValueChange={setToLocation}>
-                  <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
-                    <SelectValue placeholder="เลือกตำแหน่งปลายทาง..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allLocations
-                      .filter(location => location !== fromLocationId)
-                      .map((location) => (
-                        <SelectItem key={location} value={location}>
-                          {location}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <LocationCombobox
+                  value={toLocation}
+                  onChange={setToLocation}
+                  allLocations={allLocations}
+                  excludeLocation={fromLocationId}
+                  placeholder="เลือกตำแหน่งปลายทาง..."
+                />
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
