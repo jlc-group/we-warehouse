@@ -42,6 +42,7 @@ export interface StockCardRow {
   BALAMOUNT: number | null;
   INOUTFLAG: string | number | null;
   SYSDOCFLAG: string | number | null;
+  CALCULATED_BALANCE?: number; // ยอดคงเหลือที่คำนวณจาก IN - OUT (เพิ่มโดย backend)
 }
 
 export interface StockCardQueryParams {

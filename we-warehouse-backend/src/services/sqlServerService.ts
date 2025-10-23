@@ -4,6 +4,202 @@ import { StockCardRow, StockCardQueryParams } from '../types/stock.types.js';
 
 export class SQLServerService {
   /**
+   * Debug: Get list of tables in database
+   */
+  static async getTableList(pattern?: string): Promise<string[]> {
+    try {
+      const pool = await getConnection();
+      let query = `
+        SELECT TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE'
+      `;
+
+      if (pattern) {
+        query += ` AND TABLE_NAME LIKE @pattern`;
+      }
+
+      query += ` ORDER BY TABLE_NAME`;
+
+      const request = pool.request();
+      if (pattern) {
+        request.input('pattern', sql.VarChar, `%${pattern}%`);
+      }
+
+      const result = await request.query<{ TABLE_NAME: string }>(query);
+      return result.recordset.map(row => row.TABLE_NAME);
+    } catch (error) {
+      console.error('Error fetching table list:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Debug: Get columns of a specific table
+   */
+  static async getTableColumns(tableName: string): Promise<any> {
+    try {
+      const pool = await getConnection();
+
+      const columnsResult = await pool.request()
+        .input('tableName', sql.VarChar, tableName)
+        .query(`
+          SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_NAME = @tableName
+          ORDER BY ORDINAL_POSITION
+        `);
+
+      const sampleResult = await pool.request().query(`SELECT TOP 3 * FROM ${tableName}`);
+
+      return {
+        table: tableName,
+        columns: columnsResult.recordset,
+        sampleData: sampleResult.recordset
+      };
+    } catch (error) {
+      console.error(`Error getting columns for table ${tableName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Debug: Check if CSStkMove table exists and get sample data
+   */
+  static async checkTransferTable(): Promise<any> {
+    try {
+      const pool = await getConnection();
+
+      // Check if table exists
+      const tableCheck = await pool.request().query(`
+        SELECT COUNT(*) as tableExists
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_NAME = 'CSStkMove'
+      `);
+
+      const tableExists = tableCheck.recordset[0].tableExists > 0;
+
+      if (!tableExists) {
+        return { exists: false, message: 'CSStkMove table does not exist' };
+      }
+
+      // Get row count
+      const countResult = await pool.request().query(`SELECT COUNT(*) as cnt FROM CSStkMove`);
+      const rowCount = countResult.recordset[0].cnt;
+
+      // Get sample data
+      const sampleResult = await pool.request().query(`SELECT TOP 10 * FROM CSStkMove ORDER BY DOCDATE DESC`);
+
+      // Get column names
+      const columnsResult = await pool.request().query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'CSStkMove'
+        ORDER BY ORDINAL_POSITION
+      `);
+
+      return {
+        exists: true,
+        rowCount,
+        columns: columnsResult.recordset.map((r: any) => r.COLUMN_NAME),
+        sampleData: sampleResult.recordset
+      };
+    } catch (error) {
+      console.error('Error checking transfer table:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch transfer documents from CSStkMove and CSStkMoveSub
+   */
+  static async fetchTransferDocuments(params?: {
+    productCode?: string;
+    warehouse?: string;
+    fromDate?: string;
+    toDate?: string;
+    docno?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    try {
+      const pool = await getConnection();
+
+      // Query to get transfer data with product details
+      let query = `
+        SELECT
+          m.DOCDATE,
+          m.DOCNO,
+          m.REMARK,
+          m.WAREHOUSE as WAREHOUSE_FROM,
+          m.LOCATION as LOCATION_FROM,
+          m.WAREHOUSEIN as WAREHOUSE_TO,
+          m.LOCATIONIN as LOCATION_TO,
+          s.PRODUCTCODE,
+          s.PRODUCTNAME,
+          s.QUANTITY as TRANSFERQTY,
+          s.UNITCODE,
+          s.REMARK as PRODUCTREMARK,
+          s.WAREHOUSE,
+          s.LOCATION,
+          s.WAREHOUSEIN,
+          s.LOCATIONIN,
+          'CSStkMove' as TABLENAME,
+          11 as TRANSTYPE
+        FROM CSSTKMOVE m
+        LEFT JOIN CSSTKMOVESUB s ON m.DOCNO = s.DOCNO
+        WHERE 1=1
+      `;
+
+      const request = pool.request();
+
+      // Apply filters
+      if (params?.productCode) {
+        const codes = params.productCode.split(',').map(c => c.trim());
+        query += ` AND s.PRODUCTCODE IN (${codes.map((_, i) => `@productCode${i}`).join(',')})`;
+        codes.forEach((code, i) => {
+          request.input(`productCode${i}`, sql.VarChar, code);
+        });
+      }
+
+      if (params?.warehouse) {
+        const warehouses = params.warehouse.split(',').map(w => w.trim());
+        query += ` AND (m.WAREHOUSE IN (${warehouses.map((_, i) => `@warehouse${i}`).join(',')}) OR m.WAREHOUSEIN IN (${warehouses.map((_, i) => `@warehouseIn${i}`).join(',')}))`;
+        warehouses.forEach((wh, i) => {
+          request.input(`warehouse${i}`, sql.VarChar, wh);
+          request.input(`warehouseIn${i}`, sql.VarChar, wh);
+        });
+      }
+
+      if (params?.fromDate) {
+        query += ` AND m.DOCDATE >= @fromDate`;
+        request.input('fromDate', sql.DateTime, new Date(params.fromDate));
+      }
+
+      if (params?.toDate) {
+        query += ` AND m.DOCDATE <= @toDate`;
+        request.input('toDate', sql.DateTime, new Date(params.toDate));
+      }
+
+      if (params?.docno) {
+        query += ` AND m.DOCNO = @docno`;
+        request.input('docno', sql.VarChar, params.docno);
+      }
+
+      // Order and limit
+      query += ` ORDER BY m.DOCDATE DESC, m.DOCNO DESC, s.PRODUCTCODE`;
+
+      const limit = Math.min(params?.limit || 500, 5000);
+      query += ` OFFSET 0 ROWS FETCH NEXT ${limit} ROWS ONLY`;
+
+      const result = await request.query(query);
+      return result.recordset;
+    } catch (error) {
+      console.error('Error fetching transfer documents:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch all sales orders with optional filtering
    */
   static async fetchSalesOrders(params?: {
@@ -70,6 +266,39 @@ export class SQLServerService {
       }));
     } catch (error) {
       console.error('Error fetching sales orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch distinct filter values from CSSTOCKCARD
+   */
+  static async fetchStockCardFilters(): Promise<{ products: string[]; warehouses: string[] }> {
+    try {
+      const pool = await getConnection();
+
+      // Get distinct products
+      const productsResult = await pool.request().query<{ PRODUCTCODE: string }>(`
+        SELECT DISTINCT PRODUCTCODE
+        FROM CSSTOCKCARD
+        WHERE PRODUCTCODE IS NOT NULL AND PRODUCTCODE != ''
+        ORDER BY PRODUCTCODE
+      `);
+
+      // Get distinct warehouses
+      const warehousesResult = await pool.request().query<{ WAREHOUSE: string }>(`
+        SELECT DISTINCT WAREHOUSE
+        FROM CSSTOCKCARD
+        WHERE WAREHOUSE IS NOT NULL AND WAREHOUSE != ''
+        ORDER BY WAREHOUSE
+      `);
+
+      return {
+        products: productsResult.recordset.map(r => r.PRODUCTCODE),
+        warehouses: warehousesResult.recordset.map(r => r.WAREHOUSE),
+      };
+    } catch (error) {
+      console.error('Error fetching stock card filters:', error);
       throw error;
     }
   }
@@ -144,7 +373,30 @@ export class SQLServerService {
       query += ' OFFSET 0 ROWS FETCH NEXT @limit ROWS ONLY';
 
       const result = await request.query<StockCardRow>(query);
-      return result.recordset as unknown as StockCardRow[];
+      const rows = result.recordset as unknown as StockCardRow[];
+
+      // Calculate running balance grouped by PRODUCTCODE + WAREHOUSE
+      const balanceByGroup: Record<string, number> = {};
+
+      const rowsWithBalance = rows.map(row => {
+        const groupKey = `${row.PRODUCTCODE || 'UNKNOWN'}_${row.WAREHOUSE || 'UNKNOWN'}`;
+
+        // Initialize balance if not exists
+        if (balanceByGroup[groupKey] === undefined) {
+          balanceByGroup[groupKey] = 0;
+        }
+
+        // Calculate balance: previous + IN - OUT
+        balanceByGroup[groupKey] += (row.INQTY || 0) - (row.OUTQTY || 0);
+
+        // Add calculated balance to row
+        return {
+          ...row,
+          CALCULATED_BALANCE: balanceByGroup[groupKey]
+        };
+      });
+
+      return rowsWithBalance;
     } catch (error) {
       console.error('Error fetching stock card:', error);
       throw error;
