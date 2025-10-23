@@ -42,6 +42,7 @@ export class SalesController {
   static async getSalesOrderById(req: Request, res: Response): Promise<void> {
     try {
       const { docno } = req.params;
+      const { limit } = req.query;
 
       if (!docno) {
         res.status(400).json({
@@ -51,7 +52,10 @@ export class SalesController {
         return;
       }
 
-      const salesOrder = await SQLServerService.fetchSalesOrderById(docno);
+      const salesOrder = await SQLServerService.fetchSalesOrderById(
+        docno,
+        limit ? parseInt(limit as string, 10) : undefined
+      );
 
       if (!salesOrder) {
         res.status(404).json({
@@ -81,6 +85,7 @@ export class SalesController {
   static async getSalesLineItems(req: Request, res: Response): Promise<void> {
     try {
       const { docno } = req.params;
+      const { limit } = req.query;
 
       if (!docno) {
         res.status(400).json({
@@ -90,7 +95,10 @@ export class SalesController {
         return;
       }
 
-      const lineItems = await SQLServerService.fetchSalesLineItems(docno);
+      const lineItems = await SQLServerService.fetchSalesLineItems(
+        docno,
+        limit ? parseInt(limit as string, 10) : undefined
+      );
 
       res.json({
         success: true,
@@ -112,11 +120,12 @@ export class SalesController {
    */
   static async getPackingList(req: Request, res: Response): Promise<void> {
     try {
-      const { tax_date, docstatus } = req.query;
+      const { tax_date, docstatus, limit } = req.query;
 
       const params = {
         taxDate: tax_date as string | undefined,
         docstatus: docstatus as string | undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
       };
 
       const packingList = await SQLServerService.fetchPackingList(params);

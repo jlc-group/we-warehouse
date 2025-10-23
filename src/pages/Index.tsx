@@ -23,7 +23,7 @@ import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
-import { DisabledUserProfile } from '@/components/DisabledUserProfile';
+import { UserProfile } from '@/components/profile/UserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
 import { BulkExportModal } from '@/components/BulkExportModal';
 
@@ -45,11 +45,11 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon, Table2, ArrowRightLeft } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon, Table2, ArrowRightLeft, FileText } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
-// Removed DisabledUserProfile import
+// Using full UserProfile component with edit capabilities
 import { AlertsPanel } from '@/components/inventory/AlertsPanel';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import { AddProductForm } from '@/components/AddProductForm';
@@ -73,6 +73,7 @@ import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage
 import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 // import { ExternalSalesTab } from '@/components/ExternalSalesTab'; // ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้
 import { PackingListTab } from '@/components/PackingListTab';
+import { StockCardTab } from '@/components/StockCardTab';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileMenuSheet } from '@/components/MobileMenuSheet';
 import { FinanceDashboard } from '@/components/FinanceDashboard';
@@ -916,7 +917,7 @@ const Index = memo(() => {
           {/* 📦 คลังสินค้า - Warehouse Tab with 6 sub-tabs */}
           <TabsContent value="warehouse" className="space-y-4">
             <Tabs defaultValue="packing-list" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-7 bg-white border border-gray-200">
                 <TabsTrigger value="inbound-outbound" className="flex items-center gap-2">
                   <Truck className="h-4 w-4" />
                   รับเข้า-ส่งออก
@@ -932,6 +933,10 @@ const Index = memo(() => {
                 <TabsTrigger value="stock-overview" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   สรุปสต็อก
+                </TabsTrigger>
+                <TabsTrigger value="stock-card" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Stock Card
                 </TabsTrigger>
                 <TabsTrigger value="table" className="flex items-center gap-2">
                   <Table2 className="h-4 w-4" />
@@ -957,6 +962,10 @@ const Index = memo(() => {
 
               <TabsContent value="stock-overview" className="space-y-4">
                 <StockOverviewPage warehouseId={selectedWarehouseId} />
+              </TabsContent>
+
+              <TabsContent value="stock-card" className="space-y-4">
+                <StockCardTab />
               </TabsContent>
 
               <TabsContent value="table" className="space-y-4">
@@ -1255,7 +1264,7 @@ const Index = memo(() => {
           )}
 
           <TabsContent value="profile" className="space-y-4">
-            <DisabledUserProfile />
+            <UserProfile />
           </TabsContent>
         </Tabs>
 
