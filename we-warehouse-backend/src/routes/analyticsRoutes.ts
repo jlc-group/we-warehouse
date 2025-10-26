@@ -23,4 +23,10 @@ router.get('/customer-comparison', AnalyticsController.getCustomerComparison);
 // GET /api/analytics/sales-summary - Sales summary with SA, CN breakdown
 router.get('/sales-summary', AnalyticsController.getSalesSummary);
 
+// GET /api/analytics/product-forecast - Product forecast with Base Code grouping (X6, X12 multipliers)
+router.get('/product-forecast', AnalyticsController.getProductForecast);
+
+// GET /api/analytics/product-forecast-prediction - Product forecast prediction (3-month average)
+router.get('/product-forecast-prediction', AnalyticsController.getProductForecastPrediction);
+
 export default router;

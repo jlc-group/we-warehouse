@@ -515,4 +515,311 @@ export class AnalyticsController {
       });
     }
   }
+
+  /**
+   * GET /api/analytics/product-forecast
+   * Get product forecast with Base Code grouping (X6, X12 multipliers)
+   */
+  static async getProductForecast(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const pool = await getConnection();
+      const request = pool.request();
+
+      // Query ยอดขายจาก CSSALESUB
+      let query = `
+        SELECT
+          d.PRODUCTCODE as productCode,
+          MAX(d.PRODUCTNAME) as productName,
+          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+        FROM CSSALESUB d
+        INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
+        WHERE 1=1
+      `;
+
+      if (startDate && endDate) {
+        query += `
+          AND h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
+        `;
+        request.input('startDate', sql.Date, startDate as string);
+        request.input('endDate', sql.Date, endDate as string);
+      }
+
+      query += `
+        GROUP BY d.PRODUCTCODE
+        HAVING SUM(CAST(d.QUANTITY as DECIMAL(18,2))) > 0
+        ORDER BY SUM(CAST(d.QUANTITY as DECIMAL(18,2))) DESC
+      `;
+
+      const result = await request.query(query);
+
+      // ประมวลผลข้อมูล: แยก Base Code และคำนวณ Multiplier
+      const baseCodeMap = new Map<string, {
+        baseCode: string;
+        baseName: string;
+        totalQty: number;
+        details: Array<{
+          originalCode: string;
+          originalName: string;
+          rawQty: number;
+          multiplier: number;
+          actualQty: number;
+        }>;
+      }>();
+
+      result.recordset.forEach((row: any) => {
+        const originalCode = row.productCode ? String(row.productCode).trim() : '';
+        const originalName = row.productName ? String(row.productName).trim() : '';
+        const rawQty = parseFloat(row.totalQuantity || 0);
+
+        // ตรวจสอบ Pattern: X ตามด้วยตัวเลข (X6, X12, X24, etc.)
+        const multiplierMatch = originalCode.match(/X(\d+)$/i);
+
+        let baseCode = originalCode;
+        let multiplier = 1;
+        let actualQty = rawQty;
+
+        if (multiplierMatch) {
+          // มี Multiplier (เช่น L3-8GX6)
+          multiplier = parseInt(multiplierMatch[1]); // ดึงตัวเลข 6, 12, 24
+          baseCode = originalCode.replace(/X\d+$/i, ''); // ตัด X6 ออก → L3-8G
+          actualQty = rawQty * multiplier; // 50 × 6 = 300
+        }
+
+        // ถ้ายังไม่มี Base Code นี้ใน Map
+        if (!baseCodeMap.has(baseCode)) {
+          baseCodeMap.set(baseCode, {
+            baseCode,
+            baseName: originalName.replace(/X\d+$/i, ''), // ตัด X6 ออกจากชื่อด้วย
+            totalQty: 0,
+            details: []
+          });
+        }
+
+        const group = baseCodeMap.get(baseCode)!;
+        group.totalQty += actualQty;
+        group.details.push({
+          originalCode,
+          originalName,
+          rawQty,
+          multiplier,
+          actualQty
+        });
+      });
+
+      // แปลง Map เป็น Array และเรียงตามยอดสูงสุด
+      const forecast = Array.from(baseCodeMap.values())
+        .sort((a, b) => b.totalQty - a.totalQty);
+
+      res.json({
+        success: true,
+        data: forecast
+      });
+    } catch (error) {
+      console.error('Error in getProductForecast:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  // Product Forecast Prediction - คาดการณ์ยอดขายจากค่าเฉลี่ย 3 เดือนย้อนหลัง
+  static async getProductForecastPrediction(req: Request, res: Response): Promise<void> {
+    try {
+      const pool = await getConnection();
+
+      // รับ parameters
+      const targetMonthParam = req.query.targetMonth as string; // เช่น "2024-11"
+      const lookbackMonths = parseInt(req.query.lookbackMonths as string) || 3;
+
+      // คำนวณเดือนเป้าหมาย (default: เดือนหน้า)
+      const now = new Date();
+      let targetDate: Date;
+      if (targetMonthParam) {
+        const [year, month] = targetMonthParam.split('-').map(Number);
+        targetDate = new Date(year, month - 1, 1);
+      } else {
+        targetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      }
+
+      // คำนวณช่วงเวลา lookback (3 เดือนย้อนหลังจากเดือนปัจจุบัน)
+      const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1); // วันแรกของเดือนหน้า
+      const startDate = new Date(now.getFullYear(), now.getMonth() - (lookbackMonths - 1), 1); // ย้อนหลัง 3 เดือน
+
+      console.log(`[Forecast] Target: ${targetDate.toISOString().slice(0, 7)}, Lookback: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`);
+
+      // Query: ดึงยอดขายรายเดือนของแต่ละสินค้าใน 3 เดือนย้อนหลัง
+      const query = `
+        SELECT
+          d.PRODUCTCODE as productCode,
+          MAX(d.PRODUCTNAME) as productName,
+          YEAR(h.DOCDATE) as year,
+          MONTH(h.DOCDATE) as month,
+          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+        FROM CSSALESUB d
+        INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
+        WHERE
+          h.DOCDATE >= @startDate
+          AND h.DOCDATE < @endDate
+          AND LEFT(h.DOCNO, 2) IN ('SA', 'CN')
+        GROUP BY d.PRODUCTCODE, YEAR(h.DOCDATE), MONTH(h.DOCDATE)
+        ORDER BY d.PRODUCTCODE, year, month
+      `;
+
+      const result = await pool.request()
+        .input('startDate', sql.DateTime, startDate)
+        .input('endDate', sql.DateTime, endDate)
+        .query(query);
+
+      console.log(`[Forecast] Query returned ${result.recordset.length} rows`);
+
+      // โครงสร้างข้อมูล: Map<baseCode, data>
+      interface MonthlyData {
+        year: number;
+        month: number;
+        qty: number;
+      }
+
+      interface ProductData {
+        originalCode: string;
+        originalName: string;
+        monthlyData: MonthlyData[];
+        multiplier: number;
+      }
+
+      interface BaseCodeData {
+        baseCode: string;
+        baseName: string;
+        products: Map<string, ProductData>;
+        monthlyTotals: Map<string, number>; // "2024-08" => totalQty
+      }
+
+      const baseCodeMap = new Map<string, BaseCodeData>();
+
+      // ประมวลผลข้อมูล
+      result.recordset.forEach((row: any) => {
+        const originalCode = row.productCode;
+        const originalName = row.productName || originalCode;
+        const year = row.year;
+        const month = row.month;
+        const qty = parseFloat(row.totalQuantity) || 0;
+
+        // ตรวจสอบ multiplier pattern (X6, X12, X24, etc.)
+        const multiplierMatch = originalCode.match(/X(\d+)$/i);
+        let baseCode = originalCode;
+        let multiplier = 1;
+
+        if (multiplierMatch) {
+          multiplier = parseInt(multiplierMatch[1]);
+          baseCode = originalCode.replace(/X\d+$/i, '');
+        }
+
+        // สร้าง/ดึง BaseCodeData
+        if (!baseCodeMap.has(baseCode)) {
+          baseCodeMap.set(baseCode, {
+            baseCode,
+            baseName: originalName.replace(/X\d+$/i, ''),
+            products: new Map(),
+            monthlyTotals: new Map()
+          });
+        }
+
+        const baseData = baseCodeMap.get(baseCode)!;
+
+        // สร้าง/ดึง ProductData
+        if (!baseData.products.has(originalCode)) {
+          baseData.products.set(originalCode, {
+            originalCode,
+            originalName,
+            monthlyData: [],
+            multiplier
+          });
+        }
+
+        const productData = baseData.products.get(originalCode)!;
+        productData.monthlyData.push({ year, month, qty });
+
+        // คำนวณยอดรวมรายเดือน (หลังคูณ multiplier)
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const actualQty = qty * multiplier;
+        const currentTotal = baseData.monthlyTotals.get(monthKey) || 0;
+        baseData.monthlyTotals.set(monthKey, currentTotal + actualQty);
+      });
+
+      // สร้างผลลัพธ์
+      const forecastData = Array.from(baseCodeMap.values()).map(baseData => {
+        // คำนวณค่าเฉลี่ยจากยอดรวมรายเดือน
+        const monthlyTotalsArray = Array.from(baseData.monthlyTotals.values());
+        const averageQty = monthlyTotalsArray.length > 0
+          ? monthlyTotalsArray.reduce((sum, qty) => sum + qty, 0) / monthlyTotalsArray.length
+          : 0;
+
+        // สร้าง historicalData สำหรับแสดงผล
+        const historicalData = Array.from(baseData.monthlyTotals.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([monthKey, qty]) => {
+            const [year, month] = monthKey.split('-');
+            const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            return {
+              month: monthKey,
+              monthName: `${monthNames[parseInt(month) - 1]} ${parseInt(year) + 543}`,
+              qty
+            };
+          });
+
+        // สร้าง details (รายละเอียดแต่ละ original code)
+        const details = Array.from(baseData.products.values()).map(product => ({
+          originalCode: product.originalCode,
+          originalName: product.originalName,
+          multiplier: product.multiplier,
+          monthlyData: product.monthlyData.map(m => {
+            const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            return {
+              month: `${m.year}-${String(m.month).padStart(2, '0')}`,
+              monthName: `${monthNames[m.month - 1]} ${m.year + 543}`,
+              qty: m.qty,
+              actualQty: m.qty * product.multiplier
+            };
+          })
+        }));
+
+        return {
+          baseCode: baseData.baseCode,
+          baseName: baseData.baseName,
+          historicalData,
+          averageQty: Math.round(averageQty * 100) / 100,
+          forecastQty: Math.round(averageQty * 100) / 100, // ตอนนี้ใช้ค่าเดียวกับ average
+          details
+        };
+      });
+
+      // เรียงตามยอดพยากรณ์ (สูง → ต่ำ)
+      forecastData.sort((a, b) => b.forecastQty - a.forecastQty);
+
+      console.log(`[Forecast] Processed ${forecastData.length} base codes`);
+
+      res.json({
+        success: true,
+        data: forecastData,
+        metadata: {
+          targetMonth: targetDate.toISOString().slice(0, 7),
+          lookbackMonths,
+          startDate: startDate.toISOString().slice(0, 10),
+          endDate: endDate.toISOString().slice(0, 10),
+          totalBaseCodes: forecastData.length
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getProductForecastPrediction:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 }

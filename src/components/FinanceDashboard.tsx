@@ -52,6 +52,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
+import { ProductForecast } from './ProductForecast';
+import { ProductForecastPrediction } from './ProductForecastPrediction';
 
 // Fetch สินค้าทั้งหมดและ order details พร้อมกัน
 const fetchProductsAndDetails = async (orders: any[]): Promise<{
@@ -467,6 +469,25 @@ export function FinanceDashboard() {
           รีเฟรช
         </Button>
       </div>
+
+      {/* Tabs */}
+      <Tabs defaultValue="analytics" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="analytics">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Sales Analytics
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <FileText className="h-4 w-4 mr-2" />
+            Sales History
+          </TabsTrigger>
+          <TabsTrigger value="prediction">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Forecast Prediction
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="analytics" className="space-y-6 mt-6">
 
       {/* Filter Section - ปรับปรุงใหม่ */}
       <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50/50 to-cyan-50/50">
@@ -1012,6 +1033,16 @@ export function FinanceDashboard() {
           )}
         </DialogContent>
       </Dialog>
+      </TabsContent>
+
+      <TabsContent value="history" className="mt-6">
+        <ProductForecast />
+      </TabsContent>
+
+      <TabsContent value="prediction" className="mt-6">
+        <ProductForecastPrediction />
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }
