@@ -5,6 +5,7 @@ import { corsMiddleware } from './middleware/cors.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import salesRoutes from './routes/salesRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import { SalesController } from './controllers/salesController.js';
 import { getConnection } from './config/database.js';
 
@@ -32,6 +33,7 @@ app.get('/health', SalesController.healthCheck);
 // API Routes
 app.use('/api/sales', salesRoutes);
 app.use('/api/stock', stockRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -74,6 +76,8 @@ async function startServer() {
     console.log(`   GET  /api/sales/:docno`);
     console.log(`   GET  /api/sales/:docno/items`);
     console.log(`   GET  /api/stock/stock-card`);
+    console.log(`   GET  /api/analytics/product-comparison`);
+    console.log(`   GET  /api/analytics/customer-comparison`);
   });
 
   // Test database connection (non-blocking)

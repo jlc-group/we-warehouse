@@ -45,7 +45,7 @@ import {
   parseWarehouseLocationQR,
   generateWarehouseLocationQR
 } from '@/utils/locationUtils';
-import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon, Table2, ArrowRightLeft, FileText } from 'lucide-react';
+import { Package, BarChart3, Grid3X3, Table, PieChart, QrCode, Archive, Plus, User, LogOut, Settings, Users, Warehouse, MapPin, Truck, Trash2, PackagePlus, ShoppingCart, Hash, CreditCard, Database as DatabaseIcon, Table2, ArrowRightLeft, FileText, TrendingUp } from 'lucide-react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
@@ -74,10 +74,14 @@ import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 // import { ExternalSalesTab } from '@/components/ExternalSalesTab'; // ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้
 import { PackingListTab } from '@/components/PackingListTab';
 import { StockCardTab } from '@/components/StockCardTab';
+import { StockCardTabNew } from '@/components/StockCardTabNew';
+import { TransferTab } from '@/components/TransferTab';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileMenuSheet } from '@/components/MobileMenuSheet';
 import { FinanceDashboard } from '@/components/FinanceDashboard';
+import { SalesAnalytics } from '@/components/SalesAnalytics';
 import { ReservedStockDashboard } from '@/components/ReservedStockDashboard';
+import { FinancePasswordGuard } from '@/components/FinancePasswordGuard';
 
 const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
 const WarehouseDashboard = lazy(() => import('@/components/departments/WarehouseDashboard'));
@@ -914,10 +918,10 @@ const Index = memo(() => {
             />
           </TabsContent>
 
-          {/* 📦 คลังสินค้า - Warehouse Tab with 6 sub-tabs */}
+          {/* 📦 คลังสินค้า - Warehouse Tab with 8 sub-tabs */}
           <TabsContent value="warehouse" className="space-y-4">
             <Tabs defaultValue="packing-list" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-7 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-8 bg-white border border-gray-200">
                 <TabsTrigger value="inbound-outbound" className="flex items-center gap-2">
                   <Truck className="h-4 w-4" />
                   รับเข้า-ส่งออก
@@ -937,6 +941,10 @@ const Index = memo(() => {
                 <TabsTrigger value="stock-card" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   Stock Card
+                </TabsTrigger>
+                <TabsTrigger value="stock-transfer" className="flex items-center gap-2 bg-purple-50">
+                  <ArrowRightLeft className="h-4 w-4 text-purple-600" />
+                  <span className="text-purple-600">ใบโอนย้าย</span>
                 </TabsTrigger>
                 <TabsTrigger value="table" className="flex items-center gap-2">
                   <Table2 className="h-4 w-4" />
@@ -965,7 +973,14 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="stock-card" className="space-y-4">
-                <StockCardTab />
+                <StockCardTabNew
+                  documentTypeFilter="non-transfer"
+                  title="Stock Card - ใบขาย และ ใบรับซื้อ"
+                />
+              </TabsContent>
+
+              <TabsContent value="stock-transfer" className="space-y-4">
+                <TransferTab />
               </TabsContent>
 
               <TabsContent value="table" className="space-y-4">
@@ -1036,10 +1051,14 @@ const Index = memo(() => {
           {/* 💰 การเงิน - Finance Tab - Keep as is */}
           <TabsContent value="finance" className="space-y-4">
             <Tabs defaultValue="dashboard" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="dashboard" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
                   Dashboard การเงิน
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  วิเคราะห์การขาย
                 </TabsTrigger>
                 <TabsTrigger value="bill-status" className="flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" />
@@ -1048,7 +1067,15 @@ const Index = memo(() => {
               </TabsList>
 
               <TabsContent value="dashboard">
-                <FinanceDashboard />
+                <FinancePasswordGuard>
+                  <FinanceDashboard />
+                </FinancePasswordGuard>
+              </TabsContent>
+
+              <TabsContent value="analytics">
+                <FinancePasswordGuard>
+                  <SalesAnalytics />
+                </FinancePasswordGuard>
               </TabsContent>
 
               <TabsContent value="bill-status">
