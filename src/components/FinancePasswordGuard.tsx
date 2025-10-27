@@ -8,7 +8,7 @@ interface FinancePasswordGuardProps {
   children: React.ReactNode;
 }
 
-const CORRECT_PASSWORD = 'P@assword';
+const CORRECT_PASSWORD = 'P@ssword';
 const SESSION_KEY = 'finance_access';
 
 export function FinancePasswordGuard({ children }: FinancePasswordGuardProps) {

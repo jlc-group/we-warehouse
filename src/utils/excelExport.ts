@@ -3,11 +3,12 @@ import type { ForecastPredictionItem } from '@/hooks/useProductForecastPredictio
 
 /**
  * Export Product Forecast Prediction to Excel
- * สร้าง 2 sheets: Summary และ Monthly Breakdown
+ * สร้าง 3 sheets: Summary, Monthly Breakdown, Forecast Info
  */
 export function exportForecastToExcel(
   data: ForecastPredictionItem[],
-  targetMonth: string
+  targetMonth: string,
+  adjustments?: Map<string, number>
 ) {
   // แปลงชื่อเดือนสำหรับชื่อไฟล์
   const [year, month] = targetMonth.split('-');
@@ -22,19 +23,32 @@ export function exportForecastToExcel(
   const wb = XLSX.utils.book_new();
 
   // ========== Sheet 1: Summary ==========
-  const summaryData = data.map((item, index) => ({
-    'No.': index + 1,
-    'Base Code': item.baseCode,
-    'Product Name': item.baseName,
-    'Average Qty': Math.round(item.averageQty * 100) / 100,
-    'Forecast Qty': Math.round(item.forecastQty * 100) / 100,
-    'No. of Variants': item.details.length
-  }));
+  const summaryData = data.map((item, index) => {
+    const adjustment = adjustments?.get(item.baseCode) || 0;
+    const adjustedQty = item.forecastQty * (1 + adjustment / 100);
+
+    const row: any = {
+      'No.': index + 1,
+      'Base Code': item.baseCode,
+      'Product Name': item.baseName,
+      'Average Qty': Math.round(item.averageQty * 100) / 100,
+      'Forecast Qty': Math.round(item.forecastQty * 100) / 100,
+      'No. of Variants': item.details.length
+    };
+
+    // Add adjustment columns if adjustments exist
+    if (adjustments && adjustments.size > 0) {
+      row['Adjustment %'] = adjustment !== 0 ? `${adjustment > 0 ? '+' : ''}${adjustment}%` : '-';
+      row['Adjusted Qty'] = adjustment !== 0 ? Math.round(adjustedQty * 100) / 100 : '-';
+    }
+
+    return row;
+  });
 
   const ws1 = XLSX.utils.json_to_sheet(summaryData);
 
   // ตั้งค่าความกว้างคอลัมน์
-  ws1['!cols'] = [
+  const cols: any[] = [
     { wch: 5 },   // No.
     { wch: 15 },  // Base Code
     { wch: 40 },  // Product Name
@@ -42,6 +56,14 @@ export function exportForecastToExcel(
     { wch: 15 },  // Forecast Qty
     { wch: 15 }   // No. of Variants
   ];
+
+  // Add adjustment columns if adjustments exist
+  if (adjustments && adjustments.size > 0) {
+    cols.push({ wch: 15 }); // Adjustment %
+    cols.push({ wch: 15 }); // Adjusted Qty
+  }
+
+  ws1['!cols'] = cols;
 
   XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
@@ -99,13 +121,35 @@ export function exportForecastToExcel(
   const totalForecastQty = data.reduce((sum, item) => sum + item.forecastQty, 0);
   const avgPerDay = totalForecastQty / 30;
 
-  const forecastSummary = [
+  const forecastSummary: any[] = [
     { 'Metric': 'Target Month', 'Value': targetMonth },
     { 'Metric': 'Total Base Codes', 'Value': data.length },
     { 'Metric': 'Total Forecast Qty', 'Value': Math.round(totalForecastQty * 100) / 100 },
-    { 'Metric': 'Average Per Day (30 days)', 'Value': Math.round(avgPerDay * 100) / 100 },
-    { 'Metric': 'Generated Date', 'Value': new Date().toLocaleString('th-TH') }
+    { 'Metric': 'Average Per Day (30 days)', 'Value': Math.round(avgPerDay * 100) / 100 }
   ];
+
+  // Add adjustment info if adjustments exist
+  if (adjustments && adjustments.size > 0) {
+    const totalAdjustedQty = data.reduce((sum, item) => {
+      const adjustment = adjustments.get(item.baseCode) || 0;
+      return sum + (item.forecastQty * (1 + adjustment / 100));
+    }, 0);
+    const avgAdjustedPerDay = totalAdjustedQty / 30;
+
+    forecastSummary.push(
+      { 'Metric': '', 'Value': '' },
+      { 'Metric': '--- Adjustments ---', 'Value': '' },
+      { 'Metric': 'Items Adjusted', 'Value': adjustments.size },
+      { 'Metric': 'Total Adjusted Qty', 'Value': Math.round(totalAdjustedQty * 100) / 100 },
+      { 'Metric': 'Adjusted Avg Per Day', 'Value': Math.round(avgAdjustedPerDay * 100) / 100 },
+      { 'Metric': 'Difference', 'Value': Math.round((totalAdjustedQty - totalForecastQty) * 100) / 100 }
+    );
+  }
+
+  forecastSummary.push(
+    { 'Metric': '', 'Value': '' },
+    { 'Metric': 'Generated Date', 'Value': new Date().toLocaleString('th-TH') }
+  );
 
   const ws3 = XLSX.utils.json_to_sheet(forecastSummary);
   ws3['!cols'] = [

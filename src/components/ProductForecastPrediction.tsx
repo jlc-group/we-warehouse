@@ -64,6 +64,43 @@ export function ProductForecastPrediction() {
   const [lookbackMonths, setLookbackMonths] = useState(3);
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [adjustments, setAdjustments] = useState<Map<string, number>>(() => {
+    // โหลดค่าปรับจาก localStorage
+    const saved = localStorage.getItem('forecast-adjustments');
+    if (saved) {
+      try {
+        return new Map(JSON.parse(saved));
+      } catch {
+        return new Map();
+      }
+    }
+    return new Map();
+  });
+
+  // Adjustment functions
+  const adjustForecast = (baseCode: string, percent: number) => {
+    setAdjustments(prev => {
+      const newMap = new Map(prev);
+      if (percent === 0) {
+        newMap.delete(baseCode);
+      } else {
+        newMap.set(baseCode, percent);
+      }
+      // Save to localStorage
+      localStorage.setItem('forecast-adjustments', JSON.stringify(Array.from(newMap.entries())));
+      return newMap;
+    });
+  };
+
+  const getAdjustedQty = (baseQty: number, baseCode: string) => {
+    const adjustment = adjustments.get(baseCode) || 0;
+    return baseQty * (1 + adjustment / 100);
+  };
+
+  const clearAllAdjustments = () => {
+    setAdjustments(new Map());
+    localStorage.removeItem('forecast-adjustments');
+  };
 
   // Fetch data
   const { data: result, isLoading, error, refetch } = useProductForecastPrediction({
@@ -81,18 +118,25 @@ export function ProductForecastPrediction() {
       return {
         totalBaseCodes: 0,
         totalForecastQty: 0,
-        avgPerDay: 0
+        totalAdjustedQty: 0,
+        avgPerDay: 0,
+        avgAdjustedPerDay: 0
       };
     }
 
     const totalForecastQty = forecastData.reduce((sum, item) => sum + item.forecastQty, 0);
+    const totalAdjustedQty = forecastData.reduce((sum, item) =>
+      sum + getAdjustedQty(item.forecastQty, item.baseCode), 0
+    );
 
     return {
       totalBaseCodes: forecastData.length,
       totalForecastQty,
-      avgPerDay: totalForecastQty / 30 // สมมติ 30 วัน
+      totalAdjustedQty,
+      avgPerDay: totalForecastQty / 30, // สมมติ 30 วัน
+      avgAdjustedPerDay: totalAdjustedQty / 30
     };
-  }, [forecastData]);
+  }, [forecastData, adjustments]);
 
   // Top 10 for chart
   const chartData = useMemo(() => {
@@ -136,7 +180,7 @@ export function ProductForecastPrediction() {
 
   const handleExport = () => {
     if (!forecastData || forecastData.length === 0) return;
-    exportForecastToExcel(forecastData, targetMonth);
+    exportForecastToExcel(forecastData, targetMonth, adjustments);
   };
 
   // Loading state
@@ -184,9 +228,20 @@ export function ProductForecastPrediction() {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
             คำนวณจากค่าเฉลี่ย {lookbackMonths} เดือนย้อนหลัง
+            {adjustments.size > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {adjustments.size} รายการถูกปรับ
+              </Badge>
+            )}
           </p>
         </div>
         <div className="flex gap-2">
+          {adjustments.size > 0 && (
+            <Button onClick={clearAllAdjustments} variant="outline" size="lg" className="border-orange-300">
+              <X className="h-4 w-4 mr-2" />
+              ล้างการปรับทั้งหมด
+            </Button>
+          )}
           <Button onClick={handleRefresh} variant="outline" size="lg">
             <RefreshCw className="h-4 w-4 mr-2" />
             รีเฟรช
@@ -285,7 +340,7 @@ export function ProductForecastPrediction() {
       </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -312,9 +367,28 @@ export function ProductForecastPrediction() {
             <div className="text-3xl font-bold text-green-700">
               {formatNumber(stats.totalForecastQty)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">ชิ้น</p>
+            <p className="text-xs text-muted-foreground mt-1">ชิ้น (Original)</p>
           </CardContent>
         </Card>
+
+        {adjustments.size > 0 && (
+          <Card className="border-l-4 border-l-orange-500 bg-orange-50/50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                ยอดหลังปรับ
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-700">
+                {formatNumber(stats.totalAdjustedQty)}
+              </div>
+              <p className="text-xs text-orange-600 mt-1">
+                {stats.totalAdjustedQty > stats.totalForecastQty ? '▲' : '▼'} {formatNumber(Math.abs(stats.totalAdjustedQty - stats.totalForecastQty))} ชิ้น
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="pb-3">
@@ -325,7 +399,7 @@ export function ProductForecastPrediction() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-purple-700">
-              {formatNumber(stats.avgPerDay)}
+              {formatNumber(adjustments.size > 0 ? stats.avgAdjustedPerDay : stats.avgPerDay)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">ชิ้น/วัน (30 วัน)</p>
           </CardContent>
@@ -425,6 +499,82 @@ export function ProductForecastPrediction() {
                               </div>
                             ))}
                           </div>
+                        </div>
+
+                        {/* Quick Adjustment Buttons */}
+                        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-4 rounded-md border-2 border-orange-200">
+                          <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                            🎯 ปรับเปอร์เซ็นต์ Forecast:
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, 5)}
+                              className="bg-green-100 hover:bg-green-200 border-green-300"
+                            >
+                              +5%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, 10)}
+                              className="bg-green-100 hover:bg-green-200 border-green-300"
+                            >
+                              +10%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, 15)}
+                              className="bg-green-100 hover:bg-green-200 border-green-300"
+                            >
+                              +15%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, 20)}
+                              className="bg-green-100 hover:bg-green-200 border-green-300"
+                            >
+                              +20%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, -5)}
+                              className="bg-red-100 hover:bg-red-200 border-red-300"
+                            >
+                              -5%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, -10)}
+                              className="bg-red-100 hover:bg-red-200 border-red-300"
+                            >
+                              -10%
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => adjustForecast(item.baseCode, 0)}
+                              className="bg-gray-100 hover:bg-gray-200 border-gray-300"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              รีเซ็ต
+                            </Button>
+                          </div>
+                          {adjustments.has(item.baseCode) && (
+                            <div className="mt-3 p-2 bg-white rounded border">
+                              <div className="text-xs text-muted-foreground">
+                                ปรับ: {adjustments.get(item.baseCode)! > 0 ? '+' : ''}{adjustments.get(item.baseCode)}%
+                              </div>
+                              <div className="text-sm font-bold text-orange-700">
+                                Forecast ใหม่: {formatNumber(getAdjustedQty(item.forecastQty, item.baseCode))} ชิ้น
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Average & Forecast */}
