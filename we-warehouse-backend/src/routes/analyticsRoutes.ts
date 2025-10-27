@@ -29,4 +29,7 @@ router.get('/product-forecast', AnalyticsController.getProductForecast);
 // GET /api/analytics/product-forecast-prediction - Product forecast prediction (3-month average)
 router.get('/product-forecast-prediction', AnalyticsController.getProductForecastPrediction);
 
+// GET /api/analytics/check-duplicate-codes - Check for duplicate product codes in same invoice
+router.get('/check-duplicate-codes', AnalyticsController.checkDuplicateCodes);
+
 export default router;

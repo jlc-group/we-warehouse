@@ -5,6 +5,7 @@ export class AnalyticsController {
   /**
    * GET /api/analytics/products
    * Get list of products that have sales data
+   * NOTE: Excludes X6, X12 variants to prevent double-counting
    */
   static async getProductList(req: Request, res: Response): Promise<void> {
     try {
@@ -20,13 +21,16 @@ export class AnalyticsController {
           SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
         FROM CSSALESUB d
         INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
+        WHERE d.PRODUCTCODE NOT LIKE '%X6'
+          AND d.PRODUCTCODE NOT LIKE '%X12'
+          AND d.PRODUCTCODE NOT LIKE '%X120'
       `;
 
       const request = pool.request();
 
       if (startDate && endDate) {
         query += `
-          WHERE h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
+          AND h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
         `;
         request.input('startDate', sql.Date, startDate as string);
         request.input('endDate', sql.Date, endDate as string);
@@ -35,12 +39,23 @@ export class AnalyticsController {
       query += `
         GROUP BY d.PRODUCTCODE
         HAVING SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) > 0
-        ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
       `;
 
-      // Add LIMIT if provided
+      // Add LIMIT if provided - use TOP directly in main query
       if (limit) {
-        query = `SELECT TOP ${parseInt(limit as string)} * FROM (${query}) AS SubQuery`;
+        query = `
+          SELECT TOP ${parseInt(limit as string)}
+            productCode,
+            productName,
+            totalSales,
+            totalQuantity
+          FROM (${query}) AS SubQuery
+          ORDER BY totalSales DESC
+        `;
+      } else {
+        query += `
+          ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
+        `;
       }
 
       const result = await request.query(query);
@@ -315,6 +330,7 @@ export class AnalyticsController {
         .query(currentQuery);
 
       // Query for top products in current period
+      // NOTE: Excludes X6, X12, X120 variants to prevent double-counting
       const topProductsQuery = `
         SELECT TOP 5
           d.PRODUCTCODE as productcode,
@@ -326,6 +342,9 @@ export class AnalyticsController {
         WHERE h.ARCODE = @arcode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
+          AND d.PRODUCTCODE NOT LIKE '%X6'
+          AND d.PRODUCTCODE NOT LIKE '%X12'
+          AND d.PRODUCTCODE NOT LIKE '%X120'
         GROUP BY d.PRODUCTCODE, d.PRODUCTNAME
         ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
       `;
@@ -819,6 +838,97 @@ export class AnalyticsController {
 
     } catch (error) {
       console.error('Error in getProductForecastPrediction:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/analytics/check-duplicate-codes
+   * ตรวจสอบว่ามีใบขายไหนที่มี Base code และ Variant code ในใบเดียวกัน
+   * เช่น L3-8G และ L3-8GX6 ในใบเดียวกัน (อาจทำให้นับยอดขายซ้ำ)
+   */
+  static async checkDuplicateCodes(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate, limit = '50' } = req.query;
+
+      const pool = await getConnection();
+      const request = pool.request();
+
+      // Query: หาใบขายที่มีทั้ง base code และ variant code
+      let query = `
+        WITH ProductPairs AS (
+          SELECT
+            d1.DOCNO,
+            d1.PRODUCTCODE as baseCode,
+            d1.PRODUCTNAME as baseName,
+            d1.QUANTITY as baseQty,
+            d1.NETAMOUNT as baseAmount,
+            d2.PRODUCTCODE as variantCode,
+            d2.PRODUCTNAME as variantName,
+            d2.QUANTITY as variantQty,
+            d2.NETAMOUNT as variantAmount,
+            h.DOCDATE,
+            h.ARNAME as customerName,
+            h.TOTALAMOUNT as docTotal
+          FROM CSSALESUB d1
+          INNER JOIN CSSALE h ON d1.DOCNO = h.DOCNO
+          INNER JOIN CSSALESUB d2 ON d1.DOCNO = d2.DOCNO
+          WHERE
+            d2.PRODUCTCODE LIKE d1.PRODUCTCODE + 'X%'
+            AND LEFT(h.DOCNO, 2) = 'SA'
+      `;
+
+      if (startDate && endDate) {
+        query += `
+            AND h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+        `;
+        request.input('startDate', sql.Date, startDate as string);
+        request.input('endDate', sql.Date, endDate as string);
+      }
+
+      query += `
+        )
+        SELECT TOP ${parseInt(limit as string)}
+          DOCNO as docno,
+          DOCDATE as docdate,
+          customerName,
+          docTotal,
+          baseCode,
+          baseName,
+          baseQty,
+          baseAmount,
+          variantCode,
+          variantName,
+          variantQty,
+          variantAmount,
+          (baseAmount + variantAmount) as combinedAmount
+        FROM ProductPairs
+        ORDER BY DOCDATE DESC, (baseAmount + variantAmount) DESC
+      `;
+
+      const result = await request.query(query);
+
+      // นับจำนวนใบขายที่มีปัญหา
+      const uniqueDocs = new Set(result.recordset.map(r => r.docno));
+
+      res.json({
+        success: true,
+        data: result.recordset,
+        summary: {
+          totalDuplicates: result.recordset.length,
+          affectedDocuments: uniqueDocs.size,
+          message: uniqueDocs.size > 0
+            ? `พบ ${uniqueDocs.size} ใบขายที่มีทั้ง Base code และ Variant code ในใบเดียวกัน - อาจทำให้นับยอดขายซ้ำ`
+            : 'ไม่พบการนับซ้ำ - ระบบปลอดภัย'
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in checkDuplicateCodes:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
