@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-// API Base URL configuration
+// API Base URL configuration (from .env)
 const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
 
 /**
@@ -372,7 +372,7 @@ export function useProductComparisonAPI(
         previousEnd
       });
 
-      const url = `http://localhost:3001/api/analytics/product-comparison?${params}`;
+      const url = `${SALES_API_BASE}/analytics/product-comparison?${params}`;
       console.log('🔍 Fetching product comparison from:', url);
 
       const response = await fetch(url);
@@ -423,7 +423,7 @@ export function useCustomerComparisonAPI(
         previousEnd
       });
 
-      const url = `http://localhost:3001/api/analytics/customer-comparison?${params}`;
+      const url = `${SALES_API_BASE}/analytics/customer-comparison?${params}`;
       console.log('🔍 Fetching customer comparison from:', url);
 
       const response = await fetch(url);
@@ -480,7 +480,7 @@ export function useProductList(startDate?: string, endDate?: string) {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
 
-      const url = `http://localhost:3001/api/analytics/products${params.toString() ? `?${params}` : ''}`;
+      const url = `${SALES_API_BASE}/analytics/products${params.toString() ? `?${params}` : ''}`;
       console.log('🔍 Fetching product list from:', url);
 
       const response = await fetch(url);
@@ -516,7 +516,7 @@ export function useCustomerList(startDate?: string, endDate?: string) {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
 
-      const url = `http://localhost:3001/api/analytics/customers${params.toString() ? `?${params}` : ''}`;
+      const url = `${SALES_API_BASE}/analytics/customers${params.toString() ? `?${params}` : ''}`;
       console.log('🔍 Fetching customer list from:', url);
 
       const response = await fetch(url);
@@ -573,7 +573,7 @@ export function useSalesSummary(startDate?: string, endDate?: string) {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
 
-      const url = `http://localhost:3001/api/analytics/sales-summary${params.toString() ? `?${params}` : ''}`;
+      const url = `${SALES_API_BASE}/analytics/sales-summary${params.toString() ? `?${params}` : ''}`;
       console.log('🔍 Fetching sales summary from:', url);
 
       const response = await fetch(url);

@@ -214,7 +214,7 @@ export class SQLServerService {
       const pool = await getConnection();
       let query = `
         SELECT
-          DOCNO, DOCDATE, TAXNO, ARCODE, ARNAME, TOTALAMOUNT
+          DOCNO, DOCDATE, TAXNO, ARCODE, ARNAME, SUMAMOUNT1 as TOTALAMOUNT
         FROM CSSALE
         WHERE 1=1
       `;

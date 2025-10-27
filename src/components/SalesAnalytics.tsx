@@ -374,7 +374,7 @@ export function SalesAnalytics() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-green-600" />
-              ยอดสุทธิ (หักลดหนี้แล้ว)
+              ยอดขายรวม
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -382,7 +382,7 @@ export function SalesAnalytics() {
               <div className="h-12 bg-gray-200 rounded animate-pulse"></div>
             ) : (
               <p className="text-3xl font-bold text-green-700">
-                {formatCurrency(salesSummary?.net.amount || 0)}
+                {formatCurrency(salesSummary?.sales.amount || 0)}
               </p>
             )}
           </CardContent>

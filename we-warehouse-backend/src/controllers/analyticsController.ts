@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getConnection, sql } from '../config/database.js';
+import axios from 'axios';
 
 export class AnalyticsController {
   /**
@@ -516,10 +517,11 @@ export class AnalyticsController {
       // Query for SA (Sales) และ CS/CN (Credit Note) แยกกัน
       // ใช้ DOCNO prefix แทน DOCTYPE field เพราะ DOCTYPE อาจไม่มีในตาราง
       // NOTE: Excludes cancelled documents (CANCELDATE IS NULL)
+      // NOTE: ใช้ SUMAMOUNT1 (ยอดรวมก่อนหัก discount) แทน TOTALAMOUNT
       let query = `
         SELECT
           LEFT(DOCNO, CHARINDEX('-', DOCNO) - 1) as docTypePrefix,
-          SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
+          SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as totalAmount,
           COUNT(DISTINCT DOCNO) as docCount
         FROM CSSALE
         WHERE DOCNO LIKE '%-%'
@@ -1054,6 +1056,527 @@ export class AnalyticsController {
   }
 
   /**
+   * GET /api/analytics/compare-calculation-methods
+   * เปรียบเทียบวิธีการคำนวณยอดขายหลายวิธี เพื่อหาว่าวิธีไหนตรงกับ External API
+   */
+  static async compareCalculationMethods(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required parameters: startDate and endDate'
+        });
+        return;
+      }
+
+      const pool = await getConnection();
+
+      // Method A: Header level with Cancel excluded
+      const methodA = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            'Method A: Header with Cancel excluded' as method,
+            COUNT(DISTINCT h.DOCNO) as invoiceCount,
+            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalAmount
+          FROM CSSALE h
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND h.CANCELDATE IS NULL
+        `);
+
+      // Method B: Details with Cancel excluded + Variant excluded
+      const methodB = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            'Method B: Details with Cancel excluded + Variant excluded' as method,
+            COUNT(DISTINCT h.DOCNO) as invoiceCount,
+            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+          FROM CSSALE h
+          INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND h.CANCELDATE IS NULL
+            AND d.PRODUCTCODE NOT LIKE '%X6'
+            AND d.PRODUCTCODE NOT LIKE '%X12'
+            AND d.PRODUCTCODE NOT LIKE '%X120'
+        `);
+
+      // Method C: Details with Cancel INCLUDED + Variant excluded
+      const methodC = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            'Method C: Details with Cancel INCLUDED + Variant excluded' as method,
+            COUNT(DISTINCT h.DOCNO) as invoiceCount,
+            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+          FROM CSSALE h
+          INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND d.PRODUCTCODE NOT LIKE '%X6'
+            AND d.PRODUCTCODE NOT LIKE '%X12'
+            AND d.PRODUCTCODE NOT LIKE '%X120'
+        `);
+
+      // Method D: Header with Cancel INCLUDED (like old logic)
+      const methodD = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            'Method D: Header with Cancel INCLUDED' as method,
+            COUNT(DISTINCT h.DOCNO) as invoiceCount,
+            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalAmount
+          FROM CSSALE h
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+        `);
+
+      // Method E: Details with Cancel excluded + Variant excluded + CN excluded (SA only, no Credit Notes)
+      const methodE = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            'Method E: SA only (no CN) + Cancel excluded + Variant excluded' as method,
+            COUNT(DISTINCT h.DOCNO) as invoiceCount,
+            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+          FROM CSSALE h
+          INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND LEFT(h.DOCNO, 2) NOT IN ('CS', 'CN')
+            AND h.CANCELDATE IS NULL
+            AND d.PRODUCTCODE NOT LIKE '%X6'
+            AND d.PRODUCTCODE NOT LIKE '%X12'
+            AND d.PRODUCTCODE NOT LIKE '%X120'
+        `);
+
+      // Get cancelled invoice info
+      const cancelledInfo = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT h.DOCNO) as cancelledCount,
+            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as cancelledAmount
+          FROM CSSALE h
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND h.CANCELDATE IS NOT NULL
+        `);
+
+      // Get Credit Notes info
+      const creditNotesInfo = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT h.DOCNO) as cnCount,
+            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as cnAmount
+          FROM CSSALE h
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) IN ('CS', 'CN')
+        `);
+
+      res.json({
+        success: true,
+        dateRange: {
+          startDate,
+          endDate
+        },
+        methods: [
+          methodA.recordset[0],
+          methodB.recordset[0],
+          methodC.recordset[0],
+          methodD.recordset[0],
+          methodE.recordset[0]
+        ],
+        cancelledInfo: cancelledInfo.recordset[0],
+        creditNotesInfo: creditNotesInfo.recordset[0],
+        externalAPIReference: {
+          baseOnly: 168232347.69,
+          note: 'External API (jhserver) base only amount for comparison'
+        },
+        analysis: {
+          differenceFromExternal: {
+            methodA: (methodA.recordset[0].totalAmount - 168232347.69).toFixed(2),
+            methodB: (methodB.recordset[0].totalAmount - 168232347.69).toFixed(2),
+            methodC: (methodC.recordset[0].totalAmount - 168232347.69).toFixed(2),
+            methodD: (methodD.recordset[0].totalAmount - 168232347.69).toFixed(2),
+            methodE: (methodE.recordset[0].totalAmount - 168232347.69).toFixed(2)
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in compareCalculationMethods:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/analytics/check-vat-calculation
+   * ตรวจสอบว่า NETAMOUNT รวม VAT หรือไม่รวม VAT
+   */
+  static async checkVatCalculation(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate, limit = '10' } = req.query;
+
+      const pool = await getConnection();
+      const request = pool.request();
+
+      let query = `
+        SELECT TOP ${limit}
+          h.DOCNO,
+          h.DOCDATE,
+          h.TAXTYPE,
+          h.TAXRATE,
+          h.SUMAMOUNT1 as sumBeforeDisc,
+          h.DISCAMOUNT as headerDisc,
+          h.AFTERDISC as afterDisc,
+          h.BASEOFTAX,
+          h.TAXAMOUNT as vat,
+          h.TOTALAMOUNT as total,
+          (
+            SELECT SUM(CAST(d.NETAMOUNT as DECIMAL(18,2)))
+            FROM CSSALESUB d
+            WHERE d.DOCNO = h.DOCNO
+              AND d.PRODUCTCODE NOT LIKE '%X6'
+              AND d.PRODUCTCODE NOT LIKE '%X12'
+              AND d.PRODUCTCODE NOT LIKE '%X120'
+          ) as detailSum,
+          (
+            SELECT SUM(CAST(d.AMOUNT as DECIMAL(18,2)))
+            FROM CSSALESUB d
+            WHERE d.DOCNO = h.DOCNO
+              AND d.PRODUCTCODE NOT LIKE '%X6'
+              AND d.PRODUCTCODE NOT LIKE '%X12'
+              AND d.PRODUCTCODE NOT LIKE '%X120'
+          ) as detailAmountSum
+        FROM CSSALE h
+        WHERE LEFT(h.DOCNO, 2) = 'SA'
+          AND h.CANCELDATE IS NULL
+          AND h.TOTALAMOUNT > 0
+      `;
+
+      if (startDate && endDate) {
+        query += `
+          AND h.DOCDATE >= @startDate
+          AND h.DOCDATE <= @endDate
+        `;
+        request.input('startDate', sql.Date, startDate as string);
+        request.input('endDate', sql.Date, endDate as string);
+      }
+
+      query += ` ORDER BY h.DOCDATE`;
+
+      const result = await request.query(query);
+
+      // Calculate relationships
+      const analysis = result.recordset.map(row => {
+        const totalMatchesDetailSum = Math.abs(row.total - row.detailSum) < 0.01;
+        const totalMatchesDetailPlusVat = Math.abs(row.total - (row.detailSum + row.vat)) < 0.01;
+        const baseOfTaxMatchesDetailSum = Math.abs(row.BASEOFTAX - row.detailSum) < 0.01;
+
+        return {
+          ...row,
+          analysis: {
+            totalMatchesDetailSum,
+            totalMatchesDetailPlusVat,
+            baseOfTaxMatchesDetailSum,
+            detailSumPlusVat: parseFloat((row.detailSum + row.vat).toFixed(2)),
+            difference: parseFloat((row.total - row.detailSum).toFixed(2))
+          }
+        };
+      });
+
+      res.json({
+        success: true,
+        dateRange: { startDate, endDate },
+        count: result.recordset.length,
+        data: analysis,
+        summary: {
+          note: 'Check if NETAMOUNT includes VAT or not',
+          fields: {
+            SUMAMOUNT1: 'Sum of line items before header discount',
+            DISCAMOUNT: 'Header-level discount',
+            AFTERDISC: 'Amount after discount (before VAT)',
+            BASEOFTAX: 'Tax base amount',
+            TAXAMOUNT: 'VAT amount',
+            TOTALAMOUNT: 'Final total (should be BASEOFTAX + TAXAMOUNT)',
+            detailSum: 'Sum of NETAMOUNT (detail lines, no variants)',
+            detailAmountSum: 'Sum of AMOUNT (detail lines, no variants)'
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in checkVatCalculation:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/analytics/compare-all-amount-fields
+   * เปรียบเทียบทุกฟิลด์ยอดเงินจาก CSSALE และ CSSALESUB เพื่อหาว่าฟิลด์ไหนใกล้เคียง External API มากที่สุด
+   */
+  static async compareAllAmountFields(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required parameters: startDate and endDate'
+        });
+        return;
+      }
+
+      const pool = await getConnection();
+
+      // Query all amount fields from CSSALE Header
+      const headerQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT DOCNO) as invoiceCount,
+
+            -- Main Amount Fields
+            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as sumAmount1,
+            SUM(CAST(SUMAMOUNT2 as DECIMAL(18,2))) as sumAmount2,
+            SUM(CAST(SUMAMOUNT2B as DECIMAL(18,2))) as sumAmount2B,
+            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as afterDisc,
+            SUM(CAST(BASEOFTAX as DECIMAL(18,2))) as baseOfTax,
+            SUM(CAST(TAXAMOUNT as DECIMAL(18,2))) as taxAmount,
+            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
+            SUM(CAST(DEBTAMOUNT as DECIMAL(18,2))) as debtAmount,
+
+            -- Discount Fields
+            SUM(CAST(DISCAMOUNT as DECIMAL(18,2))) as discAmount,
+            SUM(CAST(DISCAMOUNT2 as DECIMAL(18,2))) as discAmount2,
+            SUM(CAST(DISCAMOUNTVE as DECIMAL(18,2))) as discAmountVE,
+            SUM(CAST(SUMPROMODISC as DECIMAL(18,2))) as sumPromoDisc,
+
+            -- Bath Currency Fields
+            SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18,2))) as bathSumAmount1,
+            SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18,2))) as bathSumAmount2,
+            SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18,2))) as bathTotalAmount,
+
+            -- Flags Analysis
+            COUNT(CASE WHEN CLOSEFLAG = 0 THEN 1 END) as closeFlagZero,
+            COUNT(CASE WHEN CLOSEFLAG = 1 THEN 1 END) as closeFlagOne,
+            COUNT(CASE WHEN SYSDOCFLAG = 0 THEN 1 END) as sysDocFlagZero,
+            COUNT(CASE WHEN SYSDOCFLAG = 1 THEN 1 END) as sysDocFlagOne,
+            COUNT(CASE WHEN TAXTYPE = 0 THEN 1 END) as taxTypeZero,
+            COUNT(CASE WHEN TAXTYPE = 1 THEN 1 END) as taxTypeOne,
+            COUNT(CASE WHEN TAXTYPE = 2 THEN 1 END) as taxTypeTwo
+
+          FROM CSSALE
+          WHERE DOCDATE >= @startDate
+            AND DOCDATE <= @endDate
+            AND LEFT(DOCNO, 2) = 'SA'
+            AND CANCELDATE IS NULL
+        `);
+
+      // Query Detail fields from CSSALESUB
+      const detailQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            -- All products (including variants)
+            SUM(CAST(d.AMOUNT as DECIMAL(18,2))) as detailAmountAll,
+            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as detailNetAmountAll,
+            SUM(CAST(d.DISCAMOUNT as DECIMAL(18,2))) as detailDiscAmountAll,
+
+            -- Base products only (exclude X6, X12, X120)
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.AMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailAmountBase,
+
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailNetAmountBase,
+
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.DISCAMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailDiscAmountBase
+
+          FROM CSSALE h
+          INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND h.CANCELDATE IS NULL
+        `);
+
+      // Query Credit Notes (CN) separately
+      const cnQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT DOCNO) as cnCount,
+            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as cnSumAmount1,
+            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as cnAfterDisc,
+            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as cnTotalAmount
+          FROM CSSALE
+          WHERE DOCDATE >= @startDate
+            AND DOCDATE <= @endDate
+            AND LEFT(DOCNO, 2) IN ('CS', 'CN')
+            AND CANCELDATE IS NULL
+        `);
+
+      const headerData = headerQuery.recordset[0];
+      const detailData = detailQuery.recordset[0];
+      const cnData = cnQuery.recordset[0];
+      const externalAPITarget = 168232347.69;
+
+      // Build comparison array
+      const comparisons = [
+        // Header fields
+        { field: 'TOTALAMOUNT', description: 'ยอดรวมสุดท้าย (Header, รวม VAT)', value: headerData.totalAmount, source: 'CSSALE' },
+        { field: 'SUMAMOUNT1', description: 'ยอดรวมก่อนหัก discount (Header)', value: headerData.sumAmount1, source: 'CSSALE' },
+        { field: 'SUMAMOUNT2', description: 'ยอดรวมหลังหัก discount บางส่วน (Header)', value: headerData.sumAmount2, source: 'CSSALE' },
+        { field: 'SUMAMOUNT2B', description: 'ยอดรวม variation 2 (Header)', value: headerData.sumAmount2B, source: 'CSSALE' },
+        { field: 'AFTERDISC', description: 'ยอดหลังหัก discount ทั้งหมด ก่อน VAT (Header)', value: headerData.afterDisc, source: 'CSSALE' },
+        { field: 'BASEOFTAX', description: 'ฐานภาษี - base สำหรับคำนวณ VAT (Header)', value: headerData.baseOfTax, source: 'CSSALE' },
+        { field: 'DEBTAMOUNT', description: 'ยอดหนี้ (Header)', value: headerData.debtAmount, source: 'CSSALE' },
+        { field: 'BATHSUMAMOUNT1', description: 'ยอดรวมเป็นบาท (Header)', value: headerData.bathSumAmount1, source: 'CSSALE' },
+        { field: 'BATHSUMAMOUNT2', description: 'ยอดรวมเป็นบาท variation 2 (Header)', value: headerData.bathSumAmount2, source: 'CSSALE' },
+        { field: 'BATHTOTALAMOUNT', description: 'ยอดรวมสุดท้ายเป็นบาท (Header)', value: headerData.bathTotalAmount, source: 'CSSALE' },
+
+        // Detail fields - All products
+        { field: 'AMOUNT (All)', description: 'ยอดรวมก่อนหัก discount (Details, รวม X6/X12)', value: detailData.detailAmountAll, source: 'CSSALESUB' },
+        { field: 'NETAMOUNT (All)', description: 'ยอดรวมหลังหัก discount (Details, รวม X6/X12)', value: detailData.detailNetAmountAll, source: 'CSSALESUB' },
+
+        // Detail fields - Base only
+        { field: 'AMOUNT (Base)', description: 'ยอดรวมก่อนหัก discount (Details, ไม่รวม X6/X12)', value: detailData.detailAmountBase, source: 'CSSALESUB' },
+        { field: 'NETAMOUNT (Base)', description: 'ยอดรวมหลังหัก discount (Details, ไม่รวม X6/X12)', value: detailData.detailNetAmountBase, source: 'CSSALESUB' },
+
+        // Calculated fields
+        { field: 'TOTALAMOUNT - VAT', description: 'ยอดรวมสุดท้าย หัก VAT (คำนวณ)', value: headerData.totalAmount - headerData.taxAmount, source: 'Calculated' },
+        { field: 'AFTERDISC + VAT', description: 'ยอดหลัง discount บวก VAT (คำนวณ)', value: headerData.afterDisc + headerData.taxAmount, source: 'Calculated' },
+
+        // With Credit Notes (CN) included
+        { field: 'SUMAMOUNT1 + CN', description: 'ยอดรวมก่อนหัก discount + CN (SA + CN)', value: headerData.sumAmount1 + (cnData.cnSumAmount1 || 0), source: 'Calculated (SA+CN)' },
+        { field: 'AFTERDISC + CN', description: 'ยอดหลังหัก discount + CN (SA + CN)', value: headerData.afterDisc + (cnData.cnAfterDisc || 0), source: 'Calculated (SA+CN)' },
+        { field: 'TOTALAMOUNT + CN', description: 'ยอดรวมสุดท้าย + CN (SA + CN, รวม VAT)', value: headerData.totalAmount + (cnData.cnTotalAmount || 0), source: 'Calculated (SA+CN)' },
+      ];
+
+      // Calculate differences and rank
+      const results = comparisons
+        .filter(item => item.value != null && item.value !== 0)
+        .map(item => {
+          const difference = item.value - externalAPITarget;
+          const percentDiff = (difference / externalAPITarget) * 100;
+          const absDiff = Math.abs(difference);
+
+          return {
+            ...item,
+            value: parseFloat(item.value.toFixed(2)),
+            difference: parseFloat(difference.toFixed(2)),
+            percentDiff: parseFloat(percentDiff.toFixed(2)),
+            absDiff: parseFloat(absDiff.toFixed(2))
+          };
+        })
+        .sort((a, b) => a.absDiff - b.absDiff) // Sort by closest to target
+        .map((item, index) => ({ ...item, rank: index + 1 }));
+
+      // Get top 3 closest matches
+      const top3 = results.slice(0, 3);
+
+      res.json({
+        success: true,
+        dateRange: { startDate, endDate },
+        externalAPITarget,
+        invoiceCount: headerData.invoiceCount,
+        summary: {
+          totalFields: results.length,
+          closestMatch: results[0],
+          top3Matches: top3
+        },
+        allFields: results,
+        flagsAnalysis: {
+          CLOSEFLAG: {
+            zero: headerData.closeFlagZero,
+            one: headerData.closeFlagOne
+          },
+          SYSDOCFLAG: {
+            zero: headerData.sysDocFlagZero,
+            one: headerData.sysDocFlagOne
+          },
+          TAXTYPE: {
+            zero: headerData.taxTypeZero,
+            one: headerData.taxTypeOne,
+            two: headerData.taxTypeTwo
+          }
+        },
+        discountAnalysis: {
+          headerDiscount: parseFloat(headerData.discAmount.toFixed(2)),
+          headerDiscount2: parseFloat(headerData.discAmount2.toFixed(2)),
+          promoDiscount: parseFloat(headerData.sumPromoDisc.toFixed(2)),
+          detailDiscountAll: parseFloat(detailData.detailDiscAmountAll.toFixed(2)),
+          detailDiscountBase: parseFloat(detailData.detailDiscAmountBase.toFixed(2))
+        },
+        creditNotesAnalysis: {
+          cnCount: cnData.cnCount || 0,
+          cnSumAmount1: parseFloat((cnData.cnSumAmount1 || 0).toFixed(2)),
+          cnAfterDisc: parseFloat((cnData.cnAfterDisc || 0).toFixed(2)),
+          cnTotalAmount: parseFloat((cnData.cnTotalAmount || 0).toFixed(2)),
+          note: 'Credit Notes (CN) are negative amounts that reduce total sales'
+        },
+        notes: {
+          externalAPI: 'External API (jhserver) Base only amount',
+          recommendation: `ฟิลด์ที่ใกล้เคียงที่สุดคือ: ${results[0].field} (ต่างเพียง ${results[0].absDiff.toLocaleString()} บาท หรือ ${Math.abs(results[0].percentDiff)}%)`,
+          cnNote: cnData.cnCount > 0 ? `มี CN ${cnData.cnCount} ใบ ยอดรวม ${(cnData.cnTotalAmount || 0).toLocaleString()} บาท (ถูกนำออกจากยอดขายแล้ว)` : 'ไม่มี Credit Notes ในช่วงเวลานี้'
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in compareAllAmountFields:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * GET /api/analytics/check-duplicate-codes
    * ตรวจสอบว่ามีใบขายไหนที่มี Base code และ Variant code ในใบเดียวกัน
    * เช่น L3-8G และ L3-8GX6 ในใบเดียวกัน (อาจทำให้นับยอดขายซ้ำ)
@@ -1137,6 +1660,374 @@ export class AnalyticsController {
 
     } catch (error) {
       console.error('Error in checkDuplicateCodes:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/analytics/compare-db-vs-external
+   * เปรียบเทียบยอดขายระหว่าง DB (CSSALE) และ External API (jhserver) แบบ month-by-month
+   * Query External API และเปรียบเทียบกับข้อมูลจาก DB สำหรับเดือนเดียวกัน
+   */
+  static async compareDbVsExternal(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required parameters: startDate and endDate'
+        });
+        return;
+      }
+
+      const pool = await getConnection();
+
+      // 1. Query DB data - ใช้โค้ดเดิมจาก compareAllAmountFields
+      const headerQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT DOCNO) as invoiceCount,
+
+            -- Main Amount Fields
+            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as sumAmount1,
+            SUM(CAST(SUMAMOUNT2 as DECIMAL(18,2))) as sumAmount2,
+            SUM(CAST(SUMAMOUNT2B as DECIMAL(18,2))) as sumAmount2B,
+            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as afterDisc,
+            SUM(CAST(BASEOFTAX as DECIMAL(18,2))) as baseOfTax,
+            SUM(CAST(TAXAMOUNT as DECIMAL(18,2))) as taxAmount,
+            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
+            SUM(CAST(DEBTAMOUNT as DECIMAL(18,2))) as debtAmount,
+
+            -- Discount Fields
+            SUM(CAST(DISCAMOUNT as DECIMAL(18,2))) as discAmount,
+            SUM(CAST(DISCAMOUNT2 as DECIMAL(18,2))) as discAmount2,
+            SUM(CAST(DISCAMOUNTVE as DECIMAL(18,2))) as discAmountVE,
+            SUM(CAST(SUMPROMODISC as DECIMAL(18,2))) as sumPromoDisc,
+
+            -- Bath Currency Fields
+            SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18,2))) as bathSumAmount1,
+            SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18,2))) as bathSumAmount2,
+            SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18,2))) as bathTotalAmount
+
+          FROM CSSALE
+          WHERE DOCDATE >= @startDate
+            AND DOCDATE <= @endDate
+            AND LEFT(DOCNO, 2) = 'SA'
+            AND CANCELDATE IS NULL
+        `);
+
+      // Query Detail fields from CSSALESUB
+      const detailQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            -- All products (including variants)
+            SUM(CAST(d.AMOUNT as DECIMAL(18,2))) as detailAmountAll,
+            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as detailNetAmountAll,
+            SUM(CAST(d.DISCAMOUNT as DECIMAL(18,2))) as detailDiscAmountAll,
+
+            -- Base products only (exclude X6, X12, X120)
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.AMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailAmountBase,
+
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailNetAmountBase,
+
+            SUM(CASE
+              WHEN d.PRODUCTCODE NOT LIKE '%X6'
+                AND d.PRODUCTCODE NOT LIKE '%X12'
+                AND d.PRODUCTCODE NOT LIKE '%X120'
+              THEN CAST(d.DISCAMOUNT as DECIMAL(18,2))
+              ELSE 0
+            END) as detailDiscAmountBase
+
+          FROM CSSALE h
+          INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+          WHERE h.DOCDATE >= @startDate
+            AND h.DOCDATE <= @endDate
+            AND LEFT(h.DOCNO, 2) = 'SA'
+            AND h.CANCELDATE IS NULL
+        `);
+
+      // Query Credit Notes (CN) separately
+      const cnQuery = await pool.request()
+        .input('startDate', sql.Date, startDate as string)
+        .input('endDate', sql.Date, endDate as string)
+        .query(`
+          SELECT
+            COUNT(DISTINCT DOCNO) as cnCount,
+            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as cnSumAmount1,
+            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as cnAfterDisc,
+            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as cnTotalAmount
+          FROM CSSALE
+          WHERE DOCDATE >= @startDate
+            AND DOCDATE <= @endDate
+            AND LEFT(DOCNO, 2) IN ('CS', 'CN')
+            AND CANCELDATE IS NULL
+        `);
+
+      const headerData = headerQuery.recordset[0];
+      const detailData = detailQuery.recordset[0];
+      const cnData = cnQuery.recordset[0];
+
+      // 2. Call External API (jhserver)
+      // Extract year from startDate (format: YYYY-MM-DD)
+      const year = (startDate as string).substring(0, 4);
+      const externalApiUrl = `http://jhserver.dyndns.info:82/sale-report/by-product/v2/amount-by-arcode?filter_date=${year}`;
+
+      let externalApiData = null;
+      let externalApiError = null;
+
+      try {
+        const apiResponse = await axios.get(externalApiUrl, { timeout: 10000 });
+        externalApiData = apiResponse.data;
+      } catch (error) {
+        externalApiError = error instanceof Error ? error.message : 'Unknown error calling External API';
+        console.error('External API error:', externalApiError);
+      }
+
+      // 3. คำนวณยอดรวมจาก External API สำหรับเดือนที่ระบุ
+      let externalTotals = {
+        totalAll: 0,
+        baseOnly: 0,
+        variantOnly: 0,
+        productCount: 0
+      };
+
+      if (externalApiData && Array.isArray(externalApiData)) {
+        // Extract month from startDate (format: YYYY-MM)
+        const monthKey = (startDate as string).substring(0, 7); // e.g., "2025-10"
+
+        externalApiData.forEach((product: any) => {
+          const monthValue = product[monthKey] || 0;
+          externalTotals.totalAll += monthValue;
+
+          // Check if it's a variant (X6, X12, X120)
+          const isVariant =
+            product.PRODUCTCODE?.endsWith('X6') ||
+            product.PRODUCTCODE?.endsWith('X12') ||
+            product.PRODUCTCODE?.endsWith('X120');
+
+          if (isVariant) {
+            externalTotals.variantOnly += monthValue;
+          } else {
+            externalTotals.baseOnly += monthValue;
+          }
+        });
+
+        externalTotals.productCount = externalApiData.length;
+      }
+
+      // 4. Build DB comparison array (ใช้โค้ดเดิม)
+      const dbComparisons = [
+        // Header fields
+        { field: 'TOTALAMOUNT', description: 'ยอดรวมสุดท้าย (Header, รวม VAT)', value: headerData.totalAmount, source: 'CSSALE' },
+        { field: 'SUMAMOUNT1', description: 'ยอดรวมก่อนหัก discount (Header)', value: headerData.sumAmount1, source: 'CSSALE' },
+        { field: 'SUMAMOUNT2', description: 'ยอดรวมหลังหัก discount บางส่วน (Header)', value: headerData.sumAmount2, source: 'CSSALE' },
+        { field: 'AFTERDISC', description: 'ยอดหลังหัก discount ทั้งหมด ก่อน VAT (Header)', value: headerData.afterDisc, source: 'CSSALE' },
+        { field: 'BASEOFTAX', description: 'ฐานภาษี - base สำหรับคำนวณ VAT (Header)', value: headerData.baseOfTax, source: 'CSSALE' },
+        { field: 'BATHSUMAMOUNT1', description: 'ยอดรวมเป็นบาท (Header)', value: headerData.bathSumAmount1, source: 'CSSALE' },
+
+        // Detail fields - Base only
+        { field: 'NETAMOUNT (Base)', description: 'ยอดรวมหลังหัก discount (Details, ไม่รวม X6/X12)', value: detailData.detailNetAmountBase, source: 'CSSALESUB' },
+        { field: 'AMOUNT (Base)', description: 'ยอดรวมก่อนหัก discount (Details, ไม่รวม X6/X12)', value: detailData.detailAmountBase, source: 'CSSALESUB' },
+
+        // Calculated fields
+        { field: 'TOTALAMOUNT - VAT', description: 'ยอดรวมสุดท้าย หัก VAT (คำนวณ)', value: headerData.totalAmount - headerData.taxAmount, source: 'Calculated' },
+
+        // With Credit Notes (CN) included
+        { field: 'SUMAMOUNT1 + CN', description: 'ยอดรวมก่อนหัก discount + CN (SA + CN)', value: headerData.sumAmount1 + (cnData.cnSumAmount1 || 0), source: 'Calculated (SA+CN)' },
+        { field: 'AFTERDISC + CN', description: 'ยอดหลังหัก discount + CN (SA + CN)', value: headerData.afterDisc + (cnData.cnAfterDisc || 0), source: 'Calculated (SA+CN)' },
+      ];
+
+      // 5. เปรียบเทียบ DB กับ External API
+      const comparisons = dbComparisons
+        .filter(item => item.value != null && item.value !== 0)
+        .map(item => {
+          const difference = item.value - externalTotals.baseOnly;
+          const percentDiff = externalTotals.baseOnly !== 0 ? (difference / externalTotals.baseOnly) * 100 : 0;
+          const absDiff = Math.abs(difference);
+
+          return {
+            ...item,
+            value: parseFloat(item.value.toFixed(2)),
+            difference: parseFloat(difference.toFixed(2)),
+            percentDiff: parseFloat(percentDiff.toFixed(2)),
+            absDiff: parseFloat(absDiff.toFixed(2))
+          };
+        })
+        .sort((a, b) => a.absDiff - b.absDiff) // Sort by closest to External API
+        .map((item, index) => ({ ...item, rank: index + 1 }));
+
+      // Get top 3 closest matches
+      const top3 = comparisons.slice(0, 3);
+
+      // หา SUMAMOUNT1 และ NETAMOUNT (Base) จาก comparisons
+      const sumAmount1Comparison = comparisons.find(c => c.field === 'SUMAMOUNT1');
+      const netAmountBaseComparison = comparisons.find(c => c.field === 'NETAMOUNT (Base)');
+
+      // Dashboard value (จากรูปที่ user ให้มา - Sep 2025)
+      const dashboardValue = 185415661.18;
+      const sumAmount1VsDashboard = sumAmount1Comparison ? {
+        dashboardValue: parseFloat(dashboardValue.toFixed(2)),
+        difference: parseFloat((sumAmount1Comparison.value - dashboardValue).toFixed(2)),
+        percentDiff: parseFloat(((sumAmount1Comparison.value - dashboardValue) / dashboardValue * 100).toFixed(4)),
+        interpretation: Math.abs((sumAmount1Comparison.value - dashboardValue) / dashboardValue * 100) < 0.01
+          ? '✅ ตรงกับ Dashboard (ต่างกันแค่ปัดเศษ)'
+          : Math.abs((sumAmount1Comparison.value - dashboardValue) / dashboardValue * 100) < 1
+          ? '✅ ใกล้เคียง Dashboard มาก (ต่างกันไม่ถึง 1%)'
+          : '⚠️ ต่างจาก Dashboard มากกว่า 1%'
+      } : null;
+
+      // Response
+      res.json({
+        success: true,
+        dateRange: {
+          startDate,
+          endDate,
+          month: (startDate as string).substring(0, 7) // YYYY-MM
+        },
+        database: {
+          invoiceCount: headerData.invoiceCount,
+          cnCount: cnData.cnCount || 0,
+
+          // SUMAMOUNT1 - ตรงกับ Dashboard
+          sumAmount1: sumAmount1Comparison ? {
+            value: sumAmount1Comparison.value,
+            description: 'ยอดรวมก่อนหัก discount (Header, รวม Variants)',
+            source: 'CSSALE',
+            vsExternalAPI: {
+              difference: sumAmount1Comparison.difference,
+              percentDiff: sumAmount1Comparison.percentDiff,
+              interpretation: Math.abs(sumAmount1Comparison.percentDiff) < 1
+                ? '✅ ใกล้เคียง External API มาก (ต่างกันไม่ถึง 1%)'
+                : Math.abs(sumAmount1Comparison.percentDiff) < 5
+                ? '✓ ใกล้เคียง External API (ต่างกันไม่ถึง 5%)'
+                : Math.abs(sumAmount1Comparison.percentDiff) < 10
+                ? '⚠️ ต่างจาก External API ปานกลาง (5-10%)'
+                : '❌ ต่างจาก External API มาก (มากกว่า 10%)'
+            },
+            vsDashboard: sumAmount1VsDashboard
+          } : null,
+
+          // NETAMOUNT (Base) - ใกล้เคียง External API Base มากที่สุด
+          netAmountBase: netAmountBaseComparison ? {
+            value: netAmountBaseComparison.value,
+            description: 'ยอดรวมหลังหัก discount (Details, ไม่รวม Variants X6/X12/X120)',
+            source: 'CSSALESUB',
+            vsExternalAPI: {
+              difference: netAmountBaseComparison.difference,
+              percentDiff: netAmountBaseComparison.percentDiff,
+              interpretation: Math.abs(netAmountBaseComparison.percentDiff) < 1
+                ? '✅ ใกล้เคียง External API Base มาก (ต่างกันไม่ถึง 1%)'
+                : Math.abs(netAmountBaseComparison.percentDiff) < 5
+                ? '✓ ใกล้เคียง External API Base (ต่างกันไม่ถึง 5%)'
+                : Math.abs(netAmountBaseComparison.percentDiff) < 10
+                ? '⚠️ ต่างจาก External API Base ปานกลาง (5-10%)'
+                : '❌ ต่างจาก External API Base มาก (มากกว่า 10%)'
+            }
+          } : null,
+
+          // ฟิลด์อื่นๆ ที่น่าสนใจ
+          otherFields: comparisons.filter(c =>
+            c.field !== 'SUMAMOUNT1' &&
+            c.field !== 'NETAMOUNT (Base)' &&
+            c.rank <= 5 // แสดงแค่ Top 5
+          ).map(c => ({
+            field: c.field,
+            value: c.value,
+            source: c.source,
+            vsExternalAPI: {
+              difference: c.difference,
+              percentDiff: c.percentDiff,
+              rank: c.rank
+            }
+          })),
+
+          allFields: comparisons,
+          top3Matches: top3
+        },
+        externalAPI: {
+          url: externalApiUrl,
+          error: externalApiError,
+          totals: {
+            totalAll: parseFloat(externalTotals.totalAll.toFixed(2)),
+            baseOnly: parseFloat(externalTotals.baseOnly.toFixed(2)),
+            variantOnly: parseFloat(externalTotals.variantOnly.toFixed(2)),
+            productCount: externalTotals.productCount
+          },
+          note: 'baseOnly = ยอดขายที่ไม่รวม X6/X12/X120 variants'
+        },
+        comparison: {
+          closestDBField: comparisons[0]?.field || 'N/A',
+          dbValue: comparisons[0]?.value || 0,
+          externalValue: parseFloat(externalTotals.baseOnly.toFixed(2)),
+          difference: comparisons[0]?.difference || 0,
+          percentDiff: comparisons[0]?.percentDiff || 0,
+          interpretation: comparisons[0] && Math.abs(comparisons[0].percentDiff) < 1
+            ? '✅ ยอดขายใกล้เคียงมาก (ต่างกันไม่ถึง 1%)'
+            : comparisons[0] && Math.abs(comparisons[0].percentDiff) < 5
+            ? '✓ ยอดขายใกล้เคียง (ต่างกันไม่ถึง 5%)'
+            : comparisons[0] && Math.abs(comparisons[0].percentDiff) < 10
+            ? '⚠️ ยอดขายมีความแตกต่างปานกลาง (5-10%)'
+            : '❌ ยอดขายแตกต่างกันมาก (มากกว่า 10%)',
+
+          recommendedForDashboard: {
+            field: 'SUMAMOUNT1',
+            reason: 'ตรงกับ Dashboard ที่มีอยู่ (ต่างแค่ปัดเศษ)',
+            accuracy: sumAmount1VsDashboard ? `${Math.abs(sumAmount1VsDashboard.percentDiff).toFixed(4)}%` : 'N/A'
+          },
+          recommendedForExternalAPI: {
+            field: comparisons[0]?.field || 'NETAMOUNT (Base)',
+            reason: 'ใกล้เคียง External API Base มากที่สุด',
+            accuracy: comparisons[0] ? `${Math.abs(comparisons[0].percentDiff).toFixed(2)}%` : 'N/A'
+          }
+        },
+        creditNotesAnalysis: {
+          cnCount: cnData.cnCount || 0,
+          cnSumAmount1: parseFloat((cnData.cnSumAmount1 || 0).toFixed(2)),
+          cnAfterDisc: parseFloat((cnData.cnAfterDisc || 0).toFixed(2)),
+          cnTotalAmount: parseFloat((cnData.cnTotalAmount || 0).toFixed(2))
+        },
+        summary: {
+          keyFindings: [
+            sumAmount1VsDashboard && Math.abs(sumAmount1VsDashboard.percentDiff) < 0.01
+              ? '✅ Dashboard ใช้ SUMAMOUNT1 จาก DB (ไม่ใช้ External API โดยตรง)'
+              : '⚠️ Dashboard อาจใช้ค่าอื่นที่ไม่ใช่ SUMAMOUNT1',
+            netAmountBaseComparison && Math.abs(netAmountBaseComparison.percentDiff) < 1
+              ? '✅ NETAMOUNT (Base) ใกล้เคียง External API Base มากกว่า SUMAMOUNT1'
+              : '⚠️ NETAMOUNT (Base) มีความแตกต่างจาก External API Base',
+            sumAmount1Comparison && netAmountBaseComparison
+              ? `📊 SUMAMOUNT1 (${sumAmount1Comparison.value.toLocaleString()}) ต่ำกว่า NETAMOUNT Base (${netAmountBaseComparison.value.toLocaleString()}) เพราะรวม Variants (X6/X12/X120)`
+              : 'ไม่สามารถเปรียบเทียบได้'
+          ],
+          dbSource: 'SQL Server CSSALE + CSSALESUB tables',
+          externalSource: 'jhserver API (sale-report/by-product/v2)',
+          recommendation: comparisons[0]
+            ? `ฟิลด์ที่ใกล้เคียง External API มากที่สุดคือ: ${comparisons[0].field} (ต่าง ${Math.abs(comparisons[0].percentDiff)}%)`
+            : 'ไม่พบข้อมูลเปรียบเทียบ'
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in compareDbVsExternal:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

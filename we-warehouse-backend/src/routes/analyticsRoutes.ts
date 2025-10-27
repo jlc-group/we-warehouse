@@ -41,4 +41,16 @@ router.get('/check-cancelled-sales', AnalyticsController.checkCancelledSales);
 // GET /api/analytics/check-duplicate-docno - Check for duplicate DOCNO
 router.get('/check-duplicate-docno', AnalyticsController.checkDuplicateDocno);
 
+// GET /api/analytics/compare-calculation-methods - Compare different calculation methods
+router.get('/compare-calculation-methods', AnalyticsController.compareCalculationMethods);
+
+// GET /api/analytics/check-vat-calculation - Check VAT calculation in NETAMOUNT
+router.get('/check-vat-calculation', AnalyticsController.checkVatCalculation);
+
+// GET /api/analytics/compare-all-amount-fields - Compare all amount fields to find closest match to External API
+router.get('/compare-all-amount-fields', AnalyticsController.compareAllAmountFields);
+
+// GET /api/analytics/compare-db-vs-external - Compare DB vs External API month-by-month
+router.get('/compare-db-vs-external', AnalyticsController.compareDbVsExternal);
+
 export default router;
