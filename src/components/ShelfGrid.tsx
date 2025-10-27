@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw, Grid3X3, AlertTriangle } from 'lucide-react';
+import { Package, Search, MapPin, Filter, X, Plus, Edit, QrCode, Scan, RefreshCw, Grid3X3, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { QRScanner } from './QRScanner';
+import { BulkTransferModal } from './BulkTransferModal';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { formatLocation, normalizeLocation, displayLocation } from '@/utils/locationUtils';
@@ -16,6 +17,7 @@ interface ShelfGridProps {
   warehouseId?: string;
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onQRCodeClick?: (location: string) => void;
+  onBulkTransferClick?: (location: string) => void;
   selectedItems?: InventoryItem[];
   isOrderMode?: boolean;
 }
@@ -43,6 +45,7 @@ const ShelfCard = memo(({
   isRecentlyUpdated,
   onShelfClick,
   onQRCodeClick,
+  onBulkTransferClick,
   qrCodes,
   loading
 }: {
@@ -54,6 +57,7 @@ const ShelfCard = memo(({
   isRecentlyUpdated: boolean;
   onShelfClick: (location: string, item?: InventoryItem) => void;
   onQRCodeClick?: (location: string) => void;
+  onBulkTransferClick?: (location: string) => void;
   qrCodes: any;
   loading: boolean;
 }) => {
@@ -99,6 +103,26 @@ const ShelfCard = memo(({
           >
             <QrCode className="h-3 w-3" />
           </Button>
+        )}
+        {onBulkTransferClick && itemCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 w-6 p-0 bg-blue-50 hover:bg-blue-100 border-blue-300 hover:border-blue-400 transition-colors duration-150"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBulkTransferClick(location);
+                }}
+              >
+                <ArrowRightLeft className="h-3 w-3 text-blue-600" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>ย้ายหลายรายการ</p>
+            </TooltipContent>
+          </Tooltip>
         )}
         <Button
           size="sm"
@@ -180,6 +204,7 @@ export const ShelfGrid = memo(function ShelfGrid({
   warehouseId,
   onShelfClick,
   onQRCodeClick,
+  onBulkTransferClick,
   selectedItems = [],
   isOrderMode = false
 }: ShelfGridProps) {
@@ -195,6 +220,8 @@ export const ShelfGrid = memo(function ShelfGrid({
   const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
   const [visibleRowsCount, setVisibleRowsCount] = useState(10); // Show more rows initially for better data visibility
   const [showScanner, setShowScanner] = useState(false);
+  const [showBulkTransfer, setShowBulkTransfer] = useState(false);
+  const [bulkTransferLocation, setBulkTransferLocation] = useState<string>('');
   const [recentlyUpdatedLocations, setRecentlyUpdatedLocations] = useState<Set<string>>(new Set());
 
   // Helpers for quantity fields across schemas (ให้ตรงกับ EnhancedOverview)
@@ -360,6 +387,18 @@ export const ShelfGrid = memo(function ShelfGrid({
 
     const locations = filteredItems.map(item => item.location);
     setHighlightedLocations([...new Set(locations)]); // Remove duplicates
+  };
+
+  const handleBulkTransferClick = (location: string) => {
+    setBulkTransferLocation(location);
+    setShowBulkTransfer(true);
+  };
+
+  const handleBulkTransferComplete = () => {
+    setShowBulkTransfer(false);
+    setBulkTransferLocation('');
+    // Trigger parent refresh if provided
+    onBulkTransferClick?.(bulkTransferLocation);
   };
 
   // Auto-update highlights when filters change
@@ -601,6 +640,28 @@ export const ShelfGrid = memo(function ShelfGrid({
                                     >
                                       <QrCode className="h-3 w-3" />
                                     </Button>
+                                  )}
+
+                                  {/* Bulk Transfer Button - ปุ่มย้ายหลายรายการ */}
+                                  {itemCount > 0 && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-6 w-6 p-0 bg-blue-50 hover:bg-blue-100 border-blue-300 hover:border-blue-400 transition-colors duration-150"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleBulkTransferClick(location);
+                                          }}
+                                        >
+                                          <ArrowRightLeft className="h-3 w-3 text-blue-600" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>ย้ายหลายรายการ</p>
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
 
                                   {/* Add/Edit Button */}
@@ -913,6 +974,17 @@ export const ShelfGrid = memo(function ShelfGrid({
           isOpen={showScanner}
           onClose={() => setShowScanner(false)}
           onScanSuccess={handleScanSuccess}
+        />
+
+        {/* Bulk Transfer Modal - ย้ายหลายรายการพร้อมกัน */}
+        <BulkTransferModal
+          isOpen={showBulkTransfer}
+          onClose={() => {
+            setShowBulkTransfer(false);
+            setBulkTransferLocation('');
+          }}
+          sourceLocation={bulkTransferLocation}
+          onTransferComplete={handleBulkTransferComplete}
         />
       </div>
     </TooltipProvider>
