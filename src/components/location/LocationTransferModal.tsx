@@ -30,6 +30,7 @@ interface LocationInventory {
 interface TransferItem {
   id: string;
   selected: boolean;
+  toLocation: string; // ⭐ แต่ละรายการมีปลายทางของตัวเอง
   transferQuantities: {
     level1: number;
     level2: number;
@@ -54,7 +55,6 @@ export function LocationTransferModal({
 }: LocationTransferModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [toLocation, setToLocation] = useState('');
   const [transferItems, setTransferItems] = useState<Record<string, TransferItem>>({});
   const [allLocations, setAllLocations] = useState<string[]>([]);
 
@@ -66,6 +66,7 @@ export function LocationTransferModal({
         items[item.id] = {
           id: item.id,
           selected: false,
+          toLocation: '', // ⭐ แต่ละรายการมีปลายทางของตัวเอง
           transferQuantities: {
             level1: item.unit_level1_quantity,
             level2: item.unit_level2_quantity,
@@ -77,7 +78,6 @@ export function LocationTransferModal({
 
       // Generate all possible locations
       setAllLocations(generateAllWarehouseLocations());
-      setToLocation('');
     }
   }, [isOpen, inventory]);
 
@@ -150,19 +150,23 @@ export function LocationTransferModal({
       return;
     }
 
-    if (!toLocation) {
+    // ⭐ ตรวจสอบว่าทุกรายการที่เลือกมีปลายทาง
+    const itemsWithoutDestination = selectedItems.filter(item => !item.toLocation);
+    if (itemsWithoutDestination.length > 0) {
       toast({
         title: '⚠️ ไม่ได้เลือกปลายทาง',
-        description: 'กรุณาเลือกตำแหน่งปลายทาง',
+        description: `มี ${itemsWithoutDestination.length} รายการที่ยังไม่ได้เลือกตำแหน่งปลายทาง`,
         variant: 'destructive'
       });
       return;
     }
 
-    if (toLocation === fromLocationId) {
+    // ⭐ ตรวจสอบว่าไม่มีรายการที่ย้ายไปตำแหน่งเดียวกัน
+    const sameLocationItems = selectedItems.filter(item => item.toLocation === fromLocationId);
+    if (sameLocationItems.length > 0) {
       toast({
         title: '⚠️ ตำแหน่งเดียวกัน',
-        description: 'ไม่สามารถย้ายไปตำแหน่งเดียวกันได้',
+        description: 'มีรายการที่เลือกปลายทางเป็นตำแหน่งเดียวกับต้นทาง',
         variant: 'destructive'
       });
       return;
@@ -201,11 +205,11 @@ export function LocationTransferModal({
         // If transferring full quantity, move the original item
         if (remainingQty.level1 === 0 && remainingQty.level2 === 0 && remainingQty.level3 === 0) {
 
-          // Update location of existing item
+          // ⭐ Update location of existing item (ใช้ปลายทางของรายการนั้น)
           const { error: updateError } = await supabase
             .from('inventory_items')
             .update({
-              location: toLocation,
+              location: transferItem.toLocation,
               updated_at: new Date().toISOString()
             })
             .eq('id', originalItem.id);
@@ -213,11 +217,11 @@ export function LocationTransferModal({
           if (updateError) throw updateError;
 
         } else {
-          // Create new item at destination with transfer quantities
+          // ⭐ Create new item at destination with transfer quantities
           const newItemData = {
             sku: originalItem.sku,
             product_name: originalItem.product_name,
-            location: toLocation,
+            location: transferItem.toLocation,
             lot: originalItem.lot,
             mfd: originalItem.mfd,
             unit_level1_quantity: transferQty.level1,
@@ -262,14 +266,20 @@ export function LocationTransferModal({
         console.log('Transfer completed:', {
           item: originalItem.id,
           from: fromLocationId,
-          to: toLocation,
+          to: transferItem.toLocation, // ⭐ ใช้ปลายทางของรายการนั้น
           quantity: calculateTotalPieces(originalItem, transferQty)
         });
       }
 
+      // ⭐ แสดงสรุปปลายทางทั้งหมด
+      const destinations = [...new Set(selectedItems.map(i => i.toLocation))];
+      const destinationText = destinations.length === 1
+        ? destinations[0]
+        : `${destinations.length} ตำแหน่ง (${destinations.slice(0, 2).join(', ')}${destinations.length > 2 ? '...' : ''})`;
+
       toast({
         title: '✅ ย้ายสินค้าสำเร็จ',
-        description: `ย้าย ${selectedItems.length} รายการจาก ${fromLocationId} ไป ${toLocation} แล้ว`,
+        description: `ย้าย ${selectedItems.length} รายการจาก ${fromLocationId} ไป ${destinationText}`,
       });
 
       onSuccess();
@@ -312,37 +322,7 @@ export function LocationTransferModal({
         </DialogHeader>
 
         <div className="space-y-4 sm:space-y-6 py-3 sm:py-4">
-          {/* Destination Selection */}
-          <Card>
-            <CardHeader className="pb-2 sm:pb-3">
-              <CardTitle className="text-sm sm:text-base flex items-center gap-2">
-                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                เลือกปลายทาง
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 sm:space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="to-location" className="text-xs sm:text-sm">ตำแหน่งปลายทาง</Label>
-                <LocationCombobox
-                  value={toLocation}
-                  onChange={setToLocation}
-                  allLocations={allLocations}
-                  excludeLocation={fromLocationId}
-                  placeholder="เลือกตำแหน่งปลายทาง..."
-                />
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
-                <div className="flex items-center gap-2 text-blue-800">
-                  <Package className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-sm font-medium">
-                    <span className="hidden sm:inline">💡 เลือกสินค้าแล้วระบุจำนวนที่ต้องการย้าย สามารถย้ายบางส่วนหรือทั้งหมดได้</span>
-                    <span className="sm:hidden">เลือกสินค้าและระบุจำนวน</span>
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* ⭐ ลบส่วน Destination Selection ออก - ให้เลือกปลายทางแต่ละรายการแทน */}
 
           {/* Item Selection */}
           <Card>
@@ -389,6 +369,32 @@ export function LocationTransferModal({
 
                         {transferItem.selected && (
                           <div className="bg-gray-50 p-4 rounded-lg border-2 border-blue-200">
+                            {/* ⭐ เลือกปลายทางของรายการนี้ */}
+                            <div className="mb-4 p-3 bg-white rounded-lg border-2 border-orange-300">
+                              <Label className="text-sm font-medium text-orange-800 mb-2 flex items-center gap-2">
+                                <MapPin className="h-4 w-4" />
+                                ปลายทางของรายการนี้
+                                {transferItem.toLocation && (
+                                  <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">✅ เลือกแล้ว</span>
+                                )}
+                              </Label>
+                              <LocationCombobox
+                                value={transferItem.toLocation}
+                                onChange={(value) => {
+                                  setTransferItems(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      toLocation: value
+                                    }
+                                  }));
+                                }}
+                                allLocations={allLocations}
+                                excludeLocation={fromLocationId}
+                                placeholder="เลือกตำแหน่งปลายทาง..."
+                              />
+                            </div>
+
                             <div className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
                               <ArrowLeftRight className="h-4 w-4" />
                               ระบุจำนวนที่ต้องการย้าย
@@ -635,7 +641,7 @@ export function LocationTransferModal({
           </Button>
           <Button
             onClick={handleTransfer}
-            disabled={loading || selectedCount === 0 || !toLocation}
+            disabled={loading || selectedCount === 0}
             className="bg-orange-600 hover:bg-orange-700 h-11 sm:h-10 text-xs sm:text-sm w-full sm:w-auto"
           >
             <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
