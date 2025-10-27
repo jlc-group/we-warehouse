@@ -651,6 +651,7 @@ export class AnalyticsController {
       console.log(`[Forecast] Target: ${targetDate.toISOString().slice(0, 7)}, Lookback: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`);
 
       // Query: ดึงยอดขายรายเดือนของแต่ละสินค้าใน 3 เดือนย้อนหลัง
+      // กรองเฉพาะรหัสที่ไม่มี X ต่อท้าย (ไม่เอา X6, X12, X24, etc.)
       const query = `
         SELECT
           d.PRODUCTCODE as productCode,
@@ -664,6 +665,8 @@ export class AnalyticsController {
           h.DOCDATE >= @startDate
           AND h.DOCDATE < @endDate
           AND LEFT(h.DOCNO, 2) IN ('SA', 'CN')
+          AND d.PRODUCTCODE NOT LIKE '%X[0-9]%'
+          AND d.PRODUCTCODE NOT LIKE '%X[0-9][0-9]%'
         GROUP BY d.PRODUCTCODE, YEAR(h.DOCDATE), MONTH(h.DOCDATE)
         ORDER BY d.PRODUCTCODE, year, month
       `;
