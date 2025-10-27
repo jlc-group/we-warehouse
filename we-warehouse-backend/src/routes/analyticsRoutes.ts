@@ -38,4 +38,7 @@ router.get('/check-duplicate-codes', AnalyticsController.checkDuplicateCodes);
 // GET /api/analytics/check-cancelled-sales - Check cancelled sales invoices
 router.get('/check-cancelled-sales', AnalyticsController.checkCancelledSales);
 
+// GET /api/analytics/check-duplicate-docno - Check for duplicate DOCNO
+router.get('/check-duplicate-docno', AnalyticsController.checkDuplicateDocno);
+
 export default router;

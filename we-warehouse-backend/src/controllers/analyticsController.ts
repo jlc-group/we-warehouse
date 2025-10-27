@@ -992,6 +992,68 @@ export class AnalyticsController {
   }
 
   /**
+   * GET /api/analytics/check-duplicate-docno
+   * ตรวจสอบว่ามี DOCNO ซ้ำกันในตาราง CSSALE หรือไม่
+   */
+  static async checkDuplicateDocno(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate, limit = '50' } = req.query;
+
+      const pool = await getConnection();
+      const request = pool.request();
+
+      let query = `
+        SELECT
+          DOCNO,
+          COUNT(*) as duplicateCount,
+          SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
+          MIN(CAST(DOCTYPE as VARCHAR)) as docType
+        FROM CSSALE
+        WHERE LEFT(DOCNO, 2) IN ('SA', 'CS', 'CN')
+      `;
+
+      if (startDate && endDate) {
+        query += `
+          AND DOCDATE >= @startDate
+          AND DOCDATE <= @endDate
+        `;
+        request.input('startDate', sql.Date, startDate as string);
+        request.input('endDate', sql.Date, endDate as string);
+      }
+
+      query = `
+        SELECT TOP ${parseInt(limit as string)} *
+        FROM (
+          ${query}
+          GROUP BY DOCNO
+          HAVING COUNT(*) > 1
+        ) AS Duplicates
+        ORDER BY duplicateCount DESC, totalAmount DESC
+      `;
+
+      const result = await request.query(query);
+
+      res.json({
+        success: true,
+        data: result.recordset,
+        summary: {
+          totalDuplicates: result.recordset.length,
+          message: result.recordset.length > 0
+            ? `พบ ${result.recordset.length} ใบขายที่มี DOCNO ซ้ำกัน`
+            : 'ไม่พบ DOCNO ซ้ำ - ระบบปลอดภัย'
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in checkDuplicateDocno:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * GET /api/analytics/check-duplicate-codes
    * ตรวจสอบว่ามีใบขายไหนที่มี Base code และ Variant code ในใบเดียวกัน
    * เช่น L3-8G และ L3-8GX6 ในใบเดียวกัน (อาจทำให้นับยอดขายซ้ำ)
