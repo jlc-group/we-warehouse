@@ -3,6 +3,58 @@ import { getConnection, sql } from '../config/database.js';
 
 export class AnalyticsController {
   /**
+   * GET /api/analytics/table-structure
+   * Debug: Get table columns and sample data
+   */
+  static async getTableStructure(req: Request, res: Response): Promise<void> {
+    try {
+      const { table } = req.query;
+
+      if (!table) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required parameter: table (CSSALE or CSSALESUB)'
+        });
+        return;
+      }
+
+      const pool = await getConnection();
+
+      // Get columns
+      const columnsResult = await pool.request()
+        .input('tableName', sql.VarChar, table as string)
+        .query(`
+          SELECT
+            COLUMN_NAME,
+            DATA_TYPE,
+            CHARACTER_MAXIMUM_LENGTH,
+            IS_NULLABLE
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_NAME = @tableName
+          ORDER BY ORDINAL_POSITION
+        `);
+
+      // Get sample data
+      const sampleResult = await pool.request()
+        .query(`SELECT TOP 2 * FROM ${table as string}`);
+
+      res.json({
+        success: true,
+        table: table,
+        columns: columnsResult.recordset,
+        sampleData: sampleResult.recordset
+      });
+
+    } catch (error) {
+      console.error('Error in getTableStructure:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
    * GET /api/analytics/products
    * Get list of products that have sales data
    * NOTE: Excludes X6, X12 variants to prevent double-counting
@@ -24,6 +76,7 @@ export class AnalyticsController {
         WHERE d.PRODUCTCODE NOT LIKE '%X6'
           AND d.PRODUCTCODE NOT LIKE '%X12'
           AND d.PRODUCTCODE NOT LIKE '%X120'
+          AND h.CANCELDATE IS NULL
       `;
 
       const request = pool.request();
@@ -90,13 +143,14 @@ export class AnalyticsController {
           SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalPurchases,
           COUNT(DISTINCT h.DOCNO) as orderCount
         FROM CSSALE h
+        WHERE h.CANCELDATE IS NULL
       `;
 
       const request = pool.request();
 
       if (startDate && endDate) {
         query += `
-          WHERE h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
+          AND h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
         `;
         request.input('startDate', sql.Date, startDate as string);
         request.input('endDate', sql.Date, endDate as string);
@@ -154,6 +208,7 @@ export class AnalyticsController {
         WHERE d.PRODUCTCODE = @productCode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
+          AND h.CANCELDATE IS NULL
         GROUP BY CONVERT(DATE, h.DOCDATE), h.ARCODE, h.ARNAME
         ORDER BY CONVERT(DATE, h.DOCDATE)
       `;
@@ -183,6 +238,7 @@ export class AnalyticsController {
         WHERE d.PRODUCTCODE = @productCode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
+          AND h.CANCELDATE IS NULL
         GROUP BY h.ARCODE, h.ARNAME
         ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
       `;
@@ -312,6 +368,7 @@ export class AnalyticsController {
         WHERE h.ARCODE = @arcode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
+          AND h.CANCELDATE IS NULL
         GROUP BY CONVERT(DATE, h.DOCDATE), h.DOCNO, h.TOTALAMOUNT
         ORDER BY CONVERT(DATE, h.DOCDATE)
       `;
@@ -345,6 +402,7 @@ export class AnalyticsController {
           AND d.PRODUCTCODE NOT LIKE '%X6'
           AND d.PRODUCTCODE NOT LIKE '%X12'
           AND d.PRODUCTCODE NOT LIKE '%X120'
+          AND h.CANCELDATE IS NULL
         GROUP BY d.PRODUCTCODE, d.PRODUCTNAME
         ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
       `;
@@ -457,6 +515,7 @@ export class AnalyticsController {
 
       // Query for SA (Sales) และ CS/CN (Credit Note) แยกกัน
       // ใช้ DOCNO prefix แทน DOCTYPE field เพราะ DOCTYPE อาจไม่มีในตาราง
+      // NOTE: Excludes cancelled documents (CANCELDATE IS NULL)
       let query = `
         SELECT
           LEFT(DOCNO, CHARINDEX('-', DOCNO) - 1) as docTypePrefix,
@@ -464,6 +523,7 @@ export class AnalyticsController {
           COUNT(DISTINCT DOCNO) as docCount
         FROM CSSALE
         WHERE DOCNO LIKE '%-%'
+          AND CANCELDATE IS NULL
       `;
 
       if (startDate && endDate) {
@@ -554,7 +614,7 @@ export class AnalyticsController {
           SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
         FROM CSSALESUB d
         INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
-        WHERE 1=1
+        WHERE h.CANCELDATE IS NULL
       `;
 
       if (startDate && endDate) {
@@ -686,6 +746,7 @@ export class AnalyticsController {
           AND LEFT(h.DOCNO, 2) IN ('SA', 'CN')
           AND d.PRODUCTCODE NOT LIKE '%X[0-9]%'
           AND d.PRODUCTCODE NOT LIKE '%X[0-9][0-9]%'
+          AND h.CANCELDATE IS NULL
         GROUP BY d.PRODUCTCODE, YEAR(h.DOCDATE), MONTH(h.DOCDATE)
         ORDER BY d.PRODUCTCODE, year, month
       `;
@@ -838,6 +899,91 @@ export class AnalyticsController {
 
     } catch (error) {
       console.error('Error in getProductForecastPrediction:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/analytics/check-cancelled-sales
+   * ตรวจสอบยอดขายจากใบที่ Cancel แล้ว
+   */
+  static async checkCancelledSales(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate, limit = '50' } = req.query;
+
+      const pool = await getConnection();
+      const request = pool.request();
+
+      let query = `
+        SELECT
+          h.DOCNO,
+          h.DOCDATE,
+          h.ARCODE,
+          h.ARNAME,
+          h.TOTALAMOUNT,
+          h.CANCELDATE,
+          h.CANCELUSER,
+          h.CLOSEFLAG,
+          h.SYSDOCFLAG,
+          h.DOCTYPE,
+          COUNT(d.PRODUCTCODE) as itemCount,
+          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as sumLineAmount
+        FROM CSSALE h
+        LEFT JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+        WHERE h.CANCELDATE IS NOT NULL
+          AND LEFT(h.DOCNO, 2) = 'SA'
+      `;
+
+      if (startDate && endDate) {
+        query += `
+          AND h.DOCDATE >= @startDate
+          AND h.DOCDATE <= @endDate
+        `;
+        request.input('startDate', sql.Date, startDate as string);
+        request.input('endDate', sql.Date, endDate as string);
+      }
+
+      query += `
+        GROUP BY
+          h.DOCNO,
+          h.DOCDATE,
+          h.ARCODE,
+          h.ARNAME,
+          h.TOTALAMOUNT,
+          h.CANCELDATE,
+          h.CANCELUSER,
+          h.CLOSEFLAG,
+          h.SYSDOCFLAG,
+          h.DOCTYPE
+        ORDER BY h.DOCDATE DESC, h.TOTALAMOUNT DESC
+        OFFSET 0 ROWS FETCH NEXT ${parseInt(limit as string)} ROWS ONLY
+      `;
+
+      const result = await request.query(query);
+
+      // คำนวณยอดรวม
+      const totalCancelledAmount = result.recordset.reduce(
+        (sum, row) => sum + parseFloat(row.TOTALAMOUNT || 0),
+        0
+      );
+
+      res.json({
+        success: true,
+        data: result.recordset,
+        summary: {
+          totalRecords: result.recordset.length,
+          totalCancelledAmount: totalCancelledAmount,
+          message: result.recordset.length > 0
+            ? `พบ ${result.recordset.length} ใบขายที่ถูก Cancel มูลค่า ${totalCancelledAmount.toFixed(2)} บาท`
+            : 'ไม่พบใบขายที่ถูก Cancel'
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in checkCancelledSales:', error);
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

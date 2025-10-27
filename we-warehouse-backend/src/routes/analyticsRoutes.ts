@@ -8,6 +8,9 @@ const router = Router();
  * High-performance aggregated queries for sales analytics
  */
 
+// GET /api/analytics/table-structure - Debug: Get table structure and sample data
+router.get('/table-structure', AnalyticsController.getTableStructure);
+
 // GET /api/analytics/products - List of products with sales data
 router.get('/products', AnalyticsController.getProductList);
 
@@ -31,5 +34,8 @@ router.get('/product-forecast-prediction', AnalyticsController.getProductForecas
 
 // GET /api/analytics/check-duplicate-codes - Check for duplicate product codes in same invoice
 router.get('/check-duplicate-codes', AnalyticsController.checkDuplicateCodes);
+
+// GET /api/analytics/check-cancelled-sales - Check cancelled sales invoices
+router.get('/check-cancelled-sales', AnalyticsController.checkCancelledSales);
 
 export default router;
