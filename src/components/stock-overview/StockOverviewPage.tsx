@@ -10,9 +10,10 @@ import { useToast } from '@/hooks/use-toast';
 
 interface StockOverviewPageProps {
   warehouseId?: string;
+  onLocationClick?: (location: string) => void;
 }
 
-export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
+export function StockOverviewPage({ warehouseId, onLocationClick }: StockOverviewPageProps) {
   const { items, generatedAt, isLoading, error, refresh } = useStockOverview(warehouseId);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('ทั้งหมด');
@@ -87,11 +88,6 @@ export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
     }
   };
 
-  const handleLocationClick = (location: string) => {
-    // Navigate to Fulfillment Queue filtered by location
-    window.location.href = `/?tab=warehouse&warehouse-sub-tab=fulfillment&fulfillment-location=${encodeURIComponent(location)}`;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header with action buttons */}
@@ -134,7 +130,7 @@ export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
         setSearchTerm={setSearchTerm}
         selectedType={selectedType}
         setSelectedType={setSelectedType}
-        onLocationClick={handleLocationClick}
+        onLocationClick={onLocationClick}
       />
     </div>
   );
