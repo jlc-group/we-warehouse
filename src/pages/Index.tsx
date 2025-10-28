@@ -121,6 +121,8 @@ const Index = memo(() => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
   const [selectedItemsForTransfer, setSelectedItemsForTransfer] = useState<InventoryItem[]>([]);
   const [purchaseOrdersSubTab, setPurchaseOrdersSubTab] = useState<string>('po-list');
+  const [warehouseSubTab, setWarehouseSubTab] = useState<string>('packing-list');
+  const [fulfillmentLocationFilter, setFulfillmentLocationFilter] = useState<string | undefined>();
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Custom hooks after useState hooks
@@ -263,16 +265,30 @@ const Index = memo(() => {
     const tab = searchParams.get('tab');
     const location = searchParams.get('location');
     const action = searchParams.get('action');
+    const warehouseSubTabParam = searchParams.get('warehouse-sub-tab');
+    const fulfillmentLocationParam = searchParams.get('fulfillment-location');
 
     // Only process if we have actual parameters
-    if (!tab && !location && !action) return;
+    if (!tab && !location && !action && !warehouseSubTabParam && !fulfillmentLocationParam) return;
 
-    console.log('🔄 Processing URL parameters:', { tab, location, action });
+    console.log('🔄 Processing URL parameters:', { tab, location, action, warehouseSubTabParam, fulfillmentLocationParam });
     setLastUrlProcessTime(now);
 
     // Always set tab first if provided
     if (tab) {
       setActiveTab(tab);
+    }
+
+    // Handle warehouse sub-tab navigation
+    if (warehouseSubTabParam) {
+      setWarehouseSubTab(warehouseSubTabParam);
+    }
+
+    // Handle fulfillment location filter
+    if (fulfillmentLocationParam) {
+      setFulfillmentLocationFilter(fulfillmentLocationParam);
+      setActiveTab('warehouse');
+      setWarehouseSubTab('fulfillment');
     }
 
     // Handle QR code scan with location and action
@@ -918,10 +934,10 @@ const Index = memo(() => {
             />
           </TabsContent>
 
-          {/* 📦 คลังสินค้า - Warehouse Tab with 8 sub-tabs */}
+          {/* 📦 คลังสินค้า - Warehouse Tab with 9 sub-tabs */}
           <TabsContent value="warehouse" className="space-y-4">
-            <Tabs defaultValue="packing-list" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-8 bg-white border border-gray-200">
+            <Tabs defaultValue="packing-list" className="space-y-4" value={warehouseSubTab} onValueChange={setWarehouseSubTab}>
+              <TabsList className="grid w-full grid-cols-9 bg-white border border-gray-200">
                 <TabsTrigger value="inbound-outbound" className="flex items-center gap-2">
                   <Truck className="h-4 w-4" />
                   รับเข้า-ส่งออก
@@ -929,6 +945,10 @@ const Index = memo(() => {
                 <TabsTrigger value="packing-list" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
                   รายการแพค
+                </TabsTrigger>
+                <TabsTrigger value="fulfillment" className="flex items-center gap-2 bg-green-50">
+                  <Package className="h-4 w-4 text-green-600" />
+                  <span className="text-green-600">งานจัดสินค้า</span>
                 </TabsTrigger>
                 <TabsTrigger value="warehouse-management" className="flex items-center gap-2">
                   <Warehouse className="h-4 w-4" />
@@ -962,6 +982,13 @@ const Index = memo(() => {
 
               <TabsContent value="packing-list" className="space-y-4">
                 <PackingListTab />
+              </TabsContent>
+
+              <TabsContent value="fulfillment" className="space-y-4">
+                <FulfillmentQueue
+                  locationFilter={fulfillmentLocationFilter}
+                  onClearLocationFilter={() => setFulfillmentLocationFilter(undefined)}
+                />
               </TabsContent>
 
               <TabsContent value="warehouse-management" className="space-y-4">

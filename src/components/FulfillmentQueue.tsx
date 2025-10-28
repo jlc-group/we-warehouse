@@ -37,7 +37,9 @@ import {
   User,
   Building,
   FileText,
-  Edit
+  Edit,
+  MapPin,
+  X
 } from 'lucide-react';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
 import {
@@ -46,7 +48,12 @@ import {
   type FulfillmentStatus
 } from '@/services/purchaseOrderService';
 
-export const FulfillmentQueue = () => {
+interface FulfillmentQueueProps {
+  locationFilter?: string;
+  onClearLocationFilter?: () => void;
+}
+
+export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: FulfillmentQueueProps) => {
   const {
     fulfillmentTasks,
     updateTaskStatus,
@@ -58,10 +65,20 @@ export const FulfillmentQueue = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
 
-  // Filter tasks based on status and source
+  // Filter tasks based on status, source, and location
   const filteredTasks = fulfillmentTasks.filter(task => {
     if (statusFilter !== 'all' && task.status !== statusFilter) return false;
     if (sourceFilter !== 'all' && task.source_type !== sourceFilter) return false;
+
+    // Filter by location if specified
+    if (locationFilter) {
+      // Check if any item in this task has the specified location
+      const hasLocationMatch = task.items.some(item =>
+        item.location?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+      if (!hasLocationMatch) return false;
+    }
+
     return true;
   });
 
@@ -127,10 +144,26 @@ export const FulfillmentQueue = () => {
       {/* Header with Stats */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            งานจัดสินค้า (Fulfillment Queue)
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              งานจัดสินค้า (Fulfillment Queue)
+            </CardTitle>
+            {locationFilter && (
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-sm px-3 py-1">
+                <MapPin className="h-4 w-4 mr-1" />
+                กรองตาม: {locationFilter}
+                {onClearLocationFilter && (
+                  <button
+                    onClick={onClearLocationFilter}
+                    className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

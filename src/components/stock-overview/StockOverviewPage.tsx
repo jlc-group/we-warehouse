@@ -88,8 +88,8 @@ export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
   };
 
   const handleLocationClick = (location: string) => {
-    // Navigate to Overview tab with the location selected for management
-    window.location.href = `/?tab=overview&location=${encodeURIComponent(location)}`;
+    // Navigate to Fulfillment Queue filtered by location
+    window.location.href = `/?tab=warehouse&warehouse-sub-tab=fulfillment&fulfillment-location=${encodeURIComponent(location)}`;
   };
 
   return (
