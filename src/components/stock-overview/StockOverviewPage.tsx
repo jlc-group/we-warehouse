@@ -87,6 +87,11 @@ export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
     }
   };
 
+  const handleLocationClick = (location: string) => {
+    // Navigate to Overview tab with the location selected for management
+    window.location.href = `/?tab=overview&location=${encodeURIComponent(location)}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with action buttons */}
@@ -129,6 +134,7 @@ export function StockOverviewPage({ warehouseId }: StockOverviewPageProps) {
         setSearchTerm={setSearchTerm}
         selectedType={selectedType}
         setSelectedType={setSelectedType}
+        onLocationClick={handleLocationClick}
       />
     </div>
   );

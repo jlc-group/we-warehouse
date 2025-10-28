@@ -19,6 +19,7 @@ interface StockOverviewTableProps {
   setSearchTerm: (term: string) => void;
   selectedType: string;
   setSelectedType: (type: string) => void;
+  onLocationClick?: (location: string) => void; // ⭐ เพิ่ม callback เมื่อคลิก location
 }
 
 const PRODUCT_TYPES = ['ทั้งหมด', 'FG', 'PK', 'RM', 'อื่นๆ'];
@@ -28,7 +29,8 @@ export function StockOverviewTable({
   searchTerm,
   setSearchTerm,
   selectedType,
-  setSelectedType
+  setSelectedType,
+  onLocationClick
 }: StockOverviewTableProps) {
 
   const formatNumber = (num: number) => {
@@ -156,7 +158,12 @@ export function StockOverviewTable({
                         ) : (
                           <div className="flex flex-wrap gap-1 max-w-xs">
                             {item.locations.slice(0, 3).map((location, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
+                              <Badge
+                                key={idx}
+                                variant="outline"
+                                className="text-xs cursor-pointer hover:bg-blue-100 hover:border-blue-500 transition-colors"
+                                onClick={() => onLocationClick?.(location)}
+                              >
                                 {location}
                               </Badge>
                             ))}
