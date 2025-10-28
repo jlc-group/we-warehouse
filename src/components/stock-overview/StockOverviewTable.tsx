@@ -156,8 +156,8 @@ export function StockOverviewTable({
                             ไม่มีตำแหน่ง
                           </Badge>
                         ) : (
-                          <div className="flex flex-wrap gap-1 max-w-xs">
-                            {item.locations.slice(0, 3).map((location, idx) => (
+                          <div className="flex flex-wrap gap-1">
+                            {item.locations.map((location, idx) => (
                               <Badge
                                 key={idx}
                                 variant="outline"
@@ -167,11 +167,6 @@ export function StockOverviewTable({
                                 {location}
                               </Badge>
                             ))}
-                            {item.locations.length > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{item.locations.length - 3}
-                              </Badge>
-                            )}
                           </div>
                         )}
                       </TableCell>
