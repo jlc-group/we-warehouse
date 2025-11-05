@@ -608,6 +608,45 @@ export type Database = {
         }
         Relationships: []
       }
+      system_events: {
+        Row: {
+          id: string
+          event_type: string
+          event_category: string
+          event_title: string
+          event_description: string | null
+          severity_level: string
+          location_context: string | null
+          user_id: string | null
+          metadata: Record<string, any>
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          event_type: string
+          event_category: string
+          event_title: string
+          event_description?: string | null
+          severity_level?: string
+          location_context?: string | null
+          user_id?: string | null
+          metadata?: Record<string, any>
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          event_type?: string
+          event_category?: string
+          event_title?: string
+          event_description?: string | null
+          severity_level?: string
+          location_context?: string | null
+          user_id?: string | null
+          metadata?: Record<string, any>
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -745,3 +784,7 @@ export type RoleUpdate = TablesUpdate<'roles'>
 export type WarehouseLocation = Tables<'warehouse_locations'>
 export type WarehouseLocationInsert = TablesInsert<'warehouse_locations'>
 export type WarehouseLocationUpdate = TablesUpdate<'warehouse_locations'>
+
+export type SystemEvent = Tables<'system_events'>
+export type SystemEventInsert = TablesInsert<'system_events'>
+export type SystemEventUpdate = TablesUpdate<'system_events'>

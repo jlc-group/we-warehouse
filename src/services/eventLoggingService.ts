@@ -32,6 +32,12 @@ export class EventLoggingService {
    */
   static async logEvent(params: LogEventParams): Promise<boolean> {
     try {
+      // Include notes in metadata if provided, since notes column doesn't exist in schema
+      const metadata = params.metadata || {};
+      if (params.notes) {
+        metadata.notes = params.notes;
+      }
+
       const { error } = await supabase
         .from('system_events')
         .insert({
@@ -42,10 +48,9 @@ export class EventLoggingService {
           severity_level: params.severity_level || 'INFO',
           location_context: params.location_context || null,
           user_id: params.user_id || null,
-          metadata: params.metadata || {},
-          notes: params.notes || null,
+          metadata: metadata,
           created_at: new Date().toISOString()
-        });
+        } as any);
 
       if (error) {
         console.error('Error logging event:', error);
