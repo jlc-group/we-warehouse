@@ -57,7 +57,17 @@ export const secureGatewayClient = {
             throw error;
           }
 
-          return { success: true, data: data as T };
+          // Sanitize data: ensure SKU is never null/undefined
+          const sanitizedData = Array.isArray(data) 
+            ? data.map((item: any) => ({
+                ...item,
+                sku: item.sku || `SKU-${(item.id || '').substring(0, 8) || 'UNKNOWN'}`
+              }))
+            : data 
+              ? { ...(data as any), sku: (data as any).sku || `SKU-${((data as any).id || '').substring(0, 8) || 'UNKNOWN'}` }
+              : data;
+
+          return { success: true, data: sanitizedData as T };
         }
 
         case 'customers': {
