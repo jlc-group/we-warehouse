@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { EventLoggingService } from '@/services/eventLoggingService';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, AlertCircle, Lock, Save } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PRODUCT_TYPES, ProductType } from '@/data/sampleInventory';
 
 interface Product {
   id: string;
@@ -35,6 +37,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     product_name: '',
+    product_type: 'FG' as ProductType,
     unit_level1_name: '',
     unit_level2_name: '',
     unit_level3_name: '',
@@ -50,6 +53,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
     if (open && product) {
       setFormData({
         product_name: product.product_name || '',
+        product_type: (product.product_type as ProductType) || 'FG',
         unit_level1_name: product.unit_level1_name || '',
         unit_level2_name: product.unit_level2_name || '',
         unit_level3_name: product.unit_level3_name || '',
@@ -105,6 +109,11 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
       if (formData.unit_level3_name !== product.unit_level3_name) {
         productUpdates.unit_level3_name = formData.unit_level3_name;
         changes.unit_level3_name = { old: product.unit_level3_name, new: formData.unit_level3_name };
+        hasProductChanges = true;
+      }
+      if (formData.product_type !== product.product_type) {
+        productUpdates.product_type = formData.product_type;
+        changes.product_type = { old: product.product_type, new: formData.product_type };
         hasProductChanges = true;
       }
 
@@ -201,7 +210,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
           <Alert>
             <Lock className="h-4 w-4" />
             <AlertDescription>
-              <strong>SKU</strong> และ <strong>ประเภทสินค้า</strong> ไม่สามารถแก้ไขได้
+              <strong>SKU Code</strong> ไม่สามารถแก้ไขได้
             </AlertDescription>
           </Alert>
 
@@ -214,11 +223,27 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
               <Input value={product.sku_code} disabled className="font-mono" />
             </div>
             <div>
-              <Label className="text-muted-foreground flex items-center gap-2">
-                <Lock className="h-3 w-3" />
-                ประเภทสินค้า
+              <Label htmlFor="product_type">
+                ประเภทสินค้า <span className="text-red-500">*</span>
               </Label>
-              <Input value={product.product_type} disabled />
+              <Select
+                value={formData.product_type}
+                onValueChange={(value) => setFormData({ ...formData, product_type: value as ProductType })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกประเภทสินค้า" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PRODUCT_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-2 h-2 rounded-full bg-${type.color}-500`}></span>
+                        {type.label} ({type.value})
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
