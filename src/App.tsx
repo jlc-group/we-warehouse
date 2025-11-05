@@ -8,6 +8,7 @@ import { InventoryProvider } from "@/contexts/InventoryContext";
 import { ProductsProvider } from "@/contexts/ProductsContext";
 import { LocationQRProvider } from "@/contexts/LocationQRContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ReactProfiler } from "@/debug/ReactProfiler";
 import "@/debug/intervalDetector"; // CRITICAL: Import to activate interval monitoring
 import Index from "./pages/Index";
@@ -37,19 +38,20 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
-  <ReactProfiler id="App">
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <ReactProfiler id="AuthProvider">
-            <AuthProvider>
+  <ErrorBoundary>
+    <ReactProfiler id="App">
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <ReactProfiler id="AuthProvider">
+              <AuthProvider>
               <ReactProfiler id="ProductsProvider">
                 <ProductsProvider>
                   <LocationQRProvider>
@@ -90,6 +92,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </ReactProfiler>
+  </ErrorBoundary>
 );
 
 export default App;
