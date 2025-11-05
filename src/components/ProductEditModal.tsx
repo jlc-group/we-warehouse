@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,9 +19,6 @@ interface Product {
   sku_code: string;
   product_name: string;
   product_type: string;
-  unit_level1_name?: string;
-  unit_level2_name?: string;
-  unit_level3_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -38,9 +35,6 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
   const [formData, setFormData] = useState({
     product_name: '',
     product_type: 'FG' as ProductType,
-    unit_level1_name: '',
-    unit_level2_name: '',
-    unit_level3_name: '',
     notes: ''
   });
   const [conversionRates, setConversionRates] = useState({
@@ -48,37 +42,34 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
     unit_level2_rate: 12
   });
 
+  const fetchConversionRates = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('product_conversion_rates')
+      .select('unit_level1_rate, unit_level2_rate')
+      .eq('product_id', product.id as any)
+      .maybeSingle();
+
+    if (data && !error) {
+      setConversionRates({
+        unit_level1_rate: (data as any).unit_level1_rate || 144,
+        unit_level2_rate: (data as any).unit_level2_rate || 12
+      });
+    }
+  }, [product.id]);
+
   // Load product data and conversion rates
   useEffect(() => {
     if (open && product) {
       setFormData({
         product_name: product.product_name || '',
         product_type: (product.product_type as ProductType) || 'FG',
-        unit_level1_name: product.unit_level1_name || '',
-        unit_level2_name: product.unit_level2_name || '',
-        unit_level3_name: product.unit_level3_name || '',
         notes: ''
       });
 
       // Fetch conversion rates
       fetchConversionRates();
     }
-  }, [open, product]);
-
-  const fetchConversionRates = async () => {
-    const { data, error } = await supabase
-      .from('product_conversion_rates')
-      .select('unit_level1_rate, unit_level2_rate')
-      .eq('product_id', product.id)
-      .single();
-
-    if (data && !error) {
-      setConversionRates({
-        unit_level1_rate: data.unit_level1_rate || 144,
-        unit_level2_rate: data.unit_level2_rate || 12
-      });
-    }
-  };
+  }, [open, product, fetchConversionRates]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -96,21 +87,6 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
         changes.product_name = { old: product.product_name, new: formData.product_name };
         hasProductChanges = true;
       }
-      if (formData.unit_level1_name !== product.unit_level1_name) {
-        productUpdates.unit_level1_name = formData.unit_level1_name;
-        changes.unit_level1_name = { old: product.unit_level1_name, new: formData.unit_level1_name };
-        hasProductChanges = true;
-      }
-      if (formData.unit_level2_name !== product.unit_level2_name) {
-        productUpdates.unit_level2_name = formData.unit_level2_name;
-        changes.unit_level2_name = { old: product.unit_level2_name, new: formData.unit_level2_name };
-        hasProductChanges = true;
-      }
-      if (formData.unit_level3_name !== product.unit_level3_name) {
-        productUpdates.unit_level3_name = formData.unit_level3_name;
-        changes.unit_level3_name = { old: product.unit_level3_name, new: formData.unit_level3_name };
-        hasProductChanges = true;
-      }
       if (formData.product_type !== product.product_type) {
         productUpdates.product_type = formData.product_type;
         changes.product_type = { old: product.product_type, new: formData.product_type };
@@ -123,32 +99,33 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
         const { error: productError } = await supabase
           .from('products')
           .update(productUpdates)
-          .eq('id', product.id);
+          .eq('id', product.id as any);
 
         if (productError) throw productError;
       }
 
       // Check if conversion rates exist
-      const { data: existingRates } = await supabase
+      const { data: existingRates, error: ratesError } = await supabase
         .from('product_conversion_rates')
         .select('*')
-        .eq('product_id', product.id)
-        .single();
+        .eq('product_id', product.id as any)
+        .maybeSingle();
 
       let hasConversionChanges = false;
 
-      if (existingRates) {
+      if (existingRates && !ratesError) {
         // Update conversion rates if changed
         const rateUpdates: any = {};
+        const rates = existingRates as any;
 
-        if (conversionRates.unit_level1_rate !== existingRates.unit_level1_rate) {
+        if (conversionRates.unit_level1_rate !== rates.unit_level1_rate) {
           rateUpdates.unit_level1_rate = conversionRates.unit_level1_rate;
-          changes.unit_level1_rate = { old: existingRates.unit_level1_rate, new: conversionRates.unit_level1_rate };
+          changes.unit_level1_rate = { old: rates.unit_level1_rate, new: conversionRates.unit_level1_rate };
           hasConversionChanges = true;
         }
-        if (conversionRates.unit_level2_rate !== existingRates.unit_level2_rate) {
+        if (conversionRates.unit_level2_rate !== rates.unit_level2_rate) {
           rateUpdates.unit_level2_rate = conversionRates.unit_level2_rate;
-          changes.unit_level2_rate = { old: existingRates.unit_level2_rate, new: conversionRates.unit_level2_rate };
+          changes.unit_level2_rate = { old: rates.unit_level2_rate, new: conversionRates.unit_level2_rate };
           hasConversionChanges = true;
         }
 
@@ -158,7 +135,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
           const { error: rateError } = await supabase
             .from('product_conversion_rates')
             .update(rateUpdates)
-            .eq('product_id', product.id);
+            .eq('product_id', product.id as any);
 
           if (rateError) throw rateError;
         }
@@ -173,21 +150,18 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
           notes: formData.notes
         });
 
-        toast.success('✅ บันทึกการแก้ไขสินค้าสำเร็จ', {
-          description: `แก้ไข ${product.sku_code} - ${formData.product_name}`
-        });
+        toast.success(`✅ บันทึกการแก้ไขสินค้าสำเร็จ\n${product.sku_code} - ${formData.product_name}`);
 
         onSuccess();
       } else {
-        toast.info('ℹ️ ไม่มีการเปลี่ยนแปลง');
+        toast('ℹ️ ไม่มีการเปลี่ยนแปลง');
         onOpenChange(false);
       }
 
     } catch (error) {
       console.error('Error updating product:', error);
-      toast.error('❌ ไม่สามารถบันทึกการแก้ไขได้', {
-        description: error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'
-      });
+      const errorMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
+      toast.error(`❌ ไม่สามารถบันทึกการแก้ไขได้\n${errorMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -262,47 +236,13 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
             />
           </div>
 
-          {/* Unit Names */}
-          <div className="space-y-4">
-            <Label className="text-base font-semibold">ชื่อหน่วยสินค้า</Label>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="unit_level1_name">หน่วยระดับ 1</Label>
-                <Input
-                  id="unit_level1_name"
-                  value={formData.unit_level1_name}
-                  onChange={(e) => setFormData({ ...formData, unit_level1_name: e.target.value })}
-                  placeholder="เช่น ลัง"
-                />
-              </div>
-              <div>
-                <Label htmlFor="unit_level2_name">หน่วยระดับ 2</Label>
-                <Input
-                  id="unit_level2_name"
-                  value={formData.unit_level2_name}
-                  onChange={(e) => setFormData({ ...formData, unit_level2_name: e.target.value })}
-                  placeholder="เช่น กล่อง"
-                />
-              </div>
-              <div>
-                <Label htmlFor="unit_level3_name">หน่วยระดับ 3</Label>
-                <Input
-                  id="unit_level3_name"
-                  value={formData.unit_level3_name}
-                  onChange={(e) => setFormData({ ...formData, unit_level3_name: e.target.value })}
-                  placeholder="เช่น ชิ้น"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Conversion Rates */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">อัตราการแปลงหน่วย</Label>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="unit_level1_rate">
-                  อัตราแปลงระดับ 1 (1 {formData.unit_level1_name || 'หน่วย 1'} = ? {formData.unit_level3_name || 'หน่วย 3'})
+                  อัตราแปลงระดับ 1 (1 ลัง = ? ชิ้น)
                 </Label>
                 <Input
                   id="unit_level1_rate"
@@ -314,7 +254,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
               </div>
               <div>
                 <Label htmlFor="unit_level2_rate">
-                  อัตราแปลงระดับ 2 (1 {formData.unit_level2_name || 'หน่วย 2'} = ? {formData.unit_level3_name || 'หน่วย 3'})
+                  อัตราแปลงระดับ 2 (1 กล่อง = ? ชิ้น)
                 </Label>
                 <Input
                   id="unit_level2_rate"
