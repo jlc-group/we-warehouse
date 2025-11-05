@@ -1,0 +1,75 @@
+-- Create system_events table for event logging and audit trail
+-- Run this SQL in Supabase SQL Editor
+
+-- Drop table if exists (for clean recreation)
+DROP TABLE IF EXISTS public.system_events CASCADE;
+
+-- Create system_events table
+CREATE TABLE public.system_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_type TEXT NOT NULL,
+    event_category TEXT NOT NULL,
+    event_title TEXT NOT NULL,
+    event_description TEXT,
+    severity_level TEXT NOT NULL DEFAULT 'INFO',
+    location_context TEXT,
+    user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Create indexes for better query performance
+CREATE INDEX idx_system_events_event_type ON public.system_events(event_type);
+CREATE INDEX idx_system_events_event_category ON public.system_events(event_category);
+CREATE INDEX idx_system_events_severity_level ON public.system_events(severity_level);
+CREATE INDEX idx_system_events_user_id ON public.system_events(user_id);
+CREATE INDEX idx_system_events_created_at ON public.system_events(created_at DESC);
+CREATE INDEX idx_system_events_metadata ON public.system_events USING gin(metadata);
+
+-- Add comments for documentation
+COMMENT ON TABLE public.system_events IS 'System event logging table for audit trail and monitoring';
+COMMENT ON COLUMN public.system_events.event_type IS 'Type of event (e.g., transfer_created, transfer_status_update)';
+COMMENT ON COLUMN public.system_events.event_category IS 'Category: warehouse_transfer, inventory, stock_movement, order, system, user, location';
+COMMENT ON COLUMN public.system_events.severity_level IS 'Severity: INFO, SUCCESS, WARNING, ERROR';
+COMMENT ON COLUMN public.system_events.metadata IS 'Additional event data in JSON format';
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE public.system_events ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+-- Allow all users (anon + authenticated) to read all events
+CREATE POLICY "Allow all users to read system events"
+    ON public.system_events
+    FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+-- Allow all users (anon + authenticated) to insert events
+CREATE POLICY "Allow all users to insert system events"
+    ON public.system_events
+    FOR INSERT
+    TO anon, authenticated
+    WITH CHECK (true);
+
+-- Allow service role full access
+CREATE POLICY "Allow service role full access to system events"
+    ON public.system_events
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Grant permissions
+GRANT SELECT, INSERT ON public.system_events TO anon, authenticated;
+GRANT ALL ON public.system_events TO service_role;
+
+-- Verify table creation
+SELECT 
+    column_name, 
+    data_type, 
+    is_nullable,
+    column_default
+FROM information_schema.columns
+WHERE table_schema = 'public' 
+    AND table_name = 'system_events'
+ORDER BY ordinal_position;

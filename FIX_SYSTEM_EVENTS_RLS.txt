@@ -1,0 +1,47 @@
+-- Fix RLS policies for system_events table
+-- Run this SQL in Supabase SQL Editor if table already exists
+
+-- Drop existing policies
+DROP POLICY IF EXISTS "Allow authenticated users to read system events" ON public.system_events;
+DROP POLICY IF EXISTS "Allow authenticated users to insert system events" ON public.system_events;
+DROP POLICY IF EXISTS "Allow all users to read system events" ON public.system_events;
+DROP POLICY IF EXISTS "Allow all users to insert system events" ON public.system_events;
+DROP POLICY IF EXISTS "Allow service role full access to system events" ON public.system_events;
+
+-- Create new policies that allow both anon and authenticated roles
+CREATE POLICY "Allow all users to read system events"
+    ON public.system_events
+    FOR SELECT
+    TO anon, authenticated
+    USING (true);
+
+CREATE POLICY "Allow all users to insert system events"
+    ON public.system_events
+    FOR INSERT
+    TO anon, authenticated
+    WITH CHECK (true);
+
+CREATE POLICY "Allow service role full access to system events"
+    ON public.system_events
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- Grant permissions to both anon and authenticated roles
+GRANT SELECT, INSERT ON public.system_events TO anon, authenticated;
+GRANT ALL ON public.system_events TO service_role;
+
+-- Verify policies
+SELECT 
+    schemaname,
+    tablename,
+    policyname,
+    permissive,
+    roles,
+    cmd,
+    qual,
+    with_check
+FROM pg_policies
+WHERE tablename = 'system_events'
+ORDER BY policyname;

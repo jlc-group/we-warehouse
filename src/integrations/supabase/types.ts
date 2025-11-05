@@ -336,15 +336,29 @@ export type Database = {
       }
       inventory_items: {
         Row: {
+          batch_code: string | null
           box_quantity_legacy: number | null
           carton_quantity_legacy: number | null
-          created_at: string | null
+          created_at: string
+          expiry_date: string | null
           id: string
+          is_deleted: boolean | null
           location: string
           lot: string | null
+          lot_number: string | null
+          manufacturing_date: string | null
           mfd: string | null
+          pieces_quantity_legacy: number | null
           product_name: string
-          sku: string | null
+          quantity_pieces: number
+          received_date: string | null
+          reserved_level1_quantity: number | null
+          reserved_level2_quantity: number | null
+          reserved_level3_quantity: number | null
+          reserved_quantity: number | null
+          sku: string
+          total_base_quantity: number | null
+          unit: string | null
           unit_level1_name: string | null
           unit_level1_quantity: number | null
           unit_level1_rate: number | null
@@ -353,20 +367,34 @@ export type Database = {
           unit_level2_rate: number | null
           unit_level3_name: string | null
           unit_level3_quantity: number | null
-          updated_at: string | null
+          updated_at: string
           user_id: string | null
           warehouse_id: string | null
         }
         Insert: {
+          batch_code?: string | null
           box_quantity_legacy?: number | null
           carton_quantity_legacy?: number | null
-          created_at?: string | null
+          created_at?: string
+          expiry_date?: string | null
           id?: string
+          is_deleted?: boolean | null
           location: string
           lot?: string | null
+          lot_number?: string | null
+          manufacturing_date?: string | null
           mfd?: string | null
+          pieces_quantity_legacy?: number | null
           product_name: string
-          sku?: string | null
+          quantity_pieces?: number
+          received_date?: string | null
+          reserved_level1_quantity?: number | null
+          reserved_level2_quantity?: number | null
+          reserved_level3_quantity?: number | null
+          reserved_quantity?: number | null
+          sku: string
+          total_base_quantity?: number | null
+          unit?: string | null
           unit_level1_name?: string | null
           unit_level1_quantity?: number | null
           unit_level1_rate?: number | null
@@ -375,20 +403,34 @@ export type Database = {
           unit_level2_rate?: number | null
           unit_level3_name?: string | null
           unit_level3_quantity?: number | null
-          updated_at?: string | null
+          updated_at?: string
           user_id?: string | null
           warehouse_id?: string | null
         }
         Update: {
+          batch_code?: string | null
           box_quantity_legacy?: number | null
           carton_quantity_legacy?: number | null
-          created_at?: string | null
+          created_at?: string
+          expiry_date?: string | null
           id?: string
+          is_deleted?: boolean | null
           location?: string
           lot?: string | null
+          lot_number?: string | null
+          manufacturing_date?: string | null
           mfd?: string | null
+          pieces_quantity_legacy?: number | null
           product_name?: string
-          sku?: string | null
+          quantity_pieces?: number
+          received_date?: string | null
+          reserved_level1_quantity?: number | null
+          reserved_level2_quantity?: number | null
+          reserved_level3_quantity?: number | null
+          reserved_quantity?: number | null
+          sku?: string
+          total_base_quantity?: number | null
+          unit?: string | null
           unit_level1_name?: string | null
           unit_level1_quantity?: number | null
           unit_level1_rate?: number | null
@@ -397,7 +439,7 @@ export type Database = {
           unit_level2_rate?: number | null
           unit_level3_name?: string | null
           unit_level3_quantity?: number | null
-          updated_at?: string | null
+          updated_at?: string
           user_id?: string | null
           warehouse_id?: string | null
         }
