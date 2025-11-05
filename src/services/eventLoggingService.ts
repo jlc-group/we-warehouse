@@ -38,19 +38,38 @@ export class EventLoggingService {
         metadata.notes = params.notes;
       }
 
+      // Map severity_level to both severity and status for the actual database schema
+      const severityMap: Record<SeverityLevel, string> = {
+        'INFO': 'info',
+        'SUCCESS': 'info',
+        'WARNING': 'warning',
+        'ERROR': 'error'
+      };
+
+      const statusMap: Record<SeverityLevel, string> = {
+        'INFO': 'info',
+        'SUCCESS': 'success',
+        'WARNING': 'warning',
+        'ERROR': 'error'
+      };
+
+      const severity = params.severity_level || 'INFO';
+
       const { error } = await supabase
         .from('system_events')
         .insert({
           event_type: params.event_type,
           event_category: params.event_category,
+          event_action: params.event_type, // Use event_type as action for now
           event_title: params.event_title,
           event_description: params.event_description || null,
-          severity_level: params.severity_level || 'INFO',
+          severity: severityMap[severity],
+          status: statusMap[severity],
           location_context: params.location_context || null,
           user_id: params.user_id || null,
           metadata: metadata,
           created_at: new Date().toISOString()
-        } as any);
+        } as any); // Use 'as any' because TypeScript types are not synced with actual schema
 
       if (error) {
         console.error('Error logging event:', error);
