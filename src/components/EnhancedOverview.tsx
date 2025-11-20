@@ -851,7 +851,7 @@ export const EnhancedOverview = memo(({
       <div class="info">วันที่: ${new Date().toLocaleDateString('th-TH')} | เวลา: ${new Date().toLocaleTimeString('th-TH')}</div>
       <div class="info">รายการสินค้า: ${items.length} รายการ | ตำแหน่งที่ใช้งาน: ${new Set(items.map(item => item.location)).size} ตำแหน่ง</div>
     </div>
-    ${createSectionHTML(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'])}
+    ${createSectionHTML(allRows)}
   
   <script>
     // Log the generated content for debugging
@@ -980,8 +980,8 @@ export const EnhancedOverview = memo(({
             lastContainerCount = containersCount;
           }
 
-          // We expect 26 sections (A-Z), each with grid content
-          const expectedSections = 26;
+          // We expect sections for all rows (A-Z + custom rows)
+          const expectedSections = ${allRows.length};
           const hasAllSections = sectionsCount >= expectedSections;
           const hasGridContent = containersCount >= expectedSections;
 
@@ -1106,8 +1106,8 @@ export const EnhancedOverview = memo(({
             console.log(`${sectionId}: ${sectionCells.length} cells`);
           });
           
-          if (allSections.length < 14) {
-            console.error('❌ Missing sections! Expected 14, got', allSections.length);
+          if (allSections.length < allRows.length) {
+            console.error(`❌ Missing sections! Expected ${allRows.length}, got`, allSections.length);
             console.log('HTML content preview:', htmlContent.substring(0, 1000));
           } else {
             console.log('✅ All sections loaded correctly');
@@ -1442,7 +1442,7 @@ export const EnhancedOverview = memo(({
                       
                       <Dialog open={showAddRowDialog} onOpenChange={setShowAddRowDialog}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm hidden sm:flex">
+                          <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-1 sm:gap-2 h-9 sm:h-8 text-xs sm:text-sm">
                             <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
                             เพิ่มแถว
                           </Button>
