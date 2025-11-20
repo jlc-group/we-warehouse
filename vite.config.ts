@@ -89,10 +89,7 @@ export default defineConfig(({ mode }) => ({
     cssCodeSplit: true,
   },
   plugins: [
-    react({
-      jsxRuntime: 'automatic',
-      jsxImportSource: 'react',
-    }),
+    react(),
     mode === "development" && componentTagger()
   ].filter(Boolean),
   resolve: {
@@ -101,7 +98,17 @@ export default defineConfig(({ mode }) => ({
       // Force all React imports to use the same instance
       'react': path.resolve(__dirname, './node_modules/react'),
       'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-      'react/jsx-runtime': path.resolve(__dirname, './node_modules/react/jsx-runtime')
+      'react/jsx-runtime': path.resolve(__dirname, './node_modules/react/jsx-runtime'),
+      // Fix d3 packages to use src entry points
+      'd3-format': path.resolve(__dirname, './node_modules/d3-format/src/index.js'),
+      'd3-scale': path.resolve(__dirname, './node_modules/d3-scale/src/index.js'),
+      'd3-array': path.resolve(__dirname, './node_modules/d3-array/src/index.js'),
+      'd3-shape': path.resolve(__dirname, './node_modules/d3-shape/src/index.js'),
+      'd3-path': path.resolve(__dirname, './node_modules/d3-path/src/index.js'),
+      'd3-time': path.resolve(__dirname, './node_modules/d3-time/src/index.js'),
+      'd3-time-format': path.resolve(__dirname, './node_modules/d3-time-format/src/index.js'),
+      'd3-interpolate': path.resolve(__dirname, './node_modules/d3-interpolate/src/index.js'),
+      'd3-color': path.resolve(__dirname, './node_modules/d3-color/src/index.js'),
     },
     // Prioritize ESM versions of packages
     conditions: ['import', 'module', 'browser', 'default'],
