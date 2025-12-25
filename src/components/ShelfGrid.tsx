@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect, memo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, memo, useDeferredValue } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -209,6 +209,11 @@ export const ShelfGrid = memo(function ShelfGrid({
   isOrderMode = false
 }: ShelfGridProps) {
   const [selectedShelf, setSelectedShelf] = useState<string | null>(null);
+  
+  // แยก searchInput (สำหรับ UI) กับ debouncedSearch (สำหรับ filter)
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearchQuery = useDeferredValue(searchInput);
+  
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     lotFilter: '',
@@ -223,6 +228,17 @@ export const ShelfGrid = memo(function ShelfGrid({
   const [showBulkTransfer, setShowBulkTransfer] = useState(false);
   const [bulkTransferLocation, setBulkTransferLocation] = useState<string>('');
   const [recentlyUpdatedLocations, setRecentlyUpdatedLocations] = useState<Set<string>>(new Set());
+  const scrollContainersRef = useRef<Record<string, HTMLDivElement | null>>({});
+  const previousHasActiveFiltersRef = useRef(false);
+  const dragStateRef = useRef<{ isDragging: boolean; startX: number; scrollLeft: number; activeKey: string | null }>({
+    isDragging: false,
+    startX: 0,
+    scrollLeft: 0,
+    activeKey: null
+  });
+  
+  // Debounce timer ref
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Helpers for quantity fields across schemas (ให้ตรงกับ EnhancedOverview)
   const getCartonQty = (item: any) => Number(item.unit_level1_quantity ?? item.carton_quantity_legacy ?? 0) || 0;
@@ -255,7 +271,7 @@ export const ShelfGrid = memo(function ShelfGrid({
     setShowScanner(false);
 
     // Highlight the scanned location
-    setHighlightedLocations([location]);
+    setHighlightedLocations([normalizeLocation(location)]);
 
     // Auto-redirect or handle the scan result
     if (data.action === 'add') {
@@ -322,23 +338,27 @@ export const ShelfGrid = memo(function ShelfGrid({
   }, [warehouseFilteredItems]);
 
   // Filter items based on current filter state (search, lot, product code)
+  // ใช้ debouncedSearchQuery แทน filters.searchQuery เพื่อลด re-render
   const filteredItems = useMemo(() => {
     // Guard against undefined items
     if (!warehouseFilteredItems || !Array.isArray(warehouseFilteredItems)) {
       return [];
     }
 
+    const searchLower = debouncedSearchQuery.toLowerCase().trim();
+    
     return warehouseFilteredItems.filter(item => {
-      const matchesSearch = filters.searchQuery === '' ||
-        item.product_name.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
-        item.sku.toLowerCase().includes(filters.searchQuery.toLowerCase());
+      // Search matching - ใช้ debouncedSearchQuery
+      const matchesSearch = searchLower === '' ||
+        (item.product_name && item.product_name.toLowerCase().includes(searchLower)) ||
+        (item.sku && item.sku.toLowerCase().includes(searchLower));
 
       const matchesLot = !filters.selectedFilters.lot || item.lot === filters.selectedFilters.lot;
       const matchesProductCode = !filters.selectedFilters.productCode || item.sku === filters.selectedFilters.productCode;
 
       return matchesSearch && matchesLot && matchesProductCode;
     });
-  }, [warehouseFilteredItems, filters]);
+  }, [warehouseFilteredItems, debouncedSearchQuery, filters.selectedFilters.lot, filters.selectedFilters.productCode]);
 
   const handleShelfClick = useCallback((location: string, item?: InventoryItem) => {
     const normalizedLocation = normalizeLocation(location);
@@ -357,18 +377,21 @@ export const ShelfGrid = memo(function ShelfGrid({
   };
 
   const clearFilter = (type: 'lot' | 'productCode' | 'name' | 'locationStatus') => {
+    if (type === 'name') {
+      setSearchInput('');
+    }
     setFilters(prev => {
       const newFilters = { ...prev.selectedFilters };
       delete newFilters[type];
       return {
         ...prev,
-        selectedFilters: newFilters,
-        ...(type === 'name' ? { searchQuery: '' } : {})
+        selectedFilters: newFilters
       };
     });
   };
 
   const clearAllFilters = () => {
+    setSearchInput('');
     setFilters({
       searchQuery: '',
       lotFilter: '',
@@ -380,13 +403,60 @@ export const ShelfGrid = memo(function ShelfGrid({
   };
 
   const handleSearch = () => {
-    if (filters.searchQuery.trim() === '' && !filters.selectedFilters.lot && !filters.selectedFilters.productCode) {
+    const hasItemFilters = !!(searchInput.trim() || filters.selectedFilters.lot || filters.selectedFilters.productCode);
+    const hasStatusFilter = !!filters.selectedFilters.locationStatus;
+    const hasActiveFilters = hasItemFilters || hasStatusFilter;
+
+    if (!hasActiveFilters) {
       setHighlightedLocations([]);
       return;
     }
 
-    const locations = filteredItems.map(item => item.location);
-    setHighlightedLocations([...new Set(locations)]); // Remove duplicates
+    const intersect = (a: Set<string>, b: Set<string>) => {
+      const result = new Set<string>();
+      a.forEach(value => {
+        if (b.has(value)) result.add(value);
+      });
+      return result;
+    };
+
+    let nextLocations: Set<string> | null = null;
+
+    if (hasItemFilters) {
+      nextLocations = new Set(
+        filteredItems
+          .map(item => normalizeLocation(item.location))
+          .filter(loc => loc && loc.trim())
+      );
+    }
+
+    if (filters.selectedFilters.locationStatus === 'active') {
+      const activeSet = new Set(Object.keys(itemsByLocation));
+      nextLocations = nextLocations ? intersect(nextLocations, activeSet) : activeSet;
+    }
+
+    if (filters.selectedFilters.locationStatus === 'empty') {
+      const allLocations = new Set<string>();
+      availableRows.forEach(row => {
+        levels.forEach(level => {
+          for (let position = 1; position <= positionsPerRow; position++) {
+            allLocations.add(normalizeLocation(formatLocation(row, position, level)));
+          }
+        });
+      });
+
+      const emptySet = new Set<string>();
+      allLocations.forEach(loc => {
+        const locItems = itemsByLocation[loc] || [];
+        if (locItems.length === 0) {
+          emptySet.add(loc);
+        }
+      });
+
+      nextLocations = nextLocations ? intersect(nextLocations, emptySet) : emptySet;
+    }
+
+    setHighlightedLocations(Array.from(nextLocations || []).sort());
   };
 
   const handleBulkTransferClick = (location: string) => {
@@ -401,27 +471,122 @@ export const ShelfGrid = memo(function ShelfGrid({
     onBulkTransferClick?.(bulkTransferLocation);
   };
 
-  // Auto-update highlights when filters change
-  useMemo(() => {
-    if (filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode) {
-      const locations = filteredItems.map(item => item.location);
-      setHighlightedLocations([...new Set(locations)]);
-    } else {
-      setHighlightedLocations([]);
-    }
-  }, [filteredItems, filters]);
-
   // Generate shelf grid configuration
   const { levels, positionsPerRow } = useMemo(() => ({
     levels: [4, 3, 2, 1], // Display from top to bottom: 4, 3, 2, 1
     positionsPerRow: 20 // Number of positions per row
   }), []);
 
+  // Auto-update highlights when filters change (ใช้ debouncedSearchQuery)
+  useEffect(() => {
+    const hasItemFilters = !!(debouncedSearchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode);
+    const hasStatusFilter = !!filters.selectedFilters.locationStatus;
+    const hasActiveFilters = hasItemFilters || hasStatusFilter;
+
+    const prevHasActiveFilters = previousHasActiveFiltersRef.current;
+    previousHasActiveFiltersRef.current = hasActiveFilters;
+
+    if (!hasActiveFilters) {
+      if (prevHasActiveFilters) {
+        setHighlightedLocations([]);
+      }
+      return;
+    }
+
+    const intersect = (a: Set<string>, b: Set<string>) => {
+      const result = new Set<string>();
+      a.forEach(value => {
+        if (b.has(value)) result.add(value);
+      });
+      return result;
+    };
+
+    let nextLocations: Set<string> | null = null;
+
+    if (hasItemFilters) {
+      nextLocations = new Set(
+        filteredItems
+          .map(item => normalizeLocation(item.location))
+          .filter(loc => loc && loc.trim())
+      );
+    }
+
+    if (filters.selectedFilters.locationStatus === 'active') {
+      const activeSet = new Set(Object.keys(itemsByLocation));
+      nextLocations = nextLocations ? intersect(nextLocations, activeSet) : activeSet;
+    }
+
+    if (filters.selectedFilters.locationStatus === 'empty') {
+      const allLocations = new Set<string>();
+      availableRows.forEach(row => {
+        levels.forEach(level => {
+          for (let position = 1; position <= positionsPerRow; position++) {
+            allLocations.add(normalizeLocation(formatLocation(row, position, level)));
+          }
+        });
+      });
+
+      const emptySet = new Set<string>();
+      allLocations.forEach(loc => {
+        const locItems = itemsByLocation[loc] || [];
+        if (locItems.length === 0) {
+          emptySet.add(loc);
+        }
+      });
+
+      nextLocations = nextLocations ? intersect(nextLocations, emptySet) : emptySet;
+    }
+
+    const nextArray = Array.from(nextLocations || []).sort();
+    setHighlightedLocations(prev => {
+      if (prev.length === nextArray.length && prev.every((value, index) => value === nextArray[index])) {
+        return prev;
+      }
+      return nextArray;
+    });
+  }, [
+    availableRows,
+    debouncedSearchQuery,
+    filteredItems,
+    filters.selectedFilters.lot,
+    filters.selectedFilters.productCode,
+    filters.selectedFilters.locationStatus,
+    itemsByLocation,
+    levels,
+    positionsPerRow
+  ]);
+
+  const handleMouseDown = useCallback((key: string) => (e: React.MouseEvent<HTMLDivElement>) => {
+    const container = scrollContainersRef.current[key];
+    if (!container) return;
+    dragStateRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      scrollLeft: container.scrollLeft,
+      activeKey: key
+    };
+    // Prevent text selection while dragging
+    e.preventDefault();
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const { isDragging, activeKey, startX, scrollLeft } = dragStateRef.current;
+    if (!isDragging || !activeKey) return;
+    const container = scrollContainersRef.current[activeKey];
+    if (!container) return;
+    const deltaX = e.clientX - startX;
+    container.scrollLeft = scrollLeft - deltaX;
+  }, []);
+
+  const endDrag = useCallback(() => {
+    dragStateRef.current = { isDragging: false, startX: 0, scrollLeft: 0, activeKey: null };
+  }, []);
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Advanced Search & Filters */}
-        <Card>
+        {/* Advanced Search & Filters - Sticky Header (under main header h-16) */}
+        <Card className="sticky top-16 z-20 bg-white shadow-md border-b-2 border-slate-200">
           <CardContent className="p-4 space-y-4">
             {/* Search Bar */}
             <div className="flex gap-2">
@@ -429,8 +594,8 @@ export const ShelfGrid = memo(function ShelfGrid({
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
                   placeholder="ค้นหาสินค้าตามชื่อหรือรหัส..."
-                  value={filters.searchQuery}
-                  onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -494,7 +659,7 @@ export const ShelfGrid = memo(function ShelfGrid({
               </div>
 
               {/* Clear Filters */}
-              {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
+              {(searchInput || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
                 <Button variant="outline" size="sm" onClick={clearAllFilters}>
                   <X className="h-3 w-3 mr-1" />
                   ล้างทั้งหมด
@@ -515,12 +680,12 @@ export const ShelfGrid = memo(function ShelfGrid({
             </div>
 
             {/* Active Filters Display */}
-            {(filters.searchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
+            {(debouncedSearchQuery || filters.selectedFilters.lot || filters.selectedFilters.productCode || filters.selectedFilters.locationStatus) && (
               <div className="flex gap-2 flex-wrap">
                 <span className="text-sm text-muted-foreground">ตัวกรองที่ใช้:</span>
-                {filters.searchQuery && (
+                {debouncedSearchQuery && (
                   <Badge variant="secondary" className="flex items-center gap-1">
-                    ค้นหา: {filters.searchQuery}
+                    ค้นหา: {debouncedSearchQuery}
                     <X className="h-3 w-3 cursor-pointer" onClick={() => clearFilter('name')} />
                   </Badge>
                 )}
@@ -571,15 +736,22 @@ export const ShelfGrid = memo(function ShelfGrid({
 
               {levels.map((level) => (
                 <div key={level} className="mb-3">
-                  <div className="overflow-x-auto scroll-smooth">
-                    <div className="flex gap-1.5 pb-2" style={{ minWidth: 'max-content' }}>
+                  <div
+                    className="overflow-x-auto scroll-smooth cursor-grab active:cursor-grabbing"
+                    ref={(el) => { if (el) scrollContainersRef.current[`${row}-${level}`] = el; }}
+                    onMouseDown={handleMouseDown(`${row}-${level}`)}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={endDrag}
+                    onMouseUp={endDrag}
+                  >
+                    <div className="flex gap-1.5 pb-2 min-w-max">
                       {Array.from({ length: positionsPerRow }, (_, positionIndex) => {
                         const position = positionIndex + 1; // Position within row (1-20)
                         const location = formatLocation(row, position, level);
                         const normalizedLocation = normalizeLocation(location);
                         const locationItems = itemsByLocation[normalizedLocation] || [];
-                        const isSelected = selectedShelf === location;
-                        const isHighlighted = highlightedLocations.includes(location);
+                        const isSelected = selectedShelf === normalizedLocation;
+                        const isHighlighted = highlightedLocations.includes(normalizedLocation);
                         const isRecentlyUpdated = false; // Disabled to prevent flickering
                         const itemCount = locationItems.length;
                         const locationStatus = getLocationStatus(locationItems);
@@ -623,7 +795,7 @@ export const ShelfGrid = memo(function ShelfGrid({
                                   ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && locationStatus === 'active' ? (itemCount > 1 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100 shadow-sm' : 'bg-green-50 border-emerald-400 hover:bg-green-100 shadow-sm') : ''}
                                   ${!isSelected && !isHighlighted && !isRecentlyUpdated && !hasSelectedItems && !allItemsSelected && locationStatus === 'empty' ? 'bg-gray-50 border-gray-300 border-dashed hover:bg-gray-100 hover:border-solid hover:border-gray-400' : ''}
                                 `}
-                                style={{ willChange: 'transform' }}
+                                
                               >
                                 {/* Action Buttons */}
                                 <div className="absolute top-1.5 right-1.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 ease-out flex gap-1">

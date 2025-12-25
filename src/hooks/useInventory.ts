@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
+import { useAuth } from '@/contexts/AuthContextSimple';
 // Temporarily disable optimization imports to prevent refresh issues
 // import {
 //   debounce,
@@ -53,15 +54,15 @@ let lastFetchTime = 0;
 let currentFetchPromise: Promise<any> | null = null;
 const FETCH_THROTTLE_TIME = 2000; // Reduced to 2 seconds for better UX
 
-  // CRITICAL: Global mount tracking to prevent double initialization
-  let isGloballyInitialized = false;
-  const mountedInstances = new Set<string>();
-  let primaryInstance: string | null = null;
+// CRITICAL: Global mount tracking to prevent double initialization
+let isGloballyInitialized = false;
+const mountedInstances = new Set<string>();
+let primaryInstance: string | null = null;
 
-  // Global shared data cache
-  let globalInventoryData: InventoryItem[] = [];
-  let globalDataUpdatedAt = 0;
-  const dataSubscribers = new Set<(data: InventoryItem[]) => void>();
+// Global shared data cache
+let globalInventoryData: InventoryItem[] = [];
+let globalDataUpdatedAt = 0;
+const dataSubscribers = new Set<(data: InventoryItem[]) => void>();
 
 // Import circuit breaker
 import { inventoryCircuitBreaker } from '@/utils/circuitBreaker';
@@ -74,17 +75,16 @@ export function useInventory(warehouseId?: string) {
   const [retryCount, setRetryCount] = useState(0);
   const [isStableLoaded, setIsStableLoaded] = useState(false); // Flag to prevent flicker
   const { toast } = useToast();
+  const { getCurrentUserId } = useAuth();
 
   // Create unique instance ID for this hook
-  const instanceId = useMemo(() => 
-    `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+  const instanceId = useMemo(() =>
+    `${warehouseId || 'default'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     [warehouseId]
   );
 
-  // Register this instance and determine if it's primary
+  // Subscribe to global data updates (separated from instance registration to avoid race condition)
   useEffect(() => {
-    mountedInstances.add(instanceId);
-
     // Subscribe to global data updates
     const handleDataUpdate = (data: InventoryItem[]) => {
       setItems(data);
@@ -96,28 +96,10 @@ export function useInventory(warehouseId?: string) {
     };
     dataSubscribers.add(handleDataUpdate);
 
-    // If global data exists, use it immediately
-    if (globalInventoryData.length > 0) {
-      handleDataUpdate(globalInventoryData);
-    }
-
-    if (!primaryInstance) {
-      primaryInstance = instanceId;
-      console.log(`🏆 useInventory: Primary instance registered: ${instanceId}`);
-    } else {
-      console.log(`🔗 useInventory: Secondary instance registered: ${instanceId}`);
-    }
-
     return () => {
-      mountedInstances.delete(instanceId);
       dataSubscribers.delete(handleDataUpdate);
-
-      if (primaryInstance === instanceId) {
-        primaryInstance = mountedInstances.size > 0 ? Array.from(mountedInstances)[0] : null;
-        console.log(`🔄 useInventory: Primary instance changed to: ${primaryInstance}`);
-      }
     };
-  }, [instanceId]);
+  }, []);
 
   // Use useRef to stabilize fetchItems and prevent dependency loops
   const fetchItemsRef = useRef<(isRetry?: boolean) => Promise<void>>();
@@ -164,6 +146,7 @@ export function useInventory(warehouseId?: string) {
       currentFetchPromise = fetchPromise;
 
       const { data } = await fetchPromise;
+      console.log('✅ useInventory fetchItems completed', { itemCount: data?.length || 0 });
 
       // Show ALL inventory items including zero quantities for complete visibility
       const allData = data ?? [];
@@ -338,7 +321,7 @@ export function useInventory(warehouseId?: string) {
       }
 
       // Location normalized and validated
-      
+
       // Use correct database schema fields for insert
       const insertData: any = {
         product_name: itemData.product_name,
@@ -515,9 +498,9 @@ export function useInventory(warehouseId?: string) {
       const mergedData = { ...(currentItem as Record<string, any>), ...validUpdateFields };
 
       // Check if all quantities are zero - if so, delete the record instead of updating
-      const totalQuantity = (mergedData.unit_level1_quantity || 0) + 
-                           (mergedData.unit_level2_quantity || 0) + 
-                           (mergedData.unit_level3_quantity || 0);
+      const totalQuantity = (mergedData.unit_level1_quantity || 0) +
+        (mergedData.unit_level2_quantity || 0) +
+        (mergedData.unit_level3_quantity || 0);
 
       if (totalQuantity === 0) {
         console.log('🗑️ All quantities are zero, deleting record instead of updating:', {
@@ -615,7 +598,11 @@ export function useInventory(warehouseId?: string) {
     try {
       console.log('🗑️ useInventory: Starting delete operation for item:', id);
 
-      const result = await secureGatewayClient.delete('inventory', { id });
+      const currentUserId = await getCurrentUserId();
+      const result = await secureGatewayClient.delete('inventory', {
+        id,
+        user_id: currentUserId
+      });
 
       // ตรวจสอบผลลัพธ์จาก secureGatewayClient ที่ปรับปรุงแล้ว
       if (!result.success) {
@@ -746,12 +733,22 @@ export function useInventory(warehouseId?: string) {
   // Remove debounced function temporarily to avoid issues
 
   // CONTROLLED DATA LOADING - Load once on mount with global deduplication
+  // FIX: Combined with instance registration to avoid race condition
   useEffect(() => {
     let mounted = true;
 
     const initLoad = async () => {
-      // Register this instance
+      // Register this instance FIRST
       mountedInstances.add(instanceId);
+
+      // Set as primary if no primary exists
+      if (!primaryInstance) {
+        primaryInstance = instanceId;
+        console.log(`🏆 useInventory: Primary instance registered: ${instanceId.substring(0, 8)}`);
+      }
+
+      // Primary instance loads data
+      console.log('🔍 DEBUG: useInventory initLoad', { isPrimary: primaryInstance === instanceId, globalDataLength: globalInventoryData.length });
 
       // OPTIMIZED: Only primary instance loads data to reduce duplicate requests
       if (mounted && primaryInstance === instanceId && globalInventoryData.length === 0) {
@@ -762,11 +759,28 @@ export function useInventory(warehouseId?: string) {
         });
 
         fetchItemsRef.current?.();
-      } else if (mounted) {
-        console.log('🔗 useInventory: Secondary instance using cached data', {
+      } else if (mounted && globalInventoryData.length > 0) {
+        // Use cached data immediately
+        console.log('🔗 useInventory: Using cached data', {
           instanceId: instanceId.substring(0, 8),
           cachedItemsCount: globalInventoryData.length
         });
+        setItems(globalInventoryData);
+        setLoading(false);
+        setIsStableLoaded(true);
+        setConnectionStatus('connected');
+      } else if (mounted) {
+        console.log('🔗 useInventory: Secondary instance waiting for primary', {
+          instanceId: instanceId.substring(0, 8),
+          primaryInstance: primaryInstance?.substring(0, 8)
+        });
+        // Secondary instance: wait a bit then check if data loaded, otherwise load ourselves
+        setTimeout(() => {
+          if (mounted && globalInventoryData.length === 0) {
+            console.log('⚠️ useInventory: Secondary instance loading data (primary may have failed)');
+            fetchItemsRef.current?.();
+          }
+        }, 2000);
       }
     };
 
@@ -775,6 +789,12 @@ export function useInventory(warehouseId?: string) {
     return () => {
       mounted = false;
       mountedInstances.delete(instanceId);
+
+      // Reset primary if this was the primary instance
+      if (primaryInstance === instanceId) {
+        primaryInstance = mountedInstances.size > 0 ? Array.from(mountedInstances)[0] : null;
+        console.log(`🔄 useInventory: Primary instance changed to: ${primaryInstance?.substring(0, 8) || 'none'}`);
+      }
 
       // Reset global state if no instances remain
       if (mountedInstances.size === 0) {
@@ -924,7 +944,7 @@ export function useInventory(warehouseId?: string) {
       return true;
     } catch (error: unknown) {
       console.error('Bulk upload failed:', error);
-      
+
       toast({
         title: 'เกิดข้อผิดพลาด',
         description: 'ไม่สามารถอัพโหลดข้อมูลไปยัง Supabase ได้',

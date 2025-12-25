@@ -1,14 +1,30 @@
-import { useEffect, useMemo, Fragment } from 'react';
+import { useEffect, useMemo, Fragment, useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode, Lock } from 'lucide-react';
+import { Package, MapPin, Hash, Calendar, Download, FileSpreadsheet, QrCode, Lock, Trash2, AlertTriangle } from 'lucide-react';
 import { exportInventoryToCSV, exportLocationSummary } from '@/utils/exportUtils';
+import { toast } from '@/components/ui/sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { displayLocation, normalizeLocation } from '@/utils/locationUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useInventory } from '@/hooks/useInventory';
+import { useConversionRates } from '@/hooks/useConversionRates';
+import type { ConversionRateData } from '@/types/conversionTypes';
+import { logger } from '@/utils/logger';
 
 interface InventoryTableProps {
   items: InventoryItem[];
@@ -17,10 +33,14 @@ interface InventoryTableProps {
 export function InventoryTable({ items }: InventoryTableProps) {
   // Use QR code data
   const { qrCodes, getQRByLocation } = useLocationQR();
+  const { deleteItem } = useInventory();
+  const { getConversionRate } = useConversionRates();
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [conversionRateCache, setConversionRateCache] = useState<Map<string, ConversionRateData>>(new Map());
 
   // Debug logging for items prop changes
   useEffect(() => {
-    console.log('📋 InventoryTable - Items prop changed:', {
+    logger.debug('📋 InventoryTable - Items prop changed:', {
       itemCount: items.length,
       timestamp: new Date().toISOString(),
       sampleItems: items.slice(0, 3).map(item => ({
@@ -63,8 +83,8 @@ export function InventoryTable({ items }: InventoryTableProps) {
         unit_level3_quantity: extendedItem.unit_level3_quantity || 0,
       };
       total = (extendedItem.unit_level1_quantity || 0) * (extendedItem.unit_level1_rate || 0) +
-              (extendedItem.unit_level2_quantity || 0) * (extendedItem.unit_level2_rate || 0) +
-              (extendedItem.unit_level3_quantity || 0);
+        (extendedItem.unit_level2_quantity || 0) * (extendedItem.unit_level2_rate || 0) +
+        (extendedItem.unit_level3_quantity || 0);
     } else {
       // Fallback to legacy system - use ACTUAL database column names
       total = (item as any).carton_quantity_legacy + (item as any).box_quantity_legacy;
@@ -97,46 +117,244 @@ export function InventoryTable({ items }: InventoryTableProps) {
       console.warn(`No items found for location: ${location}`);
       return;
     }
+  };
 
-    // Export with custom filename
-    exportInventoryToCSV(locationItems, `location-${location.replace(/\//g, '-')}-export`);
+  // Calculate total quantity for an item with dynamic conversion rates
+  const calculateTotalQuantity = async (item: InventoryItem): Promise<number> => {
+    const level1 = (item as any).unit_level1_quantity || 0;
+    const level2 = (item as any).unit_level2_quantity || 0;
+    const level3 = (item as any).unit_level3_quantity || 0;
+
+    let level1Rate = (item as any).unit_level1_rate;
+    let level2Rate = (item as any).unit_level2_rate;
+
+    // Try to get conversion rates from cache first
+    if (conversionRateCache.has(item.sku)) {
+      const cachedRate = conversionRateCache.get(item.sku)!;
+      level1Rate = cachedRate.unit_level1_rate;
+      level2Rate = cachedRate.unit_level2_rate;
+      logger.debug(`🧮 ${item.sku} - Using cached rates - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3}`);
+    } else {
+      // Fetch from database if not in cache
+      try {
+        const conversionRate = await getConversionRate(item.sku);
+        if (conversionRate) {
+          level1Rate = conversionRate.unit_level1_rate;
+          level2Rate = conversionRate.unit_level2_rate;
+
+          // Update cache
+          setConversionRateCache(prev => new Map(prev.set(item.sku, conversionRate)));
+          logger.debug(`🧮 ${item.sku} - Using DB rates (${level1Rate}/${level2Rate}) - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3}`);
+        }
+      } catch (error) {
+        logger.warn(`⚠️ Could not fetch conversion rate for ${item.sku}, using defaults`);
+      }
+    }
+
+    // Use fallback defaults if still no rates
+    if (!level1Rate) level1Rate = 144; // Default for ลัง
+    if (!level2Rate) level2Rate = 12;   // Default for กล่อง
+
+    return (level1 * level1Rate) + (level2 * level2Rate) + level3;
+  };
+
+  // Synchronous version for UI that doesn't need async (with fallback defaults)
+  const calculateTotalQuantitySync = (item: InventoryItem): number => {
+    const level1 = (item as any).unit_level1_quantity || 0;
+    const level2 = (item as any).unit_level2_quantity || 0;
+    const level3 = (item as any).unit_level3_quantity || 0;
+
+    // Try to get conversion rates from cache first
+    if (conversionRateCache.has(item.sku)) {
+      const cachedRate = conversionRateCache.get(item.sku)!;
+      const total = (level1 * cachedRate.unit_level1_rate) + (level2 * cachedRate.unit_level2_rate) + level3;
+      logger.debug(`🧮 ${item.sku} - Sync using cached - Level1: ${level1}x${cachedRate.unit_level1_rate}, Level2: ${level2}x${cachedRate.unit_level2_rate}, Level3: ${level3} = ${total}`);
+      return total;
+    }
+
+    // Use item rates if available, otherwise fallback to defaults
+    const level1Rate = (item as any).unit_level1_rate || 144;
+    const level2Rate = (item as any).unit_level2_rate || 12;
+    const total = (level1 * level1Rate) + (level2 * level2Rate) + level3;
+    logger.debug(`🧮 ${item.sku} - Sync using fallback - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3} = ${total}`);
+    return total;
+  };
+
+  // Handle deletion with confirmation
+  const handleDeleteItem = async (item: InventoryItem) => {
+    const totalQuantity = await calculateTotalQuantity(item);
+    logger.debug('🗑️ Attempting to delete item:', item.id, item.sku, 'Total quantity:', totalQuantity);
+
+    setIsDeleting(item.id);
+
+    try {
+      await deleteItem(item.id);
+      toast.success(`ลบรายการสินค้า "${item.sku}" ที่ตำแหน่ง ${displayLocation(item.location)} เรียบร้อย`);
+      logger.debug('✅ Successfully deleted item:', item.id);
+    } catch (error) {
+      logger.error('❌ Error deleting item:', error);
+      toast.error(`ไม่สามารถลบรายการได้: ${error instanceof Error ? error.message : 'เกิดข้อผิดพลาด'}`);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  // Check if item can be safely deleted
+  const canDeleteItem = (item: InventoryItem): boolean => {
+    const totalQuantity = calculateTotalQuantitySync(item);
+    const reserved = (item as any).reserved_quantity || 0;
+
+    // Only allow deletion if total quantity is 0 and no reservations
+    return totalQuantity === 0 && reserved === 0;
+  };
+
+  // Check for duplicates (same SKU in same location)
+  const getDuplicateCount = (item: InventoryItem): number => {
+    return items.filter(i =>
+      i.sku === item.sku &&
+      i.location === item.location &&
+      i.id !== item.id
+    ).length;
+  };
+
+  // Get items with zero stock
+  const getZeroStockItems = (): InventoryItem[] => {
+    return items.filter(item => {
+      const totalQuantity = calculateTotalQuantitySync(item);
+      const reserved = (item as any).reserved_quantity || 0;
+      return totalQuantity === 0 && reserved === 0;
+    });
+  };
+
+  // Get duplicate items
+  const getDuplicateItems = (): InventoryItem[] => {
+    const duplicates: InventoryItem[] = [];
+    items.forEach(item => {
+      if (getDuplicateCount(item) > 0) {
+        duplicates.push(item);
+      }
+    });
+    return duplicates;
+  };
+
+  // Bulk delete zero stock items
+  const handleBulkDeleteZeroStock = async () => {
+    const zeroStockItems = getZeroStockItems();
+    if (zeroStockItems.length === 0) {
+      toast.info('ไม่มีรายการที่มี stock = 0 และไม่มีการจอง');
+      return;
+    }
+
+    logger.debug(`🗑️ Starting bulk delete of ${zeroStockItems.length} zero stock items`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const item of zeroStockItems) {
+      try {
+        await deleteItem(item.id);
+        successCount++;
+        logger.debug(`✅ Successfully deleted: ${item.sku} at ${item.location}`);
+      } catch (error) {
+        errorCount++;
+        logger.error(`❌ Failed to delete: ${item.sku} at ${item.location}`, error);
+      }
+    }
+
+    toast.success(`ลบรายการสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` ล้มเหลว ${errorCount} รายการ` : ''}`);
   };
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" />
-            ตารางสรุปสินค้าในคลัง
-            <Badge variant="outline" className="ml-2">
-              {items.length} รายการ / {uniqueLocations.length} ตำแหน่ง
-            </Badge>
-          </CardTitle>
+          <CardTitle>รายการสต็อก ({items.length} รายการ)</CardTitle>
 
+          {/* Bulk Actions */}
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportLocationSummary}
-              className="flex items-center gap-2"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Export สรุปตำแหน่ง
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportFullData}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Export ข้อมูลทั้งหมด
-            </Button>
+            {/* Zero Stock Alert */}
+            {getZeroStockItems().length > 0 && (
+              <div className="flex items-center gap-2">
+                <Badge variant="destructive" className="text-xs">
+                  {getZeroStockItems().length} รายการ stock=0
+                </Badge>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      ลบทั้งหมด
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>ลบรายการที่ stock = 0 ทั้งหมด</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        <div className="space-y-3">
+                          <p>คุณต้องการลบรายการที่มี stock = 0 และไม่มีการจองทั้งหมด {getZeroStockItems().length} รายการใช่หรือไม่?</p>
+                          <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
+                            <p className="text-sm text-red-800">
+                              <strong>⚠️ คำเตือน:</strong> การดำเนินการนี้จะลบข้อมูลถาวนและไม่สามารถยกเลิกได้
+                            </p>
+                          </div>
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {getZeroStockItems().slice(0, 5).map(item => (
+                              <div key={item.id} className="text-xs bg-muted p-2 rounded">
+                                {item.sku} - {item.product_name} ({displayLocation(item.location)})
+                              </div>
+                            ))}
+                            {getZeroStockItems().length > 5 && (
+                              <div className="text-xs text-muted-foreground text-center">
+                                ...และอีก {getZeroStockItems().length - 5} รายการ
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleBulkDeleteZeroStock}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        ยืนยันการลบทั้งหมด
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+
+            {/* Duplicate Alert */}
+            {getDuplicateItems().length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {getDuplicateItems().length} รายการซ้ำ
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent>
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportLocationSummary}
+            className="flex items-center gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Export สรุปตำแหน่ง
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportFullData}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export ข้อมูลทั้งหมด
+          </Button>
+        </div>
         {/* Conversion Legend */}
         <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
@@ -175,6 +393,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   <TableHead className="text-right">พร้อมใช้</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead className="text-center">Export</TableHead>
+                  <TableHead className="text-center">การจัดการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -183,7 +402,7 @@ export function InventoryTable({ items }: InventoryTableProps) {
                   return (
                     <Fragment key={`location-${location}`}>
                       <TableRow key={`${location}-header`} className="bg-muted/20">
-                        <TableCell colSpan={12} className="font-medium text-muted-foreground">
+                        <TableCell colSpan={13} className="font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-3 w-3" />
                             {displayLocation(location)}
@@ -363,6 +582,85 @@ export function InventoryTable({ items }: InventoryTableProps) {
                                 <Download className="h-3 w-3" />
                                 Export
                               </Button>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {/* Duplicate warning */}
+                                {getDuplicateCount(item) > 0 && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="destructive" className="text-xs px-1 py-0">
+                                          <AlertTriangle className="h-3 w-3" />
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>พบสินค้าซ้ำ ({getDuplicateCount(item)} รายการ)</p>
+                                        <p className="text-xs text-gray-500">SKU: {item.sku} ตำแหน่งเดียวกัน</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+
+                                {/* Delete button */}
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className={`${canDeleteItem(item)
+                                          ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
+                                          : 'text-gray-400 cursor-not-allowed'
+                                        }`}
+                                      disabled={!canDeleteItem(item) || isDeleting === item.id}
+                                    >
+                                      {isDeleting === item.id ? (
+                                        <div className="animate-spin rounded-full h-3 w-3 border border-current border-t-transparent" />
+                                      ) : (
+                                        <Trash2 className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>ยืนยันการลบรายการสินค้า</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        <div className="space-y-3">
+                                          <p>คุณต้องการลบรายการสินค้านี้ใช่หรือไม่?</p>
+                                          <div className="bg-muted p-3 rounded-lg space-y-2">
+                                            <div className="font-medium">{item.product_name}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                              SKU: {item.sku} | ตำแหน่ง: {displayLocation(item.location)}
+                                            </div>
+                                            <div className="text-sm">
+                                              จำนวน: {calculateTotalQuantitySync(item)} ชิ้น
+                                            </div>
+                                          </div>
+                                          {getDuplicateCount(item) > 0 && (
+                                            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+                                              <p className="text-sm text-yellow-800">
+                                                <strong>⚠️ ข้อมูลซ้ำ:</strong> มีสินค้า SKU {item.sku} ในตำแหน่งนี้ {getDuplicateCount(item) + 1} รายการ
+                                              </p>
+                                            </div>
+                                          )}
+                                          <p className="text-sm text-red-600 font-medium">
+                                            การดำเนินการนี้ไม่สามารถยกเลิกได้
+                                          </p>
+                                        </div>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteItem(item)}
+                                        className="bg-red-600 hover:bg-red-700"
+                                      >
+                                        ยืนยันการลบ
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
                             </TableCell>
                           </TableRow>
                         );

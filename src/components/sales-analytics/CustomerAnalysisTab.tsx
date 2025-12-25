@@ -88,7 +88,7 @@ export function CustomerAnalysisTab({ orderDetailsMap }: CustomerAnalysisTabProp
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <Label htmlFor="startDate">วันที่เริ่มต้น</Label>
               <Input
@@ -194,7 +194,7 @@ export function CustomerAnalysisTab({ orderDetailsMap }: CustomerAnalysisTabProp
               ) : comparison.customerMetrics ? (
                 <>
                   {/* Comparison Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                     <ComparisonCard
                       title="ยอดซื้อ"
                       icon={<DollarSign className="h-4 w-4" />}
@@ -292,7 +292,7 @@ export function CustomerAnalysisTab({ orderDetailsMap }: CustomerAnalysisTabProp
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           <div className="p-4 bg-purple-50 rounded-lg">
                             <p className="text-sm text-gray-600 mb-1">วันที่ซื้อสูงสุด</p>
                             <p className="text-lg font-bold text-purple-700">

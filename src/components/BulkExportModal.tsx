@@ -880,6 +880,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                         <div className="flex gap-2">
                           <select
                             className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                            aria-label="เลือกลูกค้าเพื่อส่งสินค้าทั้งหมด"
                             value=""
                             onChange={(e) => {
                               const customer = customers.find(c => c.id === e.target.value);
@@ -1010,6 +1011,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                         <Label className="text-xs text-muted-foreground mb-2 block">เพิ่มลูกค้าเพิ่มเติม</Label>
                         <select
                           className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
+                          aria-label="เพิ่มลูกค้าเพิ่มเติมสำหรับรายการนี้"
                           value=""
                           onChange={(e) => {
                             const customer = customers.find(c => c.id === e.target.value);

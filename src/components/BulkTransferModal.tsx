@@ -84,14 +84,13 @@ export function BulkTransferModal({
           product_id,
           location,
           quantity_pieces,
-          products (
+          products!inner (
             sku_code,
             name
           )
         `)
         .eq('location', sourceLocation)
-        .gt('quantity_pieces', 0)
-        .order('products(name)');
+        .gt('quantity_pieces', 0);
 
       if (error) throw error;
       setAvailableItems(data || []);

@@ -1,3 +1,4 @@
+console.log('DEBUG: Starting src/index.ts...');
 import express from 'express';
 import helmet from 'helmet';
 import dotenv from 'dotenv';

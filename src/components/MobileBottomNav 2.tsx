@@ -76,7 +76,7 @@ export function MobileBottomNav({
 }: MobileBottomNavProps) {
   const mainTabs = [
     { value: 'overview', icon: PieChart, label: 'หน้าแรก' },
-    { value: 'packing-list', icon: Package, label: 'แพค' },
+    { value: 'packing-list', icon: Package, label: 'ส่งของ' },
     { value: 'table', icon: Table, label: 'ตาราง' },
   ];
 

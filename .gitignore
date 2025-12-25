@@ -33,5 +33,11 @@ dist-ssr
 check-system.sh
 node_modules.old/
 we-warehouse-backend/node_modules.old/
+node_modules_old/
 *.sql
 *.mjs
+
+# Corrupt/Backup directories
+*_corrupt_*
+*_backup_*
+we-warehouse-backend/node_modules_corrupt_*

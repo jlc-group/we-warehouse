@@ -395,6 +395,7 @@ export const WarehouseOperations = () => {
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value as AssignmentStatus | 'all')}
                     className="px-3 py-2 border rounded-md"
+                    aria-label="กรองงานตามสถานะ"
                   >
                     <option value="all">ทุกสถานะ</option>
                     <option value="assigned">มอบหมายแล้ว</option>

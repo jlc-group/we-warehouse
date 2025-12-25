@@ -31,7 +31,12 @@ import {
   Edit,
   Trash2,
   Settings,
-  ArrowRight
+  ArrowRight,
+  Search,
+  Package,
+  Hash,
+  ChevronRight,
+  PlusCircle
 } from 'lucide-react';
 import { useConversionRates, ConversionRateInput } from '@/hooks/useConversionRates';
 import { useProducts } from '@/contexts/ProductsContext';
@@ -222,10 +227,46 @@ export default function UnitConversionSettings() {
   const handleProductSelect = (productId: string) => {
     const product = availableProducts.find(p => p.id === productId);
     if (product) {
+      // Smart defaults based on product type
+      const getDefaultConversion = (productType: string) => {
+        if (productType === 'FG') {
+          // Finished goods: typically 1 ลัง = 144 ชิ้น, 1 กล่อง = 12 ชิ้น
+          return {
+            unit_level1_name: 'ลัง',
+            unit_level1_rate: 144,
+            unit_level2_name: 'กล่อง',
+            unit_level2_rate: 12,
+            unit_level3_name: 'ชิ้น'
+          };
+        } else if (productType === 'PK') {
+          // Packaging: typically 1 ลัง = 1000 ชิ้น, 1 มัด = 100 ชิ้น
+          return {
+            unit_level1_name: 'ลัง',
+            unit_level1_rate: 1000,
+            unit_level2_name: 'มัด',
+            unit_level2_rate: 100,
+            unit_level3_name: 'ชิ้น'
+          };
+        } else {
+          // Default for other types
+          return {
+            unit_level1_name: 'ลัง',
+            unit_level1_rate: 100,
+            unit_level2_name: 'กล่อง',
+            unit_level2_rate: 10,
+            unit_level3_name: 'ชิ้น'
+          };
+        }
+      };
+
+      const defaultConversion = getDefaultConversion(product.product_type);
+
       setFormData(prev => ({
         ...prev,
         sku: product.sku_code,
-        product_name: product.product_name
+        product_name: product.product_name,
+        product_type: product.product_type,
+        ...defaultConversion
       }));
     }
   };
@@ -353,21 +394,123 @@ export default function UnitConversionSettings() {
 
         {/* Info and Missing Conversions Alert */}
         {productsWithoutConversion.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-2">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
             <div className="text-sm font-medium text-yellow-900">⚠️ พบสินค้าที่ยังไม่มีการตั้งค่าการแปลงหน่วย:</div>
             <div className="text-xs text-yellow-700">
               มี <span className="font-bold">{productsWithoutConversion.length}</span> สินค้าที่ยังไม่ได้ตั้งค่าการแปลงหน่วย:
-              <div className="mt-2 space-y-1">
-                {productsWithoutConversion.slice(0, 5).map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-yellow-100 px-2 py-1 rounded">
-                    <span className="font-mono text-xs">{p.sku_code}</span>
-                    <span className="text-xs">{p.product_name}</span>
+              <div className="mt-3 space-y-2">
+                {productsWithoutConversion.slice(0, 8).map(p => (
+                  <div key={p.id} className="flex items-center justify-between bg-yellow-100 px-3 py-2 rounded border border-yellow-200">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs bg-yellow-200 px-2 py-0.5 rounded">{p.sku_code}</span>
+                        <Badge variant="outline" className={`text-xs ${
+                          p.product_type === 'FG'
+                            ? 'bg-green-100 text-green-700 border-green-200'
+                            : 'bg-blue-100 text-blue-700 border-blue-200'
+                        }`}>
+                          {p.product_type}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-gray-700 truncate">{p.product_name}</div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setFormData({
+                          sku: p.sku_code,
+                          product_name: p.product_name,
+                          product_type: p.product_type,
+                          unit_level1_name: 'ลัง',
+                          unit_level1_rate: p.product_type === 'FG' ? 144 : 12,
+                          unit_level2_name: 'กล่อง',
+                          unit_level2_rate: 12,
+                          unit_level3_name: 'ชิ้น'
+                        });
+                        setIsAddDialogOpen(true);
+                      }}
+                      className="ml-2 flex items-center gap-1 bg-yellow-50 border-yellow-300 hover:bg-yellow-100 text-yellow-800 text-xs h-7"
+                    >
+                      <PlusCircle className="h-3 w-3" />
+                      ตั้งค่า
+                    </Button>
                   </div>
                 ))}
-                {productsWithoutConversion.length > 5 && (
-                  <div className="text-xs text-yellow-600">...และอีก {productsWithoutConversion.length - 5} รายการ</div>
+                {productsWithoutConversion.length > 8 && (
+                  <div className="text-center text-xs text-yellow-600 py-2 bg-yellow-100 rounded">
+                    ...และอีก {productsWithoutConversion.length - 8} รายการ (ใช้ปุ่ม "เพิ่มการตั้งค่า" ด้านบนเพื่อเลือกสินค้าอื่นๆ)
+                  </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Bulk Setup for Missing Products */}
+        {productsWithoutConversion.length > 2 && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+            <div className="text-sm font-medium text-green-900">⚡ ตั้งค่าแบบกลุ่มเร็ว:</div>
+            <div className="text-xs text-green-700">
+              ตั้งค่าการแปลงหน่วยสำหรับสินค้าที่ยังไม่มีการตั้งค่าทั้งหมดแบบรวดเร็ว
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const fgProducts = productsWithoutConversion.filter(p => p.product_type === 'FG');
+                  fgProducts.forEach(async (product) => {
+                    try {
+                      await createConversionRate({
+                        sku: product.sku_code,
+                        product_name: product.product_name,
+                        product_type: product.product_type,
+                        unit_level1_name: 'ลัง',
+                        unit_level1_rate: 144,
+                        unit_level2_name: 'กล่อง',
+                        unit_level2_rate: 12,
+                        unit_level3_name: 'ชิ้น'
+                      });
+                    } catch (error) {
+                      console.error(`Failed to create conversion for ${product.sku_code}:`, error);
+                    }
+                  });
+                  setTimeout(() => fetchConversionRates(), 1000);
+                  toast.success(`ตั้งค่าสินค้า FG จำนวน ${fgProducts.length} รายการเรียบร้อย`);
+                }}
+                className="bg-green-50 border-green-300 hover:bg-green-100 text-green-800 text-xs"
+              >
+                🏭 ตั้งค่า FG ทั้งหมด (144/12)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const pkProducts = productsWithoutConversion.filter(p => p.product_type === 'PK');
+                  pkProducts.forEach(async (product) => {
+                    try {
+                      await createConversionRate({
+                        sku: product.sku_code,
+                        product_name: product.product_name,
+                        product_type: product.product_type,
+                        unit_level1_name: 'ลัง',
+                        unit_level1_rate: 1000,
+                        unit_level2_name: 'มัด',
+                        unit_level2_rate: 100,
+                        unit_level3_name: 'ชิ้น'
+                      });
+                    } catch (error) {
+                      console.error(`Failed to create conversion for ${product.sku_code}:`, error);
+                    }
+                  });
+                  setTimeout(() => fetchConversionRates(), 1000);
+                  toast.success(`ตั้งค่าสินค้า PK จำนวน ${pkProducts.length} รายการเรียบร้อย`);
+                }}
+                className="bg-blue-50 border-blue-300 hover:bg-blue-100 text-blue-800 text-xs"
+              >
+                📦 ตั้งค่า PK ทั้งหมด (1000/100)
+              </Button>
             </div>
           </div>
         )}

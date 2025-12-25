@@ -16,7 +16,7 @@ const LocationQRContext = createContext<LocationQRContextType | undefined>(undef
 
 export function LocationQRProvider({ children }: { children: ReactNode }) {
   const [qrCodes, setQRCodes] = useState<LocationQRCode[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start with false to not block rendering
   const [error, setError] = useState<Error | null>(null);
 
   const fetchQRCodes = useCallback(async () => {
@@ -25,24 +25,47 @@ export function LocationQRProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
-      const result = await locationQRService.getAllQRCodes();
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('QR fetch timeout')), 5000)
+      );
+
+      const result = await Promise.race([
+        locationQRService.getAllQRCodes(),
+        timeoutPromise
+      ]);
+
       if (result.data) {
         setQRCodes(result.data);
         console.log(`✅ LocationQRContext: Loaded ${result.data.length} QR codes`);
       } else if (result.error) {
-        throw new Error(result.error);
+        console.warn('⚠️ LocationQRContext: Error but continuing:', result.error);
+        // Don't throw - just log and continue with empty array
+        setQRCodes([]);
       }
     } catch (err) {
-      console.error('❌ LocationQRContext: Error fetching QR codes:', err);
-      setError(err as Error);
+      console.warn('⚠️ LocationQRContext: Error fetching QR codes (non-blocking):', err);
+      // Don't set error state - just continue with empty array
+      setQRCodes([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Initial fetch
+  // Initial fetch - using requestIdleCallback to avoid blocking main thread
   useEffect(() => {
-    fetchQRCodes();
+    // Use requestIdleCallback if available, otherwise setTimeout
+    const scheduleIdleFetch = (callback: () => void) => {
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(callback, { timeout: 3000 });
+      } else {
+        setTimeout(callback, 1000);
+      }
+    };
+
+    scheduleIdleFetch(() => {
+      fetchQRCodes();
+    });
   }, [fetchQRCodes]);
 
   const getQRByLocation = useCallback((location: string) => {

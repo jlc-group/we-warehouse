@@ -1,0 +1,156 @@
+-- ============================================
+-- FIX: Inventory Movement Trigger to Prevent FK Violations
+-- ============================================
+-- This fixes the log_enhanced_inventory_movement() trigger to validate
+-- user_id before inserting into system_events
+-- 
+-- Run this in Supabase SQL Editor
+-- ============================================
+
+CREATE OR REPLACE FUNCTION log_enhanced_inventory_movement()
+
+RETURNS TRIGGER AS $$
+DECLARE
+  movement_type_val TEXT;
+  event_title_val TEXT;
+  event_description_val TEXT;
+  changes_before_val JSONB;
+  changes_after_val JSONB;
+  valid_user_id UUID;
+BEGIN
+  -- Validate user_id: only use it if it exists in auth.users
+  valid_user_id := NULL;
+  
+  IF COALESCE(NEW.user_id, OLD.user_id) IS NOT NULL THEN
+    -- Check if user_id exists in auth.users
+    IF EXISTS (SELECT 1 FROM auth.users WHERE id = COALESCE(NEW.user_id, OLD.user_id)) THEN
+      valid_user_id := COALESCE(NEW.user_id, OLD.user_id);
+    ELSE
+      -- Log warning but continue with NULL user_id
+      RAISE WARNING 'User ID % not found in auth.users, logging event with NULL user_id', COALESCE(NEW.user_id, OLD.user_id);
+    END IF;
+  END IF;
+
+  -- Determine movement type
+  IF TG_OP = 'INSERT' THEN
+    movement_type_val := 'stock_in';
+    event_title_val := 'สินค้าเข้าคลัง';
+    event_description_val := format('เพิ่มสินค้า SKU: %s', NEW.sku);
+    changes_before_val := NULL;
+    changes_after_val := to_jsonb(NEW);
+    
+  ELSIF TG_OP = 'UPDATE' THEN
+    -- Detect type of update
+    IF OLD.location != NEW.location THEN
+      movement_type_val := 'transfer';
+      event_title_val := 'ย้ายสินค้า';
+      event_description_val := format('ย้ายจาก %s ไป %s', OLD.location, NEW.location);
+    ELSIF (COALESCE(NEW.unit_level1_quantity, 0) + COALESCE(NEW.unit_level2_quantity, 0) + COALESCE(NEW.unit_level3_quantity, 0)) <
+          (COALESCE(OLD.unit_level1_quantity, 0) + COALESCE(OLD.unit_level2_quantity, 0) + COALESCE(OLD.unit_level3_quantity, 0)) THEN
+      movement_type_val := 'stock_out';
+      event_title_val := 'สินค้าออกจากคลัง';
+      event_description_val := format('ลดจำนวนสินค้า SKU: %s', NEW.sku);
+    ELSE
+      movement_type_val := 'adjustment';
+      event_title_val := 'ปรับปรุงสต็อก';
+      event_description_val := format('ปรับปรุงข้อมูลสินค้า SKU: %s', NEW.sku);
+    END IF;
+    
+    changes_before_val := to_jsonb(OLD);
+    changes_after_val := to_jsonb(NEW);
+    
+  ELSIF TG_OP = 'DELETE' THEN
+    movement_type_val := 'stock_out';
+    event_title_val := 'ลบสินค้า';
+    event_description_val := format('ลบสินค้า SKU: %s จากระบบ', OLD.sku);
+    changes_before_val := to_jsonb(OLD);
+    changes_after_val := NULL;
+  END IF;
+
+  -- Insert event with validated user_id (may be NULL)
+  INSERT INTO public.system_events (
+    event_type,
+    event_category,
+    event_action,
+    event_title,
+    event_description,
+    entity_type,
+    entity_id,
+    changes_before,
+    changes_after,
+    user_id,
+    warehouse_id,
+    location_context,
+    event_data
+  ) VALUES (
+    'inventory',
+    'stock_movement',
+    movement_type_val,
+    event_title_val,
+    event_description_val,
+    'inventory_item',
+    COALESCE(NEW.id, OLD.id),
+    changes_before_val,
+    changes_after_val,
+    valid_user_id,  -- Use validated user_id (NULL if invalid)
+    COALESCE(NEW.warehouse_id, OLD.warehouse_id),
+    COALESCE(NEW.location, OLD.location),
+    jsonb_build_object(
+      'quantity_change', 
+      (COALESCE(NEW.unit_level1_quantity, 0) + COALESCE(NEW.unit_level2_quantity, 0) + COALESCE(NEW.unit_level3_quantity, 0)) -
+      (COALESCE(OLD.unit_level1_quantity, 0) + COALESCE(OLD.unit_level2_quantity, 0) + COALESCE(OLD.unit_level3_quantity, 0)),
+      'location_changed', 
+      CASE WHEN TG_OP = 'UPDATE' THEN OLD.location != NEW.location ELSE FALSE END
+    )
+  );
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Ensure trigger exists
+DROP TRIGGER IF EXISTS trigger_log_inventory_movement ON public.inventory_items;
+CREATE TRIGGER trigger_log_inventory_movement
+  AFTER INSERT OR UPDATE OR DELETE ON public.inventory_items
+  FOR EACH ROW
+  EXECUTE FUNCTION log_enhanced_inventory_movement();
+
+-- Also add the system_events validation trigger (belt and suspenders approach)
+CREATE OR REPLACE FUNCTION validate_system_events_user_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If user_id is provided, check if it exists in auth.users
+  IF NEW.user_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = NEW.user_id) THEN
+      RAISE WARNING 'Invalid user_id % in system_events, setting to NULL', NEW.user_id;
+      NEW.user_id := NULL;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS system_events_validate_user_id ON public.system_events;
+CREATE TRIGGER system_events_validate_user_id
+  BEFORE INSERT OR UPDATE ON public.system_events
+  FOR EACH ROW
+  EXECUTE FUNCTION validate_system_events_user_id();
+
+-- Clean up existing invalid user_ids
+UPDATE public.inventory_items 
+SET user_id = NULL 
+WHERE user_id IS NOT NULL 
+  AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = inventory_items.user_id);
+
+UPDATE public.system_events 
+SET user_id = NULL 
+WHERE user_id IS NOT NULL 
+  AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = system_events.user_id);
+
+-- Success message
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Inventory trigger fixed successfully!';
+  RAISE NOTICE '✅ System events validation trigger added!';
+  RAISE NOTICE '✅ Invalid user_ids cleaned up!';
+END $$;

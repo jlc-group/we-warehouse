@@ -1,41 +1,58 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/components/ui/sonner';
-import type { Warehouse, WarehouseInsert, WarehouseUpdate } from '../integrations/supabase/types';
+import type { Warehouse, WarehouseInsert, WarehouseUpdate } from '@/integrations/supabase/types';
 
-export const useWarehouses = () => {
+const warehouseSelect =
+  'id,name,code,description,address,is_active,location_prefix_start,location_prefix_end,max_levels,max_positions,created_at,updated_at';
+
+export const useWarehouses = (activeOnly: boolean = true) => {
   return useQuery({
-    queryKey: ['warehouses'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryKey: ['warehouses', activeOnly],
+    queryFn: async (): Promise<Warehouse[]> => {
+      let query = supabase
         .from('warehouses')
-        .select('*')
-        .eq('is_active', true)
+        .select(warehouseSelect)
         .order('code');
+
+      if (activeOnly) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching warehouses:', error);
-        throw error;
+        return [];
       }
 
-      return data as Warehouse[];
+      return (data || []) as Warehouse[];
     },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    retry: 2,
   });
 };
 
-export const useWarehouse = (id: string) => {
+export const useWarehouse = (id: string | undefined) => {
   return useQuery({
     queryKey: ['warehouse', id],
-    queryFn: async () => {
+    queryFn: async (): Promise<Warehouse | null> => {
+      if (!id) return null;
+
       const { data, error } = await supabase
         .from('warehouses')
-        .select('*')
+        .select(warehouseSelect)
         .eq('id', id)
         .single();
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+
         console.error('Error fetching warehouse:', error);
-        throw error;
+        return null;
       }
 
       return data as Warehouse;
@@ -52,7 +69,7 @@ export const useCreateWarehouse = () => {
       const { data, error } = await supabase
         .from('warehouses')
         .insert(warehouse)
-        .select()
+        .select(warehouseSelect)
         .single();
 
       if (error) {
@@ -85,7 +102,7 @@ export const useUpdateWarehouse = () => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
-        .select()
+        .select(warehouseSelect)
         .single();
 
       if (error) {
@@ -120,7 +137,7 @@ export const useDeleteWarehouse = () => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
-        .select()
+        .select(warehouseSelect)
         .single();
 
       if (error) {
@@ -144,17 +161,21 @@ export const useDeleteWarehouse = () => {
 export const useDefaultWarehouse = () => {
   return useQuery({
     queryKey: ['default-warehouse'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Warehouse | null> => {
       const { data, error } = await supabase
         .from('warehouses')
-        .select('*')
+        .select(warehouseSelect)
         .eq('code', 'MAIN')
         .eq('is_active', true)
         .single();
 
       if (error) {
         console.error('Error fetching default warehouse:', error);
-        throw error;
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+
+        return null;
       }
 
       return data as Warehouse;
@@ -165,17 +186,23 @@ export const useDefaultWarehouse = () => {
 export const useWarehouseByCode = (code: string) => {
   return useQuery({
     queryKey: ['warehouse-by-code', code],
-    queryFn: async () => {
+    queryFn: async (): Promise<Warehouse | null> => {
+      if (!code) return null;
+
       const { data, error } = await supabase
         .from('warehouses')
-        .select('*')
+        .select(warehouseSelect)
         .eq('code', code.toUpperCase())
         .eq('is_active', true)
         .single();
 
       if (error) {
         console.error('Error fetching warehouse by code:', error);
-        throw error;
+        if (error.code === 'PGRST116') {
+          return null;
+        }
+
+        return null;
       }
 
       return data as Warehouse;
@@ -188,15 +215,17 @@ export const useWarehouseByCode = (code: string) => {
 export const useWarehouseStats = (warehouseId: string) => {
   return useQuery({
     queryKey: ['warehouse-stats', warehouseId],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ totalItems: number; totalQuantity: number } | null> => {
+      if (!warehouseId) return null;
+
       const { data, error } = await supabase
         .from('inventory_items')
-        .select('id, quantity_pieces')
+        .select('id,quantity_pieces,warehouse_id')
         .eq('warehouse_id', warehouseId);
 
       if (error) {
         console.error('Error fetching warehouse stats:', error);
-        throw error;
+        return null;
       }
 
       const totalItems = data?.length || 0;

@@ -70,14 +70,25 @@ export class AnalyticsController {
         SELECT
           d.PRODUCTCODE as productCode,
           MAX(d.PRODUCTNAME) as productName,
-          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalSales,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalSales,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.QUANTITY as DECIMAL(18,2))
+              ELSE CAST(d.QUANTITY as DECIMAL(18,2))
+            END
+          ) as totalQuantity
         FROM CSSALESUB d
         INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
         WHERE d.PRODUCTCODE NOT LIKE '%X6'
           AND d.PRODUCTCODE NOT LIKE '%X12'
           AND d.PRODUCTCODE NOT LIKE '%X120'
           AND h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
       `;
 
       const request = pool.request();
@@ -92,7 +103,12 @@ export class AnalyticsController {
 
       query += `
         GROUP BY d.PRODUCTCODE
-        HAVING SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) > 0
+        HAVING SUM(
+          CASE 
+            WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+            ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+          END
+        ) > 0
       `;
 
       // Add LIMIT if provided - use TOP directly in main query
@@ -108,7 +124,7 @@ export class AnalyticsController {
         `;
       } else {
         query += `
-          ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
+          ORDER BY totalSales DESC
         `;
       }
 
@@ -141,10 +157,17 @@ export class AnalyticsController {
         SELECT DISTINCT
           h.ARCODE as arcode,
           h.ARNAME as arname,
-          SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalPurchases,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalPurchases,
           COUNT(DISTINCT h.DOCNO) as orderCount
         FROM CSSALE h
+        INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
         WHERE h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
       `;
 
       const request = pool.request();
@@ -159,8 +182,13 @@ export class AnalyticsController {
 
       query += `
         GROUP BY h.ARCODE, h.ARNAME
-        HAVING SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) > 0
-        ORDER BY SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) DESC
+        HAVING SUM(
+          CASE 
+            WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+            ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+          END
+        ) > 0
+        ORDER BY totalPurchases DESC
       `;
 
       const result = await request.query(query);
@@ -199,8 +227,18 @@ export class AnalyticsController {
       const currentQuery = `
         SELECT
           CONVERT(DATE, h.DOCDATE) as date,
-          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalSales,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalSales,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.QUANTITY as DECIMAL(18,2))
+              ELSE CAST(d.QUANTITY as DECIMAL(18,2))
+            END
+          ) as totalQuantity,
           COUNT(DISTINCT h.DOCNO) as orderCount,
           h.ARCODE as arcode,
           h.ARNAME as arname
@@ -210,6 +248,7 @@ export class AnalyticsController {
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
           AND h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
         GROUP BY CONVERT(DATE, h.DOCDATE), h.ARCODE, h.ARNAME
         ORDER BY CONVERT(DATE, h.DOCDATE)
       `;
@@ -232,16 +271,27 @@ export class AnalyticsController {
         SELECT TOP 5
           h.ARCODE as arcode,
           h.ARNAME as arname,
-          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as quantity
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalAmount,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.QUANTITY as DECIMAL(18,2))
+              ELSE CAST(d.QUANTITY as DECIMAL(18,2))
+            END
+          ) as quantity
         FROM CSSALE h
         INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
         WHERE d.PRODUCTCODE = @productCode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
           AND h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
         GROUP BY h.ARCODE, h.ARNAME
-        ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
+        ORDER BY totalAmount DESC
       `;
 
       const topCustomersResult = await pool.request()
@@ -362,15 +412,26 @@ export class AnalyticsController {
         SELECT
           CONVERT(DATE, h.DOCDATE) as date,
           h.DOCNO as docno,
-          CAST(h.TOTALAMOUNT as DECIMAL(18,2)) as totalAmount,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalAmount,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.QUANTITY as DECIMAL(18,2))
+              ELSE CAST(d.QUANTITY as DECIMAL(18,2))
+            END
+          ) as totalQuantity
         FROM CSSALE h
         LEFT JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
         WHERE h.ARCODE = @arcode
           AND h.DOCDATE >= @startDate
           AND h.DOCDATE <= @endDate
           AND h.CANCELDATE IS NULL
-        GROUP BY CONVERT(DATE, h.DOCDATE), h.DOCNO, h.TOTALAMOUNT
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
+        GROUP BY CONVERT(DATE, h.DOCDATE), h.DOCNO
         ORDER BY CONVERT(DATE, h.DOCDATE)
       `;
 
@@ -393,8 +454,18 @@ export class AnalyticsController {
         SELECT TOP 5
           d.PRODUCTCODE as productcode,
           d.PRODUCTNAME as productname,
-          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as quantity
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.NETAMOUNT as DECIMAL(18,2))
+              ELSE CAST(d.NETAMOUNT as DECIMAL(18,2))
+            END
+          ) as totalAmount,
+          SUM(
+            CASE 
+              WHEN LEFT(h.DOCNO, 2) IN ('CN', 'CS') THEN -CAST(d.QUANTITY as DECIMAL(18,2))
+              ELSE CAST(d.QUANTITY as DECIMAL(18,2))
+            END
+          ) as quantity
         FROM CSSALE h
         INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
         WHERE h.ARCODE = @arcode
@@ -404,8 +475,9 @@ export class AnalyticsController {
           AND d.PRODUCTCODE NOT LIKE '%X12'
           AND d.PRODUCTCODE NOT LIKE '%X120'
           AND h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
         GROUP BY d.PRODUCTCODE, d.PRODUCTNAME
-        ORDER BY SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) DESC
+        ORDER BY totalAmount DESC
       `;
 
       const topProductsResult = await pool.request()
@@ -514,32 +586,30 @@ export class AnalyticsController {
       const pool = await getConnection();
       const request = pool.request();
 
-      // Query for SA (Sales) และ CS/CN (Credit Note) แยกกัน
-      // ใช้ DOCNO prefix แทน DOCTYPE field เพราะ DOCTYPE อาจไม่มีในตาราง
-      // NOTE: Excludes cancelled documents (CANCELDATE IS NULL)
-      // NOTE: ใช้ SUMAMOUNT1 (ยอดรวมก่อนหัก discount) แทน TOTALAMOUNT
       let query = `
         SELECT
-          LEFT(DOCNO, CHARINDEX('-', DOCNO) - 1) as docTypePrefix,
-          SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as totalAmount,
-          COUNT(DISTINCT DOCNO) as docCount
-        FROM CSSALE
-        WHERE DOCNO LIKE '%-%'
-          AND CANCELDATE IS NULL
+          LEFT(h.DOCNO, 2) as docTypePrefix,
+          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount,
+          COUNT(DISTINCT h.DOCNO) as docCount
+        FROM CSSALE h
+        INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
+        WHERE h.DOCNO LIKE '%-%'
+          AND h.CANCELDATE IS NULL
+          AND (d.PRODUCTSET IS NULL OR d.PRODUCTSET != 2)
       `;
 
       if (startDate && endDate) {
         query += `
-          AND DOCDATE >= @startDate AND DOCDATE <= @endDate
+          AND h.DOCDATE >= @startDate AND h.DOCDATE <= @endDate
         `;
         request.input('startDate', sql.Date, startDate as string);
         request.input('endDate', sql.Date, endDate as string);
       }
 
       query += `
-        GROUP BY LEFT(DOCNO, CHARINDEX('-', DOCNO) - 1)
-        ORDER BY LEFT(DOCNO, CHARINDEX('-', DOCNO) - 1)
-      `;
+        GROUP BY LEFT(h.DOCNO, 2)
+        ORDER BY LEFT(h.DOCNO, 2)
+        `;
 
       const result = await request.query(query);
 
@@ -554,13 +624,14 @@ export class AnalyticsController {
         const amount = parseFloat(row.totalAmount || 0);
         const count = parseInt(row.docCount || 0);
 
-        if (docType === 'SA') {
-          salesAmount = amount;
-          salesCount = count;
-        } else if (docType === 'CS' || docType === 'CN') {
-          // CS = Credit Sales (Credit Note)
+        if (docType === 'CN' || docType === 'CS') {
+          // Credit Note
           creditNoteAmount += amount;
           creditNoteCount += count;
+        } else {
+          // Everything else is Sales (SA, 68, etc.)
+          salesAmount += amount;
+          salesCount += count;
         }
       });
 
@@ -610,14 +681,14 @@ export class AnalyticsController {
 
       // Query ยอดขายจาก CSSALESUB
       let query = `
-        SELECT
-          d.PRODUCTCODE as productCode,
-          MAX(d.PRODUCTNAME) as productName,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+      SELECT
+      d.PRODUCTCODE as productCode,
+        MAX(d.PRODUCTNAME) as productName,
+        SUM(CAST(d.QUANTITY as DECIMAL(18, 2))) as totalQuantity
         FROM CSSALESUB d
         INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
         WHERE h.CANCELDATE IS NULL
-      `;
+        `;
 
       if (startDate && endDate) {
         query += `
@@ -629,9 +700,9 @@ export class AnalyticsController {
 
       query += `
         GROUP BY d.PRODUCTCODE
-        HAVING SUM(CAST(d.QUANTITY as DECIMAL(18,2))) > 0
-        ORDER BY SUM(CAST(d.QUANTITY as DECIMAL(18,2))) DESC
-      `;
+        HAVING SUM(CAST(d.QUANTITY as DECIMAL(18, 2))) > 0
+        ORDER BY SUM(CAST(d.QUANTITY as DECIMAL(18, 2))) DESC
+        `;
 
       const result = await request.query(query);
 
@@ -729,29 +800,29 @@ export class AnalyticsController {
       const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1); // วันแรกของเดือนหน้า
       const startDate = new Date(now.getFullYear(), now.getMonth() - (lookbackMonths - 1), 1); // ย้อนหลัง 3 เดือน
 
-      console.log(`[Forecast] Target: ${targetDate.toISOString().slice(0, 7)}, Lookback: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)}`);
+      console.log(`[Forecast] Target: ${targetDate.toISOString().slice(0, 7)}, Lookback: ${startDate.toISOString().slice(0, 10)} to ${endDate.toISOString().slice(0, 10)} `);
 
       // Query: ดึงยอดขายรายเดือนของแต่ละสินค้าใน 3 เดือนย้อนหลัง
       // กรองเฉพาะรหัสที่ไม่มี X ต่อท้าย (ไม่เอา X6, X12, X24, etc.)
       const query = `
-        SELECT
-          d.PRODUCTCODE as productCode,
-          MAX(d.PRODUCTNAME) as productName,
-          YEAR(h.DOCDATE) as year,
-          MONTH(h.DOCDATE) as month,
-          SUM(CAST(d.QUANTITY as DECIMAL(18,2))) as totalQuantity
+      SELECT
+      d.PRODUCTCODE as productCode,
+        MAX(d.PRODUCTNAME) as productName,
+        YEAR(h.DOCDATE) as year,
+        MONTH(h.DOCDATE) as month,
+        SUM(CAST(d.QUANTITY as DECIMAL(18, 2))) as totalQuantity
         FROM CSSALESUB d
         INNER JOIN CSSALE h ON d.DOCNO = h.DOCNO
-        WHERE
-          h.DOCDATE >= @startDate
+      WHERE
+      h.DOCDATE >= @startDate
           AND h.DOCDATE < @endDate
-          AND LEFT(h.DOCNO, 2) IN ('SA', 'CN')
+          AND LEFT(h.DOCNO, 2) IN('SA', 'CN')
           AND d.PRODUCTCODE NOT LIKE '%X[0-9]%'
           AND d.PRODUCTCODE NOT LIKE '%X[0-9][0-9]%'
           AND h.CANCELDATE IS NULL
         GROUP BY d.PRODUCTCODE, YEAR(h.DOCDATE), MONTH(h.DOCDATE)
         ORDER BY d.PRODUCTCODE, year, month
-      `;
+        `;
 
       const result = await pool.request()
         .input('startDate', sql.DateTime, startDate)
@@ -827,7 +898,7 @@ export class AnalyticsController {
         productData.monthlyData.push({ year, month, qty });
 
         // คำนวณยอดรวมรายเดือน (หลังคูณ multiplier)
-        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const monthKey = `${year} -${String(month).padStart(2, '0')} `;
         const actualQty = qty * multiplier;
         const currentTotal = baseData.monthlyTotals.get(monthKey) || 0;
         baseData.monthlyTotals.set(monthKey, currentTotal + actualQty);
@@ -847,10 +918,10 @@ export class AnalyticsController {
           .map(([monthKey, qty]) => {
             const [year, month] = monthKey.split('-');
             const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-                                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+              'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
             return {
               month: monthKey,
-              monthName: `${monthNames[parseInt(month) - 1]} ${parseInt(year) + 543}`,
+              monthName: `${monthNames[parseInt(month) - 1]} ${parseInt(year) + 543} `,
               qty
             };
           });
@@ -862,10 +933,10 @@ export class AnalyticsController {
           multiplier: product.multiplier,
           monthlyData: product.monthlyData.map(m => {
             const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-                                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+              'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
             return {
-              month: `${m.year}-${String(m.month).padStart(2, '0')}`,
-              monthName: `${monthNames[m.month - 1]} ${m.year + 543}`,
+              month: `${m.year} -${String(m.month).padStart(2, '0')} `,
+              monthName: `${monthNames[m.month - 1]} ${m.year + 543} `,
               qty: m.qty,
               actualQty: m.qty * product.multiplier
             };
@@ -920,24 +991,24 @@ export class AnalyticsController {
       const request = pool.request();
 
       let query = `
-        SELECT
-          h.DOCNO,
-          h.DOCDATE,
-          h.ARCODE,
-          h.ARNAME,
-          h.TOTALAMOUNT,
-          h.CANCELDATE,
-          h.CANCELUSER,
-          h.CLOSEFLAG,
-          h.SYSDOCFLAG,
-          h.DOCTYPE,
-          COUNT(d.PRODUCTCODE) as itemCount,
-          SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as sumLineAmount
+      SELECT
+      h.DOCNO,
+        h.DOCDATE,
+        h.ARCODE,
+        h.ARNAME,
+        h.TOTALAMOUNT,
+        h.CANCELDATE,
+        h.CANCELUSER,
+        h.CLOSEFLAG,
+        h.SYSDOCFLAG,
+        h.DOCTYPE,
+        COUNT(d.PRODUCTCODE) as itemCount,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as sumLineAmount
         FROM CSSALE h
         LEFT JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
         WHERE h.CANCELDATE IS NOT NULL
           AND LEFT(h.DOCNO, 2) = 'SA'
-      `;
+        `;
 
       if (startDate && endDate) {
         query += `
@@ -950,16 +1021,16 @@ export class AnalyticsController {
 
       query += `
         GROUP BY
-          h.DOCNO,
-          h.DOCDATE,
-          h.ARCODE,
-          h.ARNAME,
-          h.TOTALAMOUNT,
-          h.CANCELDATE,
-          h.CANCELUSER,
-          h.CLOSEFLAG,
-          h.SYSDOCFLAG,
-          h.DOCTYPE
+      h.DOCNO,
+        h.DOCDATE,
+        h.ARCODE,
+        h.ARNAME,
+        h.TOTALAMOUNT,
+        h.CANCELDATE,
+        h.CANCELUSER,
+        h.CLOSEFLAG,
+        h.SYSDOCFLAG,
+        h.DOCTYPE
         ORDER BY h.DOCDATE DESC, h.TOTALAMOUNT DESC
         OFFSET 0 ROWS FETCH NEXT ${parseInt(limit as string)} ROWS ONLY
       `;
@@ -1005,14 +1076,14 @@ export class AnalyticsController {
       const request = pool.request();
 
       let query = `
-        SELECT
-          DOCNO,
-          COUNT(*) as duplicateCount,
-          SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
-          MIN(CAST(DOCTYPE as VARCHAR)) as docType
+      SELECT
+      DOCNO,
+        COUNT(*) as duplicateCount,
+        SUM(CAST(TOTALAMOUNT as DECIMAL(18, 2))) as totalAmount,
+        MIN(CAST(DOCTYPE as VARCHAR)) as docType
         FROM CSSALE
-        WHERE LEFT(DOCNO, 2) IN ('SA', 'CS', 'CN')
-      `;
+        WHERE LEFT(DOCNO, 2) IN('SA', 'CS', 'CN')
+        `;
 
       if (startDate && endDate) {
         query += `
@@ -1025,7 +1096,7 @@ export class AnalyticsController {
 
       query = `
         SELECT TOP ${parseInt(limit as string)} *
-        FROM (
+        FROM(
           ${query}
           GROUP BY DOCNO
           HAVING COUNT(*) > 1
@@ -1078,10 +1149,10 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            'Method A: Header with Cancel excluded' as method,
-            COUNT(DISTINCT h.DOCNO) as invoiceCount,
-            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalAmount
+      SELECT
+      'Method A: Header with Cancel excluded' as method,
+        COUNT(DISTINCT h.DOCNO) as invoiceCount,
+        SUM(CAST(h.TOTALAMOUNT as DECIMAL(18, 2))) as totalAmount
           FROM CSSALE h
           WHERE h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
@@ -1094,10 +1165,10 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            'Method B: Details with Cancel excluded + Variant excluded' as method,
-            COUNT(DISTINCT h.DOCNO) as invoiceCount,
-            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+      SELECT
+      'Method B: Details with Cancel excluded + Variant excluded' as method,
+        COUNT(DISTINCT h.DOCNO) as invoiceCount,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as totalAmount
           FROM CSSALE h
           INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
           WHERE h.DOCDATE >= @startDate
@@ -1114,10 +1185,10 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            'Method C: Details with Cancel INCLUDED + Variant excluded' as method,
-            COUNT(DISTINCT h.DOCNO) as invoiceCount,
-            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+      SELECT
+      'Method C: Details with Cancel INCLUDED + Variant excluded' as method,
+        COUNT(DISTINCT h.DOCNO) as invoiceCount,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as totalAmount
           FROM CSSALE h
           INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
           WHERE h.DOCDATE >= @startDate
@@ -1133,10 +1204,10 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            'Method D: Header with Cancel INCLUDED' as method,
-            COUNT(DISTINCT h.DOCNO) as invoiceCount,
-            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as totalAmount
+      SELECT
+      'Method D: Header with Cancel INCLUDED' as method,
+        COUNT(DISTINCT h.DOCNO) as invoiceCount,
+        SUM(CAST(h.TOTALAMOUNT as DECIMAL(18, 2))) as totalAmount
           FROM CSSALE h
           WHERE h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
@@ -1148,16 +1219,16 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            'Method E: SA only (no CN) + Cancel excluded + Variant excluded' as method,
-            COUNT(DISTINCT h.DOCNO) as invoiceCount,
-            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as totalAmount
+      SELECT
+      'Method E: SA only (no CN) + Cancel excluded + Variant excluded' as method,
+        COUNT(DISTINCT h.DOCNO) as invoiceCount,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as totalAmount
           FROM CSSALE h
           INNER JOIN CSSALESUB d ON h.DOCNO = d.DOCNO
           WHERE h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
             AND LEFT(h.DOCNO, 2) = 'SA'
-            AND LEFT(h.DOCNO, 2) NOT IN ('CS', 'CN')
+            AND LEFT(h.DOCNO, 2) NOT IN('CS', 'CN')
             AND h.CANCELDATE IS NULL
             AND d.PRODUCTCODE NOT LIKE '%X6'
             AND d.PRODUCTCODE NOT LIKE '%X12'
@@ -1169,9 +1240,9 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT h.DOCNO) as cancelledCount,
-            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as cancelledAmount
+      SELECT
+      COUNT(DISTINCT h.DOCNO) as cancelledCount,
+        SUM(CAST(h.TOTALAMOUNT as DECIMAL(18, 2))) as cancelledAmount
           FROM CSSALE h
           WHERE h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
@@ -1184,13 +1255,13 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT h.DOCNO) as cnCount,
-            SUM(CAST(h.TOTALAMOUNT as DECIMAL(18,2))) as cnAmount
+      SELECT
+      COUNT(DISTINCT h.DOCNO) as cnCount,
+        SUM(CAST(h.TOTALAMOUNT as DECIMAL(18, 2))) as cnAmount
           FROM CSSALE h
           WHERE h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
-            AND LEFT(h.DOCNO, 2) IN ('CS', 'CN')
+            AND LEFT(h.DOCNO, 2) IN('CS', 'CN')
         `);
 
       res.json({
@@ -1245,26 +1316,26 @@ export class AnalyticsController {
 
       let query = `
         SELECT TOP ${limit}
-          h.DOCNO,
-          h.DOCDATE,
-          h.TAXTYPE,
-          h.TAXRATE,
-          h.SUMAMOUNT1 as sumBeforeDisc,
-          h.DISCAMOUNT as headerDisc,
-          h.AFTERDISC as afterDisc,
-          h.BASEOFTAX,
-          h.TAXAMOUNT as vat,
-          h.TOTALAMOUNT as total,
-          (
-            SELECT SUM(CAST(d.NETAMOUNT as DECIMAL(18,2)))
+      h.DOCNO,
+        h.DOCDATE,
+        h.TAXTYPE,
+        h.TAXRATE,
+        h.SUMAMOUNT1 as sumBeforeDisc,
+        h.DISCAMOUNT as headerDisc,
+        h.AFTERDISC as afterDisc,
+        h.BASEOFTAX,
+        h.TAXAMOUNT as vat,
+        h.TOTALAMOUNT as total,
+        (
+          SELECT SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2)))
             FROM CSSALESUB d
             WHERE d.DOCNO = h.DOCNO
               AND d.PRODUCTCODE NOT LIKE '%X6'
               AND d.PRODUCTCODE NOT LIKE '%X12'
               AND d.PRODUCTCODE NOT LIKE '%X120'
           ) as detailSum,
-          (
-            SELECT SUM(CAST(d.AMOUNT as DECIMAL(18,2)))
+        (
+          SELECT SUM(CAST(d.AMOUNT as DECIMAL(18, 2)))
             FROM CSSALESUB d
             WHERE d.DOCNO = h.DOCNO
               AND d.PRODUCTCODE NOT LIKE '%X6'
@@ -1275,7 +1346,7 @@ export class AnalyticsController {
         WHERE LEFT(h.DOCNO, 2) = 'SA'
           AND h.CANCELDATE IS NULL
           AND h.TOTALAMOUNT > 0
-      `;
+        `;
 
       if (startDate && endDate) {
         query += `
@@ -1360,38 +1431,38 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT DOCNO) as invoiceCount,
+      SELECT
+      COUNT(DISTINCT DOCNO) as invoiceCount,
 
-            -- Main Amount Fields
-            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as sumAmount1,
-            SUM(CAST(SUMAMOUNT2 as DECIMAL(18,2))) as sumAmount2,
-            SUM(CAST(SUMAMOUNT2B as DECIMAL(18,2))) as sumAmount2B,
-            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as afterDisc,
-            SUM(CAST(BASEOFTAX as DECIMAL(18,2))) as baseOfTax,
-            SUM(CAST(TAXAMOUNT as DECIMAL(18,2))) as taxAmount,
-            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
-            SUM(CAST(DEBTAMOUNT as DECIMAL(18,2))) as debtAmount,
+        --Main Amount Fields
+      SUM(CAST(SUMAMOUNT1 as DECIMAL(18, 2))) as sumAmount1,
+        SUM(CAST(SUMAMOUNT2 as DECIMAL(18, 2))) as sumAmount2,
+        SUM(CAST(SUMAMOUNT2B as DECIMAL(18, 2))) as sumAmount2B,
+        SUM(CAST(AFTERDISC as DECIMAL(18, 2))) as afterDisc,
+        SUM(CAST(BASEOFTAX as DECIMAL(18, 2))) as baseOfTax,
+        SUM(CAST(TAXAMOUNT as DECIMAL(18, 2))) as taxAmount,
+        SUM(CAST(TOTALAMOUNT as DECIMAL(18, 2))) as totalAmount,
+        SUM(CAST(DEBTAMOUNT as DECIMAL(18, 2))) as debtAmount,
 
-            -- Discount Fields
-            SUM(CAST(DISCAMOUNT as DECIMAL(18,2))) as discAmount,
-            SUM(CAST(DISCAMOUNT2 as DECIMAL(18,2))) as discAmount2,
-            SUM(CAST(DISCAMOUNTVE as DECIMAL(18,2))) as discAmountVE,
-            SUM(CAST(SUMPROMODISC as DECIMAL(18,2))) as sumPromoDisc,
+        --Discount Fields
+      SUM(CAST(DISCAMOUNT as DECIMAL(18, 2))) as discAmount,
+        SUM(CAST(DISCAMOUNT2 as DECIMAL(18, 2))) as discAmount2,
+        SUM(CAST(DISCAMOUNTVE as DECIMAL(18, 2))) as discAmountVE,
+        SUM(CAST(SUMPROMODISC as DECIMAL(18, 2))) as sumPromoDisc,
 
-            -- Bath Currency Fields
-            SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18,2))) as bathSumAmount1,
-            SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18,2))) as bathSumAmount2,
-            SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18,2))) as bathTotalAmount,
+        --Bath Currency Fields
+      SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18, 2))) as bathSumAmount1,
+        SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18, 2))) as bathSumAmount2,
+        SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18, 2))) as bathTotalAmount,
 
-            -- Flags Analysis
-            COUNT(CASE WHEN CLOSEFLAG = 0 THEN 1 END) as closeFlagZero,
-            COUNT(CASE WHEN CLOSEFLAG = 1 THEN 1 END) as closeFlagOne,
-            COUNT(CASE WHEN SYSDOCFLAG = 0 THEN 1 END) as sysDocFlagZero,
-            COUNT(CASE WHEN SYSDOCFLAG = 1 THEN 1 END) as sysDocFlagOne,
-            COUNT(CASE WHEN TAXTYPE = 0 THEN 1 END) as taxTypeZero,
-            COUNT(CASE WHEN TAXTYPE = 1 THEN 1 END) as taxTypeOne,
-            COUNT(CASE WHEN TAXTYPE = 2 THEN 1 END) as taxTypeTwo
+        --Flags Analysis
+      COUNT(CASE WHEN CLOSEFLAG = 0 THEN 1 END) as closeFlagZero,
+        COUNT(CASE WHEN CLOSEFLAG = 1 THEN 1 END) as closeFlagOne,
+        COUNT(CASE WHEN SYSDOCFLAG = 0 THEN 1 END) as sysDocFlagZero,
+        COUNT(CASE WHEN SYSDOCFLAG = 1 THEN 1 END) as sysDocFlagOne,
+        COUNT(CASE WHEN TAXTYPE = 0 THEN 1 END) as taxTypeZero,
+        COUNT(CASE WHEN TAXTYPE = 1 THEN 1 END) as taxTypeOne,
+        COUNT(CASE WHEN TAXTYPE = 2 THEN 1 END) as taxTypeTwo
 
           FROM CSSALE
           WHERE DOCDATE >= @startDate
@@ -1405,34 +1476,34 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            -- All products (including variants)
-            SUM(CAST(d.AMOUNT as DECIMAL(18,2))) as detailAmountAll,
-            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as detailNetAmountAll,
-            SUM(CAST(d.DISCAMOUNT as DECIMAL(18,2))) as detailDiscAmountAll,
+      SELECT
+      --All products(including variants)
+      SUM(CAST(d.AMOUNT as DECIMAL(18, 2))) as detailAmountAll,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as detailNetAmountAll,
+        SUM(CAST(d.DISCAMOUNT as DECIMAL(18, 2))) as detailDiscAmountAll,
 
-            -- Base products only (exclude X6, X12, X120)
-            SUM(CASE
+        --Base products only(exclude X6, X12, X120)
+      SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.AMOUNT as DECIMAL(18,2))
+              THEN CAST(d.AMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailAmountBase,
 
-            SUM(CASE
+        SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.NETAMOUNT as DECIMAL(18,2))
+              THEN CAST(d.NETAMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailNetAmountBase,
 
-            SUM(CASE
+        SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.DISCAMOUNT as DECIMAL(18,2))
+              THEN CAST(d.DISCAMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailDiscAmountBase
 
@@ -1449,15 +1520,15 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT DOCNO) as cnCount,
-            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as cnSumAmount1,
-            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as cnAfterDisc,
-            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as cnTotalAmount
+      SELECT
+      COUNT(DISTINCT DOCNO) as cnCount,
+        SUM(CAST(SUMAMOUNT1 as DECIMAL(18, 2))) as cnSumAmount1,
+        SUM(CAST(AFTERDISC as DECIMAL(18, 2))) as cnAfterDisc,
+        SUM(CAST(TOTALAMOUNT as DECIMAL(18, 2))) as cnTotalAmount
           FROM CSSALE
           WHERE DOCDATE >= @startDate
             AND DOCDATE <= @endDate
-            AND LEFT(DOCNO, 2) IN ('CS', 'CN')
+            AND LEFT(DOCNO, 2) IN('CS', 'CN')
             AND CANCELDATE IS NULL
         `);
 
@@ -1563,7 +1634,7 @@ export class AnalyticsController {
         notes: {
           externalAPI: 'External API (jhserver) Base only amount',
           recommendation: `ฟิลด์ที่ใกล้เคียงที่สุดคือ: ${results[0].field} (ต่างเพียง ${results[0].absDiff.toLocaleString()} บาท หรือ ${Math.abs(results[0].percentDiff)}%)`,
-          cnNote: cnData.cnCount > 0 ? `มี CN ${cnData.cnCount} ใบ ยอดรวม ${(cnData.cnTotalAmount || 0).toLocaleString()} บาท (ถูกนำออกจากยอดขายแล้ว)` : 'ไม่มี Credit Notes ในช่วงเวลานี้'
+          cnNote: cnData.cnCount > 0 ? `มี CN ${cnData.cnCount} ใบ ยอดรวม ${(cnData.cnTotalAmount || 0).toLocaleString()} บาท(ถูกนำออกจากยอดขายแล้ว)` : 'ไม่มี Credit Notes ในช่วงเวลานี้'
         }
       });
 
@@ -1590,33 +1661,33 @@ export class AnalyticsController {
 
       // Query: หาใบขายที่มีทั้ง base code และ variant code
       let query = `
-        WITH ProductPairs AS (
+        WITH ProductPairs AS(
           SELECT
             d1.DOCNO,
-            d1.PRODUCTCODE as baseCode,
-            d1.PRODUCTNAME as baseName,
-            d1.QUANTITY as baseQty,
-            d1.NETAMOUNT as baseAmount,
-            d2.PRODUCTCODE as variantCode,
-            d2.PRODUCTNAME as variantName,
-            d2.QUANTITY as variantQty,
-            d2.NETAMOUNT as variantAmount,
-            h.DOCDATE,
-            h.ARNAME as customerName,
-            h.TOTALAMOUNT as docTotal
+          d1.PRODUCTCODE as baseCode,
+          d1.PRODUCTNAME as baseName,
+          d1.QUANTITY as baseQty,
+          d1.NETAMOUNT as baseAmount,
+          d2.PRODUCTCODE as variantCode,
+          d2.PRODUCTNAME as variantName,
+          d2.QUANTITY as variantQty,
+          d2.NETAMOUNT as variantAmount,
+          h.DOCDATE,
+          h.ARNAME as customerName,
+          h.TOTALAMOUNT as docTotal
           FROM CSSALESUB d1
           INNER JOIN CSSALE h ON d1.DOCNO = h.DOCNO
           INNER JOIN CSSALESUB d2 ON d1.DOCNO = d2.DOCNO
           WHERE
             d2.PRODUCTCODE LIKE d1.PRODUCTCODE + 'X%'
             AND LEFT(h.DOCNO, 2) = 'SA'
-      `;
+          `;
 
       if (startDate && endDate) {
         query += `
             AND h.DOCDATE >= @startDate
             AND h.DOCDATE <= @endDate
-        `;
+          `;
         request.input('startDate', sql.Date, startDate as string);
         request.input('endDate', sql.Date, endDate as string);
       }
@@ -1624,19 +1695,19 @@ export class AnalyticsController {
       query += `
         )
         SELECT TOP ${parseInt(limit as string)}
-          DOCNO as docno,
-          DOCDATE as docdate,
-          customerName,
-          docTotal,
-          baseCode,
-          baseName,
-          baseQty,
-          baseAmount,
-          variantCode,
-          variantName,
-          variantQty,
-          variantAmount,
-          (baseAmount + variantAmount) as combinedAmount
+      DOCNO as docno,
+        DOCDATE as docdate,
+        customerName,
+        docTotal,
+        baseCode,
+        baseName,
+        baseQty,
+        baseAmount,
+        variantCode,
+        variantName,
+        variantQty,
+        variantAmount,
+        (baseAmount + variantAmount) as combinedAmount
         FROM ProductPairs
         ORDER BY DOCDATE DESC, (baseAmount + variantAmount) DESC
       `;
@@ -1691,29 +1762,29 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT DOCNO) as invoiceCount,
+      SELECT
+      COUNT(DISTINCT DOCNO) as invoiceCount,
 
-            -- Main Amount Fields
-            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as sumAmount1,
-            SUM(CAST(SUMAMOUNT2 as DECIMAL(18,2))) as sumAmount2,
-            SUM(CAST(SUMAMOUNT2B as DECIMAL(18,2))) as sumAmount2B,
-            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as afterDisc,
-            SUM(CAST(BASEOFTAX as DECIMAL(18,2))) as baseOfTax,
-            SUM(CAST(TAXAMOUNT as DECIMAL(18,2))) as taxAmount,
-            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as totalAmount,
-            SUM(CAST(DEBTAMOUNT as DECIMAL(18,2))) as debtAmount,
+        --Main Amount Fields
+      SUM(CAST(SUMAMOUNT1 as DECIMAL(18, 2))) as sumAmount1,
+        SUM(CAST(SUMAMOUNT2 as DECIMAL(18, 2))) as sumAmount2,
+        SUM(CAST(SUMAMOUNT2B as DECIMAL(18, 2))) as sumAmount2B,
+        SUM(CAST(AFTERDISC as DECIMAL(18, 2))) as afterDisc,
+        SUM(CAST(BASEOFTAX as DECIMAL(18, 2))) as baseOfTax,
+        SUM(CAST(TAXAMOUNT as DECIMAL(18, 2))) as taxAmount,
+        SUM(CAST(TOTALAMOUNT as DECIMAL(18, 2))) as totalAmount,
+        SUM(CAST(DEBTAMOUNT as DECIMAL(18, 2))) as debtAmount,
 
-            -- Discount Fields
-            SUM(CAST(DISCAMOUNT as DECIMAL(18,2))) as discAmount,
-            SUM(CAST(DISCAMOUNT2 as DECIMAL(18,2))) as discAmount2,
-            SUM(CAST(DISCAMOUNTVE as DECIMAL(18,2))) as discAmountVE,
-            SUM(CAST(SUMPROMODISC as DECIMAL(18,2))) as sumPromoDisc,
+        --Discount Fields
+      SUM(CAST(DISCAMOUNT as DECIMAL(18, 2))) as discAmount,
+        SUM(CAST(DISCAMOUNT2 as DECIMAL(18, 2))) as discAmount2,
+        SUM(CAST(DISCAMOUNTVE as DECIMAL(18, 2))) as discAmountVE,
+        SUM(CAST(SUMPROMODISC as DECIMAL(18, 2))) as sumPromoDisc,
 
-            -- Bath Currency Fields
-            SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18,2))) as bathSumAmount1,
-            SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18,2))) as bathSumAmount2,
-            SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18,2))) as bathTotalAmount
+        --Bath Currency Fields
+      SUM(CAST(BATHSUMAMOUNT1 as DECIMAL(18, 2))) as bathSumAmount1,
+        SUM(CAST(BATHSUMAMOUNT2 as DECIMAL(18, 2))) as bathSumAmount2,
+        SUM(CAST(BATHTOTALAMOUNT as DECIMAL(18, 2))) as bathTotalAmount
 
           FROM CSSALE
           WHERE DOCDATE >= @startDate
@@ -1727,34 +1798,34 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            -- All products (including variants)
-            SUM(CAST(d.AMOUNT as DECIMAL(18,2))) as detailAmountAll,
-            SUM(CAST(d.NETAMOUNT as DECIMAL(18,2))) as detailNetAmountAll,
-            SUM(CAST(d.DISCAMOUNT as DECIMAL(18,2))) as detailDiscAmountAll,
+      SELECT
+      --All products(including variants)
+      SUM(CAST(d.AMOUNT as DECIMAL(18, 2))) as detailAmountAll,
+        SUM(CAST(d.NETAMOUNT as DECIMAL(18, 2))) as detailNetAmountAll,
+        SUM(CAST(d.DISCAMOUNT as DECIMAL(18, 2))) as detailDiscAmountAll,
 
-            -- Base products only (exclude X6, X12, X120)
-            SUM(CASE
+        --Base products only(exclude X6, X12, X120)
+      SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.AMOUNT as DECIMAL(18,2))
+              THEN CAST(d.AMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailAmountBase,
 
-            SUM(CASE
+        SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.NETAMOUNT as DECIMAL(18,2))
+              THEN CAST(d.NETAMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailNetAmountBase,
 
-            SUM(CASE
+        SUM(CASE
               WHEN d.PRODUCTCODE NOT LIKE '%X6'
                 AND d.PRODUCTCODE NOT LIKE '%X12'
                 AND d.PRODUCTCODE NOT LIKE '%X120'
-              THEN CAST(d.DISCAMOUNT as DECIMAL(18,2))
+              THEN CAST(d.DISCAMOUNT as DECIMAL(18, 2))
               ELSE 0
             END) as detailDiscAmountBase
 
@@ -1771,15 +1842,15 @@ export class AnalyticsController {
         .input('startDate', sql.Date, startDate as string)
         .input('endDate', sql.Date, endDate as string)
         .query(`
-          SELECT
-            COUNT(DISTINCT DOCNO) as cnCount,
-            SUM(CAST(SUMAMOUNT1 as DECIMAL(18,2))) as cnSumAmount1,
-            SUM(CAST(AFTERDISC as DECIMAL(18,2))) as cnAfterDisc,
-            SUM(CAST(TOTALAMOUNT as DECIMAL(18,2))) as cnTotalAmount
+      SELECT
+      COUNT(DISTINCT DOCNO) as cnCount,
+        SUM(CAST(SUMAMOUNT1 as DECIMAL(18, 2))) as cnSumAmount1,
+        SUM(CAST(AFTERDISC as DECIMAL(18, 2))) as cnAfterDisc,
+        SUM(CAST(TOTALAMOUNT as DECIMAL(18, 2))) as cnTotalAmount
           FROM CSSALE
           WHERE DOCDATE >= @startDate
             AND DOCDATE <= @endDate
-            AND LEFT(DOCNO, 2) IN ('CS', 'CN')
+            AND LEFT(DOCNO, 2) IN('CS', 'CN')
             AND CANCELDATE IS NULL
         `);
 
@@ -1892,8 +1963,8 @@ export class AnalyticsController {
         interpretation: Math.abs((sumAmount1Comparison.value - dashboardValue) / dashboardValue * 100) < 0.01
           ? '✅ ตรงกับ Dashboard (ต่างกันแค่ปัดเศษ)'
           : Math.abs((sumAmount1Comparison.value - dashboardValue) / dashboardValue * 100) < 1
-          ? '✅ ใกล้เคียง Dashboard มาก (ต่างกันไม่ถึง 1%)'
-          : '⚠️ ต่างจาก Dashboard มากกว่า 1%'
+            ? '✅ ใกล้เคียง Dashboard มาก (ต่างกันไม่ถึง 1%)'
+            : '⚠️ ต่างจาก Dashboard มากกว่า 1%'
       } : null;
 
       // Response
@@ -1919,10 +1990,10 @@ export class AnalyticsController {
               interpretation: Math.abs(sumAmount1Comparison.percentDiff) < 1
                 ? '✅ ใกล้เคียง External API มาก (ต่างกันไม่ถึง 1%)'
                 : Math.abs(sumAmount1Comparison.percentDiff) < 5
-                ? '✓ ใกล้เคียง External API (ต่างกันไม่ถึง 5%)'
-                : Math.abs(sumAmount1Comparison.percentDiff) < 10
-                ? '⚠️ ต่างจาก External API ปานกลาง (5-10%)'
-                : '❌ ต่างจาก External API มาก (มากกว่า 10%)'
+                  ? '✓ ใกล้เคียง External API (ต่างกันไม่ถึง 5%)'
+                  : Math.abs(sumAmount1Comparison.percentDiff) < 10
+                    ? '⚠️ ต่างจาก External API ปานกลาง (5-10%)'
+                    : '❌ ต่างจาก External API มาก (มากกว่า 10%)'
             },
             vsDashboard: sumAmount1VsDashboard
           } : null,
@@ -1938,10 +2009,10 @@ export class AnalyticsController {
               interpretation: Math.abs(netAmountBaseComparison.percentDiff) < 1
                 ? '✅ ใกล้เคียง External API Base มาก (ต่างกันไม่ถึง 1%)'
                 : Math.abs(netAmountBaseComparison.percentDiff) < 5
-                ? '✓ ใกล้เคียง External API Base (ต่างกันไม่ถึง 5%)'
-                : Math.abs(netAmountBaseComparison.percentDiff) < 10
-                ? '⚠️ ต่างจาก External API Base ปานกลาง (5-10%)'
-                : '❌ ต่างจาก External API Base มาก (มากกว่า 10%)'
+                  ? '✓ ใกล้เคียง External API Base (ต่างกันไม่ถึง 5%)'
+                  : Math.abs(netAmountBaseComparison.percentDiff) < 10
+                    ? '⚠️ ต่างจาก External API Base ปานกลาง (5-10%)'
+                    : '❌ ต่างจาก External API Base มาก (มากกว่า 10%)'
             }
           } : null,
 
@@ -1984,10 +2055,10 @@ export class AnalyticsController {
           interpretation: comparisons[0] && Math.abs(comparisons[0].percentDiff) < 1
             ? '✅ ยอดขายใกล้เคียงมาก (ต่างกันไม่ถึง 1%)'
             : comparisons[0] && Math.abs(comparisons[0].percentDiff) < 5
-            ? '✓ ยอดขายใกล้เคียง (ต่างกันไม่ถึง 5%)'
-            : comparisons[0] && Math.abs(comparisons[0].percentDiff) < 10
-            ? '⚠️ ยอดขายมีความแตกต่างปานกลาง (5-10%)'
-            : '❌ ยอดขายแตกต่างกันมาก (มากกว่า 10%)',
+              ? '✓ ยอดขายใกล้เคียง (ต่างกันไม่ถึง 5%)'
+              : comparisons[0] && Math.abs(comparisons[0].percentDiff) < 10
+                ? '⚠️ ยอดขายมีความแตกต่างปานกลาง (5-10%)'
+                : '❌ ยอดขายแตกต่างกันมาก (มากกว่า 10%)',
 
           recommendedForDashboard: {
             field: 'SUMAMOUNT1',

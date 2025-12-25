@@ -36,7 +36,7 @@ export async function checkSupabaseConnection(): Promise<boolean> {
   }
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database, 'public'>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: false, // CRITICAL: Disable auto refresh to prevent refresh loops

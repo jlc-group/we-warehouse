@@ -26,6 +26,7 @@ import { DisabledComponent } from '@/components/DisabledComponents';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
 import { BulkExportModal } from '@/components/BulkExportModal';
+import { SPOUTDebug } from '@/components/debug/SPOUTDebug';
 
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const InventoryAnalytics = lazy(() => import('@/components/InventoryAnalytics'));
@@ -73,6 +74,7 @@ import { StockOverviewPage } from '@/components/stock-overview/StockOverviewPage
 import { WarehouseManagementPage } from '@/components/WarehouseManagementPage';
 // import { ExternalSalesTab } from '@/components/ExternalSalesTab'; // ปิดชั่วคราว - ยังไม่จำเป็นต้องใช้
 import { PackingListTab } from '@/components/PackingListTab';
+import { DailyShipmentSummary } from '@/components/DailyShipmentSummary';
 import { StockCardTab } from '@/components/StockCardTab';
 import { StockCardTabNew } from '@/components/StockCardTabNew';
 import { TransferTab } from '@/components/TransferTab';
@@ -949,7 +951,11 @@ const Index = memo(() => {
                 </TabsTrigger>
                 <TabsTrigger value="packing-list" className="flex items-center gap-2">
                   <Package className="h-4 w-4" />
-                  รายการแพค
+                  รายการส่งของ
+                </TabsTrigger>
+                <TabsTrigger value="daily-shipment" className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  สรุปส่ง Csmile
                 </TabsTrigger>
                 <TabsTrigger value="warehouse-management" className="flex items-center gap-2">
                   <Warehouse className="h-4 w-4" />
@@ -983,6 +989,10 @@ const Index = memo(() => {
 
               <TabsContent value="packing-list" className="space-y-4">
                 <PackingListTab />
+              </TabsContent>
+
+              <TabsContent value="daily-shipment" className="space-y-4">
+                <DailyShipmentSummary />
               </TabsContent>
 
               <TabsContent value="warehouse-management" className="space-y-4">
@@ -1289,9 +1299,10 @@ const Index = memo(() => {
           {/* Old management tab - can be removed or kept for admin */}
           <TabsContent value="management" className="space-y-4">
             <Tabs defaultValue="recovery" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-white border border-gray-200">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="recovery">กู้คืนข้อมูล</TabsTrigger>
                 <TabsTrigger value="export">Import/Export</TabsTrigger>
+                <TabsTrigger value="debug-spout">🔍 Debug SPOUT</TabsTrigger>
               </TabsList>
 
               <TabsContent value="recovery" className="space-y-4">
@@ -1300,6 +1311,10 @@ const Index = memo(() => {
 
               <TabsContent value="export" className="space-y-4">
                 <DisabledComponent name="Data Export" />
+              </TabsContent>
+
+              <TabsContent value="debug-spout" className="space-y-4">
+                <SPOUTDebug />
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -1316,6 +1331,49 @@ const Index = memo(() => {
 
           <TabsContent value="profile" className="space-y-4">
             <UserProfile />
+          </TabsContent>
+
+          <TabsContent value="debug-spout" className="space-y-4">
+            <SPOUTDebug />
+          </TabsContent>
+
+          {/* 📦 จัดการสินค้า - Product Management (Direct access from Sidebar) */}
+          <TabsContent value="product-management" className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+            ) : (
+              <Tabs defaultValue="inventory" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                  <TabsTrigger value="inventory" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    รายการสต็อก
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex items-center gap-2">
+                    <Hash className="h-4 w-4" />
+                    สรุปสินค้า
+                  </TabsTrigger>
+                  <TabsTrigger value="product-mgmt" className="flex items-center gap-2">
+                    <PackagePlus className="h-4 w-4" />
+                    จัดการข้อมูลสินค้า
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="inventory" className="space-y-4">
+                  <InventoryTable
+                    key={`inventory-table-sidebar-${inventoryItems.length}`}
+                    items={inventoryItems}
+                  />
+                </TabsContent>
+
+                <TabsContent value="products" className="space-y-4">
+                  <ProductSummaryTable />
+                </TabsContent>
+
+                <TabsContent value="product-mgmt" className="space-y-4">
+                  <ProductManagementPage />
+                </TabsContent>
+              </Tabs>
+            )}
           </TabsContent>
         </Tabs>
 

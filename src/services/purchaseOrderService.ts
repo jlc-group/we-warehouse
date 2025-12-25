@@ -6,8 +6,8 @@
 import { supabase } from '@/integrations/supabase/client';
 
 // API Configuration
-// Use VITE_SALES_API_URL to connect to we-warehouse-backend
-const API_BASE = import.meta.env.VITE_SALES_API_URL || 'http://localhost:3001/api/sales';
+// Use VITE_JLC_API_BASE for JH Database API endpoints
+const API_BASE = import.meta.env.VITE_JLC_API_BASE || 'http://localhost:3001/jhdb';
 
 // TypeScript Interfaces
 export interface PurchaseOrderHeader {
@@ -191,10 +191,10 @@ export class PurchaseOrderService {
   } | null> {
     try {
       // First, try to find exact match by product name
-      const initialResult = await supabase
-        .from('inventory_items')
+      const inventoryTable = supabase.from('inventory_items') as any;
+      const initialResult = await inventoryTable
         .select('id, product_name, sku, unit_level3_quantity, location')
-        .eq('product_name', productKeydata)
+        .eq('product_name' as any, productKeydata)
         .gt('unit_level3_quantity', 0)
         .limit(1)
         .single();
@@ -226,8 +226,8 @@ export class PurchaseOrderService {
             .limit(1);
 
           if (!fallbackError && fallbackData && fallbackData.length > 0) {
-            inventoryData = fallbackData[0];
-            console.warn(`Using fallback inventory for product: ${productKeydata} -> ${inventoryData.product_name}`);
+            inventoryData = fallbackData[0] as any;
+            console.warn(`Using fallback inventory for product: ${productKeydata} -> ${inventoryData?.product_name ?? 'unknown'}`);
           } else {
             // Strategy 3: Any item regardless of stock (last resort)
             const { data: lastResortData, error: lastResortError } = await supabase
@@ -237,8 +237,8 @@ export class PurchaseOrderService {
               .limit(1);
 
             if (!lastResortError && lastResortData && lastResortData.length > 0) {
-              inventoryData = lastResortData[0];
-              console.warn(`Using last resort inventory for product: ${productKeydata} -> ${inventoryData.product_name} (no stock)`);
+              inventoryData = lastResortData[0] as any;
+              console.warn(`Using last resort inventory for product: ${productKeydata} -> ${inventoryData?.product_name ?? 'unknown'} (no stock)`);
             } else {
               console.warn(`No inventory found for product: ${productKeydata}`);
               // Return default values instead of null
@@ -252,12 +252,12 @@ export class PurchaseOrderService {
           }
         }
       }
-
+      const inv: any = inventoryData as any;
       return {
-        inventory_item_id: inventoryData.id,
-        product_code: inventoryData.sku || productKeydata,
-        available_stock: inventoryData.unit_level3_quantity || 0,
-        location: inventoryData.location || 'ไม่ระบุ'
+        inventory_item_id: inv?.id,
+        product_code: inv?.sku || productKeydata,
+        available_stock: inv?.unit_level3_quantity || 0,
+        location: inv?.location || 'ไม่ระบุ'
       };
 
     } catch (error) {
@@ -272,59 +272,6 @@ export class PurchaseOrderService {
     }
   }
 
-  /**
-   * ค้นหาสินค้าจากทุก location (สำหรับเลือกหลาย location)
-   */
-  static async findAllInventoryLocationsForProduct(productKeydata: string): Promise<Array<{
-    inventory_item_id: string;
-    product_code: string;
-    available_stock: number;
-    location: string;
-  }>> {
-    try {
-      // ค้นหาทุก location ที่มีสินค้านี้และมีสต็อก - แยก query เป็น 2 แบบ
-
-      // พยายามค้นหาแบบ exact match ก่อน
-      let { data: inventoryData, error } = await supabase
-        .from('inventory_items')
-        .select('id, product_name, sku, unit_level3_quantity, location')
-        .eq('product_name', productKeydata)
-        .gt('unit_level3_quantity', 0);
-
-      // ถ้าไม่เจอ ลองค้นหาแบบ partial match
-      if (!inventoryData || inventoryData.length === 0) {
-        const result = await supabase
-          .from('inventory_items')
-          .select('id, product_name, sku, unit_level3_quantity, location')
-          .ilike('product_name', `%${productKeydata}%`)
-          .gt('unit_level3_quantity', 0);
-
-        inventoryData = result.data;
-        error = result.error;
-      }
-
-      if (error) throw error;
-
-      if (!inventoryData || inventoryData.length === 0) {
-        console.warn(`No inventory locations found for product: ${productKeydata}`);
-        return [];
-      }
-
-      // Sort in JavaScript instead of SQL
-      const sortedData = inventoryData.sort((a, b) => (b.unit_level3_quantity || 0) - (a.unit_level3_quantity || 0));
-
-      return sortedData.map(item => ({
-        inventory_item_id: item.id,
-        product_code: item.sku || productKeydata,
-        available_stock: item.unit_level3_quantity || 0,
-        location: item.location || 'ไม่ระบุ'
-      }));
-
-    } catch (error) {
-      console.error('Error finding inventory locations:', error);
-      return [];
-    }
-  }
 
   /**
    * Convert PO to Fulfillment Task format with inventory linking
@@ -460,69 +407,12 @@ export class PurchaseOrderService {
   }
 
   // ============================================================================
-  // Reservation System Integration
+  // Inventory Location Search (ใช้ inventory_items table โดยตรง)
   // ============================================================================
 
   /**
-   * ค้นหา inventory locations ทั้งหมดสำหรับสินค้า (รองรับ reservation)
-   * ใช้ View inventory_available เพื่อแสดง available stock ที่แท้จริง
-   */
-  static async findAllInventoryLocationsForProductWithReservation(
-    productName: string
-  ): Promise<Array<{
-    inventory_item_id: string;
-    location: string;
-    warehouse_code?: string;
-    total_stock: number;
-    reserved_stock: number;
-    available_stock: number;
-    unit_level1_name?: string;
-    unit_level2_name?: string;
-    unit_level3_name?: string;
-  }>> {
-    try {
-      const { data, error } = await supabase
-        .from('inventory_available')
-        .select(`
-          id,
-          location,
-          warehouse_code,
-          quantity,
-          reserved_quantity,
-          available_quantity,
-          unit_level1_name,
-          unit_level2_name,
-          unit_level3_name
-        `)
-        .eq('product_name', productName)
-        .gt('available_quantity', 0)  // แสดงเฉพาะที่มี available > 0
-        .order('available_quantity', { ascending: false });
-
-      if (error) {
-        console.error('Error finding inventory locations:', error);
-        return [];
-      }
-
-      return (data || []).map(item => ({
-        inventory_item_id: item.id,
-        location: item.location,
-        warehouse_code: item.warehouse_code,
-        total_stock: item.quantity,
-        reserved_stock: item.reserved_quantity,
-        available_stock: item.available_quantity,
-        unit_level1_name: item.unit_level1_name,
-        unit_level2_name: item.unit_level2_name,
-        unit_level3_name: item.unit_level3_name,
-      }));
-    } catch (error) {
-      console.error('Exception finding inventory locations:', error);
-      return [];
-    }
-  }
-
-  /**
-   * ค้นหา inventory locations สำหรับสินค้า (backward compatible)
-   * Alias สำหรับ function เดิมที่ใช้อยู่
+   * ค้นหา inventory locations ทั้งหมดสำหรับสินค้า
+   * ใช้ inventory_items table โดยตรง (แก้ปัญหา 400 error)
    */
   static async findAllInventoryLocationsForProduct(
     productName: string
@@ -531,12 +421,49 @@ export class PurchaseOrderService {
     location: string;
     available_stock: number;
   }>> {
-    const locations = await this.findAllInventoryLocationsForProductWithReservation(productName);
-    return locations.map(loc => ({
-      inventory_item_id: loc.inventory_item_id,
-      location: loc.location,
-      available_stock: loc.available_stock,
-    }));
+    try {
+      console.log('🔍 Searching inventory for product:', productName);
+      
+      // ค้นหาจาก inventory_items table โดยตรง
+      const { data, error } = await supabase
+        .from('inventory_items')
+        .select('id, product_name, location, quantity')
+        .gt('quantity', 0)
+        .order('quantity', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error finding inventory locations:', error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No inventory items found');
+        return [];
+      }
+
+      // กรองเฉพาะสินค้าที่ชื่อตรงกันหรือคล้ายกัน
+      const searchName = productName.toLowerCase().trim();
+      const filteredData = data.filter(item => {
+        const itemName = (item.product_name || '').toLowerCase().trim();
+        // ตรวจสอบหลายเงื่อนไข: exact match, contains, หรือ partial match
+        return itemName === searchName || 
+               itemName.includes(searchName) || 
+               searchName.includes(itemName) ||
+               // ตรวจสอบคำแรก
+               itemName.split(' ')[0] === searchName.split(' ')[0];
+      });
+
+      console.log(`✅ Found ${filteredData.length} locations for product: ${productName}`);
+
+      return filteredData.map(item => ({
+        inventory_item_id: item.id,
+        location: item.location || 'ไม่ระบุ',
+        available_stock: item.quantity || 0,
+      }));
+    } catch (error) {
+      console.error('❌ Exception finding inventory locations:', error);
+      return [];
+    }
   }
 
   /**
@@ -547,8 +474,8 @@ export class PurchaseOrderService {
   ): Promise<number> {
     try {
       const { data, error } = await supabase
-        .from('inventory_available')
-        .select('available_quantity')
+        .from('inventory_items')
+        .select('quantity')
         .eq('id', inventoryItemId)
         .single();
 
@@ -557,7 +484,7 @@ export class PurchaseOrderService {
         return 0;
       }
 
-      return data.available_quantity;
+      return data?.quantity ?? 0;
     } catch (error) {
       console.error('Exception getting available stock:', error);
       return 0;

@@ -7,11 +7,11 @@ import { AuthProvider } from "@/contexts/AuthContextSimple";
 import { InventoryProvider } from "@/contexts/InventoryContext";
 import { ProductsProvider } from "@/contexts/ProductsContext";
 import { LocationQRProvider } from "@/contexts/LocationQRContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ReactProfiler } from "@/debug/ReactProfiler";
-import "@/debug/intervalDetector"; // CRITICAL: Import to activate interval monitoring
 import Index from "./pages/Index";
+import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { LocationDetail } from "./pages/LocationDetail";
@@ -39,7 +39,7 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <ErrorBoundary>
-    <ReactProfiler id="App">
+    <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
@@ -50,26 +50,31 @@ const App = () => (
               v7_relativeSplatPath: true,
             }}
           >
-            <ReactProfiler id="AuthProvider">
-              <AuthProvider>
-              <ReactProfiler id="ProductsProvider">
-                <ProductsProvider>
-                  <LocationQRProvider>
-                    <ReactProfiler id="InventoryProvider">
-                      <InventoryProvider>
-                        <Routes>
+            <AuthProvider>
+              <ProductsProvider>
+                <LocationQRProvider>
+                  <InventoryProvider>
+                    <Routes>
+                      {/* หน้าหลักใหม่ พร้อม Sidebar */}
                       <Route
                         path="/"
                         element={
                           <AuthGuard>
-                            <ReactProfiler id="Index">
-                              <Index />
-                            </ReactProfiler>
+                            <Dashboard />
+                          </AuthGuard>
+                        }
+                      />
+                      {/* หน้าเก่า (เก็บไว้ backup) */}
+                      <Route
+                        path="/old"
+                        element={
+                          <AuthGuard>
+                            <Index />
                           </AuthGuard>
                         }
                       />
                       <Route path="/auth" element={<Auth />} />
-              <Route path="/simple-auth" element={<SimpleAuth />} />
+                      <Route path="/simple-auth" element={<SimpleAuth />} />
                       <Route
                         path="/location/:locationId"
                         element={
@@ -78,20 +83,17 @@ const App = () => (
                           </AuthGuard>
                         }
                       />
-                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                        <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </InventoryProvider>
-                    </ReactProfiler>
-                  </LocationQRProvider>
-                </ProductsProvider>
-              </ReactProfiler>
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </InventoryProvider>
+                </LocationQRProvider>
+              </ProductsProvider>
             </AuthProvider>
-          </ReactProfiler>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ReactProfiler>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   </ErrorBoundary>
 );
 

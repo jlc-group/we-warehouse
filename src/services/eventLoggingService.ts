@@ -55,6 +55,27 @@ export class EventLoggingService {
 
       const severity = params.severity_level || 'INFO';
 
+      // Validate user_id exists in auth.users before using it
+      // If user_id is provided but doesn't exist, set it to null to avoid FK constraint violation
+      let validUserId: string | null = null;
+      if (params.user_id) {
+        try {
+          const { data: userData, error: userError } = await supabase
+            .from('users' as any)
+            .select('id')
+            .eq('id', params.user_id as any)
+            .single();
+          
+          if (!userError && userData) {
+            validUserId = params.user_id;
+          } else {
+            console.warn(`⚠️ User ID ${params.user_id} not found in users table, logging event without user_id`);
+          }
+        } catch (userCheckError) {
+          console.warn('⚠️ Could not verify user_id, logging event without user_id');
+        }
+      }
+
       const { error } = await supabase
         .from('system_events')
         .insert({
@@ -66,7 +87,7 @@ export class EventLoggingService {
           severity: severityMap[severity],
           status: statusMap[severity],
           location_context: params.location_context || null,
-          user_id: params.user_id || null,
+          user_id: validUserId,
           metadata: metadata,
           created_at: new Date().toISOString()
         } as any); // Use 'as any' because TypeScript types are not synced with actual schema

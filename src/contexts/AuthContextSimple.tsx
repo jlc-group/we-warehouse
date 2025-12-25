@@ -27,6 +27,7 @@ interface AuthContextType {
   hasRole: (role: string) => boolean;
   hasMinimumRole: (level: number) => boolean;
   isInDepartment: (department: string) => boolean;
+  getCurrentUserId: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ตรวจสอบ session ตอน load หน้า
   useEffect(() => {
     const checkSession = () => {
+      console.log('🔍 DEBUG [A]: Auth checkSession started', { hasLocalStorage: !!localStorage.getItem('warehouse_user') });
       const userData = localStorage.getItem('warehouse_user');
       if (userData) {
         try {
@@ -49,11 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             department: parsedUser.department || 'ทั่วไป',
           };
           setUser(normalizedUser);
+          console.log('✅ User found in localStorage', { userId: normalizedUser.id, role: normalizedUser.role });
         } catch (error) {
           console.error('Error parsing user data:', error);
           localStorage.removeItem('warehouse_user');
         }
       }
+      console.log('🔍 DEBUG [A]: Auth checkSession completed, setting loading=false', { hasUser: !!userData });
       setLoading(false);
     };
 
@@ -198,6 +202,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.department === department;
   }, [user]);
 
+  // Get current user ID with fallback
+  const getCurrentUserId = useCallback((): string => {
+    if (user?.id) {
+      return user.id;
+    }
+    // Fallback to system user ID
+    return '00000000-0000-0000-0000-000000000000';
+  }, [user]);
+
   const value: AuthContextType = useMemo(() => ({
     user,
     loading,
@@ -208,7 +221,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasRole,
     hasMinimumRole,
     isInDepartment,
-  }), [user, loading, signIn, signUp, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment]);
+    getCurrentUserId,
+  }), [user, loading, signIn, signUp, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment, getCurrentUserId]);
 
   return (
     <AuthContext.Provider value={value}>

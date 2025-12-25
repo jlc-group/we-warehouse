@@ -1,4 +1,6 @@
+// @ts-expect-error: Deno runtime imports
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+// @ts-expect-error: Deno runtime imports
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.43.4";
 
 type JsonResponsePayload = {
@@ -16,7 +18,9 @@ const corsHeaders: JsonHeaders = {
   "Access-Control-Max-Age": "86400",
 };
 
+// @ts-expect-error: Deno global
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
+// @ts-expect-error: Deno global
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
 if (!supabaseUrl || !serviceRoleKey) {
@@ -40,7 +44,7 @@ function jsonResponse(status: number, payload: JsonResponsePayload) {
   });
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 204, headers: corsHeaders });
   }
@@ -476,7 +480,7 @@ serve(async (req) => {
         }
 
         if (currentItems && currentItems.length > 0) {
-          const movementLogs = currentItems.map((item) => ({
+          const movementLogs = currentItems.map((item: any) => ({
             item_id: item.id,
             movement_type: "transfer",
             location_from: item.location,
@@ -519,7 +523,7 @@ serve(async (req) => {
         }
 
         if (itemsToShip && itemsToShip.length > 0) {
-          const movementLogs = itemsToShip.map((item) => ({
+          const movementLogs = itemsToShip.map((item: any) => ({
             item_id: item.id,
             movement_type: "ship_out",
             location_from: item.location,

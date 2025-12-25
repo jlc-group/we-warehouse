@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,6 +113,7 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
   const fetchProducts = useCallback(async (force = false) => {
     try {
       console.log('🔄 ProductsContext: fetchProducts called (real DB)', { force });
+      console.log('🔍 DEBUG [B]: fetchProducts started', { force });
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
@@ -144,6 +146,8 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: false })
         .limit(200) // Reduced from 500 to speed up
         .abortSignal(AbortSignal.timeout(15000)); // 15 second timeout with proper abort signal
+
+      console.log('✅ Supabase query completed', { hasError: !!error, productCount: products?.length || 0 });
 
       if (error) {
         console.error('ProductsContext: Supabase error:', error);
@@ -327,7 +331,8 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
       // clearInterval(refreshInterval);
       isFetchingRef.current = false;
     };
-  }, [fetchProducts]); // Include fetchProducts in dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array intentional - only run on mount
 
   // CRITICAL: Memoize context value to prevent re-render cascades
   const contextValue: ProductsContextType = useMemo(() => ({
@@ -355,6 +360,8 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Custom hook to use ProductsContext
+// Note: Exporting both component and hook is intentional for Context pattern
 export function useProducts() {
   const context = useContext(ProductsContext);
   if (!context) {

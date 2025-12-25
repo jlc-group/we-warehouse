@@ -18,15 +18,22 @@ import {
   TrendingUp,
   TrendingDown,
   ArrowRight,
+  ArrowLeftRight,
   Scan,
   X,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Minus
 } from 'lucide-react';
 import {
   LocationActivityService,
   type LocationActivity,
   type LocationInventorySummary
 } from '@/services/locationActivityService';
+import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
+import { LocationRemoveItemModal } from '@/components/location/LocationRemoveItemModal';
+import { LocationTransferModal } from '@/components/location/LocationTransferModal';
+import { supabase } from '@/integrations/supabase/client';
 
 interface LocationDetailViewProps {
   location: string;
@@ -38,6 +45,12 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
   const [history, setHistory] = useState<LocationActivity[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Modal states
+  const [showAddItemModal, setShowAddItemModal] = useState(false);
+  const [showRemoveItemModal, setShowRemoveItemModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [locationInventory, setLocationInventory] = useState<any[]>([]);
 
   useEffect(() => {
     loadLocationData();
@@ -57,6 +70,13 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
       setInventory(inventoryData);
       setHistory(historyData.data);
       setStats(statsData);
+
+      // Load full inventory for transfer modal
+      const { data: fullInventory } = await (supabase
+        .from('inventory_items') as any)
+        .select('*')
+        .eq('location', location);
+      setLocationInventory(fullInventory || []);
     } catch (error) {
       console.error('Error loading location data:', error);
     } finally {
@@ -150,6 +170,41 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
           </Card>
         </div>
       )}
+
+      {/* Action Buttons */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+        <CardContent className="p-3 sm:p-4">
+          <div className="text-xs sm:text-sm font-medium text-gray-700 mb-2">⚡ ดำเนินการ</div>
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              onClick={() => setShowAddItemModal(true)}
+              className="bg-green-600 hover:bg-green-700 h-12 sm:h-10 text-xs sm:text-sm"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">รับเข้า</span>
+              <span className="sm:hidden">รับ</span>
+            </Button>
+            <Button
+              onClick={() => setShowRemoveItemModal(true)}
+              className="bg-red-600 hover:bg-red-700 h-12 sm:h-10 text-xs sm:text-sm"
+              disabled={!inventory?.products?.length}
+            >
+              <Minus className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">ส่งออก</span>
+              <span className="sm:hidden">ออก</span>
+            </Button>
+            <Button
+              onClick={() => setShowTransferModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 h-12 sm:h-10 text-xs sm:text-sm"
+              disabled={!locationInventory.length}
+            >
+              <ArrowLeftRight className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">ย้าย</span>
+              <span className="sm:hidden">ย้าย</span>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Tabs defaultValue="inventory" className="space-y-3 sm:space-y-4">
@@ -296,7 +351,7 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
         </TabsContent>
       </Tabs>
 
-      {/* Action Buttons */}
+      {/* Footer Buttons */}
       <div className="flex gap-2">
         <Button onClick={loadLocationData} variant="outline" className="flex-1 h-11 sm:h-10">
           <RefreshCw className="h-4 w-4 mr-2" />
@@ -306,6 +361,39 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
           ปิด
         </Button>
       </div>
+
+      {/* Modals */}
+      <LocationAddItemModal
+        isOpen={showAddItemModal}
+        onClose={() => setShowAddItemModal(false)}
+        location={location}
+        onSuccess={() => {
+          loadLocationData();
+          setShowAddItemModal(false);
+        }}
+      />
+
+      <LocationRemoveItemModal
+        isOpen={showRemoveItemModal}
+        onClose={() => setShowRemoveItemModal(false)}
+        location={location}
+        inventory={inventory}
+        onSuccess={() => {
+          loadLocationData();
+          setShowRemoveItemModal(false);
+        }}
+      />
+
+      <LocationTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        fromLocationId={location}
+        inventory={locationInventory}
+        onSuccess={() => {
+          loadLocationData();
+          setShowTransferModal(false);
+        }}
+      />
     </div>
   );
 }

@@ -507,22 +507,46 @@ export const secureGatewayClient = {
             throw new Error('อัตราแปลงหน่วยระดับ 2 ต้องเป็นจำนวนบวก');
           }
 
+          const insertData = {
+            product_id: productId,
+            sku: payload.sku,
+            product_name: payload.product_name,
+            product_type: payload.product_type,
+            unit_level1_name: payload.unit_level1_name || 'ลัง',
+            unit_level1_rate: payload.unit_level1_rate || 144,
+            unit_level2_name: payload.unit_level2_name || 'กล่อง',
+            unit_level2_rate: payload.unit_level2_rate || 12,
+            unit_level3_name: payload.unit_level3_name || 'ชิ้น',
+            user_id: payload.user_id || '00000000-0000-0000-0000-000000000000'
+          };
+
+          console.log('🔄 Creating conversion rate with data:', insertData);
+
           const { data, error } = await supabase
             .from('product_conversion_rates')
-            .insert([{
-              product_id: productId,
-              unit_level1_name: payload.unit_level1_name || 'ลัง',
-              unit_level1_rate: payload.unit_level1_rate || 144,
-              unit_level2_name: payload.unit_level2_name || 'กล่อง',
-              unit_level2_rate: payload.unit_level2_rate || 12,
-              unit_level3_name: payload.unit_level3_name || 'ชิ้น',
-              user_id: '00000000-0000-0000-0000-000000000000'
-            }])
-            .select()
+            .insert([insertData])
+            .select(`
+              id,
+              sku,
+              product_name,
+              product_id,
+              product_type,
+              unit_level1_name,
+              unit_level1_rate,
+              unit_level2_name,
+              unit_level2_rate,
+              unit_level3_name,
+              created_at,
+              updated_at
+            `)
             .single();
 
-          if (error) throw error;
-          console.log('✅ Created conversion rate using product_id (no duplicate data!)');
+          if (error) {
+            console.error('❌ Supabase error creating conversion rate:', error);
+            throw error;
+          }
+
+          console.log('✅ Created conversion rate successfully');
           return { success: true, data };
         }
 
@@ -635,7 +659,7 @@ export const secureGatewayClient = {
             .from('product_conversion_rates')
             .upsert(payload.conversions.map((conv: any) => ({
               ...conv,
-              user_id: '00000000-0000-0000-0000-000000000000',
+              user_id: payload.user_id || '00000000-0000-0000-0000-000000000000',
               updated_at: new Date().toISOString()
             })), { onConflict: 'sku' })
             .select();

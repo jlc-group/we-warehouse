@@ -14,6 +14,7 @@ import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductsSummary } from '@/hooks/useProductsSummary';
+import { useConversionRates } from '@/hooks/useConversionRates';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, getProductsByType, type ProductType } from '@/data/sampleInventory';
 import { productHelpers } from '@/utils/productHelpers';
 
@@ -46,6 +47,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   const [quantityBoxes, setQuantityBoxes] = useState(0);
   const [quantityLoose, setQuantityLoose] = useState(0);
   const [quantityPieces, setQuantityPieces] = useState(0);
+  const { getConversionRate } = useConversionRates();
   const [conversionRates, setConversionRates] = useState({ unit_level1_rate: 144, unit_level2_rate: 12 });
   const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set());
   const [customLocation, setCustomLocation] = useState('');

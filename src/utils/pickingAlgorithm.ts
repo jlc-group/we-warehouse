@@ -4,7 +4,7 @@
  */
 
 import { normalizeLocation } from './locationUtils';
-import { calculateTotalBaseQuantity } from './unitCalculations';
+import { calculateTotalBaseQuantity, parseSKUWithMultiplier, calculateActualQuantityNeeded } from './unitCalculations';
 
 export interface ProductNeed {
   productCode: string;
@@ -52,9 +52,12 @@ export interface PickingLocation {
 }
 
 export interface PickingPlan {
-  productCode: string;
+  productCode: string;        // Original SKU (e.g., L3-8GX6)
+  baseSKU: string;            // Base SKU for inventory lookup (e.g., L3-8G)
+  multiplier: number;         // Multiplier from SKU (e.g., 6)
   productName: string;
-  totalNeeded: number;
+  totalNeeded: number;        // Actual quantity needed (originalQty × multiplier)
+  originalQuantity: number;   // Original requested quantity before multiplier
   totalAvailable: number;
   status: 'sufficient' | 'insufficient' | 'not_found';
   percentage: number;
@@ -138,25 +141,41 @@ export function sortLocationsByZone(locations: PickingLocation[]): PickingLocati
 /**
  * คำนวณ Picking Plan สำหรับแต่ละสินค้า
  * ใช้ FEFO (First Expired First Out) - หยิบจาก MFD เก่าก่อน
+ * 
+ * รองรับ SKU Multiplier: L3-8GX6 = L3-8G × 6
+ * - ค้นหา inventory ด้วย base SKU (L3-8G)
+ * - คูณจำนวนที่ต้องการด้วย multiplier
  */
 export function calculatePickingPlan(
   productNeed: ProductNeed,
   inventoryLocations: InventoryLocation[]
 ): PickingPlan {
-  const { productCode, productName, quantity: totalNeeded } = productNeed;
+  const { productCode, productName, quantity: originalQuantity } = productNeed;
 
-  // กรองเฉพาะ inventory ที่ตรงกับสินค้า (EXACT MATCH)
+  // ✅ Parse SKU with multiplier (e.g., L3-8GX6 → L3-8G × 6)
+  const skuParsed = calculateActualQuantityNeeded(productCode, originalQuantity);
+  const baseSKU = skuParsed.baseSKU;
+  const multiplier = skuParsed.multiplier;
+  const totalNeeded = skuParsed.actualQuantity; // originalQuantity × multiplier
+
+  console.log(`🔍 Picking: ${productCode} → Base: ${baseSKU}, Multiplier: ${multiplier}, Need: ${originalQuantity} × ${multiplier} = ${totalNeeded}`);
+
+  // กรองเฉพาะ inventory ที่ตรงกับ BASE SKU (ไม่ใช่ original SKU)
   const matchingInventory = inventoryLocations.filter(inv => {
-    // ตรวจสอบ SKU ต้องตรงทุกตัวอักษร (case-insensitive)
-    const skuMatch = inv.sku && inv.sku.toLowerCase() === productCode.toLowerCase();
+    // ตรวจสอบ SKU ต้องตรงกับ BASE SKU (case-insensitive)
+    const skuMatch = inv.sku && inv.sku.toLowerCase() === baseSKU.toLowerCase();
     return skuMatch;
   });
 
   if (matchingInventory.length === 0) {
+    console.log(`❌ Not found: ${baseSKU} (original: ${productCode})`);
     return {
       productCode,
+      baseSKU,
+      multiplier,
       productName,
       totalNeeded,
+      originalQuantity,
       totalAvailable: 0,
       status: 'not_found',
       percentage: 0,
@@ -227,10 +246,15 @@ export function calculatePickingPlan(
   const status: 'sufficient' | 'insufficient' = totalAvailable >= totalNeeded ? 'sufficient' : 'insufficient';
   const percentage = totalAvailable > 0 ? Math.min((totalAvailable / totalNeeded) * 100, 100) : 0;
 
+  console.log(`✅ Picking Plan: ${productCode} (${baseSKU} × ${multiplier}) - Available: ${totalAvailable}/${totalNeeded} (${percentage.toFixed(1)}%)`);
+
   return {
     productCode,
+    baseSKU,
+    multiplier,
     productName,
     totalNeeded,
+    originalQuantity,
     totalAvailable,
     status,
     percentage,

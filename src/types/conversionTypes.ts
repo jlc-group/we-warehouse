@@ -2,6 +2,7 @@
 // This file prevents circular dependencies by centralizing type definitions
 
 export interface ConversionRateData {
+  id?: string; // Primary key from database
   sku: string;
   product_name: string;
   product_id?: string; // Foreign key to products table
@@ -45,6 +46,7 @@ export interface ConversionRateInput {
   unit_level2_name?: string;
   unit_level2_rate?: number;
   unit_level3_name?: string;
+  id?: string; // Optional ID for updates
 }
 
 // New interface for products with conversion rates view

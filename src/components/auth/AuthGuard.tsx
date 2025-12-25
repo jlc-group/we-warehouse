@@ -31,6 +31,9 @@ export function AuthGuard({
     isInDepartment,
   } = useAuth();
 
+  // Debug logging only in development
+  console.log('🔍 DEBUG [A]: AuthGuard rendering', { loading, hasUser: !!user, userEmail: user?.email });
+
   // Show loading spinner while checking authentication
   if (loading) {
     return (

@@ -292,8 +292,7 @@ export function QRScanner({ isOpen, onClose, onScanSuccess }: QRScannerProps) {
 
                     <div
                       id="qr-scanner-container"
-                      className="mx-auto max-w-sm"
-                      style={{ minHeight: '250px' }}
+                      className="mx-auto max-w-sm min-h-[250px]"
                     />
 
                     {isScanning && (

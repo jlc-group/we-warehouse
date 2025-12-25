@@ -46,6 +46,7 @@ import {
   ProductListItem,
   CustomerListItem
 } from '@/hooks/useSalesData';
+import { AIInsightsPanel, AIChatBox } from '@/components/ai-insights';
 
 // ฟังก์ชัน format ตัวเลข
 const formatCurrency = (value: number) => {
@@ -255,7 +256,7 @@ export function SalesAnalytics() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <div>
               <Label htmlFor="startDate" className="text-blue-900">วันที่เริ่มต้น</Label>
               <Input
@@ -304,13 +305,13 @@ export function SalesAnalytics() {
         </CardHeader>
         <CardContent>
           {summaryLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4">
               {[1, 2, 3].map(i => (
                 <div key={i} className="h-24 bg-gray-200 rounded animate-pulse"></div>
               ))}
             </div>
           ) : salesSummary ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               {/* Sales Amount (SA) */}
               <div className="p-4 border-2 border-green-300 rounded-lg bg-white">
                 <div className="flex items-center justify-between mb-2">
@@ -369,7 +370,7 @@ export function SalesAnalytics() {
       </Card>
 
       {/* Stats Cards - ใช้ข้อมูลจาก Sales Summary แทน */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
         <Card className="border-l-4 border-l-green-500 bg-gradient-to-br from-green-50 to-emerald-50">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
@@ -443,6 +444,61 @@ export function SalesAnalytics() {
         </Card>
       </div>
 
+      {/* AI Insights Panel */}
+      <AIInsightsPanel
+        salesData={dailySalesData}
+        currentProducts={products?.map(p => ({
+          productCode: p.productCode,
+          productName: p.productName,
+          totalSales: p.totalSales,
+          totalQuantity: p.totalQuantity,
+          orderCount: 0
+        })) || []}
+        previousProducts={[]} // TODO: fetch previous period data
+        currentCustomers={customers?.map(c => ({
+          arcode: c.arcode,
+          arname: c.arname,
+          totalPurchases: c.totalPurchases,
+          orderCount: c.orderCount
+        })) || []}
+        previousCustomers={[]} // TODO: fetch previous period data
+        totalSales={salesSummary?.sales.amount || 0}
+        orderCount={salesSummary?.net.count || 0}
+        isLoading={salesLoading || productsLoading || customersLoading}
+      />
+
+      {/* AI Chat Assistant */}
+      <AIChatBox
+        context={{
+          totalSales: salesSummary?.sales.amount || 0,
+          orderCount: salesSummary?.net.count || 0,
+          topProducts: products?.slice(0, 20).map(p => ({
+            productCode: p.productCode,
+            productName: p.productName,
+            totalSales: p.totalSales,
+            totalQuantity: p.totalQuantity
+          })) || [],
+          topCustomers: customers?.slice(0, 20).map(c => ({
+            arcode: c.arcode,
+            arname: c.arname,
+            totalPurchases: c.totalPurchases,
+            orderCount: c.orderCount
+          })) || [],
+          dailySales: dailySalesData,
+          dateRange: {
+            startDate: dateRange.startDate,
+            endDate: dateRange.endDate
+          },
+          trend: dailySalesData.length > 1 ? {
+            direction: dailySalesData[dailySalesData.length - 1]?.amount > dailySalesData[0]?.amount ? 'up' : 'down',
+            percentChange: dailySalesData[0]?.amount > 0
+              ? ((dailySalesData[dailySalesData.length - 1]?.amount - dailySalesData[0]?.amount) / dailySalesData[0]?.amount) * 100
+              : 0
+          } : undefined
+        }}
+        isLoading={salesLoading || productsLoading || customersLoading}
+      />
+
       {/* Sales Chart */}
       <Card>
         <CardHeader>
@@ -479,7 +535,7 @@ export function SalesAnalytics() {
       </Card>
 
       {/* Top Products & Top Customers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Top Products */}
         <Card>
           <CardHeader>
@@ -590,7 +646,7 @@ export function SalesAnalytics() {
           <CollapsibleContent>
             <CardContent className="space-y-6">
               {/* Product Selector */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 <div>
                   <Label>เลือกสินค้า</Label>
                   <Select value={selectedProduct || ''} onValueChange={setSelectedProduct}>
@@ -623,7 +679,7 @@ export function SalesAnalytics() {
               {selectedProduct && productComparison.data && (
                 <>
                   {/* Product Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm text-gray-600">ยอดขาย</CardTitle>
@@ -713,7 +769,7 @@ export function SalesAnalytics() {
           <CollapsibleContent>
             <CardContent className="space-y-6">
               {/* Customer Selector */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:gap-4">
                 <div>
                   <Label>เลือกลูกค้า</Label>
                   <Select value={selectedCustomer || ''} onValueChange={setSelectedCustomer}>

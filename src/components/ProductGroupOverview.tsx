@@ -48,6 +48,14 @@ const COLOR_PALETTE = [
   '#7e22ce', // Deep Purple
 ];
 
+const DENSITY_OPACITY_CLASSES = [
+  'bg-blue-500/20',
+  'bg-blue-500/40',
+  'bg-blue-500/60',
+  'bg-blue-500/80',
+  'bg-blue-500',
+];
+
 export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOverviewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('product');
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
@@ -801,11 +809,10 @@ export function ProductGroupOverview({ items, onShelfClick }: ProductGroupOvervi
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-muted-foreground">น้อย</span>
                   <div className="flex gap-1">
-                    {[0.2, 0.4, 0.6, 0.8, 1.0].map((opacity) => (
+                    {DENSITY_OPACITY_CLASSES.map((opacityClass, index) => (
                       <div
-                        key={opacity}
-                        className="w-6 h-6 rounded border"
-                        style={{ backgroundColor: `rgba(37, 99, 235, ${opacity})` }}
+                        key={index}
+                        className={`w-6 h-6 rounded border ${opacityClass}`}
                       />
                     ))}
                   </div>

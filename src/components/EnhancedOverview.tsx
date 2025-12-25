@@ -1338,18 +1338,22 @@ export const EnhancedOverview = memo(({
       {viewMode === 'monitor' ? (
         <MonitorDashboardSimple items={items} warehouseId={warehouseId} onLocationClick={onShelfClick} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
-          {/* Visual Grid - Main Area */}
-          <div className="lg:col-span-3 order-2 lg:order-1">
+        <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 lg:gap-6">
+          {/* Visual Grid - Main Area - ขยายเป็น 5/6 (83%) */}
+          <div className="xl:col-span-5 order-2 xl:order-1">
             <Tabs defaultValue="grid" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 h-10 sm:h-auto">
-              <TabsTrigger value="grid" className="text-xs sm:text-sm">แผนผังคลัง</TabsTrigger>
-              <TabsTrigger value="table" className="text-xs sm:text-sm">ตารางรายการ</TabsTrigger>
-            </TabsList>
+            {/* Tabs - Sticky (under main header h-16) */}
+            <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 shadow-sm">
+              <TabsList className="grid w-full grid-cols-2 h-10 sm:h-auto">
+                <TabsTrigger value="grid" className="text-xs sm:text-sm">แผนผังคลัง</TabsTrigger>
+                <TabsTrigger value="table" className="text-xs sm:text-sm">ตารางรายการ</TabsTrigger>
+              </TabsList>
+            </div>
 
             <TabsContent value="grid">
-              <Card>
-                <CardHeader className="p-3 sm:p-6">
+              <Card className="overflow-visible">
+                {/* Card Header - Sticky (under Tabs ~top-28) */}
+                <CardHeader className="p-3 sm:p-6 sticky top-28 z-20 bg-white/95 backdrop-blur-sm border-b shadow-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                       <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -2075,6 +2079,7 @@ export const EnhancedOverview = memo(({
                                     <button
                                       onClick={() => setSelectedSkus(prev => prev.filter(s => s !== sku))}
                                       className="hover:bg-blue-200 rounded flex-shrink-0"
+                                      aria-label={`ลบ SKU ${sku} ออกจากตัวกรอง`}
                                     >
                                       <X className="h-3 w-3" />
                                     </button>
@@ -2097,6 +2102,7 @@ export const EnhancedOverview = memo(({
                                     <button
                                       onClick={() => setSelectedMfds(prev => prev.filter(m => m !== mfd))}
                                       className="hover:bg-green-200 rounded"
+                                      aria-label={`ลบ MFD ${mfd} ออกจากตัวกรอง`}
                                     >
                                       <X className="h-3 w-3" />
                                     </button>
@@ -2118,6 +2124,7 @@ export const EnhancedOverview = memo(({
                                     <button
                                       onClick={() => setSelectedProductTypes(prev => prev.filter(p => p !== productType))}
                                       className="hover:bg-purple-200 rounded"
+                                      aria-label={`ลบประเภทสินค้า ${productType} ออกจากตัวกรอง`}
                                     >
                                       <X className="h-3 w-3" />
                                     </button>
@@ -2139,6 +2146,7 @@ export const EnhancedOverview = memo(({
                                     <button
                                       onClick={() => setSelectedCategories(prev => prev.filter(c => c !== category))}
                                       className="hover:bg-orange-200 rounded"
+                                      aria-label={`ลบหมวดหมู่ ${category} ออกจากตัวกรอง`}
                                     >
                                       <X className="h-3 w-3" />
                                     </button>
@@ -2419,32 +2427,32 @@ export const EnhancedOverview = memo(({
           </Tabs>
         </div>
 
-        {/* Right Sidebar - Hidden on mobile */}
-        <div className="hidden lg:block space-y-6 order-1 lg:order-2">
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">🎛️ การดำเนินการด่วน</CardTitle>
+        {/* Right Sidebar - แสดงเฉพาะหน้าจอใหญ่ ลดขนาดลง */}
+        <div className="hidden xl:block space-y-4 order-1 xl:order-2 max-h-[calc(100vh-200px)] overflow-y-auto sticky top-4">
+          {/* Quick Actions - Compact */}
+          <Card className="shadow-sm">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="text-sm">🎛️ การดำเนินการด่วน</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="p-3 pt-0 space-y-2">
               <Button
                 onClick={onAddItem}
-                className="w-full justify-start"
+                className="w-full justify-start h-8 text-xs"
                 variant="outline"
+                size="sm"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-3 w-3 mr-1" />
                 เพิ่มสินค้า
               </Button>
-
               <Button
                 onClick={onTransferItem}
-                className="w-full justify-start"
+                className="w-full justify-start h-8 text-xs"
                 variant="outline"
+                size="sm"
               >
-                <Truck className="h-4 w-4 mr-2" />
+                <Truck className="h-3 w-3 mr-1" />
                 ย้ายสินค้า
               </Button>
-
               <Button
                 onClick={() => {
                   setShowExportDialog(true);
@@ -2457,114 +2465,80 @@ export const EnhancedOverview = memo(({
                   setExportDestination('');
                   setExportNotes('');
                 }}
-                className="w-full justify-start"
+                className="w-full justify-start h-8 text-xs"
                 variant="outline"
+                size="sm"
               >
-                <Send className="h-4 w-4 mr-2" />
-                สินค้าส่งออก
+                <Send className="h-3 w-3 mr-1" />
+                ส่งออก
               </Button>
-
               <Button
                 onClick={onScanQR}
-                className="w-full justify-start"
+                className="w-full justify-start h-8 text-xs"
                 variant="outline"
+                size="sm"
               >
-                <QrCode className="h-4 w-4 mr-2" />
+                <QrCode className="h-3 w-3 mr-1" />
                 สแกน QR Code
               </Button>
 
               {onBulkExport && (
                 <Button
                   onClick={onBulkExport}
-                  className="w-full justify-start bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
+                  className="w-full justify-start h-8 text-xs bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white"
                   variant="default"
+                  size="sm"
                 >
-                  <Send className="h-4 w-4 mr-2" />
-                  ส่งออกหลายรายการ
+                  <Send className="h-3 w-3 mr-1" />
+                  ส่งออกหลาย
                 </Button>
               )}
-
-              <Button
-                onClick={async () => {
-                  try {
-                    setBulkLoading(true);
-                    // generate QR for locations that are missing
-                    const rows = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N'];
-                    const levels = [4,3,2,1];
-                    const positions = Array.from({ length: 20 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-                    const allLocs: string[] = [];
-                    rows.forEach(r => levels.forEach(l => positions.forEach(p => allLocs.push(`${r}/${l}/${p}`))));
-                    const missing = allLocs.filter(loc => !getQRByLocation(loc));
-                    if (missing.length > 0) {
-                      await bulkGenerateQR(missing, items);
-                    }
-                  } finally {
-                    setBulkLoading(false);
-                  }
-                }}
-                className="w-full justify-start"
-                variant="outline"
-                disabled={qrLoading || bulkLoading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${qrLoading || bulkLoading ? 'animate-spin' : ''}`} />
-                สร้าง QR ให้ครบทุกตำแหน่ง
-              </Button>
             </CardContent>
           </Card>
 
-          {/* Statistics Summary */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BarChart3 className="h-4 w-4" />
-                📊 สถิติภาพรวม
+          {/* Statistics Summary - Compact */}
+          <Card className="shadow-sm">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="flex items-center gap-1 text-sm">
+                <BarChart3 className="h-3 w-3" />
+                📊 สถิติ
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg border">
+            <CardContent className="p-3 pt-0">
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center p-2 bg-blue-50 rounded-lg border">
                     <div className="text-lg font-bold text-blue-700">{stats.totalItems}</div>
                     <div className="text-xs text-blue-600">รายการทั้งหมด</div>
                   </div>
-                  <div className="text-center p-3 bg-purple-50 rounded-lg border">
-                    <div className="text-lg font-bold text-purple-700">{stats.occupiedLocations}</div>
-                    <div className="text-xs text-purple-600">ตำแหน่งที่ใช้</div>
+                  <div className="text-center p-2 bg-purple-50 rounded-lg border">
+                    <div className="text-base font-bold text-purple-700">{stats.occupiedLocations}</div>
+                    <div className="text-[10px] text-purple-600">ตำแหน่ง</div>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <h6 className="text-sm font-medium text-gray-700">ประเภทสินค้า</h6>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="text-center p-3 bg-green-50 rounded-lg border">
-                      <div className="text-lg font-bold text-green-700">{stats.fgCount}</div>
-                      <div className="text-xs text-green-600">FG (สำเร็จรูป)</div>
-                    </div>
-                    <div className="text-center p-3 bg-blue-50 rounded-lg border">
-                      <div className="text-lg font-bold text-blue-700">{stats.pkCount}</div>
-                      <div className="text-xs text-blue-600">PK (บรรจุภัณฑ์)</div>
-                    </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-center p-2 bg-green-50 rounded border">
+                    <div className="text-sm font-bold text-green-700">{stats.fgCount}</div>
+                    <div className="text-[10px] text-green-600">FG</div>
                   </div>
-                  {stats.unknownCount > 0 && (
-                    <div className="text-center p-2 bg-gray-50 rounded border">
-                      <div className="text-sm font-semibold text-gray-700">{stats.unknownCount}</div>
-                      <div className="text-xs text-gray-500">ไม่ระบุประเภท</div>
-                    </div>
-                  )}
+                  <div className="text-center p-2 bg-orange-50 rounded border">
+                    <div className="text-sm font-bold text-orange-700">{stats.pkCount}</div>
+                    <div className="text-[10px] text-orange-600">PK</div>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Product Type Filter */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Filter className="h-4 w-4" />
-                🏷️ ฟิลเตอร์ประเภทสินค้า
+          {/* Product Type Filter - Compact */}
+          <Card className="shadow-sm">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="flex items-center gap-1 text-sm">
+                <Filter className="h-3 w-3" />
+                🏷️ ฟิลเตอร์
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 pt-0">
               <ProductTypeFilter
                 selectedTypes={activeProductTypeFilter}
                 onTypeChange={setActiveProductTypeFilter}
@@ -2572,41 +2546,41 @@ export const EnhancedOverview = memo(({
             </CardContent>
           </Card>
 
-          {/* Activity Feed */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="h-4 w-4" />
-                🔔 กิจกรรมล่าสุด
+          {/* Activity Feed - Compact */}
+          <Card className="shadow-sm">
+            <CardHeader className="p-3 pb-2">
+              <CardTitle className="flex items-center gap-1 text-sm">
+                <Activity className="h-3 w-3" />
+                🔔 ล่าสุด
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-96">
+            <CardContent className="p-3 pt-0">
+              <ScrollArea className="h-48">
                 {recentActivity.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">ไม่มีกิจกรรมล่าสุด</p>
+                  <div className="text-center py-4 text-muted-foreground">
+                    <Activity className="h-6 w-6 mx-auto mb-1 opacity-50" />
+                    <p className="text-xs">ไม่มีกิจกรรม</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {recentActivity.map((activity) => (
                       <div
                         key={activity.id}
-                        className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-slate-50 cursor-pointer transition-colors"
+                        className="flex items-start space-x-2 p-2 rounded-lg border hover:bg-slate-50 cursor-pointer transition-colors"
                         onClick={() => onShelfClick(normalizeLocation(activity.location))}
                       >
-                        <div className="flex-shrink-0 mt-0.5">
+                        <div className="flex-shrink-0">
                           {getActivityIcon(activity.type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p className="text-xs font-medium text-gray-900 truncate">
                             {activity.description}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="text-xs">
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Badge variant="secondary" className="text-[10px] px-1">
                               {activity.location}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-[10px] text-muted-foreground">
                               {formatTimeAgo(activity.timestamp)}
                             </span>
                           </div>
@@ -2625,4 +2599,5 @@ export const EnhancedOverview = memo(({
   );
 }); // End memo
 
+EnhancedOverview.displayName = 'EnhancedOverview';
 EnhancedOverview.displayName = 'EnhancedOverview';
