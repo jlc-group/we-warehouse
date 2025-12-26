@@ -24,10 +24,13 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeLocation } from '@/utils/locationUtils';
 
 interface InventoryItem {
   id: string;
-  product_id: string;
+  product_id?: string; // Loaded separately
+  sku: string;
+  product_name: string;
   location: string;
   quantity_pieces: number;
   products?: {
@@ -77,23 +80,89 @@ export function BulkTransferModal({
   const loadAvailableItems = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      console.log('🔍 BulkTransferModal: Loading items for location:', sourceLocation);
+      const normalizedLocation = normalizeLocation(sourceLocation);
+      console.log('🔍 Normalized location:', normalizedLocation);
+
+      // 1. Fetch inventory items (using unit level columns for accurate stock)
+      const { data: items, error: itemsError } = await supabase
         .from('inventory_items')
         .select(`
           id,
-          product_id,
+          sku,
+          product_name,
           location,
           quantity_pieces,
-          products!inner (
-            sku_code,
-            name
-          )
+          unit_level1_quantity,
+          unit_level2_quantity,
+          unit_level3_quantity
         `)
-        .eq('location', sourceLocation)
-        .gt('quantity_pieces', 0);
+        // Use normalized location for query
+        .eq('location', normalizedLocation);
 
-      if (error) throw error;
-      setAvailableItems(data || []);
+      console.log('📦 BulkTransferModal: Fetched raw items:', { count: items?.length, error: itemsError });
+
+      if (itemsError) throw itemsError;
+
+      // Filter locally to find items with actual stock (sum of all levels)
+      // Cast to any to avoid TypeScript errors with partial types
+      // Filter locally to find items with actual stock (sum of all levels)
+      // Cast to any to avoid TypeScript errors with partial types
+      const itemsWithStock = ((items || []) as any[]).filter(item => {
+        const total = (item.unit_level1_quantity || 0) +
+          (item.unit_level2_quantity || 0) +
+          (item.unit_level3_quantity || 0);
+        return total > 0;
+      });
+
+      console.log('📦 BulkTransferModal: Items with stock > 0:', itemsWithStock.length);
+
+      if (itemsWithStock.length === 0) {
+        console.warn('⚠️ BulkTransferModal [VERSION_FIXED]: No items with calculated stock found for location:', sourceLocation);
+        setAvailableItems([]);
+        return;
+      }
+
+      // 2. Fetch product details using SKU to get product_id
+      const skus = [...new Set(itemsWithStock.map(i => i.sku).filter(Boolean))];
+      console.log('🔍 BulkTransferModal: Fetching products for SKUs:', skus.length);
+
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, sku_code, product_name')
+        .in('sku_code', skus);
+
+      if (productsError) {
+        console.error('Error fetching products:', productsError);
+        // Continue but with missing product_ids
+      }
+
+      console.log('📦 BulkTransferModal: Fetched products:', { count: products?.length });
+
+      // 3. Merge data and calculate total quantity correctly
+      const mergedItems: InventoryItem[] = itemsWithStock.map((item: any) => {
+        const product = (products as any[])?.find((p: any) => p.sku_code === item.sku);
+        const totalQuantity = (item.unit_level1_quantity || 0) +
+          (item.unit_level2_quantity || 0) +
+          (item.unit_level3_quantity || 0);
+
+        return {
+          id: item.id,
+          product_id: product?.id,
+          sku: item.sku,
+          product_name: item.product_name,
+          location: item.location,
+          quantity_pieces: totalQuantity, // Use calculated total instead of potentially empty column
+          products: {
+            sku_code: item.sku,
+            name: item.product_name
+          }
+        };
+      });
+
+      console.log('✅ BulkTransferModal: Merged items ready:', mergedItems.length);
+      // Filter out items without product_id to prevent SelectItem crashes
+      setAvailableItems(mergedItems.filter(i => i.product_id));
     } catch (error) {
       console.error('Error loading items:', error);
       toast({
@@ -115,7 +184,8 @@ export function BulkTransferModal({
 
       if (error) throw error;
 
-      const uniqueLocations = [...new Set(data?.map(item => item.location) || [])];
+      // Filter out empty locations to prevent SelectItem crashes
+      const uniqueLocations = [...new Set(data?.map(item => item.location).filter(Boolean) || [])];
       setAllLocations(uniqueLocations.sort());
     } catch (error) {
       console.error('Error loading locations:', error);
@@ -135,9 +205,9 @@ export function BulkTransferModal({
     const firstItem = availableItems[0];
     const newItem: TransferItem = {
       id: `temp-${Date.now()}`,
-      productId: firstItem.product_id,
-      productName: firstItem.products?.name || 'Unknown',
-      skuCode: firstItem.products?.sku_code || 'Unknown',
+      productId: firstItem.product_id || '', // fallback if missing
+      productName: firstItem.product_name || 'Unknown',
+      skuCode: firstItem.sku || 'Unknown',
       destinationLocation: '',
       quantity: 0,
       availableQuantity: firstItem.quantity_pieces,

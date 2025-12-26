@@ -118,8 +118,7 @@ export class LocationActivityService {
       const { data, error } = await supabase
         .from('inventory_items')
         .select('sku, product_name, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity, unit_level1_name, lot, mfd')
-        .eq('location', location)
-        .or('unit_level1_quantity.gt.0,unit_level2_quantity.gt.0,unit_level3_quantity.gt.0');
+        .eq('location', location);
 
       if (error) {
         console.error('Error fetching inventory:', error);
@@ -130,15 +129,21 @@ export class LocationActivityService {
         };
       }
 
-      // แปลงเป็น format ที่ใช้งานง่าย
-      const products = (data || []).map(item => ({
-        sku: item.sku || '',
-        product_name: item.product_name || '',
-        quantity: (item.unit_level1_quantity || 0) + (item.unit_level2_quantity || 0) + (item.unit_level3_quantity || 0),
-        unit: item.unit_level1_name || 'ชิ้น',
-        lot: item.lot || undefined,
-        mfd: item.mfd || undefined
-      }));
+      // กรองเฉพาะที่มีสต็อก และแปลงเป็น format ที่ใช้งานง่าย
+      const products = (data || [])
+        .filter(item =>
+          (item.unit_level1_quantity && item.unit_level1_quantity > 0) ||
+          (item.unit_level2_quantity && item.unit_level2_quantity > 0) ||
+          (item.unit_level3_quantity && item.unit_level3_quantity > 0)
+        )
+        .map(item => ({
+          sku: item.sku || '',
+          product_name: item.product_name || '',
+          quantity: (item.unit_level1_quantity || 0) + (item.unit_level2_quantity || 0) + (item.unit_level3_quantity || 0),
+          unit: item.unit_level1_name || 'ชิ้น',
+          lot: item.lot || undefined,
+          mfd: item.mfd || undefined
+        }));
 
       // ดึง last activity
       const { data: lastActivity } = await supabase
@@ -235,6 +240,7 @@ export class LocationActivityService {
     unit?: string;
     userName?: string;
     notes?: string;
+    metadata?: Record<string, any>;
   }) {
     return this.logActivity({
       location: params.location,
@@ -244,7 +250,8 @@ export class LocationActivityService {
       quantity: -Math.abs(params.quantity), // ทำให้เป็นลบ
       unit: params.unit,
       userName: params.userName,
-      notes: params.notes
+      notes: params.notes,
+      metadata: params.metadata
     });
   }
 

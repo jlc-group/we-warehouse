@@ -21,6 +21,8 @@ import { useToast } from '@/hooks/use-toast';
 import { LocationEditModal } from '@/components/location/LocationEditModal';
 import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
 import { LocationTransferModal } from '@/components/location/LocationTransferModal';
+import { LocationRemoveItemModal } from '@/components/location/LocationRemoveItemModal';
+import { BulkTransferModal } from '@/components/BulkTransferModal';
 import { convertUrlToDbFormat } from '@/utils/locationUtils';
 
 interface LocationInventory {
@@ -59,6 +61,8 @@ export function LocationDetail() {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [bulkTransferModalOpen, setBulkTransferModalOpen] = useState(false);
 
   // Debug logging
   console.log('🔍 LocationDetail render:', {
@@ -86,6 +90,7 @@ export function LocationDetail() {
       });
 
       // Load inventory items for this location
+      // Cast to any to avoid TypeScript errors with complex joins/Supabase types
       const { data: inventoryData, error: inventoryError } = await supabase
         .from('inventory_items')
         .select(`
@@ -115,7 +120,8 @@ export function LocationDetail() {
       }
 
       // Calculate total pieces for each item
-      const processedInventory = inventoryData?.map(item => {
+      // Cast to any because the join columns from Supabase query are not strictly typed in the auto-generated types
+      const processedInventory = (inventoryData as any[])?.map(item => {
         const level1Pieces = (item.unit_level1_quantity || 0) * (item.unit_level1_rate || 0);
         const level2Pieces = (item.unit_level2_quantity || 0) * (item.unit_level2_rate || 0);
         const level3Pieces = item.unit_level3_quantity || 0;
@@ -352,14 +358,24 @@ export function LocationDetail() {
             <Button
               variant="outline"
               className="h-24 sm:h-20 flex flex-col items-center gap-1 bg-red-50 border-red-300 hover:bg-red-100 shadow-md hover:shadow-lg transition-all duration-200 active:scale-95"
-              disabled
               onClick={() => {
-                // Export functionality removed
+                setExportModalOpen(true);
               }}
             >
               <Send className="h-6 w-6 sm:h-5 sm:w-5 text-red-600" />
               <span className="text-red-700 font-medium text-sm">ส่งออก</span>
-              <span className="text-xs text-gray-400">Disabled</span>
+              <span className="text-xs text-red-500">Export</span>
+            </Button>
+          </div>
+
+          <div className="mt-4 border-t pt-4">
+            <Button
+              variant="default"
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              onClick={() => setBulkTransferModalOpen(true)}
+            >
+              <Package className="h-4 w-4 mr-2" />
+              ย้ายสินค้าหลายรายการ (Bulk Transfer)
             </Button>
           </div>
 
@@ -400,7 +416,12 @@ export function LocationDetail() {
             onSuccess={loadLocationData}
           />
 
-          {/* Disabled LocationAddItemModal due to type issues */}
+          <LocationAddItemModal
+            isOpen={addModalOpen}
+            onClose={() => setAddModalOpen(false)}
+            location={locationId}
+            onSuccess={loadLocationData}
+          />
 
           <LocationTransferModal
             isOpen={transferModalOpen}
@@ -410,7 +431,31 @@ export function LocationDetail() {
             onSuccess={loadLocationData}
           />
 
-          {/* LocationExportModal removed */}
+          <LocationRemoveItemModal
+            isOpen={exportModalOpen}
+            onClose={() => setExportModalOpen(false)}
+            location={locationId}
+            inventory={{
+              products: inventory.map(item => ({
+                sku: item.sku,
+                product_name: item.product_name,
+                quantity: item.total_pieces,
+                unit: 'ชิ้น',
+                lot: ''
+              })),
+              totalItems: inventory.length,
+              total_quantity: inventory.reduce((acc, item) => acc + item.total_pieces, 0),
+              last_updated: new Date().toISOString()
+            } as any}
+            onSuccess={loadLocationData}
+          />
+
+          <BulkTransferModal
+            isOpen={bulkTransferModalOpen}
+            onClose={() => setBulkTransferModalOpen(false)}
+            sourceLocation={locationId}
+            onTransferComplete={loadLocationData}
+          />
         </>
       )}
     </div>

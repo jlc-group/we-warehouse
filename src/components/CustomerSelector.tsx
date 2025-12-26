@@ -71,7 +71,7 @@ export const CustomerSelector = ({
   className,
   placeholder = 'เลือกลูกค้า...',
   disabled = false,
-}) => {
+}: CustomerSelectorProps) => {
   const [open, setOpen] = useState(false);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState<NewCustomerFormData>(initialFormData);
@@ -154,7 +154,7 @@ export const CustomerSelector = ({
                   {customers.map((customer) => (
                     <CommandItem
                       key={customer.id}
-                      value={customer.id}
+                      value={`${customer.name} ${customer.company_name || ''} ${customer.customer_code || ''}`}
                       onSelect={() => handleCustomerSelect(customer)}
                       className="flex items-center justify-between cursor-pointer hover:bg-gray-50 px-3 py-2"
                     >
@@ -362,9 +362,8 @@ export const CustomerSelector = ({
                   )}
                   {selectedCustomer.name}
                 </h4>
-                <Badge variant="outline">
-                  วงเงิน: {(selectedCustomer.credit_limit || 0).toLocaleString()} บาท
-                </Badge>
+
+
               </div>
 
               {selectedCustomer.company_name && selectedCustomer.company_name !== selectedCustomer.name && (
@@ -393,11 +392,8 @@ export const CustomerSelector = ({
                   </div>
                 )}
 
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">เครดิต:</span>
-                  <span>{selectedCustomer.payment_terms || 30} วัน</span>
-                </div>
               </div>
+
 
               {selectedCustomer.address && (
                 <div className="mt-2">
@@ -410,8 +406,9 @@ export const CustomerSelector = ({
             </div>
           </CardContent>
         </Card>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 

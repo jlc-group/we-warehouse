@@ -39,28 +39,40 @@ export function normalizeLocation(location: string): string {
   // Try to parse different formats
   const parts = cleaned.split(/[/\-\s.]+/);
 
-  if (parts.length >= 3) {
-    const [row, level, position] = parts;
+  if (parts.length >= 2) {
+    // Handle case where split results in ["A1", "4"] (from A1-4)
+    if (parts.length === 2 && /^[A-Z]\d+$/.test(parts[0])) {
+      const row = parts[0][0];
+      const position = parts[0].substring(1);
+      const level = parts[1];
 
-    // Validate row (should be A-N only)
-    if (!/^[A-Z]$/.test(row)) {
-      return location; // Return original if can't normalize
+      // Validate
+      const positionNum = parseInt(position);
+      if (
+        /^[A-Z]$/.test(row) &&
+        /^[1-4]$/.test(level) &&
+        !isNaN(positionNum) && positionNum >= 1 && positionNum <= 20
+      ) {
+        return `${row}${positionNum}/${level}`;
+      }
     }
 
-    // Validate level (should be 1-4)
-    if (!/^[1-4]$/.test(level)) {
-      return location;
+    if (parts.length >= 3) {
+      const [row, level, position] = parts;
+      // ... existing logic continues below ...
+      // Validate row (should be A-N only)
+      if (/^[A-Z]$/.test(row)) {
+        // Validate level (should be 1-4)
+        if (/^[1-4]$/.test(level)) {
+          // Validate position (should be 1-20)
+          const positionNum = parseInt(position);
+          if (!isNaN(positionNum) && positionNum >= 1 && positionNum <= 20) {
+            // Format in target format: A1/1 (RowPosition/Level)
+            return `${row}${positionNum}/${level}`;
+          }
+        }
+      }
     }
-
-    // Validate position (should be 1-20)
-    const positionNum = parseInt(position);
-    if (isNaN(positionNum) || positionNum < 1 || positionNum > 20) {
-      return location;
-    }
-
-    // Format in target format: A1/1 (RowPosition/Level)
-    const normalized = `${row}${positionNum}/${level}`;
-    return normalized;
   }
 
   // Try to parse concatenated formats like A101, A11
@@ -380,7 +392,7 @@ export function compareMultiWarehouseLocations(location1: string, location2: str
   if (!parsed1 || !parsed2) return false;
 
   return parsed1.warehouseCode === parsed2.warehouseCode &&
-         parsed1.location === parsed2.location;
+    parsed1.location === parsed2.location;
 }
 
 /**

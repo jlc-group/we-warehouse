@@ -82,6 +82,7 @@ const menuGroups: MenuGroup[] = [
       { title: 'จัดการสินค้า', icon: PackagePlus, value: 'product-management', badge: 'เพิ่ม/แก้ไข', badgeColor: 'bg-emerald-500' },
       { title: 'แผนผังคลัง', icon: Grid3X3, value: 'shelf' },
       { title: 'จัดการ Location', icon: MapPin, value: 'locations' },
+      { title: 'ทำงานเป็นชุด', icon: BoxesIcon, value: 'operations', badge: 'ใหม่', badgeColor: 'bg-orange-500' },
       { title: 'Stock Card', icon: FileText, value: 'stock-card' },
     ]
   },
@@ -168,7 +169,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                 </span>
               </div>
             </SidebarGroupLabel>
-            
+
             {/* Menu Items */}
             <SidebarGroupContent>
               <SidebarMenu>
@@ -201,7 +202,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                           {item.title}
                         </span>
                         {item.badge && (
-                          <Badge 
+                          <Badge
                             className={cn(
                               "ml-auto text-[10px] px-2 py-0.5 font-semibold",
                               item.badgeColor || "bg-blue-500",
@@ -220,7 +221,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                 })}
               </SidebarMenu>
             </SidebarGroupContent>
-            
+
             {groupIndex < menuGroups.length - 1 && (
               <Separator className="mt-3 bg-slate-200" />
             )}

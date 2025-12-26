@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -18,10 +17,6 @@ import {
 import {
   Package,
   MapPin,
-  Users,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
   Trash2,
   Plus
 } from 'lucide-react';
@@ -42,6 +37,7 @@ interface InventoryItem {
   unit_level3_name: string;
   unit_level1_rate: number;
   unit_level2_rate: number;
+  unit_level3_quantity: number;
 }
 
 interface Customer {
@@ -83,9 +79,10 @@ interface BulkExportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   inventoryItems?: InventoryItem[]; // รับข้อมูลจาก parent component
+  preSelectedItems?: InventoryItem[]; // รายการที่เลือกไว้ก่อนหน้า (จาก Warehouse Operations)
 }
 
-export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryItemsProp }: BulkExportModalProps) {
+export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryItemsProp, preSelectedItems }: BulkExportModalProps) {
   const [step, setStep] = useState<'select_items' | 'allocate_customers' | 'summary'>('select_items');
 
   // เพิ่ม state สำหรับ PO Number และ Invoice Number
@@ -103,6 +100,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
   // Step 2: แบ่งจำนวนให้ลูกค้า (ใส่จำนวนเป็นหน่วย)
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [activeAddCustomerItemId, setActiveAddCustomerItemId] = useState<string | null>(null);
 
   // Step 3: สรุปและยืนยัน
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -128,6 +126,24 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
       console.log('✅ BulkExportModal: ใช้ข้อมูลจาก parent:', inventoryItems.length, 'รายการ');
     }
   }, [open, inventoryItems.length]);
+
+  // Handle pre-selected items
+  useEffect(() => {
+    if (open && preSelectedItems && preSelectedItems.length > 0) {
+      // Clear existing selection first to avoid duplicates if re-opening with new set
+      const newSelections = preSelectedItems.map(item => ({
+        inventoryItem: item,
+        allocations: [],
+        totalAllocated: {
+          level1: 0,
+          level2: 0,
+          level3: 0,
+          pieces: 0
+        }
+      }));
+      setSelectedItems(newSelections);
+    }
+  }, [open, preSelectedItems]);
 
   const fetchCustomers = async () => {
     try {
@@ -155,7 +171,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
       // สร้าง map: SKU -> product_type
       const typeMap: Record<string, string> = {};
-      data?.forEach(product => {
+      data?.forEach((product: any) => {
         if (product.sku_code && product.product_type) {
           typeMap[product.sku_code] = product.product_type;
         }
@@ -512,6 +528,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
     setSelectedItems([]);
     setProductSearchTerm('');
     setCustomerSearchTerm('');
+    setActiveAddCustomerItemId(null);
     setPoNumber('');
     setInvoiceNumber('');
     onOpenChange(false);
@@ -610,11 +627,10 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                       size="sm"
                       variant="outline"
                       onClick={() => setProductTypeFilter('all')}
-                      className={`flex-1 transition-all ${
-                        productTypeFilter === 'all'
-                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                          : 'hover:bg-accent'
-                      }`}
+                      className={`flex-1 transition-all ${productTypeFilter === 'all'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                        : 'hover:bg-accent'
+                        }`}
                     >
                       ✨ ทั้งหมด
                     </Button>
@@ -622,11 +638,10 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                       size="sm"
                       variant="outline"
                       onClick={() => setProductTypeFilter('FG')}
-                      className={`flex-1 transition-all ${
-                        productTypeFilter === 'FG'
-                          ? 'bg-green-600 text-white border-green-600 shadow-md hover:bg-green-700'
-                          : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                      }`}
+                      className={`flex-1 transition-all ${productTypeFilter === 'FG'
+                        ? 'bg-green-600 text-white border-green-600 shadow-md hover:bg-green-700'
+                        : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        }`}
                     >
                       🏭 FG
                     </Button>
@@ -634,11 +649,10 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                       size="sm"
                       variant="outline"
                       onClick={() => setProductTypeFilter('PK')}
-                      className={`flex-1 transition-all ${
-                        productTypeFilter === 'PK'
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700'
-                          : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                      }`}
+                      className={`flex-1 transition-all ${productTypeFilter === 'PK'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700'
+                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                        }`}
                     >
                       📦 PK
                     </Button>
@@ -658,61 +672,61 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                       {filteredInventory.map(item => {
                         const productType = item.sku ? productTypeMap[item.sku] : undefined;
                         return (
-                        <TableRow key={item.id}>
-                          <TableCell>
-                            <div className="space-y-1">
-                              <p className="font-medium text-sm">{item.product_name}</p>
-                              <div className="flex items-center gap-1">
-                                <Badge variant="outline" className="text-xs">{item.sku}</Badge>
-                                {productType === 'FG' && (
-                                  <Badge className="text-xs bg-green-100 text-green-700 border-green-200">🏭 FG</Badge>
-                                )}
-                                {productType === 'PK' && (
-                                  <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">📦 PK</Badge>
-                                )}
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <p className="font-medium text-sm">{item.product_name}</p>
+                                <div className="flex items-center gap-1">
+                                  <Badge variant="outline" className="text-xs">{item.sku}</Badge>
+                                  {productType === 'FG' && (
+                                    <Badge className="text-xs bg-green-100 text-green-700 border-green-200">🏭 FG</Badge>
+                                  )}
+                                  {productType === 'PK' && (
+                                    <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">📦 PK</Badge>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              <span className="text-sm">{item.location}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-xs space-y-0.5">
-                              {(item.unit_level1_quantity || 0) > 0 && (
-                                <p className="text-orange-600 font-medium">
-                                  🏭 {item.unit_level1_quantity} {item.unit_level1_name}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                <span className="text-sm">{item.location}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-xs space-y-0.5">
+                                {(item.unit_level1_quantity || 0) > 0 && (
+                                  <p className="text-orange-600 font-medium">
+                                    🏭 {item.unit_level1_quantity} {item.unit_level1_name}
+                                  </p>
+                                )}
+                                {(item.unit_level2_quantity || 0) > 0 && (
+                                  <p className="text-blue-600 font-medium">
+                                    📦 {item.unit_level2_quantity} {item.unit_level2_name}
+                                  </p>
+                                )}
+                                {(item.unit_level3_quantity || 0) > 0 && (
+                                  <p className="text-green-600 font-medium">
+                                    🔢 {item.unit_level3_quantity} {item.unit_level3_name}
+                                  </p>
+                                )}
+                                <p className="text-muted-foreground font-semibold pt-0.5 border-t">
+                                  รวม: {calculateTotalPieces(item).toLocaleString()} {item.unit_level3_name}
                                 </p>
-                              )}
-                              {(item.unit_level2_quantity || 0) > 0 && (
-                                <p className="text-blue-600 font-medium">
-                                  📦 {item.unit_level2_quantity} {item.unit_level2_name}
-                                </p>
-                              )}
-                              {(item.unit_level3_quantity || 0) > 0 && (
-                                <p className="text-green-600 font-medium">
-                                  🔢 {item.unit_level3_quantity} {item.unit_level3_name}
-                                </p>
-                              )}
-                              <p className="text-muted-foreground font-semibold pt-0.5 border-t">
-                                รวม: {calculateTotalPieces(item).toLocaleString()} {item.unit_level3_name}
-                              </p>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleAddItem(item)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleAddItem(item)}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -734,61 +748,61 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                     selectedItems.map(si => {
                       const productType = si.inventoryItem.sku ? productTypeMap[si.inventoryItem.sku] : undefined;
                       return (
-                      <div key={si.inventoryItem.id} className="border rounded-lg p-3 space-y-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">{si.inventoryItem.product_name}</p>
-                            <div className="flex items-center gap-2 mt-1 flex-wrap">
-                              <Badge variant="outline" className="text-xs">{si.inventoryItem.sku}</Badge>
-                              {productType === 'FG' && (
-                                <Badge className="text-xs bg-green-100 text-green-700 border-green-200">🏭 FG</Badge>
-                              )}
-                              {productType === 'PK' && (
-                                <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">📦 PK</Badge>
-                              )}
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <MapPin className="h-3 w-3" />
-                                {si.inventoryItem.location}
+                        <div key={si.inventoryItem.id} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{si.inventoryItem.product_name}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge variant="outline" className="text-xs">{si.inventoryItem.sku}</Badge>
+                                {productType === 'FG' && (
+                                  <Badge className="text-xs bg-green-100 text-green-700 border-green-200">🏭 FG</Badge>
+                                )}
+                                {productType === 'PK' && (
+                                  <Badge className="text-xs bg-blue-100 text-blue-700 border-blue-200">📦 PK</Badge>
+                                )}
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <MapPin className="h-3 w-3" />
+                                  {si.inventoryItem.location}
+                                </div>
                               </div>
                             </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRemoveItem(si.inventoryItem.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRemoveItem(si.inventoryItem.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
 
-                        {/* แสดงสต็อกคงเหลือ */}
-                        <div className="bg-muted/50 rounded p-2 text-xs">
-                          <span className="font-semibold text-muted-foreground">สต็อกพร้อมส่ง: </span>
-                          <div className="flex gap-1 mt-1 flex-wrap">
-                            {si.inventoryItem.unit_level1_quantity > 0 && (
-                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px]">
-                                {si.inventoryItem.unit_level1_quantity} {si.inventoryItem.unit_level1_name}
+                          {/* แสดงสต็อกคงเหลือ */}
+                          <div className="bg-muted/50 rounded p-2 text-xs">
+                            <span className="font-semibold text-muted-foreground">สต็อกพร้อมส่ง: </span>
+                            <div className="flex gap-1 mt-1 flex-wrap">
+                              {si.inventoryItem.unit_level1_quantity > 0 && (
+                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-[10px]">
+                                  {si.inventoryItem.unit_level1_quantity} {si.inventoryItem.unit_level1_name}
+                                </Badge>
+                              )}
+                              {si.inventoryItem.unit_level2_quantity > 0 && (
+                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                                  {si.inventoryItem.unit_level2_quantity} {si.inventoryItem.unit_level2_name}
+                                </Badge>
+                              )}
+                              {si.inventoryItem.unit_level3_quantity > 0 && (
+                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
+                                  {si.inventoryItem.unit_level3_quantity} {si.inventoryItem.unit_level3_name}
+                                </Badge>
+                              )}
+                              <Badge variant="default" className="text-[10px]">
+                                รวม: {calculateTotalPieces(si.inventoryItem)} ชิ้น
                               </Badge>
-                            )}
-                            {si.inventoryItem.unit_level2_quantity > 0 && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
-                                {si.inventoryItem.unit_level2_quantity} {si.inventoryItem.unit_level2_name}
-                              </Badge>
-                            )}
-                            {si.inventoryItem.unit_level3_quantity > 0 && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-[10px]">
-                                {si.inventoryItem.unit_level3_quantity} {si.inventoryItem.unit_level3_name}
-                              </Badge>
-                            )}
-                            <Badge variant="default" className="text-[10px]">
-                              รวม: {calculateTotalPieces(si.inventoryItem)} ชิ้น
-                            </Badge>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
+                      );
+                    })
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -801,480 +815,281 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
                 onClick={() => setStep('allocate_customers')}
                 disabled={!canProceedToAllocate()}
               >
-                ต่อไป: แบ่งให้ลูกค้า
+                ถัดไป (แบ่งให้ลูกค้า)
               </Button>
             </div>
           </div>
         )}
 
-        {/* Step 2: แบ่งจำนวนให้ลูกค้า */}
+        {/* Step 2: แบ่งให้ลูกค้า */}
         {step === 'allocate_customers' && (
           <div className="space-y-4">
-            {/* แสดงสินค้าแต่ละรายการ */}
-            <div className="space-y-3">
-              {selectedItems.map((selectedItem, idx) => {
-                const item = selectedItem.inventoryItem;
-                const productType = item.sku ? productTypeMap[item.sku] : undefined;
-                const stockRemaining = {
-                  level1: (item.unit_level1_quantity || 0) - selectedItem.totalAllocated.level1,
-                  level2: (item.unit_level2_quantity || 0) - selectedItem.totalAllocated.level2,
-                  level3: (item.unit_level3_quantity || 0) - selectedItem.totalAllocated.level3,
-                  pieces: calculateTotalPieces(item) - selectedItem.totalAllocated.pieces
-                };
-
-                return (
-                  <Card key={item.id} className="border-2">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-semibold text-primary">#{idx + 1}</span>
-                            <h3 className="font-semibold">{item.product_name}</h3>
-                          </div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="outline" className="text-xs">{item.sku}</Badge>
-                            {productType === 'FG' && (
-                              <Badge className="text-xs bg-green-100 text-green-700">🏭 FG</Badge>
-                            )}
-                            {productType === 'PK' && (
-                              <Badge className="text-xs bg-blue-100 text-blue-700">📦 PK</Badge>
-                            )}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {item.location}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">สต็อกทั้งหมด</p>
-                          <div className="flex gap-1 flex-wrap justify-end">
-                            {(item.unit_level1_quantity || 0) > 0 && (
-                              <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                                {item.unit_level1_quantity} {item.unit_level1_name}
-                              </Badge>
-                            )}
-                            {(item.unit_level2_quantity || 0) > 0 && (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                {item.unit_level2_quantity} {item.unit_level2_name}
-                              </Badge>
-                            )}
-                            {(item.unit_level3_quantity || 0) > 0 && (
-                              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                {item.unit_level3_quantity} {item.unit_level3_name}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs font-semibold mt-1">
-                            = {calculateTotalPieces(item).toLocaleString()} {item.unit_level3_name}
-                          </p>
-                        </div>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="space-y-3">
-                      {/* Quick Mode: ส่งทั้งหมดให้ลูกค้า 1 คน */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <Label className="text-xs font-semibold text-blue-900 mb-2 block">
-                          ⚡ ส่งทั้งหมดให้ลูกค้า (Quick Mode)
-                        </Label>
-                        <div className="flex gap-2">
-                          <select
-                            className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                            aria-label="เลือกลูกค้าเพื่อส่งสินค้าทั้งหมด"
-                            value=""
-                            onChange={(e) => {
-                              const customer = customers.find(c => c.id === e.target.value);
-                              if (customer) {
-                                handleAssignAllToCustomer(item.id, customer);
-                                e.target.value = '';
-                              }
-                            }}
-                          >
-                            <option value="">เลือกลูกค้า...</option>
-                            {customers.map(c => (
-                              <option key={c.id} value={c.id}>{c.customer_name} ({c.customer_code})</option>
-                            ))}
-                          </select>
-                          <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700"
-                            disabled={customers.length === 0}
-                          >
-                            ส่งหมด →
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* ลูกค้าที่เลือกไว้แล้ว */}
-                      {selectedItem.allocations.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="text-sm font-semibold">ลูกค้าที่เลือก ({selectedItem.allocations.length})</Label>
-
-                          {selectedItem.allocations.map((allocation) => (
-                            <div key={allocation.customerId} className="border rounded-lg p-3 space-y-2 bg-white">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-sm">{allocation.customerName}</p>
-                                  <p className="text-xs text-muted-foreground">{allocation.customerCode}</p>
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleRemoveCustomerFromItem(item.id, allocation.customerId)}
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                              </div>
-
-                              {/* Unit Inputs */}
-                              <div className="grid grid-cols-3 gap-2">
-                                {/* ลัง */}
-                                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-2">
-                                  <Label className="text-xs font-semibold text-orange-700 flex items-center justify-between">
-                                    <span>🏭 {item.unit_level1_name}</span>
-                                    <Badge variant="outline" className="text-[10px] bg-white">
-                                      {item.unit_level1_quantity}
-                                    </Badge>
-                                  </Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max={item.unit_level1_quantity}
-                                    value={allocation.level1}
-                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level1', parseInt(e.target.value) || 0)}
-                                    className="h-9 mt-1 text-center font-semibold border-orange-300 focus:border-orange-500"
-                                    placeholder="0"
-                                  />
-                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                    × {item.unit_level1_rate} = {allocation.level1 * (item.unit_level1_rate || 0)} ชิ้น
-                                  </p>
-                                </div>
-
-                                {/* กล่อง */}
-                                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-2">
-                                  <Label className="text-xs font-semibold text-blue-700 flex items-center justify-between">
-                                    <span>📦 {item.unit_level2_name}</span>
-                                    <Badge variant="outline" className="text-[10px] bg-white">
-                                      {item.unit_level2_quantity}
-                                    </Badge>
-                                  </Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max={item.unit_level2_quantity}
-                                    value={allocation.level2}
-                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level2', parseInt(e.target.value) || 0)}
-                                    className="h-9 mt-1 text-center font-semibold border-blue-300 focus:border-blue-500"
-                                    placeholder="0"
-                                  />
-                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                    × {item.unit_level2_rate} = {allocation.level2 * (item.unit_level2_rate || 0)} ชิ้น
-                                  </p>
-                                </div>
-
-                                {/* ชิ้น */}
-                                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-2">
-                                  <Label className="text-xs font-semibold text-green-700 flex items-center justify-between">
-                                    <span>🔢 {item.unit_level3_name}</span>
-                                    <Badge variant="outline" className="text-[10px] bg-white">
-                                      {item.unit_level3_quantity}
-                                    </Badge>
-                                  </Label>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max={item.unit_level3_quantity}
-                                    value={allocation.level3}
-                                    onChange={(e) => handleUpdateAllocation(item.id, allocation.customerId, 'level3', parseInt(e.target.value) || 0)}
-                                    className="h-9 mt-1 text-center font-semibold border-green-300 focus:border-green-500"
-                                    placeholder="0"
-                                  />
-                                  <p className="text-[10px] text-muted-foreground text-center mt-1">
-                                    (เศษ)
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* รวม */}
-                              <div className="bg-primary/10 rounded-lg p-2 text-center">
-                                <span className="text-xs font-semibold text-primary">
-                                  รวม: {allocation.totalPieces.toLocaleString()} {item.unit_level3_name}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* เพิ่มลูกค้าเพิ่มเติม */}
-                      <div className="border-t pt-2">
-                        <Label className="text-xs text-muted-foreground mb-2 block">เพิ่มลูกค้าเพิ่มเติม</Label>
-                        <select
-                          className="flex h-9 w-full rounded-md border border-input bg-white px-3 py-1 text-sm"
-                          aria-label="เพิ่มลูกค้าเพิ่มเติมสำหรับรายการนี้"
-                          value=""
-                          onChange={(e) => {
-                            const customer = customers.find(c => c.id === e.target.value);
-                            if (customer) {
-                              handleAddCustomerToItem(item.id, customer);
-                              e.target.value = '';
-                            }
-                          }}
-                        >
-                          <option value="">+ เลือกลูกค้า...</option>
-                          {customers
-                            .filter(c => !selectedItem.allocations.find(a => a.customerId === c.id))
-                            .map(c => (
-                              <option key={c.id} value={c.id}>{c.customer_name} ({c.customer_code})</option>
-                            ))}
-                        </select>
-                      </div>
-
-                      {/* Stock Remaining */}
-                      <div className="bg-muted rounded-lg p-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">คงเหลือ:</span>
-                          <div className="flex gap-1">
-                            {stockRemaining.level1 > 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-orange-50">
-                                {stockRemaining.level1} {item.unit_level1_name}
-                              </Badge>
-                            )}
-                            {stockRemaining.level2 > 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-blue-50">
-                                {stockRemaining.level2} {item.unit_level2_name}
-                              </Badge>
-                            )}
-                            {stockRemaining.level3 > 0 && (
-                              <Badge variant="outline" className="text-[10px] bg-green-50">
-                                {stockRemaining.level3} {item.unit_level3_name}
-                              </Badge>
-                            )}
-                            <Badge variant={stockRemaining.pieces >= 0 ? "default" : "destructive"} className="text-[10px]">
-                              {stockRemaining.pieces} ชิ้น
-                            </Badge>
-                          </div>
-                        </div>
-                        {stockRemaining.pieces < 0 && (
-                          <p className="text-[10px] text-destructive mt-1 flex items-center gap-1">
-                            <AlertCircle className="h-3 w-3" />
-                            แบ่งเกินจำนวนที่มี!
-                          </p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+            {/* Global Search Removed to avoid confusion. User should add customer per item. */}
+            <div className="flex justify-end mb-2">
+              <p className="text-xs text-muted-foreground mr-auto bg-yellow-50 p-2 rounded border border-yellow-200">
+                💡 กดปุ่ม "เพิ่มลูกค้า" ในแต่ละรายการด้านล่าง เพื่อระบุผู้รับสินค้า
+              </p>
             </div>
 
-            {/* Summary */}
-            <Card className="bg-primary/5">
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">รวมทั้งหมด:</span>
-                  <Badge variant="default" className="text-base px-3 py-1">
-                    {getTotalExportPieces().toLocaleString()} ชิ้น
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="space-y-4">
+              {selectedItems.map((si, index) => (
+                <Card key={si.inventoryItem.id} className="border border-l-4 border-l-primary shadow-sm">
+                  <CardHeader className="py-3 bg-muted/20">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-base">{index + 1}. {si.inventoryItem.product_name}</CardTitle>
+                        <div className="flex gap-2 mt-1">
+                          <Badge variant="outline">{si.inventoryItem.sku}</Badge>
+                          <div className="text-xs text-muted-foreground flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {si.inventoryItem.location}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs">
+                        <span className="text-muted-foreground">คงเหลือสำหรับแบ่ง:</span>
+                        <div className="font-bold text-lg">
+                          {(calculateTotalPieces(si.inventoryItem) - si.totalAllocated.pieces).toLocaleString()} ชิ้น
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {/* Customer List for this item */}
+                    <div className="space-y-3 mb-4">
+                      {si.allocations.map(alloc => (
+                        <div key={alloc.customerId} className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-50 p-2 rounded border">
+                          <div className="flex-1 min-w-[200px]">
+                            <div className="font-medium text-sm">{alloc.customerName}</div>
+                            <div className="text-xs text-muted-foreground">{alloc.customerCode}</div>
+                          </div>
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('select_items')}>
-                ← ย้อนกลับ
-              </Button>
-              <Button
-                onClick={() => setStep('summary')}
-                disabled={!canProceedToSummary()}
-              >
-                ต่อไป: สรุปรายการ →
-              </Button>
+                          {/* Inputs */}
+                          <div className="flex items-center gap-2">
+                            {si.inventoryItem.unit_level1_rate > 1 && (
+                              <div className="flex flex-col w-20">
+                                <span className="text-[10px] text-muted-foreground text-center">{alloc.unitLevel1Name}</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  className="h-8 text-center"
+                                  value={alloc.level1 || ''}
+                                  onChange={(e) => handleUpdateAllocation(si.inventoryItem.id, alloc.customerId, 'level1', parseInt(e.target.value) || 0)}
+                                />
+                              </div>
+                            )}
+
+                            {si.inventoryItem.unit_level2_rate > 1 && (
+                              <div className="flex flex-col w-20">
+                                <span className="text-[10px] text-muted-foreground text-center">{alloc.unitLevel2Name}</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  className="h-8 text-center"
+                                  value={alloc.level2 || ''}
+                                  onChange={(e) => handleUpdateAllocation(si.inventoryItem.id, alloc.customerId, 'level2', parseInt(e.target.value) || 0)}
+                                />
+                              </div>
+                            )}
+
+                            <div className="flex flex-col w-20">
+                              <span className="text-[10px] text-muted-foreground text-center">{alloc.unitLevel3Name}</span>
+                              <Input
+                                type="number"
+                                min="0"
+                                className="h-8 text-center"
+                                value={alloc.level3 || ''}
+                                onChange={(e) => handleUpdateAllocation(si.inventoryItem.id, alloc.customerId, 'level3', parseInt(e.target.value) || 0)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 min-w-[100px] justify-end">
+                            <div className="text-right">
+                              <div className="text-sm font-bold">{alloc.totalPieces.toLocaleString()}</div>
+                              <div className="text-[10px] text-muted-foreground">ชิ้น</div>
+                            </div>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleRemoveCustomerFromItem(si.inventoryItem.id, alloc.customerId)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Add Customer Button */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1"
+                        onClick={() => {
+                          setCustomerSearchTerm('');
+                          setActiveAddCustomerItemId(si.inventoryItem.id);
+                        }}
+                      >
+                        <Plus className="h-3 w-3" /> เพิ่มลูกค้า
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="gap-1"
+                        onClick={() => {
+                          const customerName = prompt("พิมพ์ชื่อลูกค้า เพื่อส่งสินค้าทั้งหมดให้คนเดียว:");
+                          if (customerName) {
+                            const found = customers.find(c => c.customer_name.includes(customerName));
+                            if (found) {
+                              handleAssignAllToCustomer(si.inventoryItem.id, found);
+                            } else {
+                              toast.error("ไม่พบลูกค้า");
+                            }
+                          }
+                        }}
+                      >
+                        ⚡ ส่งทั้งหมดให้ลูกค้า 1 คน
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-100 p-4 rounded-lg">
+              <div>
+                <p className="text-sm font-medium">ยอดรวมส่งออกทั้งหมด</p>
+                <p className="text-2xl font-bold text-primary">{getTotalExportPieces().toLocaleString()} <span className="text-sm font-normal text-muted-foreground">ชิ้น</span></p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setStep('select_items')}>
+                  ย้อนกลับ
+                </Button>
+                <Button onClick={() => setStep('summary')} disabled={!canProceedToSummary()}>
+                  ถัดไป (สรุปรายการ)
+                </Button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Step 3: สรุปและยืนยัน */}
+        {/* Step 3: สรุป */}
         {step === 'summary' && (
-          <div className="space-y-4">
-            {/* ฟอร์มกรอก PO และ Invoice */}
-            <Card className="bg-blue-50 border-blue-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  📋 ข้อมูล PO และ Invoice (ไม่บังคับ)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="po_number" className="text-sm font-medium">
-                      PO Number
-                    </Label>
-                    <Input
-                      id="po_number"
-                      placeholder="เช่น PO-2025-001"
-                      value={poNumber}
-                      onChange={(e) => setPoNumber(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="invoice_number" className="text-sm font-medium">
-                      Invoice Number
-                    </Label>
-                    <Input
-                      id="invoice_number"
-                      placeholder="เช่น INV-2025-001"
-                      value={invoiceNumber}
-                      onChange={(e) => setInvoiceNumber(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-                {(poNumber || invoiceNumber) && (
-                  <div className="mt-3 text-xs text-blue-700 bg-blue-100 rounded p-2">
-                    ℹ️ ข้อมูลนี้จะบันทึกในประวัติการส่งออกทุกรายการ
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>เลขที่ PO (ถ้ามี)</Label>
+                <Input
+                  placeholder="ระบุ PO Number..."
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>เลขที่ Invoice (ถ้ามี)</Label>
+                <Input
+                  placeholder="ระบุ Invoice Number..."
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                />
+              </div>
+            </div>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">สรุปรายการส่งออก</CardTitle>
+                <CardTitle>สรุปรายการส่งออก</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* สรุปแบบละเอียด: แต่ละสินค้ากับลูกค้า */}
-                {selectedItems.map((selectedItem, idx) => {
-                  const item = selectedItem.inventoryItem;
-                  const productType = item.sku ? productTypeMap[item.sku] : undefined;
-
-                  return (
-                    <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                      {/* Product Header */}
-                      <div className="flex items-start justify-between border-b pb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-primary">#{idx + 1}</span>
-                            <h4 className="font-semibold text-sm">{item.product_name}</h4>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <Badge variant="outline" className="text-xs">{item.sku}</Badge>
-                            {productType === 'FG' && (
-                              <Badge className="text-xs bg-green-100 text-green-700">🏭 FG</Badge>
-                            )}
-                            {productType === 'PK' && (
-                              <Badge className="text-xs bg-blue-100 text-blue-700">📦 PK</Badge>
-                            )}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {item.location}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground">รวมส่งออก</p>
-                          <Badge variant="default">
-                            {selectedItem.totalAllocated.pieces.toLocaleString()} ชิ้น
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Customer Allocations */}
-                      <div className="space-y-1">
-                        <p className="text-xs font-semibold text-muted-foreground">
-                          ส่งให้ลูกค้า ({selectedItem.allocations.length} ราย):
-                        </p>
-                        {selectedItem.allocations.map(allocation => (
-                          <div key={allocation.customerId} className="bg-muted/50 rounded p-2">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">{allocation.customerName}</p>
-                                <p className="text-xs text-muted-foreground">{allocation.customerCode}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-xs space-x-1">
-                                  {allocation.level1 > 0 && (
-                                    <Badge variant="outline" className="bg-orange-50 text-orange-700 text-[10px]">
-                                      {allocation.level1} {allocation.unitLevel1Name}
-                                    </Badge>
-                                  )}
-                                  {allocation.level2 > 0 && (
-                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 text-[10px]">
-                                      {allocation.level2} {allocation.unitLevel2Name}
-                                    </Badge>
-                                  )}
-                                  {allocation.level3 > 0 && (
-                                    <Badge variant="outline" className="bg-green-50 text-green-700 text-[10px]">
-                                      {allocation.level3} {allocation.unitLevel3Name}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <p className="text-xs font-semibold text-primary mt-1">
-                                  = {allocation.totalPieces.toLocaleString()} ชิ้น
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* สรุปรวมทั้งหมด */}
-                <div className="border-t pt-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-primary/5 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground mb-1">จำนวนสินค้า</p>
-                      <p className="text-lg font-bold text-primary">
-                        {selectedItems.length} รายการ
-                      </p>
-                    </div>
-                    <div className="bg-primary/5 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground mb-1">จำนวนลูกค้า</p>
-                      <p className="text-lg font-bold text-primary">
-                        {new Set(selectedItems.flatMap(si => si.allocations.map(a => a.customerId))).size} ราย
-                      </p>
-                    </div>
-                  </div>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-green-900">รวมส่งออกทั้งหมด:</span>
-                      <span className="text-xl font-bold text-green-700">
-                        {getTotalExportPieces().toLocaleString()} ชิ้น
-                      </span>
-                    </div>
-                  </div>
-                </div>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>สินค้า</TableHead>
+                      <TableHead>ลูกค้า</TableHead>
+                      <TableHead className="text-right">จำนวน</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedItems.flatMap(si =>
+                      si.allocations.map(alloc => (
+                        <TableRow key={`${si.inventoryItem.id}-${alloc.customerId}`}>
+                          <TableCell>
+                            <div className="font-medium">{si.inventoryItem.product_name}</div>
+                            <div className="text-xs text-muted-foreground">{si.inventoryItem.sku} | {si.inventoryItem.location}</div>
+                          </TableCell>
+                          <TableCell>{alloc.customerName}</TableCell>
+                          <TableCell className="text-right font-mono">
+                            {alloc.totalPieces.toLocaleString()}
+                            <span className="text-xs text-muted-foreground ml-1">ชิ้น</span>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-right font-bold">รวมทั้งสิ้น</TableCell>
+                      <TableCell className="text-right font-bold text-lg text-primary">
+                        {getTotalExportPieces().toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep('allocate_customers')}>
-                ← ย้อนกลับ
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setStep('allocate_customers')} disabled={isSubmitting}>
+                ย้อนกลับ
               </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting || !canProceedToSummary()}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    กำลังดำเนินการ...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    ยืนยันส่งออก
-                  </>
-                )}
+              <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
+                {isSubmitting ? 'กำลังบันทึก...' : 'ยืนยันการส่งออก'}
               </Button>
             </div>
           </div>
         )}
+
       </DialogContent>
+
+      {/* Nested Dialog for Customer Selection */}
+      <Dialog open={!!activeAddCustomerItemId} onOpenChange={(open) => !open && setActiveAddCustomerItemId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>เลือกลูกค้า</DialogTitle>
+            <DialogDescription>
+              ค้นหาและเลือกลูกค้าเพื่อเพิ่มในรายการ
+            </DialogDescription>
+          </DialogHeader>
+
+          <Input
+            placeholder="พิมพ์ชื่อลูกค้าหรือรหัส..."
+            value={customerSearchTerm}
+            onChange={(e) => setCustomerSearchTerm(e.target.value)}
+            autoFocus
+          />
+
+          <div className="max-h-[300px] overflow-y-auto space-y-1 mt-2">
+            {filteredCustomers.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground text-sm">ไม่พบลูกค้า</div>
+            ) : (
+              filteredCustomers.map(c => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between p-2 hover:bg-slate-100 rounded cursor-pointer border border-transparent hover:border-slate-200"
+                  onClick={() => {
+                    if (activeAddCustomerItemId) {
+                      handleAddCustomerToItem(activeAddCustomerItemId, c);
+                      setActiveAddCustomerItemId(null);
+                      setCustomerSearchTerm('');
+                    }
+                  }}
+                >
+                  <div>
+                    <div className="font-medium text-sm">{c.customer_name}</div>
+                    <div className="text-xs text-muted-foreground">{c.customer_code}</div>
+                  </div>
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

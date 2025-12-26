@@ -140,43 +140,51 @@ export class ManualFulfillmentService {
     try {
       let query = supabase
         .from('inventory_items')
-        .select(`
-          id,
-          product_name,
-          location,
-          quantity,
-          unit,
-          products!inner (
-            id,
-            name,
-            sku_code
-          )
-        `)
+      id,
+        product_name,
+        location,
+        quantity,
+        unit,
+        sku
+          `)
         .gt('quantity', 0)
         .order('location', { ascending: true, nullsFirst: false });
 
       // ค้นหาตามชื่อหรือรหัสสินค้า
       if (productCode) {
         query = query.or(
-          `product_name.ilike.%${productName}%,products.sku_code.eq.${productCode}`
+          `product_name.ilike.% ${ productName }%, sku.eq.${ productCode } `
         );
       } else {
-        query = query.ilike('product_name', `%${productName}%`);
+        query = query.ilike('product_name', `% ${ productName }% `);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      return (data || []).map(item => ({
-        inventory_item_id: item.id,
-        product_id: item.products?.id || '',
-        product_name: item.product_name,
-        product_code: item.products?.sku_code || item.product_name,
-        location: item.location || 'ไม่ระบุ',
-        available_stock: item.quantity,
-        unit: item.unit || 'ชิ้น'
-      }));
+      const items = data || [];
+      if (items.length === 0) return [];
+
+      // Fetch product details for IDs
+      const skus = [...new Set(items.map((i: any) => i.sku).filter(Boolean))];
+      const { data: products } = await supabase
+        .from('products')
+        .select('id, sku_code, product_name')
+        .in('sku_code', skus);
+
+      return items.map((item: any) => {
+        const product = products?.find(p => p.sku_code === item.sku);
+        return {
+          inventory_item_id: item.id,
+          product_id: product?.id || '',
+          product_name: item.product_name,
+          product_code: item.sku || item.product_name,
+          location: item.location || 'ไม่ระบุ',
+          available_stock: item.quantity,
+          unit: item.unit || 'ชิ้น'
+        };
+      });
 
     } catch (error) {
       console.error('Error finding product locations:', error);
@@ -216,7 +224,7 @@ export class ManualFulfillmentService {
           total_amount,
           status: 'pending',
           source_type: 'manual',
-          notes: input.notes || `สร้างแบบ Manual โดย ${input.created_by}`,
+          notes: input.notes || `สร้างแบบ Manual โดย ${ input.created_by } `,
           created_by: input.created_by,
           user_id: input.created_by
         })
@@ -272,22 +280,22 @@ export class ManualFulfillmentService {
       const { data: fullTask, error: fetchError } = await supabase
         .from('fulfillment_tasks')
         .select(`
-          *,
-          fulfillment_items (
-            id,
-            fulfillment_task_id,
-            product_name,
-            product_code,
-            requested_quantity,
-            fulfilled_quantity,
-            unit_price,
-            total_amount,
-            status,
-            location,
-            inventory_item_id,
-            available_stock
-          )
-        `)
+        *,
+        fulfillment_items(
+          id,
+          fulfillment_task_id,
+          product_name,
+          product_code,
+          requested_quantity,
+          fulfilled_quantity,
+          unit_price,
+          total_amount,
+          status,
+          location,
+          inventory_item_id,
+          available_stock
+        )
+          `)
         .eq('id', savedTask.id)
         .single();
 

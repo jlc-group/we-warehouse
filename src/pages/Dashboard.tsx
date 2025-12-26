@@ -31,8 +31,12 @@ const DatabaseDebug = lazy(() => import('@/components/DatabaseDebug').then(m => 
 const AIAnalyticsLab = lazy(() => import('@/components/AIAnalyticsLab').then(m => ({ default: m.AIAnalyticsLab })));
 const ProductSummaryTable = lazy(() => import('@/components/ProductSummaryTable').then(m => ({ default: m.ProductSummaryTable })));
 const ProductManagementPage = lazy(() => import('@/components/ProductManagementPage').then(m => ({ default: m.ProductManagementPage })));
+const LocationQRScannerModal = lazy(() => import('@/components/LocationQRScannerModal').then(m => ({ default: m.LocationQRScannerModal })));
+const WarehouseOperations = lazy(() => import('@/components/WarehouseOperations'));
 
 import { useAuth } from '@/contexts/AuthContextSimple';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -47,6 +51,9 @@ export default function Dashboard() {
   } = useDepartmentInventory(selectedWarehouseId);
 
   const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -74,28 +81,44 @@ export default function Dashboard() {
     switch (activeTab) {
       case 'overview':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Overview" />}>
             <EnhancedOverview
               items={inventoryItems}
               warehouseId={selectedWarehouseId}
               loading={loading}
               onShelfClick={(location, item) => {
                 console.log('Shelf clicked:', location, item);
+                const encodedLocation = encodeURIComponent(location);
+                navigate(`/location/${encodedLocation}`);
               }}
               onAddItem={() => {
-                console.log('Add item clicked');
+                toast({
+                  title: "เลือกตำแหน่งสินค้า",
+                  description: "กรุณาเลือกตำแหน่ง (Location) จากตาราง หรือสแกน QR Code ก่อนเพิ่มสินค้า",
+                });
               }}
               onTransferItem={() => {
-                console.log('Transfer item clicked');
+                toast({
+                  title: "เลือกตำแหน่งสินค้า",
+                  description: "กรุณาเลือกตำแหน่ง (Location) ต้นทางจากตาราง หรือสแกน QR Code ก่อนเริ่มย้ายสินค้า",
+                });
               }}
               onWarehouseTransfer={(items) => {
                 console.log('Warehouse transfer:', items);
+                toast({
+                  title: "ยังไม่พร้อมใช้งาน",
+                  description: "ฟีเจอร์ย้ายคลังอยู่ระหว่างการพัฒนา",
+                });
               }}
               onExportItem={async (id, cartonQty, boxQty, looseQty, destination, notes) => {
-                console.log('Export item:', id, cartonQty, boxQty, looseQty, destination, notes);
+                console.log('Export item:', { id, cartonQty, boxQty, looseQty, destination, notes });
+                toast({
+                  title: "บันทึกการส่งออก",
+                  description: "ระบบได้รับข้อมูลการส่งออกแล้ว (Simulation)",
+                });
               }}
               onScanQR={() => {
-                console.log('Scan QR clicked');
+                setShowQRScanner(true);
               }}
             />
           </Suspense>
@@ -103,7 +126,7 @@ export default function Dashboard() {
 
       case 'stock-overview':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Stock Overview" />}>
             <StockOverviewPage
               warehouseId={selectedWarehouseId}
               onLocationClick={(location) => {
@@ -115,20 +138,25 @@ export default function Dashboard() {
 
       case 'inventory':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Inventory Table" />}>
             <InventoryTable items={inventoryItems} />
           </Suspense>
         );
 
       case 'shelf':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Shelf Grid" />}>
             <ShelfGrid
               items={inventoryItems}
               warehouseId={selectedWarehouseId}
               onShelfClick={(location, item) => {
                 console.log('Shelf clicked:', location, item);
-                // TODO: เปิด modal หรือ navigate ไปหน้า location detail
+                // Navigate to location detail page
+                // Note: The formatLocation used in ShelfGrid produces "A1/4" which is URL-safe but using encodeURIComponent is safer
+                // However, our router expects /location/:id and LocationDetail uses normalization.
+                // Using encodeURIComponent to handle slash safely in URL param
+                const encodedLocation = encodeURIComponent(location);
+                window.location.href = `/location/${encodedLocation}`;
               }}
             />
           </Suspense>
@@ -136,35 +164,35 @@ export default function Dashboard() {
 
       case 'locations':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
             <LocationManagement />
           </Suspense>
         );
 
       case 'stock-card':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Stock Card" />}>
             <StockCardTabNew />
           </Suspense>
         );
 
       case 'packing-list':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Packing List" />}>
             <PackingListTab />
           </Suspense>
         );
 
       case 'daily-shipment':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Daily Shipment" />}>
             <DailyShipmentSummary />
           </Suspense>
         );
 
       case 'finance':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Finance" />}>
             <PinGuard currentPage="finance">
               <FinanceDashboard />
             </PinGuard>
@@ -173,56 +201,63 @@ export default function Dashboard() {
 
       case 'analytics':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Analytics" />}>
             <SalesAnalytics />
           </Suspense>
         );
 
       case 'ai-lab':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="AI Lab" />}>
             <AIAnalyticsLab />
           </Suspense>
         );
 
       case 'qr-management':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="QR Management" />}>
             <QRCodeManagement items={inventoryItems} />
           </Suspense>
         );
 
       case 'transfer':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Transfer" />}>
             <TransferTab />
           </Suspense>
         );
 
       case 'logs':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Logs" />}>
             <EnhancedEventLogs />
           </Suspense>
         );
 
       case 'users':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
             <UserManagement />
           </Suspense>
         );
 
       case 'database':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Database Debug" />}>
             <DatabaseDebug />
+          </Suspense>
+        );
+
+      case 'operations':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Operations" />}>
+            <WarehouseOperations />
           </Suspense>
         );
 
       case 'product-management':
         return (
-          <Suspense fallback={<ComponentLoadingFallback />}>
+          <Suspense fallback={<ComponentLoadingFallback componentName="Product Management" />}>
             <Tabs defaultValue="inventory" className="space-y-4">
               <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
                 <TabsTrigger value="inventory" className="flex items-center gap-2">
@@ -273,6 +308,16 @@ export default function Dashboard() {
       >
         {renderWarehouseSelector()}
         {renderContent()}
+
+        {/* Global Modals */}
+        <Suspense fallback={null}>
+          {showQRScanner && (
+            <LocationQRScannerModal
+              isOpen={showQRScanner}
+              onClose={() => setShowQRScanner(false)}
+            />
+          )}
+        </Suspense>
       </AppLayout>
     </ErrorBoundary>
   );

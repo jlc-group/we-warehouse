@@ -9,6 +9,8 @@ import { Minus, Save, X, Package, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { LocationActivityService, type LocationInventorySummary } from '@/services/locationActivityService';
+import { CustomerSelector } from '@/components/CustomerSelector';
+import type { Customer } from '@/hooks/useCustomers';
 
 interface LocationRemoveItemModalProps {
     isOpen: boolean;
@@ -39,6 +41,7 @@ export function LocationRemoveItemModal({
     const [loading, setLoading] = useState(false);
     const [removeItems, setRemoveItems] = useState<RemoveItem[]>([]);
     const [notes, setNotes] = useState('');
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
     // Initialize items from inventory when modal opens
     useEffect(() => {
@@ -53,6 +56,7 @@ export function LocationRemoveItemModal({
                 lot: p.lot
             })));
             setNotes('');
+            setSelectedCustomer(null);
         }
     }, [isOpen, inventory]);
 
@@ -139,7 +143,12 @@ export function LocationRemoveItemModal({
                     quantity: item.removeQuantity,
                     unit: item.unit,
                     userName: 'User',
-                    notes: notes || undefined
+                    notes: notes || undefined,
+                    metadata: selectedCustomer ? {
+                        customer_id: selectedCustomer.id,
+                        customer_name: selectedCustomer.name,
+                        customer_code: selectedCustomer.customer_code
+                    } : undefined
                 });
             }
 
@@ -253,6 +262,17 @@ export function LocationRemoveItemModal({
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 className="h-11"
+                            />
+                        </div>
+                    )}
+
+                    {/* Customer Selection */}
+                    {selectedCount > 0 && (
+                        <div className="space-y-2">
+                            <CustomerSelector
+                                selectedCustomer={selectedCustomer}
+                                onCustomerSelect={setSelectedCustomer}
+                                placeholder="เลือกลูกค้าที่ต้องการส่งให้ (ไม่บังคับ)"
                             />
                         </div>
                     )}
