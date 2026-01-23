@@ -35,6 +35,7 @@ export function AppLayout({
     'locations': { title: 'จัดการ Location', subtitle: 'เพิ่ม/แก้ไขตำแหน่งจัดเก็บ' },
     'stock-card': { title: 'Stock Card', subtitle: 'ประวัติการเคลื่อนไหว' },
     'packing-list': { title: 'รายการส่งของ', subtitle: 'Packing List ตาม TAXDATE' },
+    'staging': { title: 'พักสินค้า (Staging)', subtitle: 'จัดการสินค้าที่รอแพ็ค (Location: PACKING)' },
     'daily-shipment': { title: 'สรุปส่ง Csmile', subtitle: 'รวมบิลส่งออกรายวัน' },
     'finance': { title: 'รายงานการเงิน', subtitle: 'สรุปยอดขายและรายได้' },
     'analytics': { title: 'วิเคราะห์ยอดขาย', subtitle: 'กราฟและสถิติการขาย' },

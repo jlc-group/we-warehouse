@@ -48,8 +48,15 @@ interface LocationInfo {
   position: string;
 }
 
-export function LocationDetail() {
-  const { locationId } = useParams<{ locationId: string }>();
+interface LocationDetailProps {
+  propLocationId?: string;
+  isEmbedded?: boolean;
+}
+
+export function LocationDetail({ propLocationId, isEmbedded = false }: LocationDetailProps) {
+  const { locationId: paramLocationId } = useParams<{ locationId: string }>();
+  const locationId = propLocationId || paramLocationId;
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -212,17 +219,19 @@ export function LocationDetail() {
 
   return (
     <div className="container mx-auto p-4 max-w-4xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          กลับ
-        </Button>
-      </div>
+      {/* Header - Only show if not embedded */}
+      {!isEmbedded && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            กลับ
+          </Button>
+        </div>
+      )}
 
       {/* Location Info Card */}
       <Card>

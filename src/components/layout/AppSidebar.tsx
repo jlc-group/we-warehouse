@@ -93,6 +93,7 @@ const menuGroups: MenuGroup[] = [
     bgColor: 'bg-orange-50',
     items: [
       { title: 'รายการส่งของ', icon: ClipboardList, value: 'packing-list', badge: 'Picking' },
+      { title: 'พักสินค้า (Staging)', icon: Package, value: 'staging', badge: 'ใหม่', badgeColor: 'bg-purple-500' },
       { title: 'สรุปส่ง Csmile', icon: Send, value: 'daily-shipment', badge: 'ใหม่', badgeColor: 'bg-green-500' },
     ]
   },

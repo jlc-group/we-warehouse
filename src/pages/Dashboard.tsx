@@ -16,6 +16,7 @@ import { Package, Hash, PackagePlus } from 'lucide-react';
 const EnhancedOverview = lazy(() => import('@/components/EnhancedOverview').then(m => ({ default: m.EnhancedOverview })));
 const StockOverviewPage = lazy(() => import('@/components/stock-overview/StockOverviewPage').then(m => ({ default: m.StockOverviewPage })));
 const InventoryTable = lazy(() => import('@/components/InventoryTable').then(m => ({ default: m.InventoryTable })));
+const StagingDashboard = lazy(() => import('@/components/staging/StagingDashboard').then(m => ({ default: m.StagingDashboard })));
 const ShelfGrid = lazy(() => import('@/components/ShelfGrid').then(m => ({ default: m.ShelfGrid })));
 const PackingListTab = lazy(() => import('@/components/PackingListTab').then(m => ({ default: m.PackingListTab })));
 const DailyShipmentSummary = lazy(() => import('@/components/DailyShipmentSummary').then(m => ({ default: m.DailyShipmentSummary })));
@@ -180,6 +181,13 @@ export default function Dashboard() {
         return (
           <Suspense fallback={<ComponentLoadingFallback componentName="Packing List" />}>
             <PackingListTab />
+          </Suspense>
+        );
+
+      case 'staging':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Staging Area" />}>
+            <StagingDashboard />
           </Suspense>
         );
 

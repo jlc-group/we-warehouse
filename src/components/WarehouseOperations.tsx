@@ -30,7 +30,7 @@ export default function WarehouseOperations() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [isMovingToPacking, setIsMovingToPacking] = useState(false);
+
   const { user } = useAuth();
 
   // Fetch items
@@ -55,44 +55,7 @@ export default function WarehouseOperations() {
 
 
 
-  const handleQuickMoveToPacking = async () => {
-    if (!confirm(`คุณต้องการย้ายสินค้า ${selectedIds.size} รายการ ไปที่จุดพัก "PACKING" หรือไม่?`)) {
-      return;
-    }
 
-    setIsMovingToPacking(true);
-    let successCount = 0;
-
-    try {
-      for (const item of selectedItemsList) {
-        // Skip if already in PACKING
-        if (item.location === 'PACKING') {
-          successCount++; // Count as success to avoid confusion
-          continue;
-        }
-
-        const result = await executeTransfer(item, 'PACKING', user);
-        if (result.success) {
-          successCount++;
-        } else {
-          console.error(result.message, result.error);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(`ย้ายไป PACKING สำเร็จ ${successCount} รายการ`);
-        handleClearSelection();
-        fetchItems(); // Refresh
-      } else {
-        toast.error('เกิดข้อผิดพลาดในการย้ายสินค้า');
-      }
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to execute quick move');
-    } finally {
-      setIsMovingToPacking(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in p-4 sm:p-6 pb-24">
@@ -162,15 +125,7 @@ export default function WarehouseOperations() {
               ส่งออก ({selectedIds.size})
             </Button>
 
-            <Button
-              size="sm"
-              className="gap-2 bg-blue-600 hover:bg-blue-700 text-white border-none shadow-sm"
-              onClick={handleQuickMoveToPacking}
-              disabled={isMovingToPacking}
-            >
-              <Package className="h-4 w-4" />
-              {isMovingToPacking ? 'กำลังย้าย...' : 'พักของ (Packing)'}
-            </Button>
+
 
             <Button
               size="sm"
@@ -204,11 +159,11 @@ export default function WarehouseOperations() {
       />
 
       {/* Placeholder for Transfer Modal - will implement next */}
-      {/* <MultiLocationBinTransferModal 
-         isOpen={isTransferModalOpen}
-         onClose={() => setIsTransferModalOpen(false)}
-         selectedItems={selectedItemsList}
-       /> */}
+      <MultiLocationBinTransferModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        selectedItems={selectedItemsList}
+      />
     </div>
   );
 }

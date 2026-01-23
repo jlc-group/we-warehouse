@@ -40,13 +40,20 @@ export function SelectableInventoryTable({ items, selectedIds, onSelectionChange
     const allSelected = items.length > 0 && items.every(item => selectedIds.has(item.id));
     const someSelected = items.some(item => selectedIds.has(item.id)) && !allSelected;
 
-    // Use the same duplicate logic as InventoryTable for consistency
+    // Optimize duplicate detection from O(N^2) to O(N)
+    const duplicatesMap = useMemo(() => {
+        const counts = new Map<string, number>();
+        items.forEach(item => {
+            const key = `${item.sku}-${item.location}`;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        return counts;
+    }, [items]);
+
     const getDuplicateCount = (item: InventoryItem): number => {
-        return items.filter(i =>
-            i.sku === item.sku &&
-            i.location === item.location &&
-            i.id !== item.id
-        ).length;
+        const key = `${item.sku}-${item.location}`;
+        // If count > 1, then there are duplicates (excluding self means count - 1)
+        return (duplicatesMap.get(key) || 0) - 1;
     };
 
     const formatDate = (dateString?: string) => {

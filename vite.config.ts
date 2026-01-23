@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => ({
   base: "/",
   server: {
     host: "::",
-    port: 5173,
+    port: 5177,
     strictPort: true,
     proxy: {
       '/api': {
