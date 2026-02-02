@@ -4,8 +4,12 @@ const { Pool } = require('pg');
 const app = express();
 const port = 3004;
 
-// Enable CORS for frontend
-app.use(cors());
+// Enable CORS for ALL origins
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'apikey', 'Prefer']
+}));
 app.use(express.json());
 
 // Database connection
@@ -14,10 +18,89 @@ const pool = new Pool({
     port: 5432,
     database: 'wewarehouse_local',
     user: 'postgres',
-    password: 'postgres'
+    password: 'postgres123'
 });
 
-// Generic Query Endpoint
+// Test connection
+pool.query('SELECT 1')
+    .then(() => console.log('✅ Connected to PostgreSQL'))
+    .catch(err => console.error('❌ DB Connection Error:', err.message));
+
+// Parse Supabase-style query params
+function parseSupabaseQuery(query, table) {
+    let select = '*';
+    let where = [];
+    let order = '';
+    let limit = '';
+    let offset = '';
+    const values = [];
+    let paramIndex = 1;
+
+    Object.keys(query).forEach(key => {
+        const val = query[key];
+
+        if (key === 'select') {
+            // Clean up select (remove newlines and extra spaces)
+            select = val.replace(/\s+/g, ' ').trim();
+        } else if (key === 'order') {
+            // order=created_at.desc
+            const [col, dir] = val.split('.');
+            order = `ORDER BY "${col}" ${dir === 'desc' ? 'DESC' : 'ASC'}`;
+        } else if (key === 'limit') {
+            limit = `LIMIT ${parseInt(val)}`;
+        } else if (key === 'offset') {
+            offset = `OFFSET ${parseInt(val)}`;
+        } else {
+            // Filter: is_active=eq.true, id=eq.123
+            const match = val.match(/^(eq|neq|gt|gte|lt|lte|like|ilike)\.(.+)$/);
+            if (match) {
+                const [, op, value] = match;
+                const opMap = {
+                    'eq': '=',
+                    'neq': '!=',
+                    'gt': '>',
+                    'gte': '>=',
+                    'lt': '<',
+                    'lte': '<=',
+                    'like': 'LIKE',
+                    'ilike': 'ILIKE'
+                };
+
+                let parsedValue = value;
+                if (value === 'true') parsedValue = true;
+                else if (value === 'false') parsedValue = false;
+                else if (!isNaN(value) && value !== '') parsedValue = Number(value);
+
+                where.push(`"${key}" ${opMap[op]} $${paramIndex}`);
+                values.push(parsedValue);
+                paramIndex++;
+            }
+        }
+    });
+
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const sql = `SELECT ${select} FROM "${table}" ${whereClause} ${order} ${limit} ${offset}`.trim();
+
+    return { sql, values };
+}
+
+// ============ GET - Query Table ============
+app.get('/api/:table', async (req, res) => {
+    const { table } = req.params;
+
+    try {
+        const { sql, values } = parseSupabaseQuery(req.query, table);
+        console.log(`📖 GET ${table}:`, sql.substring(0, 100) + '...');
+
+        const result = await pool.query(sql, values);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('❌ GET Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ POST - Insert ============
 app.post('/api/query', async (req, res) => {
     const { sql, params } = req.body;
     try {
@@ -30,7 +113,6 @@ app.post('/api/query', async (req, res) => {
     }
 });
 
-// Generic Table Insert
 app.post('/api/:table', async (req, res) => {
     const { table } = req.params;
     const data = req.body;
@@ -50,17 +132,17 @@ app.post('/api/:table', async (req, res) => {
 
         console.log(`📥 Insert ${table}`);
         const result = await pool.query(sql, flatValues);
-        res.json({ data: result.rows });
+        res.json(result.rows);
     } catch (err) {
         console.error('❌ Insert Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
 
-// Generic Table Update (Simple Patch)
+// ============ PATCH - Update ============
 app.patch('/api/:table', async (req, res) => {
     const { table } = req.params;
-    const query = req.query; // ?id=eq.123
+    const query = req.query;
     const data = req.body;
 
     try {
@@ -69,26 +151,51 @@ app.patch('/api/:table', async (req, res) => {
         const values = columns.map(col => data[col]);
 
         let whereClause = '';
-
-        // Simple filter parsing (id=eq.123)
-        Object.keys(query).forEach((key, i) => {
+        Object.keys(query).forEach((key) => {
             const parts = query[key].split('.');
             if (parts.length === 2 && parts[0] === 'eq') {
-                const val = parts[1];
                 whereClause = `WHERE "${key}" = $${columns.length + 1}`;
-                values.push(val);
+                values.push(parts[1]);
             }
         });
 
-        if (!whereClause) return res.status(400).json({ error: 'Missing WHERE clause (safe update)' });
+        if (!whereClause) return res.status(400).json({ error: 'Missing WHERE clause' });
 
         const sql = `UPDATE "${table}" SET ${setClause} ${whereClause} RETURNING *`;
-
         console.log(`🔄 Update ${table}`);
         const result = await pool.query(sql, values);
-        res.json({ data: result.rows });
+        res.json(result.rows);
     } catch (err) {
         console.error('❌ Update Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ DELETE ============
+app.delete('/api/:table', async (req, res) => {
+    const { table } = req.params;
+    const query = req.query;
+
+    try {
+        let whereClause = '';
+        const values = [];
+
+        Object.keys(query).forEach((key) => {
+            const parts = query[key].split('.');
+            if (parts.length === 2 && parts[0] === 'eq') {
+                whereClause = `WHERE "${key}" = $1`;
+                values.push(parts[1]);
+            }
+        });
+
+        if (!whereClause) return res.status(400).json({ error: 'Missing WHERE clause' });
+
+        const sql = `DELETE FROM "${table}" ${whereClause} RETURNING *`;
+        console.log(`🗑️ Delete ${table}`);
+        const result = await pool.query(sql, values);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('❌ Delete Error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });
@@ -96,4 +203,5 @@ app.patch('/api/:table', async (req, res) => {
 // Start Server
 app.listen(port, () => {
     console.log(`🚀 Local DB Proxy running at http://localhost:${port}`);
+    console.log('📦 Endpoints: GET/POST/PATCH/DELETE /api/:table');
 });
