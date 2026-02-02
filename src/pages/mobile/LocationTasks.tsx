@@ -9,10 +9,11 @@ import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { recordShip, recordReceive } from '@/services/movementService';
+import { QRScanner } from '@/components/QRScanner';
 import {
     Search, Loader2, MapPin, Package, ArrowRight,
     PackagePlus, PackageCheck, ArrowRightLeft, CheckCircle2,
-    QrCode, X, Minus, Plus
+    QrCode, X, Minus, Plus, Camera
 } from 'lucide-react';
 import {
     Select,
@@ -62,6 +63,9 @@ const LocationTasks = () => {
     const [activeTask, setActiveTask] = useState<LocationTask | null>(null);
     const [actionQuantity, setActionQuantity] = useState<number>(0);
     const [processing, setProcessing] = useState(false);
+
+    // Camera QR Scanner
+    const [showScanner, setShowScanner] = useState(false);
 
     useEffect(() => {
         loadLocations();
@@ -270,7 +274,6 @@ const LocationTasks = () => {
                     locationCode || '',
                     actionQuantity,
                     undefined,
-                    activeTask.order_id,
                     `รับเข้า ${locationCode} จาก ${activeTask.order_number}`,
                     user?.email
                 );
@@ -333,6 +336,15 @@ const LocationTasks = () => {
 
     return (
         <MobileLayout title="สแกน Location" showBack={true}>
+            {/* Big Scan Button */}
+            <Button
+                onClick={() => setShowScanner(true)}
+                className="w-full h-16 mb-4 text-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
+            >
+                <Camera className="h-6 w-6 mr-3" />
+                สแกน QR Location
+            </Button>
+
             {/* Search Input */}
             <div className="flex gap-2 mb-3">
                 <Input
@@ -341,7 +353,6 @@ const LocationTasks = () => {
                     onChange={(e) => setManualInput(e.target.value.toUpperCase())}
                     onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
                     className="text-lg h-12 font-mono"
-                    autoFocus
                 />
                 <Button onClick={handleManualSearch} className="h-12 w-12 p-0">
                     <Search />
@@ -397,10 +408,10 @@ const LocationTasks = () => {
                                 <Card
                                     key={task.id}
                                     className={`cursor-pointer transition-all border-l-4 ${task.completed
-                                            ? 'border-l-green-500 bg-green-50 opacity-60'
-                                            : task.priority === 'HIGH'
-                                                ? 'border-l-red-500 hover:shadow-md'
-                                                : 'border-l-gray-300 hover:shadow-md'
+                                        ? 'border-l-green-500 bg-green-50 opacity-60'
+                                        : task.priority === 'HIGH'
+                                            ? 'border-l-red-500 hover:shadow-md'
+                                            : 'border-l-gray-300 hover:shadow-md'
                                         }`}
                                     onClick={() => !task.completed && handleTaskClick(task)}
                                 >
@@ -524,6 +535,19 @@ const LocationTasks = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Camera QR Scanner */}
+            <QRScanner
+                isOpen={showScanner}
+                onClose={() => setShowScanner(false)}
+                onScanSuccess={(location) => {
+                    setShowScanner(false);
+                    const locCode = location.replace(/^LOC[-_]/i, '').toUpperCase();
+                    setManualInput(locCode);
+                    setSelectedLocation(locCode);
+                    handleSearch(locCode);
+                }}
+            />
         </MobileLayout>
     );
 };
