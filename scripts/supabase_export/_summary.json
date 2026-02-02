@@ -1,0 +1,51 @@
+{
+  "exportDate": "2026-01-31T09:47:57.135Z",
+  "tables": [
+    {
+      "table": "inventory_items",
+      "count": 784,
+      "file": "inventory_items.json"
+    },
+    {
+      "table": "inventory_movements",
+      "count": 146,
+      "file": "inventory_movements.json"
+    },
+    {
+      "table": "products",
+      "count": 427,
+      "file": "products.json"
+    },
+    {
+      "table": "warehouse_locations",
+      "count": 607,
+      "file": "warehouse_locations.json"
+    },
+    {
+      "table": "users",
+      "count": 4,
+      "file": "users.json"
+    },
+    {
+      "table": "customer_orders",
+      "count": 5,
+      "file": "customer_orders.json"
+    },
+    {
+      "table": "order_items",
+      "count": 2,
+      "file": "order_items.json"
+    },
+    {
+      "table": "inbound_receipts",
+      "count": 0,
+      "file": "inbound_receipts.json"
+    },
+    {
+      "table": "inbound_receipt_items",
+      "count": 0,
+      "file": "inbound_receipt_items.json"
+    }
+  ],
+  "totalRecords": 1975
+}

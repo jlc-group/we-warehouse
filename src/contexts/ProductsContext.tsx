@@ -144,8 +144,7 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(200) // Reduced from 500 to speed up
-        .abortSignal(AbortSignal.timeout(15000)); // 15 second timeout with proper abort signal
+        .limit(200); // Reduced from 500 to speed up
 
       console.log('✅ Supabase query completed', { hasError: !!error, productCount: products?.length || 0 });
 

@@ -19,8 +19,6 @@ interface SafeDeleteResult {
  */
 export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDeleteResult> {
   try {
-    console.log('🗑️ Starting optimized delete for inventory item:', itemId);
-
     // Option 1: Try simple delete first (might work if no related records)
     const { error: directDeleteError } = await (supabase
       .from('inventory_items') as any)
@@ -28,7 +26,6 @@ export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDelet
       .eq('id' as any, itemId as any);
 
     if (!directDeleteError) {
-      console.log('✅ Direct delete successful');
       return {
         success: true,
         deleted: true,
@@ -38,7 +35,6 @@ export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDelet
 
     // If direct delete failed with constraint violation, go directly to cleanup
     if (directDeleteError.code === '23503' || directDeleteError.message.includes('violates foreign key constraint')) {
-      console.log('🧹 Direct delete failed due to constraints, using cleanup method...');
       return await cleanupAndDelete(itemId);
     }
 
@@ -57,16 +53,12 @@ export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDelet
   }
 }
 
-// Removed triggerSafeDelete function to avoid calling non-existent RPC functions
-
 /**
  * Clean up related records and then delete the item
  * Removes movement records that reference this item first
  */
 async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
   try {
-    console.log('🧹 Starting cleanup and delete...');
-
     // Step 1: Get the item to make sure it exists
     const { data: item, error: fetchError } = await (supabase
       .from('inventory_items') as any)
@@ -84,16 +76,8 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     }
 
     const invItem: any = item as any;
-    console.log('📦 Found item to delete:', {
-      id: invItem.id,
-      sku: invItem.sku,
-      location: invItem.location,
-      product_name: invItem.product_name
-    });
 
     // Step 2: Delete related movement records first (silently)
-    console.log('🗑️ Cleaning up related records...');
-
     try {
       await (supabase
         .from('inventory_movements') as any)
@@ -116,7 +100,6 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     // Step 3.5: Delete system_events that reference this item in metadata
     // This prevents foreign key constraint violations
     try {
-      console.log('🗑️ Cleaning up system_events...');
       await supabase
         .from('system_events')
         .delete()
@@ -140,7 +123,6 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     }
 
     // Step 4: Now try to delete the main inventory item
-    console.log('🗑️ Deleting main inventory item...');
     const { error: finalDeleteError } = await (supabase
       .from('inventory_items') as any)
       .delete()
@@ -157,8 +139,6 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     }
 
     // If no error returned, assume deletion succeeded
-
-    console.log('✅ Cleanup and delete successful');
     return {
       success: true,
       deleted: true,
@@ -186,8 +166,6 @@ export async function safeDeleteLocationItems(location: string): Promise<{
   errors: string[];
 }> {
   try {
-    console.log('🗑️ Starting safe delete for entire location:', location);
-
     // Get all items at this location
     const { data: items, error: fetchError } = await (supabase
       .from('inventory_items') as any)
@@ -199,15 +177,12 @@ export async function safeDeleteLocationItems(location: string): Promise<{
     }
 
     if (!items || items.length === 0) {
-      console.log('ℹ️ No items found at location:', location);
       return {
         success: true,
         deletedCount: 0,
         errors: []
       };
     }
-
-    console.log(`📦 Found ${items.length} items to delete at location:`, location);
 
     // Delete each item
     const itemsArray: any[] = (items as any[]) || [];
@@ -219,10 +194,8 @@ export async function safeDeleteLocationItems(location: string): Promise<{
     const successful = results.filter(r => r.success);
     const failed = results.filter(r => !r.success);
 
-    console.log(`✅ Deleted ${successful.length}/${items.length} items from location:`, location);
-
     if (failed.length > 0) {
-      console.log('⚠️ Some deletions failed:', failed.map(f => f.error));
+      console.warn('⚠️ Some deletions failed:', failed.map(f => f.error));
     }
 
     return {

@@ -16,6 +16,12 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { LocationDetail } from "./pages/LocationDetail";
 import SimpleAuth from "./pages/SimpleAuth";
+import MobileMenu from "./pages/mobile/MobileMenu";
+import LocationLookup from "./pages/mobile/LocationLookup";
+import ItemMove from "./pages/mobile/ItemMove";
+import MobileReceive from "@/pages/mobile/MobileReceive";
+import MobileCount from "./pages/mobile/MobileCount";
+import MobilePick from "./pages/mobile/MobilePick";
 
 // Development vs Production optimized query client configuration
 const isDevelopment = import.meta.env.DEV;
@@ -80,6 +86,55 @@ const App = () => (
                         element={
                           <AuthGuard>
                             <LocationDetail />
+                          </AuthGuard>
+                        }
+                      />
+                      {/* Mobile WMS Routes */}
+                      <Route
+                        path="/mobile"
+                        element={
+                          <AuthGuard>
+                            <MobileMenu />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/lookup"
+                        element={
+                          <AuthGuard>
+                            <LocationLookup />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/move"
+                        element={
+                          <AuthGuard>
+                            <ItemMove />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/receive"
+                        element={
+                          <AuthGuard>
+                            <MobileReceive />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/count"
+                        element={
+                          <AuthGuard>
+                            <MobileCount />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/pick"
+                        element={
+                          <AuthGuard>
+                            <MobilePick />
                           </AuthGuard>
                         }
                       />

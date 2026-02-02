@@ -44,8 +44,7 @@ export class LocationQRService {
         .select('id, location, qr_code_data, is_active, created_at')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(100) // Reduced limit for faster query
-        .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
+        .limit(100); // Reduced limit for faster query
 
       if (error) {
         console.warn('⚠️ LocationQRService: Error fetching QR codes (returning empty array):', error.message);
@@ -116,7 +115,7 @@ export class LocationQRService {
         .single();
 
       let data, error;
-      
+
       if (existing) {
         // Update existing QR
         const result = await supabase
