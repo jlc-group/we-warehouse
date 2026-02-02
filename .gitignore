@@ -17,6 +17,14 @@ dist-ssr
 .env.local
 .env.production
 .env.development
+we-warehouse-backend/.env
+
+# Migration scripts with credentials (use .env instead)
+scripts/migrate_*.js
+scripts/migrate_*.cjs
+scripts/migrate_*.sh
+scripts/sync_*.cjs
+simple_db_proxy.cjs
 
 # Editor directories and files
 .vscode/*
