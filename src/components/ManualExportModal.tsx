@@ -14,11 +14,11 @@ interface ManualExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   location: string;
-  items: any[];
+  items?: any[]; // Made optional
   onExportSuccess?: () => void; // Callback to refresh data
 }
 
-export function ManualExportModal({ isOpen, onClose, location, items, onExportSuccess }: ManualExportModalProps) {
+export function ManualExportModal({ isOpen, onClose, location, items = [], onExportSuccess }: ManualExportModalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -54,9 +54,9 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
 
     // Fallback สำหรับข้อมูลเก่าที่ยังไม่มี conversion rates
     const legacyStock = item.pieces_quantity_legacy ||
-                        item.box_quantity_legacy ||
-                        item.carton_quantity_legacy ||
-                        0;
+      item.box_quantity_legacy ||
+      item.carton_quantity_legacy ||
+      0;
     return Number(legacyStock);
   };
 
@@ -249,8 +249,8 @@ export function ManualExportModal({ isOpen, onClose, location, items, onExportSu
 
       // คำนวณชิ้นรวมที่ส่งออก
       const exportedTotal = (reqLevel1 * (selectedItem.unit_level1_rate || 0)) +
-                           (reqLevel2 * (selectedItem.unit_level2_rate || 0)) +
-                           reqLevel3;
+        (reqLevel2 * (selectedItem.unit_level2_rate || 0)) +
+        reqLevel3;
 
       console.log('📝 Updating inventory:', {
         before: {

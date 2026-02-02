@@ -3,10 +3,11 @@
  * Uses HTTP API backend instead of direct pg connection
  * 
  * NOTE: This requires we-warehouse-backend to be running on port 3004
+ * Uses /api/local routes for generic PostgreSQL access
  */
 
-// Backend API URL
-const BACKEND_URL = 'http://localhost:3004';
+// Backend API URL - use /api/local for PostgreSQL data
+const BACKEND_URL = 'http://localhost:3004/api/local';
 
 // Supabase-compatible query interface using HTTP API
 export class LocalDatabaseClient {
@@ -21,11 +22,37 @@ export class LocalDatabaseClient {
     }
 
     /**
+     * Call a stored function (RPC) via backend API
+     * Mimics supabase.rpc() functionality
+     */
+    async rpc(functionName: string, params?: Record<string, any>): Promise<{ data: any; error: any }> {
+        try {
+            const response = await fetch(`${this.baseUrl}/rpc/${functionName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params || {})
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ message: response.statusText }));
+                console.error(`RPC ${functionName} failed:`, error);
+                return { data: null, error: { message: error.message || error.error || 'RPC call failed' } };
+            }
+
+            const data = await response.json();
+            return { data, error: null };
+        } catch (error: any) {
+            console.error(`RPC ${functionName} error:`, error);
+            return { data: null, error: { message: error.message } };
+        }
+    }
+
+    /**
      * Execute raw SQL query via backend API
      */
     async query(sql: string, params?: any[]): Promise<{ rows: any[]; rowCount: number }> {
         try {
-            const response = await fetch(`${this.baseUrl}/api/query`, {
+            const response = await fetch(`${this.baseUrl}/query`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ sql, params })
@@ -131,7 +158,7 @@ class QueryBuilder {
 
     async insert(data: any | any[]) {
         try {
-            const response = await fetch(`${this.baseUrl}/api/${this.tableName}`, {
+            const response = await fetch(`${this.baseUrl}/${this.tableName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -152,7 +179,7 @@ class QueryBuilder {
     async update(data: any) {
         try {
             const queryString = this.buildQueryParams();
-            const url = `${this.baseUrl}/api/${this.tableName}${queryString ? '?' + queryString : ''}`;
+            const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
 
             const response = await fetch(url, {
                 method: 'PATCH',
@@ -175,7 +202,7 @@ class QueryBuilder {
     async delete() {
         try {
             const queryString = this.buildQueryParams();
-            const url = `${this.baseUrl}/api/${this.tableName}${queryString ? '?' + queryString : ''}`;
+            const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
 
             const response = await fetch(url, {
                 method: 'DELETE'
@@ -196,7 +223,7 @@ class QueryBuilder {
     async then(resolve: (value: { data: any; error: any }) => void) {
         try {
             const queryString = this.buildQueryParams();
-            const url = `${this.baseUrl}/api/${this.tableName}${queryString ? '?' + queryString : ''}`;
+            const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
 
             const response = await fetch(url);
 
