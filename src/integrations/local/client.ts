@@ -4,10 +4,12 @@
  * 
  * NOTE: This requires we-warehouse-backend to be running on port 3004
  * Uses /api/local routes for generic PostgreSQL access
+ * 
+ * For Cloudflare Tunnel: Set VITE_BACKEND_URL in .env
  */
 
-// Backend API URL - use /api/local for PostgreSQL data
-const BACKEND_URL = 'http://localhost:3004/api/local';
+// Backend API URL - use env variable for Tunnel or default to localhost
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004/api/local';
 
 // Supabase-compatible query interface using HTTP API
 export class LocalDatabaseClient {
