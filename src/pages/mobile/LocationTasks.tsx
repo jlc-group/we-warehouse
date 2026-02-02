@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MobileLayout } from '@/components/mobile/MobileLayout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useScanner } from '@/hooks/mobile/useScanner';
@@ -9,7 +10,7 @@ import { toast } from '@/components/ui/sonner';
 import {
     Search, Loader2, MapPin, Package, ArrowRight,
     PackagePlus, PackageCheck, ArrowRightLeft, AlertCircle,
-    ChevronDown, QrCode
+    QrCode
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -43,6 +44,7 @@ const LocationTasks = () => {
     const [loadingLocations, setLoadingLocations] = useState(true);
     const [locations, setLocations] = useState<LocationOption[]>([]);
     const [selectedLocation, setSelectedLocation] = useState<string>('');
+    const [manualInput, setManualInput] = useState<string>('');
     const [locationCode, setLocationCode] = useState<string | null>(null);
     const [tasks, setTasks] = useState<LocationTask[]>([]);
 
@@ -64,6 +66,7 @@ const LocationTasks = () => {
                     .map(l => ({ code: l.location_code, description: l.description }))
                     .sort((a, b) => a.code.localeCompare(b.code));
                 setLocations(sorted);
+                console.log(`Loaded ${sorted.length} locations`);
             }
         } catch (error) {
             console.error('Failed to load locations:', error);
@@ -76,8 +79,8 @@ const LocationTasks = () => {
     useScanner({
         onScan: (code) => {
             toast.success(`สแกน QR: ${code}`);
-            // Extract location code from QR (format might be "LOC-J5/4" or just "J5/4")
             const locCode = code.replace(/^LOC[-_]/i, '').toUpperCase();
+            setManualInput(locCode);
             setSelectedLocation(locCode);
             handleSearch(locCode);
         }
@@ -85,7 +88,14 @@ const LocationTasks = () => {
 
     const handleLocationSelect = (value: string) => {
         setSelectedLocation(value);
+        setManualInput(value);
         handleSearch(value);
+    };
+
+    const handleManualSearch = () => {
+        if (manualInput) {
+            handleSearch(manualInput.toUpperCase());
+        }
     };
 
     const handleSearch = async (searchTerm: string) => {
@@ -111,7 +121,7 @@ const LocationTasks = () => {
             setLocationCode(location.location_code);
             const foundTasks: LocationTask[] = [];
 
-            // 2. Find PICK tasks - order_items that need to be picked from this location
+            // 2. Find PICK tasks
             const { data: pickItems } = await localDb
                 .from('order_items')
                 .select('*')
@@ -120,7 +130,6 @@ const LocationTasks = () => {
 
             if (pickItems && pickItems.length > 0) {
                 for (const item of pickItems as any[]) {
-                    // Get order info
                     const { data: order } = await localDb
                         .from('customer_orders')
                         .select('order_number, priority')
@@ -145,7 +154,7 @@ const LocationTasks = () => {
                 }
             }
 
-            // 3. Find RECEIVE tasks - inbound items for this location
+            // 3. Find RECEIVE tasks
             const { data: receiveItems } = await localDb
                 .from('inbound_receipt_items')
                 .select('*')
@@ -154,7 +163,6 @@ const LocationTasks = () => {
             if (receiveItems && receiveItems.length > 0) {
                 for (const item of receiveItems as any[]) {
                     if (item.quantity_received < item.quantity_expected) {
-                        // Get receipt info
                         const { data: receipt } = await localDb
                             .from('inbound_receipts')
                             .select('document_number')
@@ -185,9 +193,9 @@ const LocationTasks = () => {
             setTasks(foundTasks);
 
             if (foundTasks.length === 0) {
-                toast.success(`ไม่มีงานค้างที่ Location ${location.location_code}`);
+                toast.success(`ไม่มีงานค้างที่ ${location.location_code}`);
             } else {
-                toast.success(`พบ ${foundTasks.length} งานที่ต้องทำ`);
+                toast.success(`พบ ${foundTasks.length} งาน`);
             }
 
         } catch (error: any) {
@@ -249,44 +257,46 @@ const LocationTasks = () => {
 
     return (
         <MobileLayout title="เลือก Location" showBack={true}>
-            {/* Location Selector */}
-            <Card className="mb-4">
-                <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <QrCode className="h-5 w-5 text-teal-600" />
-                        <span className="font-medium">สแกน QR หรือเลือก Location</span>
-                    </div>
+            {/* Manual Input */}
+            <div className="flex gap-2 mb-3">
+                <Input
+                    placeholder="พิมพ์ Location (เช่น J5/4)"
+                    value={manualInput}
+                    onChange={(e) => setManualInput(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => e.key === 'Enter' && handleManualSearch()}
+                    className="text-lg h-12 font-mono"
+                    autoFocus
+                />
+                <Button onClick={handleManualSearch} className="h-12 w-12 p-0">
+                    <Search />
+                </Button>
+            </div>
 
-                    <Select
-                        value={selectedLocation}
-                        onValueChange={handleLocationSelect}
-                        disabled={loadingLocations}
-                    >
-                        <SelectTrigger className="w-full h-14 text-lg">
-                            <SelectValue placeholder={loadingLocations ? "กำลังโหลด..." : "เลือก Location..."} />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-80">
-                            {locations.map((loc) => (
-                                <SelectItem key={loc.code} value={loc.code} className="py-3">
-                                    <div className="flex items-center gap-2">
-                                        <MapPin className="h-4 w-4 text-red-500" />
-                                        <span className="font-mono font-bold">{loc.code}</span>
-                                        {loc.description && (
-                                            <span className="text-gray-400 text-sm truncate max-w-[150px]">
-                                                - {loc.description}
-                                            </span>
-                                        )}
-                                    </div>
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    <p className="text-xs text-gray-400 mt-2 text-center">
-                        หรือสแกน QR Code ที่ติดอยู่ที่ชั้นวางสินค้า
-                    </p>
-                </CardContent>
-            </Card>
+            {/* Dropdown Selector */}
+            <div className="mb-4">
+                <Select
+                    value={selectedLocation}
+                    onValueChange={handleLocationSelect}
+                    disabled={loadingLocations}
+                >
+                    <SelectTrigger className="w-full h-12">
+                        <SelectValue placeholder={loadingLocations ? "กำลังโหลด..." : `เลือกจากรายการ (${locations.length} locations)`} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                        {locations.map((loc) => (
+                            <SelectItem key={loc.code} value={loc.code} className="py-2">
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-red-500" />
+                                    <span className="font-mono font-bold">{loc.code}</span>
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-1 text-center">
+                    หรือสแกน QR Code ที่ติดอยู่ที่ชั้นวาง
+                </p>
+            </div>
 
             {/* Loading */}
             {loading && (
@@ -304,7 +314,6 @@ const LocationTasks = () => {
                         <Badge variant="outline">{tasks.length} งาน</Badge>
                     </div>
 
-                    {/* Task List */}
                     {tasks.length > 0 ? (
                         <div className="space-y-3">
                             {tasks.map((task) => (
@@ -316,12 +325,9 @@ const LocationTasks = () => {
                                 >
                                     <CardContent className="p-3">
                                         <div className="flex items-start gap-3">
-                                            {/* Icon */}
                                             <div className={`p-2 rounded-lg ${getTaskColor(task.type)}`}>
                                                 {getTaskIcon(task.type)}
                                             </div>
-
-                                            {/* Content */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <Badge className={getTaskColor(task.type)}>
@@ -331,27 +337,17 @@ const LocationTasks = () => {
                                                         <Badge variant="destructive">ด่วน</Badge>
                                                     )}
                                                 </div>
-
-                                                <p className="font-medium text-sm truncate">
-                                                    {task.product_name}
-                                                </p>
-                                                <p className="text-xs text-gray-500">
-                                                    SKU: {task.sku}
-                                                </p>
-
+                                                <p className="font-medium text-sm truncate">{task.product_name}</p>
+                                                <p className="text-xs text-gray-500">SKU: {task.sku}</p>
                                                 <div className="flex items-center justify-between mt-2">
                                                     <span className="text-lg font-bold text-primary">
                                                         {task.quantity} {task.unit}
                                                     </span>
                                                     {task.order_number && (
-                                                        <span className="text-xs text-gray-400">
-                                                            {task.order_number}
-                                                        </span>
+                                                        <span className="text-xs text-gray-400">{task.order_number}</span>
                                                     )}
                                                 </div>
                                             </div>
-
-                                            {/* Arrow */}
                                             <ArrowRight className="h-5 w-5 text-gray-400 self-center" />
                                         </div>
                                     </CardContent>
@@ -363,29 +359,24 @@ const LocationTasks = () => {
                             <CardContent className="p-6 text-center">
                                 <PackageCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
                                 <p className="text-green-700 font-medium">ไม่มีงานค้าง</p>
-                                <p className="text-sm text-green-600 mt-1">
-                                    Location นี้พร้อมใช้งาน
-                                </p>
+                                <p className="text-sm text-green-600 mt-1">Location นี้พร้อมใช้งาน</p>
                             </CardContent>
                         </Card>
                     )}
                 </div>
             )}
 
-            {/* Empty State - Before selecting */}
+            {/* Empty State */}
             {!loading && !locationCode && (
                 <Card className="bg-gray-50">
-                    <CardContent className="p-8 text-center">
-                        <MapPin className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                    <CardContent className="p-6 text-center">
+                        <QrCode className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                         <h3 className="text-lg font-medium text-gray-600 mb-2">
-                            เลือก Location จาก Dropdown
+                            พิมพ์ / เลือก / สแกน Location
                         </h3>
-                        <p className="text-sm text-gray-400 mb-4">
-                            หรือสแกน QR Code ที่ติดอยู่ที่ชั้นวาง
+                        <p className="text-sm text-gray-400">
+                            ระบบจะแสดงรายการที่ต้องทำ
                         </p>
-                        <div className="flex justify-center">
-                            <QrCode className="h-20 w-20 text-gray-200" />
-                        </div>
                     </CardContent>
                 </Card>
             )}
