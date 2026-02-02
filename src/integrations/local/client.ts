@@ -81,6 +81,8 @@ class QueryBuilder {
     private orderDirection: string = 'ASC';
     private limitValue: number | null = null;
     private singleResult: boolean = false;
+    private pendingUpdate: any = null;
+    private pendingDelete: boolean = false;
 
     constructor(baseUrl: string, tableName: string) {
         this.baseUrl = baseUrl;
@@ -94,6 +96,11 @@ class QueryBuilder {
 
     eq(column: string, value: any) {
         this.whereConditions.push({ column, value, operator: 'eq' });
+        return this;
+    }
+
+    neq(column: string, value: any) {
+        this.whereConditions.push({ column, value, operator: 'neq' });
         return this;
     }
 
@@ -117,6 +124,11 @@ class QueryBuilder {
         return this;
     }
 
+    ilike(column: string, value: any) {
+        this.whereConditions.push({ column, value, operator: 'ilike' });
+        return this;
+    }
+
     order(column: string, options?: { ascending?: boolean }) {
         this.orderColumn = column;
         this.orderDirection = options?.ascending === false ? 'desc' : 'asc';
@@ -131,6 +143,18 @@ class QueryBuilder {
     single() {
         this.singleResult = true;
         this.limitValue = 1;
+        return this;
+    }
+
+    // Deferred update - stores data and allows chaining with .eq()
+    update(data: any) {
+        this.pendingUpdate = data;
+        return this;
+    }
+
+    // Deferred delete - allows chaining with .eq()
+    delete() {
+        this.pendingDelete = true;
         return this;
     }
 
@@ -176,7 +200,7 @@ class QueryBuilder {
         }
     }
 
-    async update(data: any) {
+    private async executeUpdate() {
         try {
             const queryString = this.buildQueryParams();
             const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
@@ -184,7 +208,7 @@ class QueryBuilder {
             const response = await fetch(url, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify(this.pendingUpdate)
             });
 
             if (!response.ok) {
@@ -193,13 +217,14 @@ class QueryBuilder {
             }
 
             const result = await response.json();
-            return { data: result.data || result, error: null };
+            const data = this.singleResult ? (Array.isArray(result) ? result[0] : result) : result;
+            return { data: data || null, error: null };
         } catch (error: any) {
             return { data: null, error: { message: error.message } };
         }
     }
 
-    async delete() {
+    private async executeDelete() {
         try {
             const queryString = this.buildQueryParams();
             const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
@@ -222,6 +247,21 @@ class QueryBuilder {
 
     async then(resolve: (value: { data: any; error: any }) => void) {
         try {
+            // Handle pending update
+            if (this.pendingUpdate !== null) {
+                const result = await this.executeUpdate();
+                resolve(result);
+                return;
+            }
+
+            // Handle pending delete
+            if (this.pendingDelete) {
+                const result = await this.executeDelete();
+                resolve(result);
+                return;
+            }
+
+            // Normal SELECT query
             const queryString = this.buildQueryParams();
             const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
 
@@ -243,3 +283,4 @@ class QueryBuilder {
 }
 
 export const localDb = new LocalDatabaseClient(BACKEND_URL);
+

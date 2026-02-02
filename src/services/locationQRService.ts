@@ -41,10 +41,10 @@ export class LocationQRService {
       // Simple query with timeout - no retry to prevent error spam
       const { data, error } = await supabase
         .from('location_qr_codes')
-        .select('id, location, qr_code_data, is_active, created_at')
+        .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(100); // Reduced limit for faster query
+        .limit(1000); // Increased limit to fetch all QR codes
 
       if (error) {
         console.warn('⚠️ LocationQRService: Error fetching QR codes (returning empty array):', error.message);
@@ -89,8 +89,12 @@ export class LocationQRService {
       };
 
       // Create URL for QR Code that opens location view
+      // ใช้ VITE_APP_URL ถ้าตั้งค่าไว้ (สำหรับ production)
+      // ถ้าไม่มี จะใช้ URL ปัจจุบัน (window.location.origin)
       let baseUrl = '';
-      if (typeof window !== 'undefined') {
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_URL) {
+        baseUrl = import.meta.env.VITE_APP_URL;
+      } else if (typeof window !== 'undefined') {
         baseUrl = window.location.origin;
       }
 

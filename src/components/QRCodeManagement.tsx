@@ -252,8 +252,15 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('th-TH');
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleString('th-TH');
+    } catch {
+      return '-';
+    }
   };
 
   // Debug info for environment
@@ -311,473 +318,473 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
         </TabsList>
 
         <TabsContent value="manage" className="space-y-6">
-      <Card>
-        <CardContent className="space-y-4">
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-blue-600">{qrCodes.length}</div>
-              <div className="text-xs sm:text-sm text-gray-600">QR Codes ทั้งหมด</div>
-            </div>
-            <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-green-600">{allLocations.length}</div>
-              <div className="text-xs sm:text-sm text-gray-600">ตำแหน่งทั้งหมด</div>
-              <div className="text-[10px] sm:text-xs text-gray-500">({warehouseLocations.length} warehouse)</div>
-            </div>
-            <div className="text-center p-3 bg-orange-50 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-orange-600">{locationsWithoutQR.length}</div>
-              <div className="text-xs sm:text-sm text-gray-600">ยังไม่มี QR</div>
-            </div>
-            <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-xl sm:text-2xl font-bold text-purple-600">{Math.round((qrCodes.length / Math.max(allLocations.length, 1)) * 100)}%</div>
-              <div className="text-xs sm:text-sm text-gray-600">ความครอบคลุม</div>
-            </div>
+          <Card>
+            <CardContent className="space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <div className="text-xl sm:text-2xl font-bold text-blue-600">{qrCodes.length}</div>
+                  <div className="text-xs sm:text-sm text-gray-600">QR Codes ทั้งหมด</div>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-xl sm:text-2xl font-bold text-green-600">{allLocations.length}</div>
+                  <div className="text-xs sm:text-sm text-gray-600">ตำแหน่งทั้งหมด</div>
+                  <div className="text-[10px] sm:text-xs text-gray-500">({warehouseLocations.length} warehouse)</div>
+                </div>
+                <div className="text-center p-3 bg-orange-50 rounded-lg">
+                  <div className="text-xl sm:text-2xl font-bold text-orange-600">{locationsWithoutQR.length}</div>
+                  <div className="text-xs sm:text-sm text-gray-600">ยังไม่มี QR</div>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
+                  <div className="text-xl sm:text-2xl font-bold text-purple-600">{Math.round((qrCodes.length / Math.max(allLocations.length, 1)) * 100)}%</div>
+                  <div className="text-xs sm:text-sm text-gray-600">ความครอบคลุม</div>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              {generationProgress && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">กำลังสร้าง QR Code...</span>
+                    <span className="text-sm text-gray-600">
+                      {generationProgress.current}/{generationProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                <Button
+                  onClick={handleBulkGenerate}
+                  disabled={isGenerating || locationsWithoutQR.length === 0}
+                  className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="hidden sm:inline">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
+                  <span className="sm:hidden">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
+                </Button>
+
+                <Button
+                  onClick={handleRegenerateAll}
+                  disabled={isGenerating || allLocations.length === 0}
+                  variant="outline"
+                  className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span className="hidden sm:inline">สร้าง QR ใหม่ทั้งหมด</span>
+                  <span className="sm:hidden">สร้างใหม่</span>
+                </Button>
+
+                <Button
+                  onClick={() => setShowRangeGenerator(true)}
+                  disabled={isGenerating}
+                  variant="outline"
+                  className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
+                >
+                  <Grid3X3 className="h-4 w-4" />
+                  สร้างจาก Range
+                </Button>
+
+                <Button
+                  onClick={refetch}
+                  variant="outline"
+                  disabled={loading}
+                  className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  รีเฟรช
+                </Button>
+
+                <Button
+                  onClick={() => setShowScanner(true)}
+                  variant="default"
+                  className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Scan className="h-4 w-4" />
+                  สแกน QR Code
+                </Button>
+
+                {/* Single location generation */}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2">
+                      <QrCode className="h-4 w-4" />
+                      <span className="hidden sm:inline">สร้าง QR ตำแหน่งเดียว</span>
+                      <span className="sm:hidden">สร้าง 1 ตำแหน่ง</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-full h-auto sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-base sm:text-lg">สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
+                      <DialogDescription className="text-sm">
+                        เลือกตำแหน่งที่ต้องการสร้าง QR Code
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                        <SelectTrigger className="h-11 sm:h-10">
+                          <SelectValue placeholder="เลือกตำแหน่ง" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allLocations.map(location => (
+                            <SelectItem key={location} value={location}>
+                              {location} {qrCodes.some(qr => qr.location === location) && '(มี QR แล้ว)'}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={() => {
+                          if (selectedLocation) {
+                            handleGenerateQR(selectedLocation);
+                            setSelectedLocation('');
+                          }
+                        }}
+                        disabled={!selectedLocation || isGenerating}
+                        className="h-11 sm:h-10 w-full"
+                      >
+                        สร้าง QR Code
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Search */}
+          <Card>
+            <CardContent className="pt-4 sm:pt-6">
+              <div className="flex items-center space-x-2">
+                <Search className="h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="ค้นหาตำแหน่ง..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-11 sm:h-10 flex-1"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* QR Codes List */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {loading ? (
+              <div className="col-span-full text-center py-8">
+                <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                กำลังโหลด QR Codes...
+              </div>
+            ) : filteredQRCodes.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-gray-500">
+                {debouncedSearchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
+                  <div className="space-y-4">
+                    <div>ยังไม่มี QR Code</div>
+                    <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+                      <AlertCircle className="h-4 w-4 inline-block mr-2" />
+                      ต้องสร้าง QR Code ก่อนใช้งาน กดปุ่ม "สร้าง QR ทั้งหมด" ด้านบน
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              filteredQRCodes.map((qrCode) => {
+                const snapshot = qrCode.inventory_snapshot as any;
+                const isUrlFormat = qrCode.qr_code_data.startsWith('http');
+
+                return (
+                  <Card key={qrCode.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader className="p-3 sm:pb-3 sm:p-6">
+                      <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-base sm:text-lg">
+                        <span className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          {qrCode.location}
+                        </span>
+                        <div className="flex gap-2">
+                          <Badge variant={qrCode.is_active ? "default" : "secondary"} className="text-xs">
+                            {qrCode.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}
+                          </Badge>
+                          <Badge variant={isUrlFormat ? "default" : "destructive"} className="text-xs">
+                            {isUrlFormat ? "URL" : "JSON"}
+                          </Badge>
+                        </div>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* QR Code Image */}
+                      {qrCode.qr_image_url && (
+                        <div className="flex justify-center">
+                          <img
+                            src={qrCode.qr_image_url}
+                            alt={`QR Code for ${qrCode.location}`}
+                            className="w-32 h-32 border rounded"
+                          />
+                        </div>
+                      )}
+
+                      {/* Warning for old JSON QR codes */}
+                      {!isUrlFormat && (
+                        <div className="bg-orange-50 border border-orange-200 rounded p-2 text-sm text-orange-800">
+                          <AlertCircle className="h-4 w-4 inline-block mr-1" />
+                          QR Code รูปแบบเก่า (JSON) - ไม่เปิดหน้าเพิ่มสินค้าได้
+                        </div>
+                      )}
+
+                      {/* Summary */}
+                      {snapshot?.summary && (
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Package className="h-3 w-3" />
+                            {snapshot.summary.total_items} รายการ
+                          </div>
+                          <div>{snapshot.summary.total_boxes} ลัง</div>
+                          <div>{snapshot.summary.total_loose} เศษ</div>
+                          <div>{snapshot.summary.product_types} ประเภท</div>
+                        </div>
+                      )}
+
+                      {/* Timestamps */}
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>สร้าง: {formatDate(qrCode.generated_at)}</div>
+                        <div>อัพเดต: {formatDate(qrCode.last_updated)}</div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="grid grid-cols-2 sm:flex gap-2">
+                        <Button
+                          onClick={() => downloadQRCode(qrCode)}
+                          size="sm"
+                          variant="outline"
+                          className="h-9 sm:h-8 flex-1 text-xs"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          <span className="hidden sm:inline">ดาวน์โหลด</span>
+                          <span className="sm:hidden">ดาวน์โหลด</span>
+                        </Button>
+
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              onClick={() => setSelectedQRCode(qrCode)}
+                              size="sm"
+                              variant="outline"
+                              className="h-9 sm:h-8"
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-full h-auto sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle className="text-base sm:text-lg">QR Code - {qrCode.location}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              {qrCode.qr_image_url && (
+                                <div className="flex justify-center">
+                                  <img
+                                    src={qrCode.qr_image_url}
+                                    alt={`QR Code for ${qrCode.location}`}
+                                    className="w-40 h-40 sm:w-48 sm:h-48 border rounded"
+                                  />
+                                </div>
+                              )}
+                              <div className="text-xs sm:text-sm space-y-2">
+                                <div><strong>ตำแหน่ง:</strong> {qrCode.location}</div>
+                                <div><strong>สถานะ:</strong> {qrCode.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</div>
+                                <div><strong>รูปแบบ:</strong> {isUrlFormat ? 'URL (ใหม่)' : 'JSON (เก่า)'}</div>
+                                <div><strong>สร้างเมื่อ:</strong> {formatDate(qrCode.generated_at)}</div>
+                                <div><strong>อัพเดตล่าสุด:</strong> {formatDate(qrCode.last_updated)}</div>
+                                <div className="break-all"><strong>ข้อมูล:</strong> <code className="text-xs bg-gray-100 p-1 rounded">{qrCode.qr_code_data.substring(0, 100)}...</code></div>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+
+                        <Button
+                          onClick={() => handleGenerateQR(qrCode.location)}
+                          size="sm"
+                          variant="secondary"
+                          disabled={isGenerating}
+                          className="h-9 sm:h-8"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+
+                        <Button
+                          onClick={() => deleteQRCode(qrCode.id)}
+                          size="sm"
+                          variant="destructive"
+                          className="h-9 sm:h-8"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
+            )}
           </div>
 
-          {/* Progress Bar */}
-          {generationProgress && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">กำลังสร้าง QR Code...</span>
-                <span className="text-sm text-gray-600">
-                  {generationProgress.current}/{generationProgress.total}
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
-                ></div>
-              </div>
-            </div>
+          {/* Locations without QR */}
+          {locationsWithoutQR.length > 0 && (
+            <Card>
+              <CardHeader className="p-4 sm:p-6">
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Archive className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="hidden sm:inline">ตำแหน่งที่ยังไม่มี QR Code ({locationsWithoutQR.length})</span>
+                  <span className="sm:hidden">ไม่มี QR ({locationsWithoutQR.length})</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-wrap gap-2">
+                  {locationsWithoutQR.map(location => (
+                    <Badge
+                      key={location}
+                      variant="outline"
+                      className="cursor-pointer hover:bg-blue-50 text-xs sm:text-sm h-8 sm:h-auto"
+                      onClick={() => handleGenerateQR(location)}
+                    >
+                      {location}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-            <Button
-              onClick={handleBulkGenerate}
-              disabled={isGenerating || locationsWithoutQR.length === 0}
-              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              <span className="hidden sm:inline">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
-              <span className="sm:hidden">สร้าง QR ทั้งหมด ({locationsWithoutQR.length})</span>
-            </Button>
+          {/* QR Scanner */}
+          <QRScanner
+            isOpen={showScanner}
+            onClose={() => setShowScanner(false)}
+            onScanSuccess={handleScanSuccess}
+          />
 
-            <Button
-              onClick={handleRegenerateAll}
-              disabled={isGenerating || allLocations.length === 0}
-              variant="outline"
-              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">สร้าง QR ใหม่ทั้งหมด</span>
-              <span className="sm:hidden">สร้างใหม่</span>
-            </Button>
+          {/* Range Generator Dialog */}
+          <Dialog open={showRangeGenerator} onOpenChange={setShowRangeGenerator}>
+            <DialogContent className="max-w-full h-auto sm:max-w-md overflow-y-auto max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+                  <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  สร้าง QR Code จาก Range
+                </DialogTitle>
+                <DialogDescription className="text-sm">
+                  กำหนดช่วงของตำแหน่งที่ต้องการสร้าง QR Code
+                </DialogDescription>
+              </DialogHeader>
 
-            <Button
-              onClick={() => setShowRangeGenerator(true)}
-              disabled={isGenerating}
-              variant="outline"
-              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 border-green-500 text-green-600 hover:bg-green-50"
-            >
-              <Grid3X3 className="h-4 w-4" />
-              สร้างจาก Range
-            </Button>
+              <div className="space-y-4">
+                {/* Row Range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">แถวเริ่มต้น</label>
+                    <Input
+                      value={rangeConfig.startRow}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, startRow: e.target.value.toUpperCase() }))}
+                      placeholder="A"
+                      maxLength={1}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">แถวสุดท้าย</label>
+                    <Input
+                      value={rangeConfig.endRow}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, endRow: e.target.value.toUpperCase() }))}
+                      placeholder="Z"
+                      maxLength={1}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                </div>
 
-            <Button
-              onClick={refetch}
-              variant="outline"
-              disabled={loading}
-              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              รีเฟรช
-            </Button>
+                {/* Level Range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">ชั้นเริ่มต้น</label>
+                    <Input
+                      type="number"
+                      value={rangeConfig.startLevel}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, startLevel: parseInt(e.target.value) || 1 }))}
+                      min={1}
+                      max={10}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">ชั้นสุดท้าย</label>
+                    <Input
+                      type="number"
+                      value={rangeConfig.endLevel}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, endLevel: parseInt(e.target.value) || 5 }))}
+                      min={1}
+                      max={10}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                </div>
 
-            <Button
-              onClick={() => setShowScanner(true)}
-              variant="default"
-              className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700"
-            >
-              <Scan className="h-4 w-4" />
-              สแกน QR Code
-            </Button>
+                {/* Position Range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">ตำแหน่งเริ่มต้น</label>
+                    <Input
+                      type="number"
+                      value={rangeConfig.startPosition}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, startPosition: parseInt(e.target.value) || 1 }))}
+                      min={1}
+                      max={99}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium">ตำแหน่งสุดท้าย</label>
+                    <Input
+                      type="number"
+                      value={rangeConfig.endPosition}
+                      onChange={(e) => setRangeConfig(prev => ({ ...prev, endPosition: parseInt(e.target.value) || 10 }))}
+                      min={1}
+                      max={99}
+                      className="h-11 sm:h-10"
+                    />
+                  </div>
+                </div>
 
-            {/* Single location generation */}
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="h-11 sm:h-10 w-full sm:w-auto flex items-center justify-center gap-2">
-                  <QrCode className="h-4 w-4" />
-                  <span className="hidden sm:inline">สร้าง QR ตำแหน่งเดียว</span>
-                  <span className="sm:hidden">สร้าง 1 ตำแหน่ง</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-full h-auto sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="text-base sm:text-lg">สร้าง QR Code สำหรับตำแหน่งเดียว</DialogTitle>
-                  <DialogDescription className="text-sm">
-                    เลือกตำแหน่งที่ต้องการสร้าง QR Code
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                    <SelectTrigger className="h-11 sm:h-10">
-                      <SelectValue placeholder="เลือกตำแหน่ง" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allLocations.map(location => (
-                        <SelectItem key={location} value={location}>
-                          {location} {qrCodes.some(qr => qr.location === location) && '(มี QR แล้ว)'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Preview */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="text-xs sm:text-sm font-medium mb-2">ตัวอย่าง:</div>
+                  <div className="text-xs sm:text-sm text-gray-600">
+                    จะสร้าง {generateLocationRange().length} ตำแหน่ง
+                  </div>
+                  <div className="text-[10px] sm:text-xs text-gray-500 mt-1">
+                    เช่น: {generateLocationRange().slice(0, 3).join(', ')}...
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
                   <Button
-                    onClick={() => {
-                      if (selectedLocation) {
-                        handleGenerateQR(selectedLocation);
-                        setSelectedLocation('');
-                      }
-                    }}
-                    disabled={!selectedLocation || isGenerating}
-                    className="h-11 sm:h-10 w-full"
+                    onClick={() => setShowRangeGenerator(false)}
+                    variant="outline"
+                    className="h-11 sm:h-10 flex-1"
+                  >
+                    ยกเลิก
+                  </Button>
+                  <Button
+                    onClick={handleGenerateFromRange}
+                    disabled={isGenerating}
+                    className="h-11 sm:h-10 flex-1"
                   >
                     สร้าง QR Code
                   </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Search */}
-      <Card>
-        <CardContent className="pt-4 sm:pt-6">
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="ค้นหาตำแหน่ง..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 sm:h-10 flex-1"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* QR Codes List */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? (
-          <div className="col-span-full text-center py-8">
-            <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-            กำลังโหลด QR Codes...
-          </div>
-        ) : filteredQRCodes.length === 0 ? (
-          <div className="col-span-full text-center py-8 text-gray-500">
-            {debouncedSearchQuery ? 'ไม่พบ QR Code ที่ค้นหา' : (
-              <div className="space-y-4">
-                <div>ยังไม่มี QR Code</div>
-                <div className="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
-                  <AlertCircle className="h-4 w-4 inline-block mr-2" />
-                  ต้องสร้าง QR Code ก่อนใช้งาน กดปุ่ม "สร้าง QR ทั้งหมด" ด้านบน
-                </div>
               </div>
-            )}
-          </div>
-        ) : (
-          filteredQRCodes.map((qrCode) => {
-            const snapshot = qrCode.inventory_snapshot as any;
-            const isUrlFormat = qrCode.qr_code_data.startsWith('http');
-
-            return (
-              <Card key={qrCode.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="p-3 sm:pb-3 sm:p-6">
-                  <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-base sm:text-lg">
-                    <span className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {qrCode.location}
-                    </span>
-                    <div className="flex gap-2">
-                      <Badge variant={qrCode.is_active ? "default" : "secondary"} className="text-xs">
-                        {qrCode.is_active ? "ใช้งาน" : "ไม่ใช้งาน"}
-                      </Badge>
-                      <Badge variant={isUrlFormat ? "default" : "destructive"} className="text-xs">
-                        {isUrlFormat ? "URL" : "JSON"}
-                      </Badge>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* QR Code Image */}
-                  {qrCode.qr_image_url && (
-                    <div className="flex justify-center">
-                      <img
-                        src={qrCode.qr_image_url}
-                        alt={`QR Code for ${qrCode.location}`}
-                        className="w-32 h-32 border rounded"
-                      />
-                    </div>
-                  )}
-
-                  {/* Warning for old JSON QR codes */}
-                  {!isUrlFormat && (
-                    <div className="bg-orange-50 border border-orange-200 rounded p-2 text-sm text-orange-800">
-                      <AlertCircle className="h-4 w-4 inline-block mr-1" />
-                      QR Code รูปแบบเก่า (JSON) - ไม่เปิดหน้าเพิ่มสินค้าได้
-                    </div>
-                  )}
-
-                  {/* Summary */}
-                  {snapshot?.summary && (
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Package className="h-3 w-3" />
-                        {snapshot.summary.total_items} รายการ
-                      </div>
-                      <div>{snapshot.summary.total_boxes} ลัง</div>
-                      <div>{snapshot.summary.total_loose} เศษ</div>
-                      <div>{snapshot.summary.product_types} ประเภท</div>
-                    </div>
-                  )}
-
-                  {/* Timestamps */}
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <div>สร้าง: {formatDate(qrCode.generated_at)}</div>
-                    <div>อัพเดต: {formatDate(qrCode.last_updated)}</div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="grid grid-cols-2 sm:flex gap-2">
-                    <Button
-                      onClick={() => downloadQRCode(qrCode)}
-                      size="sm"
-                      variant="outline"
-                      className="h-9 sm:h-8 flex-1 text-xs"
-                    >
-                      <Download className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">ดาวน์โหลด</span>
-                      <span className="sm:hidden">ดาวน์โหลด</span>
-                    </Button>
-
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          onClick={() => setSelectedQRCode(qrCode)}
-                          size="sm"
-                          variant="outline"
-                          className="h-9 sm:h-8"
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-full h-auto sm:max-w-md">
-                        <DialogHeader>
-                          <DialogTitle className="text-base sm:text-lg">QR Code - {qrCode.location}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          {qrCode.qr_image_url && (
-                            <div className="flex justify-center">
-                              <img
-                                src={qrCode.qr_image_url}
-                                alt={`QR Code for ${qrCode.location}`}
-                                className="w-40 h-40 sm:w-48 sm:h-48 border rounded"
-                              />
-                            </div>
-                          )}
-                          <div className="text-xs sm:text-sm space-y-2">
-                            <div><strong>ตำแหน่ง:</strong> {qrCode.location}</div>
-                            <div><strong>สถานะ:</strong> {qrCode.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน'}</div>
-                            <div><strong>รูปแบบ:</strong> {isUrlFormat ? 'URL (ใหม่)' : 'JSON (เก่า)'}</div>
-                            <div><strong>สร้างเมื่อ:</strong> {formatDate(qrCode.generated_at)}</div>
-                            <div><strong>อัพเดตล่าสุด:</strong> {formatDate(qrCode.last_updated)}</div>
-                            <div className="break-all"><strong>ข้อมูล:</strong> <code className="text-xs bg-gray-100 p-1 rounded">{qrCode.qr_code_data.substring(0, 100)}...</code></div>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-
-                    <Button
-                      onClick={() => handleGenerateQR(qrCode.location)}
-                      size="sm"
-                      variant="secondary"
-                      disabled={isGenerating}
-                      className="h-9 sm:h-8"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                    </Button>
-
-                    <Button
-                      onClick={() => deleteQRCode(qrCode.id)}
-                      size="sm"
-                      variant="destructive"
-                      className="h-9 sm:h-8"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
-
-      {/* Locations without QR */}
-      {locationsWithoutQR.length > 0 && (
-        <Card>
-          <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Archive className="h-4 w-4 sm:h-5 sm:w-5" />
-              <span className="hidden sm:inline">ตำแหน่งที่ยังไม่มี QR Code ({locationsWithoutQR.length})</span>
-              <span className="sm:hidden">ไม่มี QR ({locationsWithoutQR.length})</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-wrap gap-2">
-              {locationsWithoutQR.map(location => (
-                <Badge
-                  key={location}
-                  variant="outline"
-                  className="cursor-pointer hover:bg-blue-50 text-xs sm:text-sm h-8 sm:h-auto"
-                  onClick={() => handleGenerateQR(location)}
-                >
-                  {location}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* QR Scanner */}
-      <QRScanner
-        isOpen={showScanner}
-        onClose={() => setShowScanner(false)}
-        onScanSuccess={handleScanSuccess}
-      />
-
-      {/* Range Generator Dialog */}
-      <Dialog open={showRangeGenerator} onOpenChange={setShowRangeGenerator}>
-        <DialogContent className="max-w-full h-auto sm:max-w-md overflow-y-auto max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-              <Grid3X3 className="h-4 w-4 sm:h-5 sm:w-5" />
-              สร้าง QR Code จาก Range
-            </DialogTitle>
-            <DialogDescription className="text-sm">
-              กำหนดช่วงของตำแหน่งที่ต้องการสร้าง QR Code
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Row Range */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs sm:text-sm font-medium">แถวเริ่มต้น</label>
-                <Input
-                  value={rangeConfig.startRow}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startRow: e.target.value.toUpperCase() }))}
-                  placeholder="A"
-                  maxLength={1}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium">แถวสุดท้าย</label>
-                <Input
-                  value={rangeConfig.endRow}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endRow: e.target.value.toUpperCase() }))}
-                  placeholder="Z"
-                  maxLength={1}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-            </div>
-
-            {/* Level Range */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs sm:text-sm font-medium">ชั้นเริ่มต้น</label>
-                <Input
-                  type="number"
-                  value={rangeConfig.startLevel}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startLevel: parseInt(e.target.value) || 1 }))}
-                  min={1}
-                  max={10}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium">ชั้นสุดท้าย</label>
-                <Input
-                  type="number"
-                  value={rangeConfig.endLevel}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endLevel: parseInt(e.target.value) || 5 }))}
-                  min={1}
-                  max={10}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-            </div>
-
-            {/* Position Range */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs sm:text-sm font-medium">ตำแหน่งเริ่มต้น</label>
-                <Input
-                  type="number"
-                  value={rangeConfig.startPosition}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, startPosition: parseInt(e.target.value) || 1 }))}
-                  min={1}
-                  max={99}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-              <div>
-                <label className="text-xs sm:text-sm font-medium">ตำแหน่งสุดท้าย</label>
-                <Input
-                  type="number"
-                  value={rangeConfig.endPosition}
-                  onChange={(e) => setRangeConfig(prev => ({ ...prev, endPosition: parseInt(e.target.value) || 10 }))}
-                  min={1}
-                  max={99}
-                  className="h-11 sm:h-10"
-                />
-              </div>
-            </div>
-
-            {/* Preview */}
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <div className="text-xs sm:text-sm font-medium mb-2">ตัวอย่าง:</div>
-              <div className="text-xs sm:text-sm text-gray-600">
-                จะสร้าง {generateLocationRange().length} ตำแหน่ง
-              </div>
-              <div className="text-[10px] sm:text-xs text-gray-500 mt-1">
-                เช่น: {generateLocationRange().slice(0, 3).join(', ')}...
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button
-                onClick={() => setShowRangeGenerator(false)}
-                variant="outline"
-                className="h-11 sm:h-10 flex-1"
-              >
-                ยกเลิก
-              </Button>
-              <Button
-                onClick={handleGenerateFromRange}
-                disabled={isGenerating}
-                className="h-11 sm:h-10 flex-1"
-              >
-                สร้าง QR Code
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Print View Tab */}
@@ -863,11 +870,17 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
                   {filteredQRCodes.map((qrCode) => (
                     <div key={qrCode.location} className="print-qr-card border rounded-lg p-4 text-center bg-white">
                       <div className="print-qr-code mb-3 flex justify-center">
-                        <img
-                          src={qrCode.qr_code_data}
-                          alt={`QR Code for ${qrCode.location}`}
-                          className="w-24 h-24 mx-auto"
-                        />
+                        {qrCode.qr_image_url ? (
+                          <img
+                            src={qrCode.qr_image_url}
+                            alt={`QR Code for ${qrCode.location}`}
+                            className="w-24 h-24 mx-auto"
+                          />
+                        ) : (
+                          <div className="w-24 h-24 mx-auto bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                            ไม่มีรูป
+                          </div>
+                        )}
                       </div>
                       <div className="print-location text-lg font-bold mb-2">
                         {qrCode.location}
