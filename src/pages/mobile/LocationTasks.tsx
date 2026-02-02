@@ -7,12 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
+import { useAuth } from '@/contexts/AuthContextSimple';
+import { recordShip, recordReceive } from '@/services/movementService';
 import {
     Search, Loader2, MapPin, Package, ArrowRight,
-    PackagePlus, PackageCheck, ArrowRightLeft, AlertCircle,
-    QrCode
+    PackagePlus, PackageCheck, ArrowRightLeft, CheckCircle2,
+    QrCode, X, Minus, Plus
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import {
     Select,
     SelectContent,
@@ -20,17 +21,26 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 
 interface LocationTask {
     id: string;
     type: 'pick' | 'receive' | 'move_out' | 'move_in';
     order_number?: string;
+    order_id?: string;
     product_name: string;
     sku: string;
     quantity: number;
     unit: string;
     priority: 'HIGH' | 'NORMAL' | 'LOW';
     status: string;
+    completed?: boolean;
 }
 
 interface LocationOption {
@@ -39,7 +49,7 @@ interface LocationOption {
 }
 
 const LocationTasks = () => {
-    const navigate = useNavigate();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [loadingLocations, setLoadingLocations] = useState(true);
     const [locations, setLocations] = useState<LocationOption[]>([]);
@@ -48,7 +58,11 @@ const LocationTasks = () => {
     const [locationCode, setLocationCode] = useState<string | null>(null);
     const [tasks, setTasks] = useState<LocationTask[]>([]);
 
-    // Load all locations on mount
+    // Task action modal
+    const [activeTask, setActiveTask] = useState<LocationTask | null>(null);
+    const [actionQuantity, setActionQuantity] = useState<number>(0);
+    const [processing, setProcessing] = useState(false);
+
     useEffect(() => {
         loadLocations();
     }, []);
@@ -56,7 +70,7 @@ const LocationTasks = () => {
     const loadLocations = async () => {
         setLoadingLocations(true);
         try {
-            const { data, error } = await localDb
+            const { data } = await localDb
                 .from('warehouse_locations')
                 .select('location_code, description')
                 .eq('is_active', true);
@@ -66,7 +80,6 @@ const LocationTasks = () => {
                     .map(l => ({ code: l.location_code, description: l.description }))
                     .sort((a, b) => a.code.localeCompare(b.code));
                 setLocations(sorted);
-                console.log(`Loaded ${sorted.length} locations`);
             }
         } catch (error) {
             console.error('Failed to load locations:', error);
@@ -75,10 +88,20 @@ const LocationTasks = () => {
         }
     };
 
-    // Handle hardware scanner / QR code scan
+    // Handle QR/barcode scanner
     useScanner({
         onScan: (code) => {
-            toast.success(`สแกน QR: ${code}`);
+            // If modal is open and waiting for item scan
+            if (activeTask) {
+                if (code.toUpperCase().includes(activeTask.sku.toUpperCase())) {
+                    toast.success(`✅ สแกน SKU ถูกต้อง: ${activeTask.sku}`);
+                } else {
+                    toast.error(`❌ SKU ไม่ตรง! ต้องการ: ${activeTask.sku}`);
+                }
+                return;
+            }
+
+            // Otherwise, search location
             const locCode = code.replace(/^LOC[-_]/i, '').toUpperCase();
             setManualInput(locCode);
             setSelectedLocation(locCode);
@@ -105,8 +128,7 @@ const LocationTasks = () => {
         setLocationCode(null);
 
         try {
-            // 1. Verify location exists
-            const { data: location, error: locError } = await localDb
+            const { data: location } = await localDb
                 .from('warehouse_locations')
                 .select('location_code')
                 .eq('location_code', searchTerm.toUpperCase())
@@ -121,7 +143,7 @@ const LocationTasks = () => {
             setLocationCode(location.location_code);
             const foundTasks: LocationTask[] = [];
 
-            // 2. Find PICK tasks
+            // Find PICK tasks
             const { data: pickItems } = await localDb
                 .from('order_items')
                 .select('*')
@@ -132,7 +154,7 @@ const LocationTasks = () => {
                 for (const item of pickItems as any[]) {
                     const { data: order } = await localDb
                         .from('customer_orders')
-                        .select('order_number, priority')
+                        .select('id, order_number, priority')
                         .eq('id', item.order_id)
                         .single();
 
@@ -143,6 +165,7 @@ const LocationTasks = () => {
                     foundTasks.push({
                         id: item.id,
                         type: 'pick',
+                        order_id: (order as any)?.id,
                         order_number: (order as any)?.order_number,
                         product_name: item.product_name,
                         sku: item.sku,
@@ -154,7 +177,7 @@ const LocationTasks = () => {
                 }
             }
 
-            // 3. Find RECEIVE tasks
+            // Find RECEIVE tasks  
             const { data: receiveItems } = await localDb
                 .from('inbound_receipt_items')
                 .select('*')
@@ -165,13 +188,14 @@ const LocationTasks = () => {
                     if (item.quantity_received < item.quantity_expected) {
                         const { data: receipt } = await localDb
                             .from('inbound_receipts')
-                            .select('document_number')
+                            .select('id, document_number')
                             .eq('id', item.receipt_id)
                             .single();
 
                         foundTasks.push({
                             id: item.id,
                             type: 'receive',
+                            order_id: (receipt as any)?.id,
                             order_number: (receipt as any)?.document_number,
                             product_name: item.product_name,
                             sku: item.product_code,
@@ -184,7 +208,6 @@ const LocationTasks = () => {
                 }
             }
 
-            // Sort by priority
             foundTasks.sort((a, b) => {
                 const priorityOrder = { HIGH: 0, NORMAL: 1, LOW: 2 };
                 return priorityOrder[a.priority] - priorityOrder[b.priority];
@@ -199,10 +222,86 @@ const LocationTasks = () => {
             }
 
         } catch (error: any) {
-            console.error(error);
             toast.error(error.message || 'Search failed');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTaskClick = (task: LocationTask) => {
+        setActiveTask(task);
+        setActionQuantity(task.quantity);
+    };
+
+    const handleCompleteTask = async () => {
+        if (!activeTask || actionQuantity <= 0) return;
+
+        setProcessing(true);
+        try {
+            if (activeTask.type === 'pick') {
+                // Record pick movement
+                await recordShip(
+                    activeTask.sku,
+                    activeTask.product_name,
+                    locationCode || '',
+                    actionQuantity,
+                    undefined,
+                    activeTask.order_id,
+                    `หยิบจาก ${locationCode} สำหรับ ${activeTask.order_number}`,
+                    user?.email
+                );
+
+                // Update order_item status
+                await localDb.from('order_items')
+                    .update({
+                        picked_quantity_level3: actionQuantity,
+                        status: 'PICKED',
+                        picked_at: new Date().toISOString()
+                    })
+                    .eq('id', activeTask.id);
+
+                toast.success(`✅ หยิบ ${actionQuantity} ${activeTask.unit} สำเร็จ`);
+
+            } else if (activeTask.type === 'receive') {
+                // Record receive movement
+                await recordReceive(
+                    activeTask.sku,
+                    activeTask.product_name,
+                    locationCode || '',
+                    actionQuantity,
+                    undefined,
+                    activeTask.order_id,
+                    `รับเข้า ${locationCode} จาก ${activeTask.order_number}`,
+                    user?.email
+                );
+
+                // Update inbound_receipt_item
+                await localDb.from('inbound_receipt_items')
+                    .update({
+                        quantity_received: actionQuantity,
+                        status: 'COMPLETED',
+                        received_at: new Date().toISOString()
+                    })
+                    .eq('id', activeTask.id);
+
+                toast.success(`✅ รับเข้า ${actionQuantity} ${activeTask.unit} สำเร็จ`);
+            }
+
+            // Mark task as completed and close modal
+            setTasks(prev => prev.map(t =>
+                t.id === activeTask.id ? { ...t, completed: true } : t
+            ));
+            setActiveTask(null);
+
+            // Refresh tasks after short delay
+            setTimeout(() => {
+                if (locationCode) handleSearch(locationCode);
+            }, 500);
+
+        } catch (error: any) {
+            toast.error(`เกิดข้อผิดพลาด: ${error.message}`);
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -210,8 +309,6 @@ const LocationTasks = () => {
         switch (type) {
             case 'pick': return <PackageCheck className="h-5 w-5 text-blue-600" />;
             case 'receive': return <PackagePlus className="h-5 w-5 text-green-600" />;
-            case 'move_out': return <ArrowRight className="h-5 w-5 text-orange-600" />;
-            case 'move_in': return <ArrowRightLeft className="h-5 w-5 text-purple-600" />;
             default: return <Package className="h-5 w-5" />;
         }
     };
@@ -220,8 +317,6 @@ const LocationTasks = () => {
         switch (type) {
             case 'pick': return 'หยิบส่ง';
             case 'receive': return 'รับเข้า';
-            case 'move_out': return 'ย้ายออก';
-            case 'move_in': return 'ย้ายเข้า';
             default: return type;
         }
     };
@@ -230,34 +325,15 @@ const LocationTasks = () => {
         switch (type) {
             case 'pick': return 'bg-blue-100 text-blue-800';
             case 'receive': return 'bg-green-100 text-green-800';
-            case 'move_out': return 'bg-orange-100 text-orange-800';
-            case 'move_in': return 'bg-purple-100 text-purple-800';
             default: return 'bg-gray-100';
         }
     };
 
-    const handleTaskAction = (task: LocationTask) => {
-        switch (task.type) {
-            case 'pick':
-                if (task.order_number) {
-                    navigate(`/mobile/pick?order=${task.order_number}`);
-                }
-                break;
-            case 'receive':
-                if (task.order_number) {
-                    navigate(`/mobile/receive?po=${task.order_number}`);
-                }
-                break;
-            case 'move_out':
-            case 'move_in':
-                navigate(`/mobile/move?item=${task.id}`);
-                break;
-        }
-    };
+    const completedCount = tasks.filter(t => t.completed).length;
 
     return (
-        <MobileLayout title="เลือก Location" showBack={true}>
-            {/* Manual Input */}
+        <MobileLayout title="สแกน Location" showBack={true}>
+            {/* Search Input */}
             <div className="flex gap-2 mb-3">
                 <Input
                     placeholder="พิมพ์ Location (เช่น J5/4)"
@@ -272,31 +348,26 @@ const LocationTasks = () => {
                 </Button>
             </div>
 
-            {/* Dropdown Selector */}
-            <div className="mb-4">
-                <Select
-                    value={selectedLocation}
-                    onValueChange={handleLocationSelect}
-                    disabled={loadingLocations}
-                >
-                    <SelectTrigger className="w-full h-12">
-                        <SelectValue placeholder={loadingLocations ? "กำลังโหลด..." : `เลือกจากรายการ (${locations.length} locations)`} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                        {locations.map((loc) => (
-                            <SelectItem key={loc.code} value={loc.code} className="py-2">
-                                <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-red-500" />
-                                    <span className="font-mono font-bold">{loc.code}</span>
-                                </div>
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400 mt-1 text-center">
-                    หรือสแกน QR Code ที่ติดอยู่ที่ชั้นวาง
-                </p>
-            </div>
+            {/* Dropdown */}
+            <Select
+                value={selectedLocation}
+                onValueChange={handleLocationSelect}
+                disabled={loadingLocations}
+            >
+                <SelectTrigger className="w-full h-12 mb-4">
+                    <SelectValue placeholder={loadingLocations ? "โหลด..." : `เลือกจากรายการ (${locations.length})`} />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                    {locations.map((loc) => (
+                        <SelectItem key={loc.code} value={loc.code} className="py-2">
+                            <div className="flex items-center gap-2">
+                                <MapPin className="h-4 w-4 text-red-500" />
+                                <span className="font-mono font-bold">{loc.code}</span>
+                            </div>
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
 
             {/* Loading */}
             {loading && (
@@ -305,13 +376,19 @@ const LocationTasks = () => {
                 </div>
             )}
 
-            {/* Location Header & Tasks */}
+            {/* Tasks */}
             {!loading && locationCode && (
                 <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-3">
-                        <MapPin className="h-6 w-6 text-red-500" />
-                        <h2 className="text-2xl font-bold text-gray-800">{locationCode}</h2>
-                        <Badge variant="outline">{tasks.length} งาน</Badge>
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <MapPin className="h-6 w-6 text-red-500" />
+                            <h2 className="text-2xl font-bold">{locationCode}</h2>
+                        </div>
+                        {tasks.length > 0 && (
+                            <Badge variant={completedCount === tasks.length ? 'default' : 'outline'}>
+                                {completedCount}/{tasks.length} เสร็จ
+                            </Badge>
+                        )}
                     </div>
 
                     {tasks.length > 0 ? (
@@ -319,28 +396,32 @@ const LocationTasks = () => {
                             {tasks.map((task) => (
                                 <Card
                                     key={task.id}
-                                    className={`cursor-pointer hover:shadow-md transition-shadow border-l-4 ${task.priority === 'HIGH' ? 'border-l-red-500' : 'border-l-gray-300'
+                                    className={`cursor-pointer transition-all border-l-4 ${task.completed
+                                            ? 'border-l-green-500 bg-green-50 opacity-60'
+                                            : task.priority === 'HIGH'
+                                                ? 'border-l-red-500 hover:shadow-md'
+                                                : 'border-l-gray-300 hover:shadow-md'
                                         }`}
-                                    onClick={() => handleTaskAction(task)}
+                                    onClick={() => !task.completed && handleTaskClick(task)}
                                 >
                                     <CardContent className="p-3">
                                         <div className="flex items-start gap-3">
-                                            <div className={`p-2 rounded-lg ${getTaskColor(task.type)}`}>
-                                                {getTaskIcon(task.type)}
+                                            <div className={`p-2 rounded-lg ${task.completed ? 'bg-green-200' : getTaskColor(task.type)}`}>
+                                                {task.completed ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : getTaskIcon(task.type)}
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <Badge className={getTaskColor(task.type)}>
                                                         {getTaskLabel(task.type)}
                                                     </Badge>
-                                                    {task.priority === 'HIGH' && (
+                                                    {task.priority === 'HIGH' && !task.completed && (
                                                         <Badge variant="destructive">ด่วน</Badge>
                                                     )}
                                                 </div>
                                                 <p className="font-medium text-sm truncate">{task.product_name}</p>
                                                 <p className="text-xs text-gray-500">SKU: {task.sku}</p>
                                                 <div className="flex items-center justify-between mt-2">
-                                                    <span className="text-lg font-bold text-primary">
+                                                    <span className={`text-lg font-bold ${task.completed ? 'text-green-600' : 'text-primary'}`}>
                                                         {task.quantity} {task.unit}
                                                     </span>
                                                     {task.order_number && (
@@ -348,7 +429,7 @@ const LocationTasks = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <ArrowRight className="h-5 w-5 text-gray-400 self-center" />
+                                            {!task.completed && <ArrowRight className="h-5 w-5 text-gray-400 self-center" />}
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -357,29 +438,92 @@ const LocationTasks = () => {
                     ) : (
                         <Card className="bg-green-50 border-green-200">
                             <CardContent className="p-6 text-center">
-                                <PackageCheck className="h-12 w-12 mx-auto mb-3 text-green-500" />
+                                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-green-500" />
                                 <p className="text-green-700 font-medium">ไม่มีงานค้าง</p>
-                                <p className="text-sm text-green-600 mt-1">Location นี้พร้อมใช้งาน</p>
                             </CardContent>
                         </Card>
                     )}
                 </div>
             )}
 
-            {/* Empty State */}
+            {/* Empty state */}
             {!loading && !locationCode && (
                 <Card className="bg-gray-50">
                     <CardContent className="p-6 text-center">
                         <QrCode className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                        <h3 className="text-lg font-medium text-gray-600 mb-2">
-                            พิมพ์ / เลือก / สแกน Location
-                        </h3>
-                        <p className="text-sm text-gray-400">
-                            ระบบจะแสดงรายการที่ต้องทำ
-                        </p>
+                        <h3 className="font-medium text-gray-600 mb-2">สแกน QR หรือเลือก Location</h3>
+                        <p className="text-sm text-gray-400">ระบบจะแสดงงานที่ต้องทำ</p>
                     </CardContent>
                 </Card>
             )}
+
+            {/* Action Modal */}
+            <Dialog open={!!activeTask} onOpenChange={() => setActiveTask(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            {activeTask && getTaskIcon(activeTask.type)}
+                            {activeTask?.type === 'pick' ? 'ยืนยันหยิบสินค้า' : 'ยืนยันรับสินค้า'}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {activeTask && (
+                        <div className="space-y-4">
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                                <p className="font-medium text-sm">{activeTask.product_name}</p>
+                                <p className="text-xs text-gray-500 mt-1">SKU: {activeTask.sku}</p>
+                                <p className="text-xs text-gray-500">Location: {locationCode}</p>
+                                {activeTask.order_number && (
+                                    <p className="text-xs text-gray-500">เอกสาร: {activeTask.order_number}</p>
+                                )}
+                            </div>
+
+                            <div className="text-center">
+                                <p className="text-sm text-gray-600 mb-2">จำนวน ({activeTask.unit})</p>
+                                <div className="flex items-center justify-center gap-4">
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setActionQuantity(Math.max(1, actionQuantity - 1))}
+                                    >
+                                        <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <Input
+                                        type="number"
+                                        value={actionQuantity}
+                                        onChange={(e) => setActionQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                        className="w-20 text-center text-2xl font-bold"
+                                    />
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => setActionQuantity(actionQuantity + 1)}
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <p className="text-xs text-gray-400 mt-2">
+                                    ต้องการ: {activeTask.quantity} {activeTask.unit}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setActiveTask(null)} disabled={processing}>
+                            <X className="h-4 w-4 mr-1" /> ยกเลิก
+                        </Button>
+                        <Button onClick={handleCompleteTask} disabled={processing}>
+                            {processing ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                            ) : (
+                                <CheckCircle2 className="h-4 w-4 mr-1" />
+                            )}
+                            ยืนยัน
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </MobileLayout>
     );
 };
