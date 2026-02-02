@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, PackagePlus, Search, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -46,19 +46,25 @@ const MobileReceive = () => {
         if (!po) return;
         setLoading(true);
         try {
-            // Find PO by number
-            // Note: Adjust table name if strictly 'purchase_orders' or 'inbound_receipts'
-            // Assuming we look for open inbound receipts or POs
-            const { data, error } = await supabase
+            // Find PO by number from local database
+            const { data: receipt, error: receiptError } = await localDb
                 .from('inbound_receipts')
-                .select('*, inbound_receipt_items(*)')
+                .select('*')
                 .eq('document_number', po)
                 .single();
 
-            if (error) throw error;
-            if (!data) throw new Error('PO not found');
+            if (receiptError) throw receiptError;
+            if (!receipt) throw new Error('PO not found');
 
-            setPoData(data);
+            // Get items separately
+            const { data: items, error: itemsError } = await localDb
+                .from('inbound_receipt_items')
+                .select('*')
+                .eq('receipt_id', receipt.id);
+
+            if (itemsError) throw itemsError;
+
+            setPoData({ ...receipt, inbound_receipt_items: items || [] });
             setStep('process_item');
             toast.success('PO Loaded');
         } catch (e: any) {
@@ -95,8 +101,8 @@ const MobileReceive = () => {
             // Call Inbound Service or Insert directly
             // 1. Update receipt item
             const newReceived = (activeItem.quantity_received || 0) + quantity;
-            await supabase.from('inbound_receipt_items')
-                .update({ quantity_received: newReceived } as any)
+            await localDb.from('inbound_receipt_items')
+                .update({ quantity_received: newReceived })
                 .eq('id', activeItem.id);
 
             // 2. Create/Update Inventory

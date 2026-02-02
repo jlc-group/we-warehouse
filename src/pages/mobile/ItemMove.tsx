@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -43,7 +43,7 @@ const ItemMove = () => {
 
     const loadItem = async (id: string) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await localDb
                 .from('inventory_items')
                 .select('*')
                 .eq('id', id)

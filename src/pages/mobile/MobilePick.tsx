@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, PackageCheck, Search, CheckCircle, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -52,34 +52,60 @@ const MobilePick = () => {
         if (!orderId) return;
         setLoading(true);
         try {
-            // Find order - adjust table name as needed
-            const { data: order, error } = await supabase
+            // Find order from local database
+            const { data: order, error } = await localDb
                 .from('customer_orders')
                 .select('*')
-                // @ts-ignore - column name type issue
                 .eq('order_number', orderId)
                 .single();
 
             if (error) throw error;
             if (!order) throw new Error('Order not found');
 
-            // Get order items separately
-            const { data: orderItems } = await supabase
+            // Get order items from local database
+            const { data: orderItems } = await localDb
                 .from('order_items')
                 .select('*')
                 .eq('order_id', (order as any).id);
 
-            // Transform order items to pick list
-            // In real WMS, this would be a "Wave" or "Pick Task" with optimized locations
-            const items: PickItem[] = ((orderItems as any[]) || []).map((item: any) => ({
-                id: item.id,
-                product_name: item.product_name || 'Unknown',
-                sku: item.sku || item.product_code,
-                quantity_to_pick: item.quantity,
-                quantity_picked: 0,
-                location: item.location || 'STAGING', // Default or fetch from inventory
-                status: 'pending'
-            }));
+            // Transform order items to pick list with proper quantities
+            // order_items already has location from when order was created
+            const items: PickItem[] = [];
+
+            for (const item of ((orderItems as any[]) || [])) {
+                // Calculate total quantity to pick (L1*rate1 + L2*rate2 + L3)
+                const l1Qty = item.ordered_quantity_level1 || 0;
+                const l2Qty = item.ordered_quantity_level2 || 0;
+                const l3Qty = item.ordered_quantity_level3 || 0;
+                const totalQty = l1Qty + l2Qty + l3Qty; // หรือคำนวณเป็นชิ้นตาม rate
+
+                let location = item.location;
+
+                // If no location in order_item, try to find from inventory
+                if (!location && item.sku) {
+                    const { data: invItem } = await localDb
+                        .from('inventory_items')
+                        .select('location')
+                        .eq('sku', item.sku)
+                        .gt('quantity_pieces', 0)
+                        .single();
+
+                    location = invItem?.location || 'ไม่พบตำแหน่ง';
+                }
+
+                items.push({
+                    id: item.id,
+                    product_name: item.product_name || 'Unknown',
+                    sku: item.sku || item.product_code,
+                    quantity_to_pick: totalQty || item.quantity || 1,
+                    quantity_picked: (item.picked_quantity_level1 || 0) + (item.picked_quantity_level2 || 0) + (item.picked_quantity_level3 || 0),
+                    location: location || 'STAGING',
+                    status: item.status === 'PICKED' ? 'picked' : 'pending'
+                });
+            }
+
+            // Sort by location for optimized picking route (A->Z)
+            items.sort((a, b) => a.location.localeCompare(b.location));
 
             setOrderData(order);
             setPickList(items);
@@ -104,33 +130,50 @@ const MobilePick = () => {
         const item = pickList[activeItemIndex];
 
         // Verify location (optional strict mode)
-        if (scannedLocation && scannedLocation !== item.location) {
+        if (scannedLocation && scannedLocation.toUpperCase() !== item.location.toUpperCase()) {
             toast.error(`Wrong location! Expected: ${item.location}`);
             return;
         }
 
-        // Record movement for tracking
-        await recordShip(
-            item.sku,
-            item.product_name,
-            item.location,
-            pickedQty,
-            undefined, // warehouseId
-            orderData?.id, // referenceId
-            `Picked for order ${orderData?.order_number}`,
-            user?.email
-        );
+        setLoading(true);
+        try {
+            // 1. Record movement for tracking
+            await recordShip(
+                item.sku,
+                item.product_name,
+                item.location,
+                pickedQty,
+                undefined, // warehouseId
+                orderData?.id, // referenceId
+                `Picked for order ${orderData?.order_number}`,
+                user?.email
+            );
 
-        // Update pick list
-        const updated = [...pickList];
-        updated[activeItemIndex] = {
-            ...item,
-            quantity_picked: pickedQty,
-            status: 'picked'
-        };
-        setPickList(updated);
-        setActiveItemIndex(-1);
-        toast.success('Item picked');
+            // 2. Update order_item status and picked quantities
+            await localDb.from('order_items')
+                .update({
+                    picked_quantity_level3: pickedQty, // Store as pieces
+                    status: 'PICKED',
+                    picked_at: new Date().toISOString()
+                })
+                .eq('id', item.id);
+
+            // 3. Update pick list UI
+            const updated = [...pickList];
+            updated[activeItemIndex] = {
+                ...item,
+                quantity_picked: pickedQty,
+                status: 'picked'
+            };
+            setPickList(updated);
+            setActiveItemIndex(-1);
+            toast.success(`✅ Picked ${pickedQty} from ${item.location}`);
+
+        } catch (e) {
+            toast.error('Failed to record pick');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleCompletePicking = async () => {
@@ -143,8 +186,8 @@ const MobilePick = () => {
         setLoading(true);
         try {
             // Update order status to "Picked" or "Ready to Ship"
-            await supabase.from('customer_orders')
-                .update({ status: 'READY_TO_SHIP' } as any)
+            await localDb.from('customer_orders')
+                .update({ status: 'READY_TO_SHIP' })
                 .eq('id', orderData.id);
 
             toast.success('Picking complete! Order ready to ship.');

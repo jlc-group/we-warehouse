@@ -7,7 +7,8 @@ import {
     Search,
     ClipboardCheck,
     Truck,
-    RefreshCw
+    RefreshCw,
+    MapPin
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useScanner } from '@/hooks/mobile/useScanner';
@@ -75,6 +76,12 @@ const MobileMenu = () => {
             icon: <Truck className="h-8 w-8 mb-2 text-red-600" />,
             path: '/mobile/pick',
             color: 'border-red-200 bg-red-50 hover:bg-red-100',
+        },
+        {
+            title: 'สแกน Location',
+            icon: <MapPin className="h-8 w-8 mb-2 text-teal-600" />,
+            path: '/mobile/tasks',
+            color: 'border-teal-200 bg-teal-50 hover:bg-teal-100',
         },
     ];
 

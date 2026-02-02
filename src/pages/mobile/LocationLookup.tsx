@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { Search, Loader2, Package, ArrowRightLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -44,33 +44,30 @@ const LocationLookup = () => {
         setLocationName(null);
 
         try {
-            // 1. Try to find location first
-            const { data: locationData, error: locationError } = await supabase
+            // 1. Try to find location first from local database
+            const { data: locationData, error: locationError } = await localDb
                 .from('warehouse_locations')
                 .select('location_code')
-                .eq('location_code', searchTerm) // Exact match for location code
+                .eq('location_code', searchTerm)
                 .single();
 
             if (locationData) {
                 setLocationName(locationData.location_code);
-                // Fetch inventory in this location
-                const { data: inventoryData, error: invError } = await supabase
+                // Fetch inventory in this location from local database
+                const { data: inventoryData, error: invError } = await localDb
                     .from('inventory_items')
                     .select('*')
                     .eq('location', locationData.location_code)
-                    .gt('quantity_pieces', 0); // Only show items with stock
+                    .gt('quantity_pieces', 0);
 
                 if (invError) throw invError;
 
-                // Cast and map to add location explicitly if needed by interface
-                // effectively just casting the result to InventoryItem[] is usually safe enough here
                 setItems((inventoryData as any[]) || []);
 
                 toast.success(`Found ${inventoryData?.length || 0} items in ${searchTerm}`);
             } else {
-                // 2. If not location, try finding PRODUCT by SKU
-                // This is a "Product Lookup" feature mixed in
-                const { data: productInventory, error: prodError } = await supabase
+                // 2. If not location, try finding PRODUCT by SKU from local database
+                const { data: productInventory, error: prodError } = await localDb
                     .from('inventory_items')
                     .select('*')
                     .eq('sku', searchTerm)
@@ -79,7 +76,6 @@ const LocationLookup = () => {
                 if (prodError || !productInventory || productInventory.length === 0) {
                     toast.error('Location or Product not found');
                 } else {
-                    // Show where this product is
                     setItems(productInventory as any[]);
                     setLocationName(`Product: ${searchTerm}`);
                     toast.success(`Found in ${productInventory.length} locations`);

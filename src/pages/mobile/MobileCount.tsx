@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, ClipboardCheck, ScanLine, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -39,21 +39,19 @@ const MobileCount = () => {
         if (!locCode) return;
         setLoading(true);
         try {
-            // Check location exists
-            const { data: locData, error: locError } = await supabase
+            // Check location exists from local database
+            const { data: locData, error: locError } = await localDb
                 .from('warehouse_locations')
                 .select('location_code')
-                // @ts-ignore - column name type issue
                 .eq('location_code', locCode)
                 .single();
 
             if (locError || !locData) throw new Error('Location not found');
 
-            // Load Inventory
-            const { data: invData, error: invError } = await supabase
+            // Load Inventory from local database
+            const { data: invData, error: invError } = await localDb
                 .from('inventory_items')
                 .select('*')
-                // @ts-ignore - column name type issue
                 .eq('location', locCode)
                 .gt('quantity_pieces', 0); // Only active items
 
@@ -119,8 +117,8 @@ const MobileCount = () => {
                 if (diff !== 0) {
                     // Update inventory directly (Prototype style)
                     // Real world: Create Adjustment Transaction
-                    await supabase.from('inventory_items')
-                        .update({ quantity_pieces: item.counted_qty } as any)
+                    await localDb.from('inventory_items')
+                        .update({ quantity_pieces: item.counted_qty })
                         .eq('id', item.id);
                     adjustments++;
                 }

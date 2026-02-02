@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface TransferResult {
     success: boolean;
@@ -13,14 +13,14 @@ export const executeTransfer = async (
 ): Promise<TransferResult> => {
     try {
         // 1. Check if destination item exists for this SKU
-        const { data: existingDestItem, error: fetchError } = await supabase
+        const { data: existingDestItem, error: fetchError } = await localDb
             .from('inventory_items')
             .select('id, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity')
             .eq('sku', inventoryItem.sku)
             .eq('location', destinationLocation)
-            .maybeSingle();
+            .single();
 
-        if (fetchError) {
+        if (fetchError && !fetchError.message?.includes('not found')) {
             return { success: false, error: fetchError, message: `Error checking dest for ${inventoryItem.sku}` };
         }
 
@@ -30,7 +30,7 @@ export const executeTransfer = async (
             const newL2 = existingDestItem.unit_level2_quantity + inventoryItem.unit_level2_quantity;
             const newL3 = existingDestItem.unit_level3_quantity + inventoryItem.unit_level3_quantity;
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await localDb
                 .from('inventory_items')
                 .update({
                     unit_level1_quantity: newL1,
@@ -44,7 +44,7 @@ export const executeTransfer = async (
             }
 
             // Delete source
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await localDb
                 .from('inventory_items')
                 .delete()
                 .eq('id', inventoryItem.id);
@@ -55,7 +55,7 @@ export const executeTransfer = async (
 
         } else {
             // MOVE: Just update the location
-            const { error: moveError } = await supabase
+            const { error: moveError } = await localDb
                 .from('inventory_items')
                 .update({ location: destinationLocation })
                 .eq('id', inventoryItem.id);
@@ -66,7 +66,7 @@ export const executeTransfer = async (
         }
 
         // Log movement
-        await supabase.from('inventory_movements').insert({
+        await localDb.from('inventory_movements').insert({
             inventory_item_id: inventoryItem.id,
             movement_type: 'transfer',
             quantity_boxes_before: inventoryItem.unit_level1_quantity,
@@ -101,7 +101,7 @@ export const transferPartialStock = async (
         console.log(`📦 Partial Transfer: ${quantityToTransfer} pieces from ${sourceItemId} to ${targetLocation}`);
 
         // 1. Fetch Source Item including rates
-        const { data: sourceItemData, error: fetchError } = await supabase
+        const { data: sourceItemData, error: fetchError } = await localDb
             .from('inventory_items')
             .select('*')
             .eq('id', sourceItemId)
@@ -111,7 +111,7 @@ export const transferPartialStock = async (
             return { success: false, error: fetchError, message: 'Source item not found' };
         }
 
-        // Type casting for safety (though Supabase usually infers this, sometimes explicit cast helps in mixed envs)
+        // Type casting for safety
         const sourceItem = sourceItemData as any;
 
         const level1Rate = sourceItem.unit_level1_rate || 144;
@@ -131,42 +131,38 @@ export const transferPartialStock = async (
         const remainingPieces = currentTotalPieces - quantityToTransfer;
 
         // Recalculate remaining into optimal units (Greedy approach: Fill L1 -> L2 -> L3)
-        // NOTE: User requested Specifically: Remainder should be L1 (Cartons) + L3 (Pieces). L2 is skipped/unused unless explicitly valid.
-        // Assuming we prioritize L1 (Cartons) and put the rest in L3 (Pieces) as "Loose".
-
         const newL1 = Math.floor(remainingPieces / level1Rate);
         const remainderAfterL1 = remainingPieces % level1Rate;
-        const newL2 = 0; // Skip L2 to avoid confusion "is this a box or a loose pack?"
+        const newL2 = 0; // Skip L2 to avoid confusion
         const newL3 = remainderAfterL1;
 
         console.log(`📉 Source Update: ${currentTotalPieces} -> ${remainingPieces} pieces.`);
         console.log(`   Recalculated: ${newL1} Cartons (${sourceItem.unit_level1_name}), ${newL3} Pieces (${sourceItem.unit_level3_name})`);
 
         // 3. Update Source Item
-        const { error: updateSourceError } = await supabase
+        const { error: updateSourceError } = await localDb
             .from('inventory_items')
             .update({
                 unit_level1_quantity: newL1,
                 unit_level2_quantity: newL2,
                 unit_level3_quantity: newL3,
                 updated_at: new Date().toISOString()
-            } as any)
+            })
             .eq('id', sourceItemId);
 
         if (updateSourceError) {
             return { success: false, error: updateSourceError, message: 'Failed to update source item' };
         }
 
-        // 4. Update/Create Target Item at 'PACKING'
-        // Check if item exists at target
-        const { data: existingTargetData, error: targetFetchError } = await supabase
+        // 4. Update/Create Target Item
+        const { data: existingTargetData, error: targetFetchError } = await localDb
             .from('inventory_items')
             .select('*')
             .eq('sku', sourceItem.sku)
             .eq('location', targetLocation)
-            .maybeSingle();
+            .single();
 
-        if (targetFetchError) {
+        if (targetFetchError && !targetFetchError.message?.includes('not found')) {
             console.error('Error checking target:', targetFetchError);
         }
 
@@ -174,20 +170,17 @@ export const transferPartialStock = async (
 
         if (existingTarget) {
             // MERGE: Add to L3 (Pieces) OF TARGET
-            // Target at packing usually just holds loose pieces to keep it simple?
-            // Or should we normalize target too? Let's just add to L3 to keep "Staging" simple.
             const targetNewL3 = (existingTarget.unit_level3_quantity || 0) + quantityToTransfer;
 
-            await supabase
+            await localDb
                 .from('inventory_items')
                 .update({
                     unit_level3_quantity: targetNewL3,
                     updated_at: new Date().toISOString()
-                } as any)
+                })
                 .eq('id', existingTarget.id);
         } else {
             // CREATE NEW: With L3 = quantity
-            // Copy properties from source (name, sku, rates, etc.) but set dates/quantities correctly
             const newItem = {
                 ...sourceItem,
                 id: undefined, // Let DB generate ID
@@ -195,24 +188,22 @@ export const transferPartialStock = async (
                 unit_level1_quantity: 0,
                 unit_level2_quantity: 0,
                 unit_level3_quantity: quantityToTransfer,
-                warehouse_id: sourceItem.warehouse_id, // Keep same warehouse
+                warehouse_id: sourceItem.warehouse_id,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
 
-            // Remove specific DB fields that shouldn't be copied directly if they exist in sourceItem object
             delete newItem.id;
 
-            await supabase.from('inventory_items').insert(newItem);
+            await localDb.from('inventory_items').insert(newItem);
         }
 
         // 5. Log Movement
-        // Note: inventory_item_id expects UUID, ensures we pass valid string
-        await supabase.from('inventory_movements').insert({
-            inventory_item_id: sourceItemId, // Log against source ID mostly? Or maybe we need generic logging
-            movement_type: 'transfer_partial', // New type
+        await localDb.from('inventory_movements').insert({
+            inventory_item_id: sourceItemId,
+            movement_type: 'transfer_partial',
             quantity_boxes_before: sourceItem.unit_level1_quantity || 0,
-            quantity_loose_before: sourceItem.unit_level3_quantity || 0, // Simplified logging
+            quantity_loose_before: sourceItem.unit_level3_quantity || 0,
             quantity_boxes_after: newL1,
             quantity_loose_after: newL3,
             quantity_boxes_change: newL1 - (sourceItem.unit_level1_quantity || 0),
@@ -220,7 +211,7 @@ export const transferPartialStock = async (
             location_before: sourceItem.location,
             location_after: targetLocation,
             notes: `Partial Staging: Moved ${quantityToTransfer} pieces to ${targetLocation}`
-        } as any);
+        });
 
         return { success: true };
 
