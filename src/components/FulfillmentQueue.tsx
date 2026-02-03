@@ -157,6 +157,7 @@ export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: Fulf
               งานจัดสินค้า (Fulfillment Queue)
             </CardTitle>
             <div className="flex items-center gap-2">
+              {/* TODO: Enable after backend deployed
               <Button
                 variant="outline"
                 size="sm"
@@ -166,6 +167,7 @@ export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: Fulf
                 <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'กำลัง Sync...' : 'Sync PO จาก JLC'}
               </Button>
+              */}
               {locationFilter && (
                 <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-sm px-3 py-1">
                   <MapPin className="h-4 w-4 mr-1" />
