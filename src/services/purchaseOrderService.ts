@@ -53,6 +53,7 @@ export type FulfillmentStatus =
   | 'packed'       // จัดครบแล้ว รอส่ง (ยังยกเลิกได้)
   | 'shipped'      // จัดส่งแล้ว
   | 'delivered'    // ลูกค้าได้รับแล้ว
+  | 'completed'    // เสร็จสิ้น
   | 'cancelled';   // ยกเลิก
 
 // Source type
@@ -423,7 +424,7 @@ export class PurchaseOrderService {
   }>> {
     try {
       console.log('🔍 Searching inventory for product:', productName);
-      
+
       // ค้นหาจาก inventory_items table โดยตรง
       const { data, error } = await supabase
         .from('inventory_items')
@@ -446,11 +447,11 @@ export class PurchaseOrderService {
       const filteredData = data.filter(item => {
         const itemName = (item.product_name || '').toLowerCase().trim();
         // ตรวจสอบหลายเงื่อนไข: exact match, contains, หรือ partial match
-        return itemName === searchName || 
-               itemName.includes(searchName) || 
-               searchName.includes(itemName) ||
-               // ตรวจสอบคำแรก
-               itemName.split(' ')[0] === searchName.split(' ')[0];
+        return itemName === searchName ||
+          itemName.includes(searchName) ||
+          searchName.includes(itemName) ||
+          // ตรวจสอบคำแรก
+          itemName.split(' ')[0] === searchName.split(' ')[0];
       });
 
       console.log(`✅ Found ${filteredData.length} locations for product: ${productName}`);
