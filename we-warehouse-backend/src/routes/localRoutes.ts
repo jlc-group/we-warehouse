@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { LocalController } from '../controllers/localController.js';
 import { getLocalPool } from '../config/localDatabase.js';
 import { POSyncService } from '../services/poSyncService.js';
+import { schedulerService } from '../services/schedulerService.js';
 
 const router = Router();
 
@@ -39,6 +40,20 @@ router.post('/sync-po', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * Scheduler Status Route
+ * GET /api/local/scheduler-status
+ */
+router.get('/scheduler-status', (req: Request, res: Response) => {
+    const status = schedulerService.getStatus();
+    res.json({
+        success: true,
+        scheduler: status,
+        message: status.running
+            ? `Scheduler running - syncs every 6 hours`
+            : 'Scheduler not running'
+    });
+});
 
 /**
  * RPC Route - Call stored functions

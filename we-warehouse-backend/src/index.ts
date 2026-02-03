@@ -11,6 +11,7 @@ import localRoutes from './routes/localRoutes.js';
 import { SalesController } from './controllers/salesController.js';
 import { getConnection } from './config/database.js';
 import { testLocalConnection } from './config/localDatabase.js';
+import { schedulerService } from './services/schedulerService.js';
 
 // Load environment variables
 dotenv.config();
@@ -93,6 +94,10 @@ async function startServer() {
     console.error('⚠️  Database connection failed (server still running):', error.message);
     console.log('💡 Server is ready to accept requests, but database queries will fail until connection is established.');
   }
+
+  // Start PO Sync Scheduler (every 6 hours)
+  console.log('\n⏰ Starting scheduled tasks...');
+  schedulerService.start();
 }
 
 startServer();
