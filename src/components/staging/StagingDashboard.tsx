@@ -1,39 +1,54 @@
+/**
+ * Shipment Staging Dashboard - รายการรอยืนยันจากระบบ Shipment
+ * ดึงข้อมูลจาก shipment_orders WHERE status = 'picked'
+ */
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, Check, X, RefreshCw, Package } from 'lucide-react';
+import { Loader2, Check, X, RefreshCw, Package, Truck, Send, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { getStagingItems, confirmStagingItem, cancelStagingItem } from '@/services/stagingService';
+import { getShipments, shipShipment, cancelShipment, ShipmentOrder } from '@/services/shipmentService';
 
 export function StagingDashboard() {
     const { user } = useAuth();
     const { toast } = useToast();
-    const [items, setItems] = useState<any[]>([]);
+    const [items, setItems] = useState<ShipmentOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     const fetchItems = async () => {
         setLoading(true);
-        const data = await getStagingItems('pending');
-        setItems(data);
-        setLoading(false);
+        try {
+            // ดึงรายการที่มีสถานะ 'picked' (หยิบแล้ว รอยืนยัน)
+            const data = await getShipments('picked');
+            setItems(data);
+        } catch (error) {
+            console.error('Error fetching shipments:', error);
+            toast({
+                title: 'ไม่สามารถโหลดข้อมูลได้',
+                variant: 'destructive'
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
         fetchItems();
     }, []);
 
-    const handleConfirm = async (item: any) => {
+    // ยืนยันส่ง Csmile (picked → shipped)
+    const handleConfirmShip = async (item: ShipmentOrder) => {
         setProcessingId(item.id);
         try {
-            const result = await confirmStagingItem(item, user);
+            const result = await shipShipment(item.taxno, item.docno);
             if (result.success) {
                 toast({
-                    title: 'ยืนยันสำเร็จ',
-                    description: `ตัดสต็อก ${item.product_code} เรียบร้อยแล้ว`,
+                    title: '✅ ยืนยันส่ง Csmile สำเร็จ',
+                    description: `${item.taxno} - ${item.arname}`,
                     className: 'bg-green-50 border-green-200'
                 });
                 // Remove from list
@@ -45,11 +60,11 @@ export function StagingDashboard() {
                     variant: 'destructive'
                 });
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
             toast({
-                title: 'Exception',
-                description: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
+                title: 'Error',
+                description: e.message || 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
                 variant: 'destructive'
             });
         } finally {
@@ -57,14 +72,15 @@ export function StagingDashboard() {
         }
     };
 
-    const handleCancel = async (item: any) => {
+    // ยกเลิกรายการ
+    const handleCancel = async (item: ShipmentOrder) => {
         setProcessingId(item.id);
         try {
-            const result = await cancelStagingItem(item.id);
+            const result = await cancelShipment(item.taxno, item.docno);
             if (result.success) {
                 toast({
-                    title: 'ยกเลิกรายการ',
-                    description: 'รายการถูกยกเลิกแล้ว',
+                    title: 'ยกเลิกรายการแล้ว',
+                    description: `${item.taxno} ถูกยกเลิก`,
                 });
                 setItems(prev => prev.filter(i => i.id !== item.id));
             } else {
@@ -81,26 +97,108 @@ export function StagingDashboard() {
         }
     };
 
+    // ยืนยันทั้งหมด
+    const handleConfirmAll = async () => {
+        setProcessingId('all');
+        let success = 0;
+        let failed = 0;
+
+        for (const item of items) {
+            try {
+                const result = await shipShipment(item.taxno, item.docno);
+                if (result.success) {
+                    success++;
+                } else {
+                    failed++;
+                }
+            } catch {
+                failed++;
+            }
+        }
+
+        toast({
+            title: '✅ ยืนยันส่ง Csmile',
+            description: `สำเร็จ ${success} รายการ${failed > 0 ? `, ไม่สำเร็จ ${failed} รายการ` : ''}`,
+            className: 'bg-green-50 border-green-200'
+        });
+
+        fetchItems();
+        setProcessingId(null);
+    };
+
+    const formatDate = (dateStr: string) => {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleDateString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
+    const formatTime = (dateStr: string) => {
+        if (!dateStr) return '-';
+        return new Date(dateStr).toLocaleTimeString('th-TH', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     return (
         <div className="space-y-4 p-2 sm:p-4">
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight">พักสินค้า (Staging)</h2>
                     <p className="text-muted-foreground">
-                        ตรวจสอบรายการที่หยิบมาและยืนยันเพื่อตัดสต็อกจริง
+                        รายการที่หยิบแล้ว รอยืนยันส่ง Csmile
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={fetchItems} disabled={loading}>
-                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    {items.length > 0 && (
+                        <Button
+                            onClick={handleConfirmAll}
+                            disabled={!!processingId}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            {processingId === 'all' ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Truck className="h-4 w-4 mr-2" />
+                            )}
+                            ยืนยันทั้งหมด ({items.length})
+                        </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={fetchItems} disabled={loading}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                </div>
+            </div>
+
+            {/* Status Legend */}
+            <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                    <span>pending - รอหยิบ</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span>picked - หยิบแล้ว รอยืนยัน</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span>shipped - ส่ง Csmile แล้ว</span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span>confirmed - ยืนยันแล้ว</span>
+                </div>
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        <Package className="h-5 w-5" />
-                        รายการรอตรวจสอบ ({items.length})
+                        <Package className="h-5 w-5 text-purple-600" />
+                        รายการหยิบแล้ว รอยืนยัน ({items.length})
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -110,40 +208,36 @@ export function StagingDashboard() {
                         </div>
                     ) : items.length === 0 ? (
                         <div className="text-center py-12 text-gray-500">
-                            <Check className="h-12 w-12 mx-auto mb-4 text-green-100 bg-green-50 rounded-full p-2" />
-                            <p>ไม่มีรายการรอตรวจสอบ</p>
-                            <p className="text-sm">เมื่อมีการหยิบสินค้าแบบ "พักสินค้า" จะมาปรากฏที่นี่</p>
+                            <Check className="h-12 w-12 mx-auto mb-4 text-green-500 bg-green-50 rounded-full p-2" />
+                            <p className="font-medium">ไม่มีรายการรอยืนยัน</p>
+                            <p className="text-sm mt-1">เมื่อมีการ "ส่งไปพักสินค้า" จากหน้ารายการส่งของ จะมาปรากฏที่นี่</p>
                         </div>
                     ) : (
                         <ScrollArea className="h-[500px]">
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {items.map((item) => (
                                     <div
                                         key={item.id}
-                                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50 transition-colors gap-4"
+                                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-white hover:bg-purple-50 transition-colors gap-4 border-l-4 border-l-purple-500"
                                     >
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <Badge variant="outline" className="font-mono bg-blue-50 text-blue-700 border-blue-200">
-                                                    {item.product_code}
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Badge className="bg-purple-100 text-purple-700 font-mono">
+                                                    {item.status}
                                                 </Badge>
-                                                <span className="text-sm text-gray-500">
-                                                    จาก {item.location}
-                                                </span>
-                                                <ArrowRightIcon />
-                                                <span className="text-sm font-medium text-purple-600">
-                                                    {item.target_location}
-                                                </span>
+                                                <FileText className="h-4 w-4 text-blue-500" />
+                                                <span className="font-semibold">{item.taxno}</span>
                                             </div>
-                                            <h4 className="font-medium">
-                                                {item.inventory_items?.product_name || 'Unknown Product'}
+                                            <h4 className="font-medium text-gray-900">
+                                                {item.arcode} - {item.arname}
                                             </h4>
-                                            <p className="text-sm text-gray-600 mt-1">
-                                                จำนวน: <span className="font-bold text-lg">{item.quantity}</span> {item.unit || 'ชิ้น'}
-                                                <span className="text-xs text-gray-400 ml-2">
-                                                    ({new Date(item.created_at).toLocaleString('th-TH')})
-                                                </span>
-                                            </p>
+                                            <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
+                                                <span>📅 วันที่: {formatDate(item.taxdate)}</span>
+                                                <span>📦 {item.item_count} รายการ</span>
+                                                {item.picked_at && (
+                                                    <span>⏰ หยิบเมื่อ: {formatTime(item.picked_at)}</span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -157,16 +251,16 @@ export function StagingDashboard() {
                                                 ยกเลิก
                                             </Button>
                                             <Button
-                                                className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700"
-                                                onClick={() => handleConfirm(item)}
+                                                className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700"
+                                                onClick={() => handleConfirmShip(item)}
                                                 disabled={!!processingId}
                                             >
                                                 {processingId === item.id ? (
                                                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                                 ) : (
-                                                    <Check className="h-4 w-4 mr-2" />
+                                                    <Send className="h-4 w-4 mr-2" />
                                                 )}
-                                                ยืนยันตัดสต็อก
+                                                ยืนยันส่ง Csmile
                                             </Button>
                                         </div>
                                     </div>
@@ -177,25 +271,5 @@ export function StagingDashboard() {
                 </CardContent>
             </Card>
         </div>
-    );
-}
-
-function ArrowRightIcon() {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-gray-400 mx-1"
-        >
-            <path d="M5 12h14" />
-            <path d="m12 5 7 7-7 7" />
-        </svg>
     );
 }
