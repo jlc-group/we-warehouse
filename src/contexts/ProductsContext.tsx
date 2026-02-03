@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useReducer, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 type Product = {
   id: string;
@@ -117,9 +117,9 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
       isFetchingRef.current = true;
       dispatch({ type: 'FETCH_START' });
 
-      // Fetch real data from Supabase with optimized query
+      // Fetch real data from localDb with optimized query
       // Use abortSignal for better timeout handling
-      const { data: products, error } = await (supabase as any)
+      const { data: products, error } = await (localDb as any)
         .from('products')
         .select(`
           id,
@@ -146,10 +146,10 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: false })
         .limit(200); // Reduced from 500 to speed up
 
-      console.log('✅ Supabase query completed', { hasError: !!error, productCount: products?.length || 0 });
+      console.log('✅ localDb query completed', { hasError: !!error, productCount: products?.length || 0 });
 
       if (error) {
-        console.error('ProductsContext: Supabase error:', error);
+        console.error('ProductsContext: localDb error:', error);
         throw error;
       }
 
@@ -205,15 +205,15 @@ export function ProductsProvider({ children }: { children: ReactNode }) {
 
   const addProduct = useCallback(async (productData: ProductInsert): Promise<Product | null> => {
     try {
-      // Insert into Supabase database
-      const { data, error } = await (supabase as any)
+      // Insert into localDb database
+      const { data, error } = await (localDb as any)
         .from('products')
         .insert([productData])
         .select()
         .single();
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('localDb error:', error);
         throw error;
       }
 
