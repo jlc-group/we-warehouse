@@ -1,0 +1,193 @@
+/**
+ * Shipment Service - Frontend client for shipment tracking
+ */
+
+const BACKEND_URL = import.meta.env.VITE_SALES_API_URL || '/api';
+
+export interface ShipmentOrder {
+    id: string;
+    taxno: string;
+    docno: string;
+    taxdate: string;
+    arcode: string;
+    arname: string;
+    total_amount: number;
+    item_count: number;
+    status: 'pending' | 'picked' | 'shipped' | 'confirmed' | 'cancelled';
+    picked_at?: string;
+    shipped_at?: string;
+    confirmed_at?: string;
+    picked_by?: string;
+    confirmed_by?: string;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ShipmentResponse {
+    success: boolean;
+    data?: ShipmentOrder[];
+    message?: string;
+    error?: string;
+}
+
+/**
+ * ดึงรายการ shipments
+ */
+export async function getShipments(status?: string, taxdate?: string): Promise<ShipmentOrder[]> {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (taxdate) params.append('taxdate', taxdate);
+
+    const url = `${BACKEND_URL}/shipments?${params}`;
+    const response = await fetch(url);
+    const result: ShipmentResponse = await response.json();
+
+    if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch shipments');
+    }
+
+    return result.data || [];
+}
+
+/**
+ * สร้างหรืออัพเดท shipment
+ */
+export async function createShipment(data: {
+    taxno: string;
+    docno: string;
+    taxdate: string;
+    arcode: string;
+    arname: string;
+    total_amount?: number;
+    item_count?: number;
+}): Promise<ShipmentOrder> {
+    const response = await fetch(`${BACKEND_URL}/shipments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error(result.error || 'Failed to create shipment');
+    }
+
+    return result.data;
+}
+
+/**
+ * หยิบสินค้า (pending → picked)
+ */
+export async function pickShipment(taxno: string, docno: string, picked_by?: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/pick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taxno, docno, picked_by })
+    });
+
+    return response.json();
+}
+
+/**
+ * หยิบหลายรายการ (bulk pick)
+ */
+export async function bulkPickShipments(items: { taxno: string; docno: string }[], picked_by?: string): Promise<{ success: boolean; success_count?: number; failed_count?: number; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/bulk-pick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, picked_by })
+    });
+
+    return response.json();
+}
+
+/**
+ * ส่งสินค้า (picked → shipped)
+ */
+export async function shipShipment(taxno: string, docno: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/ship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taxno, docno })
+    });
+
+    return response.json();
+}
+
+/**
+ * ส่งหลายรายการ (bulk ship)
+ */
+export async function bulkShipShipments(items: { taxno: string; docno: string }[]): Promise<{ success: boolean; success_count?: number; failed_count?: number; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/bulk-ship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+    });
+
+    return response.json();
+}
+
+/**
+ * ยืนยันรายการ
+ */
+export async function confirmShipment(taxno: string, docno: string, confirmed_by?: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taxno, docno, confirmed_by })
+    });
+
+    return response.json();
+}
+
+/**
+ * ยกเลิกรายการ
+ */
+export async function cancelShipment(taxno: string, docno: string): Promise<{ success: boolean; message?: string }> {
+    const response = await fetch(`${BACKEND_URL}/shipments/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taxno, docno })
+    });
+
+    return response.json();
+}
+
+/**
+ * สร้าง shipments จาก packing orders แล้วหยิบทันที
+ */
+export async function createAndPickShipments(orders: Array<{
+    taxno: string;
+    docno: string;
+    taxdate: string;
+    arcode: string;
+    arname: string;
+    total_amount?: number;
+    item_count?: number;
+}>, picked_by?: string): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const order of orders) {
+        try {
+            // สร้าง shipment record
+            await createShipment(order);
+
+            // เปลี่ยนสถานะเป็น picked
+            const result = await pickShipment(order.taxno, order.docno, picked_by);
+
+            if (result.success) {
+                success++;
+            } else {
+                failed++;
+            }
+        } catch (error) {
+            console.error('Error creating/picking shipment:', error);
+            failed++;
+        }
+    }
+
+    return { success, failed };
+}
