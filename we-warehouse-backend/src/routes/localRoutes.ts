@@ -6,8 +6,39 @@
 import { Router, Request, Response } from 'express';
 import { LocalController } from '../controllers/localController.js';
 import { getLocalPool } from '../config/localDatabase.js';
+import { POSyncService } from '../services/poSyncService.js';
 
 const router = Router();
+
+/**
+ * PO Sync Route - Sync POs from JLC API
+ * POST /api/local/sync-po
+ */
+router.post('/sync-po', async (req: Request, res: Response) => {
+    try {
+        const { date_from, date_to, top } = req.body;
+
+        console.log('🔄 Starting PO sync...', { date_from, date_to, top });
+
+        const result = await POSyncService.syncAllPOs({
+            date_from,
+            date_to,
+            top: top || 50
+        });
+
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ PO Sync error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            synced: 0,
+            errors: [error.message],
+            details: []
+        });
+    }
+});
+
 
 /**
  * RPC Route - Call stored functions
