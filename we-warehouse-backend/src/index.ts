@@ -8,6 +8,7 @@ import salesRoutes from './routes/salesRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import localRoutes from './routes/localRoutes.js';
+import shipmentRoutes from './routes/shipmentRoutes.js';
 import { SalesController } from './controllers/salesController.js';
 import { getConnection } from './config/database.js';
 import { testLocalConnection } from './config/localDatabase.js';
@@ -39,6 +40,7 @@ app.use('/api/sales', salesRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/local', localRoutes);  // Local PostgreSQL routes for warehouse data
+app.use('/api/shipments', shipmentRoutes);  // Shipment tracking routes
 
 // Root endpoint
 app.get('/', (req, res) => {
