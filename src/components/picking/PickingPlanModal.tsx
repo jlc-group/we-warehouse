@@ -145,7 +145,6 @@ export const PickingPlanModal = ({
       const { data: inventoryData, error } = await supabase
         .from('inventory_items')
         .select('id, sku, product_name, location, unit_level1_quantity, unit_level1_rate, unit_level2_quantity, unit_level2_rate, unit_level3_quantity, unit_level1_name, unit_level2_name, unit_level3_name, warehouse_id, lot, mfd, created_at')
-        .or('unit_level1_quantity.gt.0,unit_level2_quantity.gt.0,unit_level3_quantity.gt.0') // เฉพาะที่มีของอยู่
         .order('created_at', { ascending: true }); // เรียงตาม FIFO (วันที่สร้างเก่าก่อน)
 
       if (error) {
@@ -158,7 +157,14 @@ export const PickingPlanModal = ({
         return;
       }
 
-      const inventoryLocations: InventoryLocation[] = (inventoryData || []) as any;
+      // Filter client-side: เฉพาะที่มีของอยู่ (unit_level1, 2, หรือ 3 > 0)
+      const filteredData = (inventoryData || []).filter((item: any) =>
+        (item.unit_level1_quantity > 0) ||
+        (item.unit_level2_quantity > 0) ||
+        (item.unit_level3_quantity > 0)
+      );
+
+      const inventoryLocations: InventoryLocation[] = filteredData as any;
 
       // สร้าง Picking Plans
       const result = generateBulkPickingPlans(productNeeds, inventoryLocations);
