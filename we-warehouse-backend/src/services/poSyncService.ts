@@ -63,7 +63,7 @@ export class POSyncService {
             if (params.date_to) queryParams.append('date_to', params.date_to);
             if (params.top) queryParams.append('top', params.top.toString());
 
-            const url = `${JLC_API_BASE}/purchase-orders?${queryParams.toString()}`;
+            const url = `${JLC_API_BASE}/jhdb/purchase-orders?${queryParams.toString()}`;
             console.log(`🔄 Fetching PO list from: ${url}`);
 
             const response = await fetch(url, {
@@ -93,7 +93,7 @@ export class POSyncService {
      */
     static async fetchPODetails(po_number: string): Promise<PurchaseOrderFull> {
         try {
-            const url = `${JLC_API_BASE}/purchase-orders/${encodeURIComponent(po_number)}`;
+            const url = `${JLC_API_BASE}/jhdb/purchase-orders/${encodeURIComponent(po_number)}`;
             console.log(`🔄 Fetching PO details: ${po_number}`);
 
             const response = await fetch(url, {
