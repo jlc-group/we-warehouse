@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import QRCodeLib from 'qrcode';
 import { normalizeLocation } from '@/utils/locationUtils';
 
@@ -39,7 +39,7 @@ export class LocationQRService {
       console.log('🔍 LocationQRService: Fetching QR codes...');
 
       // Simple query with timeout - no retry to prevent error spam
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_qr_codes')
         .select('*')
         .eq('is_active', true)
@@ -111,7 +111,7 @@ export class LocationQRService {
       });
 
       // Check if QR exists for this location
-      const { data: existing } = await supabase
+      const { data: existing } = await localDb
         .from('location_qr_codes')
         .select('id')
         .eq('location', normalizedLocation)
@@ -122,7 +122,7 @@ export class LocationQRService {
 
       if (existing) {
         // Update existing QR
-        const result = await supabase
+        const result = await localDb
           .from('location_qr_codes')
           .update({
             qr_code_data: qrUrl,
@@ -137,7 +137,7 @@ export class LocationQRService {
         error = result.error;
       } else {
         // Create new QR
-        const result = await supabase
+        const result = await localDb
           .from('location_qr_codes')
           .insert({
             location: normalizedLocation,
@@ -181,7 +181,7 @@ export class LocationQRService {
    */
   static async deleteQRCode(id: string): Promise<LocationQRServiceResult<boolean>> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('location_qr_codes')
         .update({ is_active: false })
         .eq('id', id);
@@ -215,7 +215,7 @@ export class LocationQRService {
    */
   static async deleteAllQRCodes(): Promise<LocationQRServiceResult<boolean>> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('location_qr_codes')
         .update({ is_active: false })
         .eq('is_active', true);
@@ -249,7 +249,7 @@ export class LocationQRService {
    */
   static async updateQRCode(id: string, updates: any): Promise<LocationQRServiceResult<LocationQRCode>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_qr_codes')
         .update({
           ...updates,
@@ -290,7 +290,7 @@ export class LocationQRService {
     try {
       const normalizedLocation = normalizeLocation(location);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_qr_codes')
         .select('*')
         .eq('location', normalizedLocation)
