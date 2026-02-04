@@ -190,4 +190,143 @@ router.post('/cancel', async (req: Request, res: Response) => {
     }
 });
 
+// ==================== Task Assignment Routes ====================
+
+/**
+ * POST /api/shipments/assign - Assign orders to worker
+ */
+router.post('/assign', async (req: Request, res: Response) => {
+    try {
+        const { orderIds, workerEmail, priority } = req.body;
+
+        if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
+            return res.status(400).json({ success: false, error: 'orderIds array is required' });
+        }
+        if (!workerEmail) {
+            return res.status(400).json({ success: false, error: 'workerEmail is required' });
+        }
+
+        const result = await ShipmentService.assignToWorker(orderIds, workerEmail, priority || 'normal');
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ Error assigning:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * GET /api/shipments/my-tasks - Get tasks assigned to current worker
+ */
+router.get('/my-tasks', async (req: Request, res: Response) => {
+    try {
+        const workerEmail = req.query.email as string;
+
+        if (!workerEmail) {
+            return res.status(400).json({ success: false, error: 'email query param is required' });
+        }
+
+        const tasks = await ShipmentService.getMyTasks(workerEmail);
+        res.json({ success: true, data: tasks });
+    } catch (error: any) {
+        console.error('❌ Error getting my tasks:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * GET /api/shipments/unassigned - Get all unassigned orders (admin)
+ */
+router.get('/unassigned', async (req: Request, res: Response) => {
+    try {
+        const orders = await ShipmentService.getUnassignedOrders();
+        res.json({ success: true, data: orders });
+    } catch (error: any) {
+        console.error('❌ Error getting unassigned:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * GET /api/shipments/assigned - Get all assigned orders (admin)
+ */
+router.get('/assigned', async (req: Request, res: Response) => {
+    try {
+        const orders = await ShipmentService.getAssignedOrders();
+        res.json({ success: true, data: orders });
+    } catch (error: any) {
+        console.error('❌ Error getting assigned:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/shipments/start-picking - Start picking an order (mobile)
+ */
+router.post('/start-picking', async (req: Request, res: Response) => {
+    try {
+        const { orderId, workerEmail } = req.body;
+
+        if (!orderId || !workerEmail) {
+            return res.status(400).json({ success: false, error: 'orderId and workerEmail are required' });
+        }
+
+        const result = await ShipmentService.startPicking(orderId, workerEmail);
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ Error starting picking:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/shipments/assign - Assign orders to a worker (admin)
+ */
+router.post('/assign', async (req: Request, res: Response) => {
+    try {
+        const { orderIds, workerEmail, priority } = req.body;
+
+        if (!orderIds || !workerEmail) {
+            return res.status(400).json({ success: false, error: 'orderIds and workerEmail are required' });
+        }
+
+        const result = await ShipmentService.assignToWorker(orderIds, workerEmail, priority || 'normal');
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ Error assigning:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * POST /api/shipments/unassign - Unassign an order (admin)
+ */
+router.post('/unassign', async (req: Request, res: Response) => {
+    try {
+        const { orderId } = req.body;
+
+        if (!orderId) {
+            return res.status(400).json({ success: false, error: 'orderId is required' });
+        }
+
+        const result = await ShipmentService.unassignOrder(orderId);
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ Error unassigning:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+/**
+ * GET /api/shipments/workers - Get list of workers (admin)
+ */
+router.get('/workers', async (req: Request, res: Response) => {
+    try {
+        const workers = await ShipmentService.getWorkersList();
+        res.json({ success: true, data: workers });
+    } catch (error: any) {
+        console.error('❌ Error getting workers:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 export default router;

@@ -6,14 +6,29 @@
 // API Configuration - ใช้ environment variable สำหรับ production
 const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
 
-import { useState, useMemo } from 'react';
-import { createAndPickShipments, getShipments } from '@/services/shipmentService';
+import { useState, useMemo, useEffect } from 'react';
+import { createAndPickShipments, getShipments, assignOrdersToWorker, getWorkersList } from '@/services/shipmentService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PickingPlanModal } from '@/components/picking/PickingPlanModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -43,7 +58,9 @@ import {
   Building2,
   Send,
   Truck,
-  CheckSquare
+  CheckSquare,
+  Users,
+  UserPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -106,6 +123,18 @@ export const PackingListTab = () => {
   const [showPickingPlan, setShowPickingPlan] = useState(false);
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isSending, setIsSending] = useState(false);
+
+  // Task Assignment State
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState('normal');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [workers, setWorkers] = useState<{ email: string; full_name: string }[]>([]);
+
+  // Fetch workers list
+  useEffect(() => {
+    getWorkersList().then(setWorkers).catch(console.error);
+  }, []);
 
   // Fetch packing list data
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -295,6 +324,69 @@ export const PackingListTab = () => {
     }
   };
 
+  // Assign selected orders to worker
+  const handleAssignToWorker = async () => {
+    if (!selectedWorker) {
+      toast({
+        title: 'กรุณาเลือกพนักงาน',
+        description: 'โปรดเลือกพนักงานที่ต้องการมอบหมายงาน',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      // Get selected orders data
+      const ordersToAssign = filteredOrders.filter(o =>
+        selectedOrders.has(`${o.TAXNO}|${o.DOCNO}`)
+      ).map(o => ({
+        taxno: o.TAXNO,
+        docno: o.DOCNO,
+        taxdate: o.TAXDATE,
+        arcode: o.ARCODE,
+        arname: o.ARNAME,
+        total_amount: o.TOTALAMOUNT,
+        item_count: o.ITEM_COUNT
+      }));
+
+      const result = await assignOrdersToWorker(
+        ordersToAssign,
+        selectedWorker,
+        selectedPriority,
+        user?.email || 'system'
+      );
+
+      if (result.success) {
+        const workerName = workers.find(w => w.email === selectedWorker)?.full_name || selectedWorker;
+        toast({
+          title: '✅ กระจายงานสำเร็จ',
+          description: `มอบหมาย ${result.assigned} รายการให้ ${workerName}`,
+          className: 'bg-green-50 border-green-200'
+        });
+
+        setSelectedOrders(new Set());
+        setShowAssignModal(false);
+        setSelectedWorker('');
+        setSelectedPriority('normal');
+      } else {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.message || 'ไม่สามารถกระจายงานได้',
+          variant: 'destructive'
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message || 'ไม่สามารถกระจายงานได้',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -332,6 +424,15 @@ export const PackingListTab = () => {
                 <Send className="h-4 w-4 mr-2" />
               )}
               ส่งไปพักสินค้า ({selectedOrders.size})
+            </Button>
+          )}
+          {selectedOrders.size > 0 && (
+            <Button
+              onClick={() => setShowAssignModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              📤 กระจายงาน ({selectedOrders.size})
             </Button>
           )}
           <Button
@@ -751,6 +852,80 @@ export const PackingListTab = () => {
           )}
         </CardContent>
       </Card>
-    </div>
+
+      {/* Task Assignment Modal */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-600" />
+              📤 กระจายงาน
+            </DialogTitle>
+            <DialogDescription>
+              เลือก {selectedOrders.size} รายการ - มอบหมายให้พนักงานหยิบสินค้า
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Worker Selection */}
+            <div className="space-y-2">
+              <Label>เลือกพนักงาน</Label>
+              <Select value={selectedWorker} onValueChange={setSelectedWorker}>
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกพนักงานที่ต้องการมอบหมาย" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workers.map(w => (
+                    <SelectItem key={w.email} value={w.email}>
+                      {w.full_name || w.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Priority Selection */}
+            <div className="space-y-2">
+              <Label>ความเร่งด่วน</Label>
+              <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">🔴 ด่วนมาก (Urgent)</SelectItem>
+                  <SelectItem value="high">🟠 ด่วน (High)</SelectItem>
+                  <SelectItem value="normal">🟢 ปกติ (Normal)</SelectItem>
+                  <SelectItem value="low">⚪ ไม่ด่วน (Low)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Selected Orders Summary */}
+            <div className="p-3 bg-gray-50 rounded-lg text-sm">
+              <p className="font-medium">รายการที่เลือก:</p>
+              <p className="text-gray-600">{selectedOrders.size} รายการ</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignModal(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleAssignToWorker}
+              disabled={isAssigning || !selectedWorker}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {isAssigning ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              มอบหมายงาน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 };

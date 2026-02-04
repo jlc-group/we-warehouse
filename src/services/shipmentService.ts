@@ -191,3 +191,58 @@ export async function createAndPickShipments(orders: Array<{
 
     return { success, failed };
 }
+
+/**
+ * Get list of workers for task assignment
+ */
+export async function getWorkersList(): Promise<{ email: string; full_name: string }[]> {
+    const response = await fetch(`${BACKEND_URL}/shipments/workers`);
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch workers');
+    }
+
+    return result.data || [];
+}
+
+/**
+ * Assign orders to a specific worker
+ */
+export async function assignOrdersToWorker(
+    orders: Array<{
+        taxno: string;
+        docno: string;
+        taxdate: string;
+        arcode: string;
+        arname: string;
+        total_amount?: number;
+        item_count?: number;
+    }>,
+    workerEmail: string,
+    priority: string,
+    assignedBy?: string
+): Promise<{ success: boolean; assigned: number; message?: string }> {
+    // First ensure orders exist in shipment_orders
+    for (const order of orders) {
+        try {
+            await createShipment(order);
+        } catch (error) {
+            // Order may already exist, continue
+        }
+    }
+
+    // Then assign to worker
+    const orderIds = orders.map(o => o.docno);
+    const response = await fetch(`${BACKEND_URL}/shipments/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            orderIds,
+            workerEmail,
+            priority
+        })
+    });
+
+    return response.json();
+}

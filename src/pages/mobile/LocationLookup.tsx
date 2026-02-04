@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import { Search, Loader2, Package, ArrowRightLeft } from 'lucide-react';
+import { Search, Loader2, Package, ArrowRightLeft, Camera, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface InventoryItem {
     id: string;
@@ -29,6 +30,10 @@ const LocationLookup = () => {
     const [locationName, setLocationName] = useState<string | null>(null);
     const [items, setItems] = useState<InventoryItem[]>([]);
 
+    // Camera QR Scanner state
+    const [showScanner, setShowScanner] = useState(false);
+    const [html5QrCode, setHtml5QrCode] = useState<Html5Qrcode | null>(null);
+
     // Handle hardware scanner
     useScanner({
         onScan: (code) => {
@@ -36,6 +41,42 @@ const LocationLookup = () => {
             handleSearch(code);
         }
     });
+
+    // Camera QR Scanner functions
+    const startCameraScanner = async () => {
+        setShowScanner(true);
+        try {
+            const scanner = new Html5Qrcode("qr-reader-lookup");
+            setHtml5QrCode(scanner);
+
+            await scanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    // Success
+                    setQuery(decodedText);
+                    handleSearch(decodedText);
+                    stopCameraScanner();
+                    toast.success(`สแกนได้: ${decodedText}`);
+                },
+                (errorMessage) => {
+                    // Ignore scan errors
+                }
+            );
+        } catch (err) {
+            console.error('Camera error:', err);
+            toast.error('ไม่สามารถเปิดกล้องได้');
+            setShowScanner(false);
+        }
+    };
+
+    const stopCameraScanner = () => {
+        if (html5QrCode) {
+            html5QrCode.stop().catch(() => { });
+            setHtml5QrCode(null);
+        }
+        setShowScanner(false);
+    };
 
     const handleSearch = async (searchTerm: string) => {
         if (!searchTerm) return;
@@ -91,13 +132,53 @@ const LocationLookup = () => {
 
     return (
         <MobileLayout title="Location Lookup" showBack={true}>
+            {/* Camera QR Scanner Modal */}
+            {showScanner && (
+                <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
+                    <div className="flex justify-between items-center p-4 bg-black text-white">
+                        <span className="font-bold">📷 สแกน QR Code</span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={stopCameraScanner}
+                            className="text-white hover:bg-white/20"
+                        >
+                            <X className="h-6 w-6" />
+                        </Button>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center p-4">
+                        <div id="qr-reader-lookup" className="w-full max-w-sm bg-white rounded-lg overflow-hidden" />
+                    </div>
+                    <div className="p-4 text-center text-white text-sm">
+                        เล็งกล้องไปที่ QR Code ของ Location หรือ SKU
+                    </div>
+                </div>
+            )}
+
+            {/* Camera Scan Button */}
+            <Button
+                onClick={startCameraScanner}
+                className="w-full h-14 mb-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold text-lg shadow-lg"
+            >
+                <Camera className="h-6 w-6 mr-2" />
+                📷 สแกน QR ด้วยกล้อง
+            </Button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1 h-px bg-gray-300" />
+                <span className="text-gray-500 text-sm">หรือพิมพ์</span>
+                <div className="flex-1 h-px bg-gray-300" />
+            </div>
+
+            {/* Search Input */}
             <div className="flex gap-2 mb-4">
                 <Input
-                    placeholder="Scan Location or SKU"
+                    placeholder="พิมพ์ Location หรือ SKU"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => setQuery(e.target.value.toUpperCase())}
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch(query)}
-                    className="text-lg h-12"
+                    className="text-lg h-12 font-mono"
                     autoFocus
                 />
                 <Button onClick={() => handleSearch(query)} className="h-12 w-12 p-0">

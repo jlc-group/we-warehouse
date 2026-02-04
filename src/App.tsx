@@ -23,6 +23,7 @@ import MobileReceive from "@/pages/mobile/MobileReceive";
 import MobileCount from "./pages/mobile/MobileCount";
 import MobilePick from "./pages/mobile/MobilePick";
 import LocationTasks from "./pages/mobile/LocationTasks";
+import MyTasks from "./pages/mobile/MyTasks";
 
 // Development vs Production optimized query client configuration
 const isDevelopment = import.meta.env.DEV;
@@ -144,6 +145,14 @@ const App = () => (
                         element={
                           <AuthGuard>
                             <LocationTasks />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/my-tasks"
+                        element={
+                          <AuthGuard>
+                            <MyTasks />
                           </AuthGuard>
                         }
                       />

@@ -34,6 +34,7 @@ const ProductSummaryTable = lazy(() => import('@/components/ProductSummaryTable'
 const ProductManagementPage = lazy(() => import('@/components/ProductManagementPage').then(m => ({ default: m.ProductManagementPage })));
 const LocationQRScannerModal = lazy(() => import('@/components/LocationQRScannerModal').then(m => ({ default: m.LocationQRScannerModal })));
 const WarehouseOperations = lazy(() => import('@/components/WarehouseOperations'));
+const TaskAssignment = lazy(() => import('@/pages/TaskAssignment'));
 
 // Import modals for quick actions
 import { BulkExportModal } from '@/components/BulkExportModal';
@@ -328,6 +329,13 @@ export default function Dashboard() {
                 <ProductManagementPage />
               </TabsContent>
             </Tabs>
+          </Suspense>
+        );
+
+      case 'task-assignment':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Task Assignment" />}>
+            <TaskAssignment />
           </Suspense>
         );
 

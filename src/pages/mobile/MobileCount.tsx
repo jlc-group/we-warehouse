@@ -6,9 +6,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import { Loader2, ClipboardCheck, ScanLine, Save } from 'lucide-react';
+import { Loader2, ClipboardCheck, ScanLine, Save, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContextSimple';
+import { CameraQRScanner } from '@/components/mobile/CameraQRScanner';
 
 const MobileCount = () => {
     const navigate = useNavigate();
@@ -145,16 +146,38 @@ const MobileCount = () => {
                 <div className="flex flex-col items-center justify-center p-4 py-10 space-y-4">
                     <ScanLine className="w-20 h-20 text-indigo-300" />
                     <h2 className="text-xl font-semibold">Scan Location</h2>
+
+                    {/* Camera QR Scanner */}
+                    <div className="w-full">
+                        <CameraQRScanner
+                            onScan={(code) => {
+                                setLocation(code);
+                                handleLoadLocation(code);
+                            }}
+                            buttonText="📷 สแกน QR ด้วยกล้อง"
+                            modalTitle="📷 สแกน Location"
+                            modalHint="เล็งกล้องไปที่ QR Code ของ Location"
+                            scannerId="qr-reader-count"
+                            buttonClassName="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+                        />
+                    </div>
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-3 w-full">
+                        <div className="flex-1 h-px bg-gray-300" />
+                        <span className="text-gray-500 text-sm">หรือพิมพ์</span>
+                        <div className="flex-1 h-px bg-gray-300" />
+                    </div>
+
                     <div className="flex gap-2 w-full">
                         <Input
                             value={location}
-                            onChange={e => setLocation(e.target.value)}
-                            placeholder="LOC-B01-S02"
-                            className="text-center text-lg h-12 uppercase"
-                            autoFocus
+                            onChange={e => setLocation(e.target.value.toUpperCase())}
+                            placeholder="J5/4 หรือ A1/1"
+                            className="text-center text-lg h-12 uppercase font-mono"
                         />
                         <Button onClick={() => handleLoadLocation(location)} className="h-12 w-12 p-0 bg-indigo-600 hover:bg-indigo-700">
-                            <ClipboardCheck />
+                            <Search />
                         </Button>
                     </div>
                 </div>

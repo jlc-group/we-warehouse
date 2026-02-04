@@ -47,6 +47,7 @@ interface LocationTask {
 interface LocationOption {
     code: string;
     description?: string;
+    taskCount: number;
 }
 
 const LocationTasks = () => {
@@ -67,26 +68,66 @@ const LocationTasks = () => {
     // Camera QR Scanner
     const [showScanner, setShowScanner] = useState(false);
 
+
     useEffect(() => {
-        loadLocations();
+        loadLocationsWithTasks();
     }, []);
 
-    const loadLocations = async () => {
+    // Load only locations that have pending tasks
+    const loadLocationsWithTasks = async () => {
         setLoadingLocations(true);
         try {
-            const { data } = await localDb
-                .from('warehouse_locations')
-                .select('location_code, description')
-                .eq('is_active', true);
+            const locationTaskMap = new Map<string, number>();
 
-            if (data) {
-                const sorted = (data as any[])
-                    .map(l => ({ code: l.location_code, description: l.description }))
-                    .sort((a, b) => a.code.localeCompare(b.code));
-                setLocations(sorted);
+            // Get PICK tasks from order_items (PENDING status)
+            try {
+                const { data: pickItems } = await localDb
+                    .from('order_items')
+                    .select('location, status');
+
+                if (pickItems) {
+                    const pending = (pickItems as any[]).filter(
+                        item => item.status === 'PENDING' && item.location
+                    );
+                    for (const item of pending) {
+                        const loc = item.location.toUpperCase();
+                        locationTaskMap.set(loc, (locationTaskMap.get(loc) || 0) + 1);
+                    }
+                }
+            } catch (e) {
+                console.warn('order_items not available:', e);
+            }
+
+            // Get RECEIVE tasks from inbound_receipt_items (incomplete receipts)
+            try {
+                const { data: receiveItems } = await localDb
+                    .from('inbound_receipt_items')
+                    .select('location, quantity_expected, quantity_received');
+
+                if (receiveItems) {
+                    const pending = (receiveItems as any[]).filter(
+                        item => item.location && item.quantity_received < item.quantity_expected
+                    );
+                    for (const item of pending) {
+                        const loc = item.location.toUpperCase();
+                        locationTaskMap.set(loc, (locationTaskMap.get(loc) || 0) + 1);
+                    }
+                }
+            } catch (e) {
+                console.warn('inbound_receipt_items not available:', e);
+            }
+
+            // Convert to array and sort by task count (most tasks first)
+            if (locationTaskMap.size > 0) {
+                const locationsWithTasks: LocationOption[] = Array.from(locationTaskMap.entries())
+                    .map(([code, taskCount]) => ({ code, taskCount }))
+                    .sort((a, b) => b.taskCount - a.taskCount);
+                setLocations(locationsWithTasks);
+            } else {
+                setLocations([]);
             }
         } catch (error) {
-            console.error('Failed to load locations:', error);
+            console.error('Failed to load locations with tasks:', error);
         } finally {
             setLoadingLocations(false);
         }
@@ -326,9 +367,17 @@ const LocationTasks = () => {
 
     const getTaskColor = (type: string) => {
         switch (type) {
-            case 'pick': return 'bg-blue-100 text-blue-800';
-            case 'receive': return 'bg-green-100 text-green-800';
+            case 'pick': return 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white';
+            case 'receive': return 'bg-gradient-to-r from-green-500 to-emerald-500 text-white';
             default: return 'bg-gray-100';
+        }
+    };
+
+    const getTaskBgColor = (type: string) => {
+        switch (type) {
+            case 'pick': return 'bg-blue-50';
+            case 'receive': return 'bg-green-50';
+            default: return 'bg-gray-50';
         }
     };
 
@@ -359,26 +408,44 @@ const LocationTasks = () => {
                 </Button>
             </div>
 
-            {/* Dropdown */}
-            <Select
-                value={selectedLocation}
-                onValueChange={handleLocationSelect}
-                disabled={loadingLocations}
-            >
-                <SelectTrigger className="w-full h-12 mb-4">
-                    <SelectValue placeholder={loadingLocations ? "โหลด..." : `เลือกจากรายการ (${locations.length})`} />
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                    {locations.map((loc) => (
-                        <SelectItem key={loc.code} value={loc.code} className="py-2">
-                            <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-red-500" />
-                                <span className="font-mono font-bold">{loc.code}</span>
-                            </div>
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            {/* Dropdown - ONLY locations with pending tasks */}
+            {loadingLocations ? (
+                <div className="flex items-center justify-center py-4 text-gray-500">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    <span>กำลังหา Location ที่มีงานค้าง...</span>
+                </div>
+            ) : locations.length > 0 ? (
+                <Select
+                    value={selectedLocation}
+                    onValueChange={handleLocationSelect}
+                >
+                    <SelectTrigger className="w-full h-12 mb-4 bg-white border-2 border-blue-200">
+                        <SelectValue placeholder={`📍 เลือก Location ที่มีงาน (${locations.length} แห่ง)`} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-80">
+                        {locations.map((loc) => (
+                            <SelectItem key={loc.code} value={loc.code} className="py-3">
+                                <div className="flex items-center justify-between w-full gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-1.5 bg-red-100 rounded-lg">
+                                            <MapPin className="h-4 w-4 text-red-500" />
+                                        </div>
+                                        <span className="font-mono font-bold text-base">{loc.code}</span>
+                                    </div>
+                                    <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs px-2">
+                                        {loc.taskCount} งาน
+                                    </Badge>
+                                </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            ) : (
+                <div className="text-center py-4 px-4 bg-green-50 border border-green-200 rounded-lg mb-4">
+                    <p className="text-green-700 font-medium">✅ ไม่มี Location ที่มีงานค้าง</p>
+                    <p className="text-green-600 text-sm mt-1">งานทั้งหมดเสร็จแล้ว หรือพิมพ์ค้นหาด้วยตัวเอง</p>
+                </div>
+            )}
 
             {/* Loading */}
             {loading && (
@@ -405,45 +472,72 @@ const LocationTasks = () => {
                     {tasks.length > 0 ? (
                         <div className="space-y-3">
                             {tasks.map((task) => (
-                                <Card
+                                <div
                                     key={task.id}
-                                    className={`cursor-pointer transition-all border-l-4 ${task.completed
-                                        ? 'border-l-green-500 bg-green-50 opacity-60'
-                                        : task.priority === 'HIGH'
-                                            ? 'border-l-red-500 hover:shadow-md'
-                                            : 'border-l-gray-300 hover:shadow-md'
+                                    className={`relative overflow-hidden rounded-2xl transition-all active:scale-[0.98] shadow-sm ${task.completed
+                                        ? 'bg-green-50 opacity-60'
+                                        : getTaskBgColor(task.type)
                                         }`}
                                     onClick={() => !task.completed && handleTaskClick(task)}
                                 >
-                                    <CardContent className="p-3">
+                                    {/* Priority indicator */}
+                                    {task.priority === 'HIGH' && !task.completed && (
+                                        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-orange-500" />
+                                    )}
+
+                                    <div className="p-4">
                                         <div className="flex items-start gap-3">
-                                            <div className={`p-2 rounded-lg ${task.completed ? 'bg-green-200' : getTaskColor(task.type)}`}>
-                                                {task.completed ? <CheckCircle2 className="h-5 w-5 text-green-600" /> : getTaskIcon(task.type)}
+                                            {/* Icon with gradient background */}
+                                            <div className={`p-3 rounded-xl shadow-md ${task.completed
+                                                ? 'bg-gradient-to-br from-green-400 to-green-500'
+                                                : task.type === 'pick'
+                                                    ? 'bg-gradient-to-br from-blue-500 to-cyan-500'
+                                                    : 'bg-gradient-to-br from-green-500 to-emerald-500'
+                                                }`}>
+                                                {task.completed
+                                                    ? <CheckCircle2 className="h-6 w-6 text-white" />
+                                                    : React.cloneElement(getTaskIcon(task.type), { className: 'h-6 w-6 text-white' })
+                                                }
                                             </div>
+
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <Badge className={getTaskColor(task.type)}>
+                                                    <Badge className={`${getTaskColor(task.type)} shadow-sm`}>
                                                         {getTaskLabel(task.type)}
                                                     </Badge>
                                                     {task.priority === 'HIGH' && !task.completed && (
-                                                        <Badge variant="destructive">ด่วน</Badge>
+                                                        <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white border-0">
+                                                            ด่วน
+                                                        </Badge>
                                                     )}
                                                 </div>
-                                                <p className="font-medium text-sm truncate">{task.product_name}</p>
-                                                <p className="text-xs text-gray-500">SKU: {task.sku}</p>
-                                                <div className="flex items-center justify-between mt-2">
-                                                    <span className={`text-lg font-bold ${task.completed ? 'text-green-600' : 'text-primary'}`}>
+                                                <p className="font-bold text-gray-900 truncate">{task.product_name}</p>
+                                                <p className="text-xs text-gray-500 font-mono">SKU: {task.sku}</p>
+                                                <div className="flex items-center justify-between mt-3">
+                                                    <span className={`text-xl font-bold ${task.completed
+                                                        ? 'text-green-600'
+                                                        : task.type === 'pick'
+                                                            ? 'text-blue-600'
+                                                            : 'text-green-600'
+                                                        }`}>
                                                         {task.quantity} {task.unit}
                                                     </span>
                                                     {task.order_number && (
-                                                        <span className="text-xs text-gray-400">{task.order_number}</span>
+                                                        <Badge variant="outline" className="text-xs font-mono">
+                                                            {task.order_number}
+                                                        </Badge>
                                                     )}
                                                 </div>
                                             </div>
-                                            {!task.completed && <ArrowRight className="h-5 w-5 text-gray-400 self-center" />}
+
+                                            {!task.completed && (
+                                                <div className="self-center p-2 bg-white/50 rounded-full">
+                                                    <ArrowRight className="h-5 w-5 text-gray-600" />
+                                                </div>
+                                            )}
                                         </div>
-                                    </CardContent>
-                                </Card>
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     ) : (

@@ -74,6 +74,15 @@ const MobileMenu = () => {
 
     const menuItems = [
         {
+            title: '📦 งานของฉัน',
+            subtitle: 'My Tasks',
+            icon: <Package className="h-7 w-7" />,
+            path: '/mobile/my-tasks',
+            gradient: 'from-indigo-500 to-purple-600',
+            bgLight: 'bg-indigo-50',
+            highlight: true,
+        },
+        {
             title: 'รับสินค้า',
             subtitle: 'Receive',
             icon: <PackageCheck className="h-7 w-7" />,

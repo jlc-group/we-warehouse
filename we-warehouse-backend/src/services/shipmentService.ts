@@ -197,4 +197,149 @@ export class ShipmentService {
 
         return { success, failed };
     }
+
+    // ==================== Task Assignment Methods ====================
+
+    /**
+     * Assign orders to a worker (by DOCNO)
+     */
+    static async assignToWorker(
+        orderDocnos: string[],
+        workerEmail: string,
+        priority: string = 'normal'
+    ): Promise<{ success: boolean; assigned: number; message?: string }> {
+        const pool = getLocalPool();
+
+        try {
+            const { rowCount } = await pool.query(
+                `UPDATE shipment_orders 
+                 SET assigned_to = $1, assigned_at = NOW(), priority = $2
+                 WHERE docno = ANY($3::text[]) AND (status = 'pending' OR status IS NULL)`,
+                [workerEmail, priority, orderDocnos]
+            );
+
+            return {
+                success: true,
+                assigned: rowCount || 0,
+                message: `Assigned ${rowCount} orders to ${workerEmail}`
+            };
+        } catch (error: any) {
+            return { success: false, assigned: 0, message: error.message };
+        }
+    }
+
+    /**
+     * Get tasks assigned to a specific worker
+     */
+    static async getMyTasks(workerEmail: string): Promise<ShipmentOrder[]> {
+        const pool = getLocalPool();
+
+        const { rows } = await pool.query(
+            `SELECT * FROM shipment_orders 
+             WHERE assigned_to = $1 
+             AND status IN ('pending', 'picked')
+             ORDER BY 
+                CASE priority 
+                    WHEN 'urgent' THEN 1 
+                    WHEN 'high' THEN 2 
+                    WHEN 'normal' THEN 3 
+                    WHEN 'low' THEN 4 
+                END,
+                assigned_at ASC`,
+            [workerEmail]
+        );
+
+        return rows;
+    }
+
+    /**
+     * Get all unassigned orders (for admin view)
+     */
+    static async getUnassignedOrders(): Promise<ShipmentOrder[]> {
+        const pool = getLocalPool();
+
+        const { rows } = await pool.query(
+            `SELECT * FROM shipment_orders 
+             WHERE assigned_to IS NULL 
+             AND status = 'pending'
+             ORDER BY taxdate DESC, created_at DESC`
+        );
+
+        return rows;
+    }
+
+    /**
+     * Get all assigned orders with worker info (for admin view)
+     */
+    static async getAssignedOrders(): Promise<ShipmentOrder[]> {
+        const pool = getLocalPool();
+
+        const { rows } = await pool.query(
+            `SELECT * FROM shipment_orders 
+             WHERE assigned_to IS NOT NULL 
+             AND status IN ('pending', 'picked')
+             ORDER BY assigned_at DESC`
+        );
+
+        return rows;
+    }
+
+    /**
+     * Start picking - mark order as being picked
+     */
+    static async startPicking(orderId: string, workerEmail: string): Promise<{ success: boolean; message?: string }> {
+        const pool = getLocalPool();
+
+        const { rowCount } = await pool.query(
+            `UPDATE shipment_orders 
+             SET status = 'picked', picked_at = NOW(), picked_by = $2
+             WHERE id = $1 AND assigned_to = $2 AND status = 'pending'`,
+            [orderId, workerEmail]
+        );
+
+        if (rowCount === 0) {
+            return { success: false, message: 'Order not found or not assigned to you' };
+        }
+
+        return { success: true };
+    }
+
+    /**
+     * Unassign order
+     */
+    static async unassignOrder(orderId: string): Promise<{ success: boolean; message?: string }> {
+        const pool = getLocalPool();
+
+        const { rowCount } = await pool.query(
+            `UPDATE shipment_orders 
+             SET assigned_to = NULL, assigned_at = NULL
+             WHERE id = $1 AND status = 'pending'`,
+            [orderId]
+        );
+
+        if (rowCount === 0) {
+            return { success: false, message: 'Order not found or already picked' };
+        }
+
+        return { success: true };
+    }
+
+    /**
+     * Get list of workers (all users for now)
+     */
+    static async getWorkersList(): Promise<{ email: string; full_name: string }[]> {
+        const pool = getLocalPool();
+
+        try {
+            // Get all users - roles might be in Thai
+            const { rows } = await pool.query(
+                `SELECT email, full_name FROM users ORDER BY full_name`
+            );
+            return rows;
+        } catch (error) {
+            // If users table doesn't exist, return empty
+            console.log('Workers list: users table not found');
+            return [];
+        }
+    }
 }

@@ -36,7 +36,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                 variant="ghost"
                                 size="icon"
                                 className="text-primary-foreground hover:bg-primary/80 -ml-2"
-                                onClick={() => navigate(-1)}
+                                onClick={() => navigate('/mobile')}
                             >
                                 <ArrowLeft className="h-6 w-6" />
                             </Button>

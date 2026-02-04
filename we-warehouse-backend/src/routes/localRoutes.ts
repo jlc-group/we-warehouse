@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { LocalController } from '../controllers/localController.js';
 import { getLocalPool } from '../config/localDatabase.js';
 import { POSyncService } from '../services/poSyncService.js';
+import { ShipmentSyncService } from '../services/shipmentSyncService.js';
 import { schedulerService } from '../services/schedulerService.js';
 
 const router = Router();
@@ -36,6 +37,34 @@ router.post('/sync-po', async (req: Request, res: Response) => {
             synced: 0,
             errors: [error.message],
             details: []
+        });
+    }
+});
+
+/**
+ * Shipment Sync Route - Sync invoices from JHCSMILE to local shipment_orders
+ * POST /api/local/sync-shipments
+ */
+router.post('/sync-shipments', async (req: Request, res: Response) => {
+    try {
+        const { date_from, date_to, top } = req.body;
+
+        console.log('🔄 Starting shipment sync from JHCSMILE...', { date_from, date_to, top });
+
+        const result = await ShipmentSyncService.syncFromJLC({
+            date_from,
+            date_to,
+            top: top || 50
+        });
+
+        res.json(result);
+    } catch (error: any) {
+        console.error('❌ Shipment Sync error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            synced: 0,
+            errors: [error.message]
         });
     }
 });

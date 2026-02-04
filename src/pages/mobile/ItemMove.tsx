@@ -6,11 +6,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import { Loader2, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle2, Camera, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { transferPartialStock } from '@/services/transferService';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { recordMove } from '@/services/movementService';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const ItemMove = () => {
     const navigate = useNavigate();
@@ -24,6 +25,10 @@ const ItemMove = () => {
     const [targetLocation, setTargetLocation] = useState('');
     const [moveQty, setMoveQty] = useState<number>(0);
 
+    // Camera QR Scanner state
+    const [showScanner, setShowScanner] = useState(false);
+    const [html5QrCode, setHtml5QrCode] = useState<Html5Qrcode | null>(null);
+
     // Scanner for target location
     useScanner({
         onScan: (code) => {
@@ -31,6 +36,38 @@ const ItemMove = () => {
             setTargetLocation(code);
         }
     });
+
+    // Camera QR Scanner functions
+    const startCameraScanner = async () => {
+        setShowScanner(true);
+        try {
+            const scanner = new Html5Qrcode("qr-reader-move");
+            setHtml5QrCode(scanner);
+
+            await scanner.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                (decodedText) => {
+                    setTargetLocation(decodedText);
+                    stopCameraScanner();
+                    toast.success(`สแกนได้: ${decodedText}`);
+                },
+                () => { }
+            );
+        } catch (err) {
+            console.error('Camera error:', err);
+            toast.error('ไม่สามารถเปิดกล้องได้');
+            setShowScanner(false);
+        }
+    };
+
+    const stopCameraScanner = () => {
+        if (html5QrCode) {
+            html5QrCode.stop().catch(() => { });
+            setHtml5QrCode(null);
+        }
+        setShowScanner(false);
+    };
 
     useEffect(() => {
         if (itemId) {
@@ -108,6 +145,29 @@ const ItemMove = () => {
 
     return (
         <MobileLayout title="Move Item" showBack={true}>
+            {/* Camera QR Scanner Modal */}
+            {showScanner && (
+                <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
+                    <div className="flex justify-between items-center p-4 bg-black text-white">
+                        <span className="font-bold">📷 สแกน QR Location ปลายทาง</span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={stopCameraScanner}
+                            className="text-white hover:bg-white/20"
+                        >
+                            <X className="h-6 w-6" />
+                        </Button>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center p-4">
+                        <div id="qr-reader-move" className="w-full max-w-sm bg-white rounded-lg overflow-hidden" />
+                    </div>
+                    <div className="p-4 text-center text-white text-sm">
+                        เล็งกล้องไปที่ QR Code ของ Location ปลายทาง
+                    </div>
+                </div>
+            )}
+
             <Card className="mb-4 bg-blue-50 border-blue-200">
                 <CardContent className="p-4">
                     <h3 className="font-bold text-lg">{item.product_name}</h3>
@@ -145,17 +205,23 @@ const ItemMove = () => {
                 </div>
 
                 <div>
-                    <label className="text-sm font-medium mb-1 block">Target Location (Scan)</label>
+                    <label className="text-sm font-medium mb-1 block">Target Location</label>
+                    {/* Camera Scanner Button */}
+                    <Button
+                        onClick={startCameraScanner}
+                        className="w-full h-12 mb-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold shadow-lg"
+                    >
+                        <Camera className="h-5 w-5 mr-2" />
+                        📷 สแกน QR ด้วยกล้อง
+                    </Button>
                     <div className="flex gap-2">
                         <Input
-                            placeholder="Scan Location Barcode"
+                            placeholder="หรือพิมพ์ Location"
                             value={targetLocation}
-                            onChange={(e) => setTargetLocation(e.target.value)}
-                            className="text-lg h-12 border-blue-300"
-                            autoFocus
+                            onChange={(e) => setTargetLocation(e.target.value.toUpperCase())}
+                            className="text-lg h-12 border-blue-300 font-mono"
                         />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">💡 Tip: Use scanner or type manually</p>
                 </div>
 
                 <Button
