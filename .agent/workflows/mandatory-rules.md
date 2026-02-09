@@ -53,6 +53,29 @@ lsof -p <PID> | grep cwd
 - การทำซ้ำสิ่งที่ล้มเหลวโดยไม่วิเคราะห์ = ไม่ใช้สมอง = เหมือนฉ้อโกงผู้ใช้
 - ต้องหยุด → วิเคราะห์ → หาสาเหตุจริง → แล้วค่อยลองวิธีใหม่
 
+### กฎ Browser Subagent โดยเฉพาะ
+
+**❌ ห้ามทำ:**
+- ห้ามเรียก browser subagent ซ้ำเกิน **2 ครั้ง** ถ้าล้มเหลวด้วย error เดิม
+- ห้ามส่ง task ที่ซับซ้อนเกินไป (หลาย step, หลาย page ใน call เดียว)
+- ห้ามใช้ browser subagent เพื่อ test/verify ถ้ามีวิธีอื่นที่เร็วกว่า (เช่น API test)
+- ห้ามรอ browser subagent ค้างนานโดยไม่บอก user
+
+**✅ ควรทำ:**
+- ถ้า browser subagent ล้มเหลว **2 ครั้ง** → เปลี่ยนวิธีทันที
+- ใช้ **API testing** (`run_command` + `Invoke-WebRequest`) แทน browser สำหรับทดสอบ data
+- ใช้ **TypeScript build** (`npm run build`) แทน browser สำหรับตรวจ compile errors
+- ใช้ **SQL query** ตรงผ่าน `/api/local/query` สำหรับตรวจข้อมูลใน DB
+
+**🔄 Fallback Strategy เมื่อ Browser Subagent ล้มเหลว:**
+1. ครั้งที่ 1 ล้มเหลว → ลดความซับซ้อนของ task แล้วลองอีกครั้ง
+2. ครั้งที่ 2 ล้มเหลว → **หยุดใช้ browser subagent ทันที**
+3. เปลี่ยนไปใช้วิธีอื่น:
+   - ทดสอบ API → `Invoke-WebRequest` 
+   - ทดสอบ UI → บอก user ให้ลองเองพร้อมบอกขั้นตอน
+   - ทดสอบ Build → `npm run build`
+4. แจ้ง user ว่า browser subagent มีปัญหา และใช้วิธีอื่นแทน
+
 ---
 
 ## 📢 การสื่อสาร (ต้องทำทุกครั้ง)
