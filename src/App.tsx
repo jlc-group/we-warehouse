@@ -24,6 +24,7 @@ import MobileCount from "./pages/mobile/MobileCount";
 import MobilePick from "./pages/mobile/MobilePick";
 import LocationTasks from "./pages/mobile/LocationTasks";
 import MyTasks from "./pages/mobile/MyTasks";
+import AdminPage from "./pages/AdminPage";
 
 // Development vs Production optimized query client configuration
 const isDevelopment = import.meta.env.DEV;
@@ -153,6 +154,15 @@ const App = () => (
                         element={
                           <AuthGuard>
                             <MyTasks />
+                          </AuthGuard>
+                        }
+                      />
+                      {/* Admin Route */}
+                      <Route
+                        path="/admin"
+                        element={
+                          <AuthGuard requiredRole="ผู้ดูแลระบบ">
+                            <AdminPage />
                           </AuthGuard>
                         }
                       />

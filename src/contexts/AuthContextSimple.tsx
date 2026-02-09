@@ -2,19 +2,36 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { supabase } from '@/integrations/supabase/client';
 import { hasPermission as checkPermission } from '@/config/permissions';
 
-// Types สำหรับ User
+// ============== Types ==============
+interface UserRole {
+  id: string;
+  code: string;
+  name: string;
+}
+
+interface UserDepartment {
+  id: string;
+  code: string;
+  name: string;
+}
+
 interface User {
   id: string;
   email: string;
   full_name: string;
-  department: string;
-  role: string;
-  role_level: number;
+  department: string;       // legacy string
+  role: string;             // legacy string
+  role_level: number;       // legacy number
   employee_code?: string;
   phone?: string;
   avatar_url?: string;
   is_active: boolean;
   last_login?: string;
+  // New permission system fields
+  roles?: UserRole[];
+  dept?: UserDepartment | null;
+  allowed_pages?: string[];
+  username?: string;
 }
 
 interface AuthContextType {
@@ -27,57 +44,123 @@ interface AuthContextType {
   hasRole: (role: string) => boolean;
   hasMinimumRole: (level: number) => boolean;
   isInDepartment: (department: string) => boolean;
+  canAccess: (page: string) => boolean;
   getCurrentUserId: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Backend API base URL - derive root from VITE_BACKEND_URL (strip /api/local suffix)
+function getBackendRoot(): string {
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+  if (backendUrl) {
+    // Strip /api/local or similar suffixes to get backend root
+    return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
+  }
+  // Fallback: use VITE_SALES_API_URL root or localhost
+  const salesUrl = import.meta.env.VITE_SALES_API_URL || '';
+  if (salesUrl) {
+    return salesUrl.replace(/\/api\/?$/, '') || salesUrl;
+  }
+  return 'http://localhost:3004';
+}
+const API_BASE = getBackendRoot();
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ตรวจสอบ session ตอน load หน้า
+  // Load session from localStorage
   useEffect(() => {
     const checkSession = () => {
-      console.log('🔍 DEBUG [A]: Auth checkSession started', { hasLocalStorage: !!localStorage.getItem('warehouse_user') });
+      console.log('🔍 DEBUG [A]: Auth checkSession started');
       const userData = localStorage.getItem('warehouse_user');
-      if (userData) {
+      const token = localStorage.getItem('warehouse_token');
+      if (userData && token) {
         try {
           const parsedUser = JSON.parse(userData);
-          const normalizedUser = {
+          const normalizedUser: User = {
             ...parsedUser,
-            role: parsedUser.role || 'ผู้ใช้งาน',
-            role_level: parsedUser.role_level ?? 1,
-            department: parsedUser.department || 'ทั่วไป',
+            role: parsedUser.role || parsedUser.roles?.[0]?.name || 'ผู้ใช้งาน',
+            role_level: parsedUser.role_level ?? (parsedUser.roles?.some((r: UserRole) => r.code === 'super_admin') ? 5 : 2),
+            department: parsedUser.department || parsedUser.dept?.name || 'ทั่วไป',
           };
           setUser(normalizedUser);
           console.log('✅ User found in localStorage', { userId: normalizedUser.id, role: normalizedUser.role });
         } catch (error) {
           console.error('Error parsing user data:', error);
           localStorage.removeItem('warehouse_user');
+          localStorage.removeItem('warehouse_token');
         }
       }
-      console.log('🔍 DEBUG [A]: Auth checkSession completed, setting loading=false', { hasUser: !!userData });
       setLoading(false);
     };
 
     checkSession();
   }, []);
 
-  // Login function ที่เชื่อมต่อกับ Supabase Database
+  // Login function - tries JWT auth first, falls back to Supabase query
   const signIn = useCallback(async (emailOrUsername: string, password: string) => {
     try {
       setLoading(true);
 
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
       console.log('🔐 Authenticating user:', emailOrUsername);
 
-      // Check if input is email or username
-      const isEmail = emailOrUsername.includes('@');
+      // Try JWT login endpoint first
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: emailOrUsername, password }),
+        });
 
-      // Query user from Supabase users table - support both email and username
+        if (response.ok) {
+          const data = await response.json();
+
+          // Map JWT response to User format
+          const jwtUser: User = {
+            id: data.user.id,
+            email: data.user.email || '',
+            full_name: data.user.full_name || '',
+            department: data.user.department?.name || 'ทั่วไป',
+            role: data.user.roles?.[0]?.name || 'พนักงาน',
+            role_level: data.user.roles?.some((r: UserRole) => r.code === 'super_admin') ? 5
+              : data.user.roles?.some((r: UserRole) => r.code === 'manager') ? 4
+                : data.user.roles?.some((r: UserRole) => r.code === 'supervisor') ? 3
+                  : data.user.roles?.some((r: UserRole) => r.code === 'picker' || r.code === 'receiver') ? 2
+                    : 1,
+            is_active: data.user.is_active,
+            username: data.user.username,
+            roles: data.user.roles,
+            dept: data.user.department,
+            allowed_pages: data.user.allowed_pages,
+            last_login: new Date().toISOString(),
+          };
+
+          // Store token and user
+          localStorage.setItem('warehouse_token', data.access_token);
+          localStorage.setItem('warehouse_user', JSON.stringify(jwtUser));
+          setUser(jwtUser);
+
+          console.log('🎉 JWT Login successful:', jwtUser.full_name, `(${jwtUser.role})`);
+          return;
+        }
+
+        // If JWT login fails with 4xx, throw error
+        if (response.status >= 400 && response.status < 500) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+        }
+      } catch (jwtError: any) {
+        // If it's an auth error (not network), re-throw
+        if (jwtError.message && !jwtError.message.includes('fetch')) {
+          throw jwtError;
+        }
+        console.warn('⚠️ JWT auth not available, falling back to Supabase query');
+      }
+
+      // Fallback: Query user from Supabase/local database directly
+      const isEmail = emailOrUsername.includes('@');
       let query = supabase
         .from('users')
         .select('*')
@@ -92,18 +175,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: userData, error } = await query.single();
 
       if (error || !userData) {
-        console.error('❌ User not found or inactive:', error?.message);
         throw new Error('ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง');
       }
 
-      // For demo purposes, we'll accept any password for existing users
-      // In production, you would verify password_hash with bcrypt
-      // const bcrypt = require('bcryptjs');
-      // const isValidPassword = await bcrypt.compare(password, userData.password_hash);
+      console.log('✅ User found in database (fallback):', userData.full_name);
 
-      console.log('✅ User found in database:', userData.full_name);
-
-      // Transform database user to application user format
       const user: User = {
         id: userData.id,
         email: userData.email,
@@ -118,22 +194,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         last_login: new Date().toISOString()
       };
 
-      // Update last_login in database
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ last_login: new Date().toISOString() })
-        .eq('id', userData.id);
-
-      if (updateError) {
-        console.warn('⚠️ Failed to update last_login:', updateError.message);
-      }
-
-      // เก็บข้อมูル user ใน localStorage และ state
       localStorage.setItem('warehouse_user', JSON.stringify(user));
       setUser(user);
 
-      console.log('🎉 Login successful:', user.full_name, `(${user.role})`);
-      return;
+      console.log('🎉 Fallback login successful:', user.full_name, `(${user.role})`);
 
     } catch (error: any) {
       console.error('Login error:', error);
@@ -148,8 +212,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
 
-      // For demo purposes, we'll simulate signup
-      // In a real app, this would create a Supabase user and profile
       const newUser: User = {
         id: `user-${Date.now()}`,
         email,
@@ -163,7 +225,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         last_login: new Date().toISOString()
       };
 
-      // Save to localStorage (in real app, would be saved to Supabase)
       localStorage.setItem('warehouse_user', JSON.stringify(newUser));
       setUser(newUser);
 
@@ -178,28 +239,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout function
   const signOut = useCallback(() => {
     localStorage.removeItem('warehouse_user');
+    localStorage.removeItem('warehouse_token');
     setUser(null);
   }, []);
 
-  // Permission functions with memoization
+  // Legacy permission check (by role level)
   const hasPermission = useCallback((permission: string): boolean => {
     if (!user) return false;
     return checkPermission(user.role_level, permission);
   }, [user]);
 
+  // Check if user has a specific role (by role code or legacy role string)
   const hasRole = useCallback((role: string): boolean => {
     if (!user) return false;
+    // Check new role system first
+    if (user.roles && user.roles.length > 0) {
+      return user.roles.some(r => r.code === role || r.name === role);
+    }
+    // Fallback to legacy
     return user.role === role;
   }, [user]);
 
+  // Check minimum role level
   const hasMinimumRole = useCallback((level: number): boolean => {
     if (!user) return false;
     return user.role_level >= level;
   }, [user]);
 
+  // Check department (new or legacy)
   const isInDepartment = useCallback((department: string): boolean => {
     if (!user) return false;
+    // Check new system
+    if (user.dept) {
+      return user.dept.code === department || user.dept.name === department;
+    }
+    // Fallback to legacy
     return user.department === department;
+  }, [user]);
+
+  // NEW: Page-based access check (like WeOrder's canAccess)
+  const canAccess = useCallback((page: string): boolean => {
+    if (!user) return false;
+    // Super admin / role_level 5 can access everything
+    if (user.role_level >= 5) return true;
+    if (user.roles?.some(r => r.code === 'super_admin')) return true;
+    // Check allowed_pages from JWT
+    if (user.allowed_pages && user.allowed_pages.length > 0) {
+      return user.allowed_pages.includes(page);
+    }
+    // Fallback: allow all for legacy users without allowed_pages
+    return true;
   }, [user]);
 
   // Get current user ID with fallback
@@ -207,7 +296,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user?.id) {
       return user.id;
     }
-    // Fallback to system user ID
     return '00000000-0000-0000-0000-000000000000';
   }, [user]);
 
@@ -221,8 +309,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasRole,
     hasMinimumRole,
     isInDepartment,
+    canAccess,
     getCurrentUserId,
-  }), [user, loading, signIn, signUp, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment, getCurrentUserId]);
+  }), [user, loading, signIn, signUp, signOut, hasPermission, hasRole, hasMinimumRole, isInDepartment, canAccess, getCurrentUserId]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -235,7 +324,6 @@ export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
     // During HMR, context might be temporarily undefined
-    // Return a loading state instead of throwing to prevent crashes
     if (import.meta.hot) {
       console.warn('useAuth: Context temporarily undefined during HMR, returning loading state');
       return {
@@ -248,6 +336,7 @@ export function useAuth() {
         hasRole: () => false,
         hasMinimumRole: () => false,
         isInDepartment: () => false,
+        canAccess: () => false,
         getCurrentUserId: () => null,
       } as any;
     }

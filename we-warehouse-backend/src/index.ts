@@ -10,6 +10,9 @@ import analyticsRoutes from './routes/analyticsRoutes.js';
 import localRoutes from './routes/localRoutes.js';
 import shipmentRoutes from './routes/shipmentRoutes.js';
 import csmileRoutes from './routes/csmileRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import { extractUser } from './controllers/authController.js';
 import { SalesController } from './controllers/salesController.js';
 import { getConnection } from './config/database.js';
 import { testLocalConnection } from './config/localDatabase.js';
@@ -33,6 +36,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Extract JWT user on all requests (non-blocking)
+app.use(extractUser);
+
 // Health check endpoint
 app.get('/health', SalesController.healthCheck);
 
@@ -43,6 +49,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/local', localRoutes);  // Local PostgreSQL routes for warehouse data
 app.use('/api/shipments', shipmentRoutes);  // Shipment tracking routes
 app.use('/api/csmile', csmileRoutes);  // Csmile integration routes (prepared)
+app.use('/api/auth', authRoutes);  // Authentication routes (login, me, etc.)
+app.use('/api/admin', adminRoutes);  // Admin routes (users, roles, departments)
 
 // Root endpoint
 app.get('/', (req, res) => {
