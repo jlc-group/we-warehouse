@@ -1,5 +1,5 @@
 // Fulfillment Service - Phase 3: Final Fulfillment and Stock Deduction
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import {
   FulfillmentOrder,
   FulfillmentOrderInsert,
@@ -31,7 +31,7 @@ export class FulfillmentService {
       throw new Error('No assignments ready for fulfillment');
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('fulfillment_orders')
       .insert({
         sales_bill_id: salesBillId,
@@ -60,7 +60,7 @@ export class FulfillmentService {
   static async getFulfillmentOrderById(fulfillmentId: string): Promise<FulfillmentOrderWithDetails | null> {
     console.log('🔍 Fetching fulfillment order:', fulfillmentId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('fulfillment_orders')
       .select(`
         *,
@@ -95,7 +95,7 @@ export class FulfillmentService {
   static async getFulfillmentOrders(status?: FulfillmentStatus): Promise<FulfillmentOrderWithDetails[]> {
     console.log('🔍 Fetching fulfillment orders', status ? `with status: ${status}` : '');
 
-    let query = supabase
+    let query = localDb
       .from('fulfillment_orders')
       .select(`
         *,
@@ -137,7 +137,7 @@ export class FulfillmentService {
   ): Promise<FulfillmentOrder> {
     console.log('📝 Updating fulfillment order:', fulfillmentId, updates);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('fulfillment_orders')
       .update({
         ...updates,
@@ -288,15 +288,15 @@ export class FulfillmentService {
     const deductLevel3 = assignment.picked_quantity_level3 || assignment.assigned_quantity_level3 || 0;
 
     // Deduct from both actual quantities and reserved quantities
-    const { error } = await supabase
+    const { error } = await localDb
       .from('inventory_items')
       .update({
-        quantity_level1: supabase.raw(`GREATEST(quantity_level1 - ${deductLevel1}, 0)`),
-        quantity_level2: supabase.raw(`GREATEST(quantity_level2 - ${deductLevel2}, 0)`),
-        quantity_level3: supabase.raw(`GREATEST(quantity_level3 - ${deductLevel3}, 0)`),
-        reserved_level1_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level1_quantity, 0) - ${assignment.assigned_quantity_level1 || 0}, 0)`),
-        reserved_level2_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level2_quantity, 0) - ${assignment.assigned_quantity_level2 || 0}, 0)`),
-        reserved_level3_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level3_quantity, 0) - ${assignment.assigned_quantity_level3 || 0}, 0)`),
+        quantity_level1: localDb.raw(`GREATEST(quantity_level1 - ${deductLevel1}, 0)`),
+        quantity_level2: localDb.raw(`GREATEST(quantity_level2 - ${deductLevel2}, 0)`),
+        quantity_level3: localDb.raw(`GREATEST(quantity_level3 - ${deductLevel3}, 0)`),
+        reserved_level1_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level1_quantity, 0) - ${assignment.assigned_quantity_level1 || 0}, 0)`),
+        reserved_level2_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level2_quantity, 0) - ${assignment.assigned_quantity_level2 || 0}, 0)`),
+        reserved_level3_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level3_quantity, 0) - ${assignment.assigned_quantity_level3 || 0}, 0)`),
         updated_at: new Date().toISOString()
       })
       .eq('id', assignment.inventory_item_id);
@@ -319,7 +319,7 @@ export class FulfillmentService {
   static async getFulfillmentStatistics(dateFrom?: string, dateTo?: string) {
     console.log('📊 Fetching fulfillment statistics');
 
-    let query = supabase
+    let query = localDb
       .from('fulfillment_orders')
       .select('status, shipping_cost, created_at, shipped_at, actual_delivery_date');
 
@@ -385,7 +385,7 @@ export class FulfillmentService {
   static async getShippingPerformance() {
     console.log('📊 Fetching shipping performance metrics');
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('fulfillment_orders')
       .select('status, created_at, prepared_at, shipped_at, actual_delivery_date, carrier')
       .not('shipped_at', 'is', null);
@@ -444,7 +444,7 @@ export class FulfillmentService {
   private static async getReadyAssignments(salesBillId: string): Promise<WarehouseAssignmentWithDetails[]> {
     console.log('🔍 Getting ready assignments for sales bill:', salesBillId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select(`
         *,
@@ -469,7 +469,7 @@ export class FulfillmentService {
   private static async getAssignmentsForSalesBill(salesBillId: string): Promise<WarehouseAssignmentWithDetails[]> {
     console.log('🔍 Getting all assignments for sales bill:', salesBillId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select(`
         *,
@@ -493,7 +493,7 @@ export class FulfillmentService {
   private static async updateAssignmentsToShipped(salesBillId: string): Promise<void> {
     console.log('📝 Updating assignments to shipped status:', salesBillId);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('warehouse_assignments')
       .update({
         assignment_status: 'shipped',
@@ -518,7 +518,7 @@ export class FulfillmentService {
   ): Promise<void> {
     console.log('📝 Updating sales bill status:', salesBillId, status);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('sales_bills')
       .update({
         status,
@@ -567,7 +567,7 @@ export class FulfillmentService {
     }
 
     // Delete fulfillment order
-    const { error } = await supabase
+    const { error } = await localDb
       .from('fulfillment_orders')
       .delete()
       .eq('id', fulfillmentId);
@@ -578,7 +578,7 @@ export class FulfillmentService {
     }
 
     // Reset assignments status back to ready_to_ship
-    await supabase
+    await localDb
       .from('warehouse_assignments')
       .update({
         assignment_status: 'ready_to_ship',

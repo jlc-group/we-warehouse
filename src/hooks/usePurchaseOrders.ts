@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import {
   PurchaseOrderService,
   type PurchaseOrderHeader,
@@ -121,7 +121,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       setError(null);
 
       // Check if task already exists in database
-      const { data: existingTasks } = await supabase
+      const { data: existingTasks } = await localDb
         .from('fulfillment_tasks')
         .select('id, po_number')
         .eq('po_number', poNumber);
@@ -145,7 +145,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       const fulfillmentTask = await PurchaseOrderService.convertPOToFulfillmentTask(poData);
 
       // Check if fulfillment_tasks table exists
-      const { error: tableCheckError } = await supabase
+      const { error: tableCheckError } = await localDb
         .from('fulfillment_tasks')
         .select('id')
         .limit(1);
@@ -161,7 +161,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       }
 
       // Save fulfillment task to database
-      const { data: savedTask, error: taskError } = await supabase
+      const { data: savedTask, error: taskError } = await localDb
         .from('fulfillment_tasks')
         .insert({
           po_number: fulfillmentTask.po_number,
@@ -196,13 +196,13 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
         available_stock: item.available_stock ?? 0 // Use ?? to preserve 0 values
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await localDb
         .from('fulfillment_items')
         .insert(fulfillmentItemsData);
 
       if (itemsError) {
         // Rollback task creation if items fail
-        await supabase
+        await localDb
           .from('fulfillment_tasks')
           .delete()
           .eq('id', savedTask.id);
@@ -243,7 +243,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       setError(null);
 
       // Update status in database
-      const { error: updateError } = await supabase
+      const { error: updateError } = await localDb
         .from('fulfillment_tasks')
         .update({
           status,
@@ -329,7 +329,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       console.log('🔄 Fetching fulfillment tasks...');
 
       // Add timeout wrapper for the query
-      const queryPromise = supabase
+      const queryPromise = localDb
         .from('fulfillment_tasks')
         .select(`
           *,
@@ -453,7 +453,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       console.log(`🔄 Canceling fulfillment item: ${itemId}`);
 
       // ดึงข้อมูล item ก่อน
-      const { data: item, error: fetchError } = await supabase
+      const { data: item, error: fetchError } = await localDb
         .from('fulfillment_items')
         .select('*')
         .eq('id', itemId)
@@ -470,7 +470,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
 
       // คืนสต็อกกลับ
       if (item.inventory_item_id && item.fulfilled_quantity > 0) {
-        const { data: inventoryItem, error: inventoryFetchError } = await supabase
+        const { data: inventoryItem, error: inventoryFetchError } = await localDb
           .from('inventory_items')
           .select('quantity')
           .eq('id', item.inventory_item_id)
@@ -480,7 +480,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
           throw new Error('ไม่สามารถดึงข้อมูลสต็อกได้');
         }
 
-        const { error: stockError } = await supabase
+        const { error: stockError } = await localDb
           .from('inventory_items')
           .update({
             quantity: (inventoryItem.quantity || 0) + item.fulfilled_quantity
@@ -493,7 +493,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       }
 
       // อัปเดต item เป็น pending และรีเซ็ตข้อมูล
-      const { error: updateError } = await supabase
+      const { error: updateError } = await localDb
         .from('fulfillment_items')
         .update({
           status: 'pending',
@@ -532,7 +532,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       console.log(`🔄 Confirming shipment for task: ${taskId}`);
 
       // ดึงข้อมูล task กับ items
-      const { data: task, error: fetchError } = await supabase
+      const { data: task, error: fetchError } = await localDb
         .from('fulfillment_tasks')
         .select(`
           *,
@@ -560,7 +560,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
         .map((item: any) => item.id);
 
       if (itemsToUpdate.length > 0) {
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await localDb
           .from('fulfillment_items')
           .update({
             status: 'completed',
@@ -574,7 +574,7 @@ export const usePurchaseOrders = (): UsePurchaseOrdersReturn => {
       }
 
       // อัปเดต task status เป็น 'shipped'
-      const { error: taskError } = await supabase
+      const { error: taskError } = await localDb
         .from('fulfillment_tasks')
         .update({
           status: 'shipped',

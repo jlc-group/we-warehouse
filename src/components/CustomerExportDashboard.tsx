@@ -31,7 +31,7 @@ import {
   Download,
   CalendarIcon,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, subDays } from 'date-fns';
 import { th } from 'date-fns/locale';
@@ -102,7 +102,7 @@ export const CustomerExportDashboard = () => {
         }
       }
 
-      let query = supabase
+      let query = localDb
         .from('customer_exports')
         .select('id, product_name, product_code, product_type, customer_name, quantity_exported, from_location, created_at, unit_price, total_value')
         .gte('created_at', format(startDate, 'yyyy-MM-dd'));

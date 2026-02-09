@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import type { Warehouse, WarehouseInsert, WarehouseUpdate } from '@/integrations/supabase/types';
 
@@ -10,7 +10,7 @@ export const useWarehouses = (activeOnly: boolean = true) => {
   return useQuery({
     queryKey: ['warehouses', activeOnly],
     queryFn: async (): Promise<Warehouse[]> => {
-      let query = supabase
+      let query = localDb
         .from('warehouses')
         .select(warehouseSelect)
         .order('code');
@@ -40,7 +40,7 @@ export const useWarehouse = (id: string | undefined) => {
     queryFn: async (): Promise<Warehouse | null> => {
       if (!id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select(warehouseSelect)
         .eq('id', id)
@@ -66,7 +66,7 @@ export const useCreateWarehouse = () => {
 
   return useMutation({
     mutationFn: async (warehouse: WarehouseInsert) => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .insert(warehouse)
         .select(warehouseSelect)
@@ -95,7 +95,7 @@ export const useUpdateWarehouse = () => {
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: WarehouseUpdate }) => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .update({
           ...updates,
@@ -130,7 +130,7 @@ export const useDeleteWarehouse = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       // Soft delete by setting is_active to false
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .update({
           is_active: false,
@@ -162,7 +162,7 @@ export const useDefaultWarehouse = () => {
   return useQuery({
     queryKey: ['default-warehouse'],
     queryFn: async (): Promise<Warehouse | null> => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select(warehouseSelect)
         .eq('code', 'MAIN')
@@ -189,7 +189,7 @@ export const useWarehouseByCode = (code: string) => {
     queryFn: async (): Promise<Warehouse | null> => {
       if (!code) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select(warehouseSelect)
         .eq('code', code.toUpperCase())
@@ -218,7 +218,7 @@ export const useWarehouseStats = (warehouseId: string) => {
     queryFn: async (): Promise<{ totalItems: number; totalQuantity: number } | null> => {
       if (!warehouseId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('id,quantity_pieces,warehouse_id')
         .eq('warehouse_id', warehouseId);

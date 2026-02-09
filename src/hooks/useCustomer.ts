@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
 import type { Customer, CustomerInsert, CustomerUpdate } from '@/integrations/supabase/types';
 import { toast } from '@/components/ui/sonner';
@@ -21,7 +21,7 @@ export function useCustomers() {
 
         // Fallback to direct supabase call if gateway fails
         console.log('⚠️ Gateway failed, falling back to direct supabase call...');
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .select(`
             id,
@@ -78,7 +78,7 @@ export function useCustomer(customerId?: string) {
 
         // Fallback to direct supabase call
         console.log('⚠️ Gateway failed, falling back to direct supabase call...');
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .select(`
             id,
@@ -136,7 +136,7 @@ export function useCustomerSearch(searchTerm?: string) {
 
         // Fallback to direct supabase call
         console.log('⚠️ Gateway search failed, falling back to direct supabase call...');
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .select(`
             id,
@@ -187,7 +187,7 @@ export function useCustomerStats(customerId?: string) {
       console.log('📊 Fetching customer stats:', customerId);
 
       // ดึงจำนวนใบสั่งซื้อและยอดขาย
-      const { data: orderStats, error: orderError } = await supabase
+      const { data: orderStats, error: orderError } = await localDb
         .from('customer_orders')
         .select('id, final_amount, status, created_at')
         .eq('customer_id', customerId);
@@ -242,7 +242,7 @@ export function useCreateCustomer() {
 
         // Fallback to direct supabase call
         console.log('⚠️ Gateway creation failed, falling back to direct supabase call...');
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .insert(customerData)
           .select()
@@ -291,7 +291,7 @@ export function useUpdateCustomer() {
 
         // Fallback to direct supabase call
         console.log('⚠️ Gateway update failed, falling back to direct supabase call...');
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .update(updates)
           .eq('id', customerId)
@@ -333,7 +333,7 @@ export function useDeleteCustomer() {
       console.log('🗑️ Deactivating customer:', customerId);
 
       // ใช้ soft delete โดยเปลี่ยน is_active เป็น false
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .update({ is_active: false })
         .eq('id', customerId)
@@ -371,7 +371,7 @@ export function useCustomerRealtime() {
     queryFn: () => {
       console.log('🔄 Setting up customer realtime subscription...');
 
-      const subscription = supabase
+      const subscription = localDb
         .channel('customers-changes')
         .on('postgres_changes',
           {

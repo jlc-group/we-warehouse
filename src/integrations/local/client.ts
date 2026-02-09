@@ -79,12 +79,15 @@ class QueryBuilder {
     private tableName: string;
     private selectColumns: string = '*';
     private whereConditions: { column: string; value: any; operator: string }[] = [];
+    private orConditions: string[] = [];
     private orderColumn: string = '';
     private orderDirection: string = 'ASC';
     private limitValue: number | null = null;
+    private offsetValue: number | null = null;
     private singleResult: boolean = false;
     private pendingUpdate: any = null;
     private pendingDelete: boolean = false;
+    private pendingUpsert: { data: any; onConflict?: string } | null = null;
 
     constructor(baseUrl: string, tableName: string) {
         this.baseUrl = baseUrl;
@@ -131,6 +134,36 @@ class QueryBuilder {
         return this;
     }
 
+    // .or() - Supabase-style OR filter: "col1.eq.val1,col2.eq.val2"
+    or(filterString: string) {
+        this.orConditions.push(filterString);
+        return this;
+    }
+
+    // .in() - Filter where column value is in a list
+    in(column: string, values: any[]) {
+        this.whereConditions.push({ column, value: `(${values.join(',')})`, operator: 'in' });
+        return this;
+    }
+
+    // .not() - Negate a filter: not('col', 'is', null) or not('col', 'in', '(a,b)')
+    not(column: string, operator: string, value: any) {
+        this.whereConditions.push({ column, value, operator: `not.${operator}` });
+        return this;
+    }
+
+    // .is() - IS NULL / IS NOT NULL filter
+    is(column: string, value: any) {
+        this.whereConditions.push({ column, value: value === null ? 'null' : String(value), operator: 'is' });
+        return this;
+    }
+
+    // .contains() - JSONB contains filter
+    contains(column: string, value: any) {
+        this.whereConditions.push({ column, value: JSON.stringify(value), operator: 'cs' });
+        return this;
+    }
+
     order(column: string, options?: { ascending?: boolean }) {
         this.orderColumn = column;
         this.orderDirection = options?.ascending === false ? 'desc' : 'asc';
@@ -142,7 +175,21 @@ class QueryBuilder {
         return this;
     }
 
+    // .range() - Pagination: range(0, 9) returns first 10 records
+    range(from: number, to: number) {
+        this.offsetValue = from;
+        this.limitValue = to - from + 1;
+        return this;
+    }
+
     single() {
+        this.singleResult = true;
+        this.limitValue = 1;
+        return this;
+    }
+
+    // .maybeSingle() - Like single() but returns null instead of error if no rows
+    maybeSingle() {
         this.singleResult = true;
         this.limitValue = 1;
         return this;
@@ -171,12 +218,21 @@ class QueryBuilder {
             params.set(`${cond.column}`, `${cond.operator}.${cond.value}`);
         });
 
+        // Add OR conditions
+        this.orConditions.forEach(orStr => {
+            params.append('or', orStr);
+        });
+
         if (this.orderColumn) {
             params.set('order', `${this.orderColumn}.${this.orderDirection}`);
         }
 
         if (this.limitValue !== null) {
             params.set('limit', this.limitValue.toString());
+        }
+
+        if (this.offsetValue !== null) {
+            params.set('offset', this.offsetValue.toString());
         }
 
         return params.toString();
@@ -197,6 +253,40 @@ class QueryBuilder {
 
             const result = await response.json();
             return { data: result.data || result, error: null };
+        } catch (error: any) {
+            return { data: null, error: { message: error.message } };
+        }
+    }
+
+    // .upsert() - Insert or update on conflict
+    upsert(data: any | any[], options?: { onConflict?: string }) {
+        this.pendingUpsert = { data, onConflict: options?.onConflict };
+        return this;
+    }
+
+    private async executeUpsert() {
+        try {
+            const queryString = this.buildQueryParams();
+            const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
+
+            const response = await fetch(url, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Upsert': 'true',
+                    ...(this.pendingUpsert?.onConflict ? { 'X-On-Conflict': this.pendingUpsert.onConflict } : {})
+                },
+                body: JSON.stringify(this.pendingUpsert?.data)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                return { data: null, error: { message: error.message || 'Upsert failed' } };
+            }
+
+            const result = await response.json();
+            const data = this.singleResult ? (Array.isArray(result) ? result[0] : result) : result;
+            return { data: data || null, error: null };
         } catch (error: any) {
             return { data: null, error: { message: error.message } };
         }
@@ -249,6 +339,13 @@ class QueryBuilder {
 
     async then(resolve: (value: { data: any; error: any }) => void) {
         try {
+            // Handle pending upsert
+            if (this.pendingUpsert !== null) {
+                const result = await this.executeUpsert();
+                resolve(result);
+                return;
+            }
+
             // Handle pending update
             if (this.pendingUpdate !== null) {
                 const result = await this.executeUpdate();

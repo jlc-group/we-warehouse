@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { format, subDays, startOfDay } from 'date-fns';
 
 export interface ExportHistoryItem {
@@ -51,7 +51,7 @@ export class ExportHistoryService {
       }
 
       // ดึงข้อมูลจากตาราง customer_exports (ตารางที่เก็บข้อมูลการส่งออกจริง)
-      let query = supabase
+      let query = localDb
         .from('customer_exports')
         .select('*')
         .order('created_at', { ascending: false })

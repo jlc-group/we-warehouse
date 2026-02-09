@@ -33,7 +33,7 @@ import {
 import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
 import { LocationRemoveItemModal } from '@/components/location/LocationRemoveItemModal';
 import { LocationTransferModal } from '@/components/location/LocationTransferModal';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 interface LocationDetailViewProps {
   location: string;

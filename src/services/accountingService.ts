@@ -1,5 +1,5 @@
 // Accounting Service - Payment Tracking and Financial Reporting
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 
 export interface PaymentStatus {
@@ -64,7 +64,7 @@ export class AccountingService {
   ): Promise<void> {
     console.log('💰 Updating payment status for sales bill:', salesBillId, paymentData);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('sales_bills')
       .update({
         payment_status: paymentData.status,
@@ -126,7 +126,7 @@ export class AccountingService {
     console.log('💰 Recording partial payment:', salesBillId, partialAmount);
 
     // Get current amount paid
-    const { data: bill, error } = await supabase
+    const { data: bill, error } = await localDb
       .from('sales_bills')
       .select('amount_paid, total_amount')
       .eq('id', salesBillId)
@@ -166,7 +166,7 @@ export class AccountingService {
   ): Promise<SalesBillWithPayment[]> {
     console.log('📊 Fetching sales bills with payment info', filters);
 
-    let query = supabase
+    let query = localDb
       .from('sales_bills')
       .select(`
         id,
@@ -255,7 +255,7 @@ export class AccountingService {
   ): Promise<PaymentSummary> {
     console.log('📊 Fetching payment summary statistics');
 
-    let query = supabase
+    let query = localDb
       .from('sales_bills')
       .select('total_amount, amount_paid, payment_status, due_date');
 
@@ -317,7 +317,7 @@ export class AccountingService {
   static async getCustomerPaymentSummary(): Promise<CustomerPaymentSummary[]> {
     console.log('📊 Fetching customer payment summary');
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bills')
       .select(`
         customer_id,

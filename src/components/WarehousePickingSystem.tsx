@@ -41,7 +41,7 @@ import {
 } from '@/services/purchaseOrderService';
 import { StockReservationService } from '@/services/stockReservationService';
 import type { MultiLevelQuantity } from '@/types/reservation';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { ShelfGrid } from '@/components/ShelfGrid';
 import { useInventory } from '@/hooks/useInventory';
 
@@ -136,7 +136,7 @@ export const WarehousePickingSystem = () => {
       }
 
       // อัปเดต fulfillment_item status เป็น 'picked'
-      const { error } = await supabase
+      const { error } = await localDb
         .from('fulfillment_items')
         .update({
           fulfilled_quantity: pickedQuantity,
@@ -204,7 +204,7 @@ export const WarehousePickingSystem = () => {
       }
 
       // อัปเดต fulfillment_item
-      const { error } = await supabase
+      const { error } = await localDb
         .from('fulfillment_items')
         .update({
           fulfilled_quantity: 0,
@@ -275,7 +275,7 @@ export const WarehousePickingSystem = () => {
       }
 
       // อัปเดต fulfillment task status
-      const { error: taskError } = await supabase
+      const { error: taskError } = await localDb
         .from('fulfillment_tasks')
         .update({
           status: 'shipped',
@@ -286,7 +286,7 @@ export const WarehousePickingSystem = () => {
       if (taskError) throw taskError;
 
       // อัปเดต items status เป็น completed
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await localDb
         .from('fulfillment_items')
         .update({
           status: 'completed',

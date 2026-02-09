@@ -1,5 +1,5 @@
 // Warehouse Assignment Service - Phase 2: Warehouse Team Operations
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import {
   WarehouseAssignment,
   WarehouseAssignmentInsert,
@@ -23,7 +23,7 @@ export class WarehouseAssignmentService {
   static async getSalesBillsQueue(): Promise<SalesBillWithItems[]> {
     console.log('📦 Fetching sales bills queue for warehouse assignment');
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bills')
       .select(`
         *,
@@ -55,7 +55,7 @@ export class WarehouseAssignmentService {
   static async getAvailableInventoryForProduct(productId: string): Promise<InventoryItem[]> {
     console.log('🔍 Fetching available inventory for product:', productId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('inventory_items')
       .select('*')
       .eq('product_id', productId)
@@ -89,7 +89,7 @@ export class WarehouseAssignmentService {
       assignment.assigned_quantity_level3 || 0
     );
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .insert({
         ...assignment,
@@ -132,7 +132,7 @@ export class WarehouseAssignmentService {
   ): Promise<WarehouseAssignment> {
     console.log('📝 Updating warehouse assignment:', assignmentId, updates);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .update({
         ...updates,
@@ -160,7 +160,7 @@ export class WarehouseAssignmentService {
   ): Promise<void> {
     console.log('📝 Updating assignment status:', assignmentId, status);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('warehouse_assignments')
       .update({
         assignment_status: status,
@@ -195,7 +195,7 @@ export class WarehouseAssignmentService {
   ): Promise<void> {
     console.log('📦 Marking items as picked:', assignmentId, pickedQuantities);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('warehouse_assignments')
       .update({
         assignment_status: 'picked',
@@ -234,7 +234,7 @@ export class WarehouseAssignmentService {
   ): Promise<void> {
     console.log('📦 Marking items as packed:', assignmentId);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('warehouse_assignments')
       .update({
         assignment_status: 'packed',
@@ -283,7 +283,7 @@ export class WarehouseAssignmentService {
   static async getAssignmentById(assignmentId: string): Promise<WarehouseAssignmentWithDetails> {
     console.log('🔍 Fetching assignment by ID:', assignmentId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select(`
         *,
@@ -316,7 +316,7 @@ export class WarehouseAssignmentService {
   static async getAssignmentsBySalesBill(salesBillId: string): Promise<WarehouseAssignmentWithDetails[]> {
     console.log('🔍 Fetching assignments for sales bill:', salesBillId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select(`
         *,
@@ -349,7 +349,7 @@ export class WarehouseAssignmentService {
   static async getAssignmentsByStatus(status: AssignmentStatus): Promise<WarehouseAssignmentWithDetails[]> {
     console.log('🔍 Fetching assignments by status:', status);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select(`
         *,
@@ -382,7 +382,7 @@ export class WarehouseAssignmentService {
   static async getWarehouseWorkloadStats() {
     console.log('📊 Fetching warehouse workload statistics');
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('warehouse_assignments')
       .select('assignment_status, created_at, assigned_at, picked_at, packed_at');
 
@@ -436,7 +436,7 @@ export class WarehouseAssignmentService {
   ): Promise<InventoryItem> {
     console.log('🔍 Validating inventory availability:', inventoryItemId);
 
-    const { data: inventoryItem, error } = await supabase
+    const { data: inventoryItem, error } = await localDb
       .from('inventory_items')
       .select('*')
       .eq('id', inventoryItemId)
@@ -471,12 +471,12 @@ export class WarehouseAssignmentService {
   ): Promise<void> {
     console.log('📦 Reserving inventory quantities:', inventoryItemId);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('inventory_items')
       .update({
-        reserved_level1_quantity: supabase.raw(`COALESCE(reserved_level1_quantity, 0) + ${reserveLevel1}`),
-        reserved_level2_quantity: supabase.raw(`COALESCE(reserved_level2_quantity, 0) + ${reserveLevel2}`),
-        reserved_level3_quantity: supabase.raw(`COALESCE(reserved_level3_quantity, 0) + ${reserveLevel3}`),
+        reserved_level1_quantity: localDb.raw(`COALESCE(reserved_level1_quantity, 0) + ${reserveLevel1}`),
+        reserved_level2_quantity: localDb.raw(`COALESCE(reserved_level2_quantity, 0) + ${reserveLevel2}`),
+        reserved_level3_quantity: localDb.raw(`COALESCE(reserved_level3_quantity, 0) + ${reserveLevel3}`),
         updated_at: new Date().toISOString()
       })
       .eq('id', inventoryItemId);
@@ -498,12 +498,12 @@ export class WarehouseAssignmentService {
     // Get assignment details
     const assignment = await this.getAssignmentById(assignmentId);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('inventory_items')
       .update({
-        reserved_level1_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level1_quantity, 0) - ${assignment.assigned_quantity_level1 || 0}, 0)`),
-        reserved_level2_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level2_quantity, 0) - ${assignment.assigned_quantity_level2 || 0}, 0)`),
-        reserved_level3_quantity: supabase.raw(`GREATEST(COALESCE(reserved_level3_quantity, 0) - ${assignment.assigned_quantity_level3 || 0}, 0)`),
+        reserved_level1_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level1_quantity, 0) - ${assignment.assigned_quantity_level1 || 0}, 0)`),
+        reserved_level2_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level2_quantity, 0) - ${assignment.assigned_quantity_level2 || 0}, 0)`),
+        reserved_level3_quantity: localDb.raw(`GREATEST(COALESCE(reserved_level3_quantity, 0) - ${assignment.assigned_quantity_level3 || 0}, 0)`),
         updated_at: new Date().toISOString()
       })
       .eq('id', assignment.inventory_item_id);
@@ -525,7 +525,7 @@ export class WarehouseAssignmentService {
   ): Promise<void> {
     console.log('📝 Updating sales bill item status:', salesBillItemId, status);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('sales_bill_items')
       .update({
         status,
@@ -551,7 +551,7 @@ export class WarehouseAssignmentService {
     await this.releaseReservedQuantities(assignmentId);
 
     // Delete assignment
-    const { error } = await supabase
+    const { error } = await localDb
       .from('warehouse_assignments')
       .delete()
       .eq('id', assignmentId);

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, Hash, Calendar, MapPin, Search, Calculator, Check, ChevronsUpDown, Plus } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 import {
@@ -104,7 +104,7 @@ export function InventoryModal({ isOpen, onClose, onSave, location, existingItem
     try {
       console.log('InventoryModal: Loading conversion rates...');
       // Use products table instead of product_conversion_rates
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('id, sku_code, product_name, unit_of_measure');
 

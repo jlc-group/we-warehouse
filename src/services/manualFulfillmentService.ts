@@ -3,7 +3,7 @@
  * จัดการการสร้างงานจัดสินค้าแบบ Manual (ไม่มี PO จาก API)
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type {
   FulfillmentTask,
   FulfillmentItem,
@@ -67,7 +67,7 @@ export class ManualFulfillmentService {
     existingTask?: any;
   }> {
     try {
-      const { data: existingTasks, error } = await supabase
+      const { data: existingTasks, error } = await localDb
         .from('fulfillment_tasks')
         .select('id, po_number, status, source_type')
         .eq('po_number', poNumber)
@@ -100,7 +100,7 @@ export class ManualFulfillmentService {
    */
   static async fetchCustomers(searchTerm: string = ''): Promise<Customer[]> {
     try {
-      let query = supabase
+      let query = localDb
         .from('customer_orders')
         .select('id, customer_code, customer_name, phone, address')
         .order('customer_name');
@@ -138,7 +138,7 @@ export class ManualFulfillmentService {
     productCode?: string
   ): Promise<LocationStock[]> {
     try {
-      let query = supabase
+      let query = localDb
         .from('inventory_items')
       id,
         product_name,
@@ -168,7 +168,7 @@ export class ManualFulfillmentService {
 
       // Fetch product details for IDs
       const skus = [...new Set(items.map((i: any) => i.sku).filter(Boolean))];
-      const { data: products } = await supabase
+      const { data: products } = await localDb
         .from('products')
         .select('id, sku_code, product_name')
         .in('sku_code', skus);
@@ -212,7 +212,7 @@ export class ManualFulfillmentService {
       );
 
       // 3. สร้าง fulfillment_task
-      const { data: savedTask, error: taskError } = await supabase
+      const { data: savedTask, error: taskError } = await localDb
         .from('fulfillment_tasks')
         .insert({
           po_number: input.po_number,
@@ -236,7 +236,7 @@ export class ManualFulfillmentService {
       // 4. สร้าง fulfillment_items และ fulfillment_item_locations
       for (const item of input.items) {
         // สร้าง fulfillment_item
-        const { data: savedItem, error: itemError } = await supabase
+        const { data: savedItem, error: itemError } = await localDb
           .from('fulfillment_items')
           .insert({
             fulfillment_task_id: savedTask.id,
@@ -268,7 +268,7 @@ export class ManualFulfillmentService {
             status: 'pending'
           }));
 
-          const { error: locError } = await supabase
+          const { error: locError } = await localDb
             .from('fulfillment_item_locations')
             .insert(locationsData);
 
@@ -277,7 +277,7 @@ export class ManualFulfillmentService {
       }
 
       // 5. ดึงข้อมูล Task พร้อม Items
-      const { data: fullTask, error: fetchError } = await supabase
+      const { data: fullTask, error: fetchError } = await localDb
         .from('fulfillment_tasks')
         .select(`
         *,

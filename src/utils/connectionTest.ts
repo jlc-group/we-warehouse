@@ -1,5 +1,5 @@
 // Connection test utilities for Sales System
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface ConnectionTestResult {
   success: boolean;
@@ -23,7 +23,7 @@ export const testTableConnection = async (tableName: string): Promise<Connection
   const startTime = Date.now();
 
   try {
-    const { data, error, count } = await supabase
+    const { data, error, count } = await localDb
       .from(tableName)
       .select('*', { count: 'exact', head: true });
 
@@ -59,7 +59,7 @@ export const testViewConnection = async (viewName: string): Promise<ConnectionTe
   const startTime = Date.now();
 
   try {
-    const { data, error, count } = await supabase
+    const { data, error, count } = await localDb
       .from(viewName)
       .select('*', { count: 'exact' })
       .limit(1);
@@ -158,7 +158,7 @@ export const testSupabaseConnection = async (): Promise<ConnectionTestResult> =>
 
   try {
     // Try to access a system table that should always exist
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('information_schema.tables')
       .select('table_name')
       .limit(1);

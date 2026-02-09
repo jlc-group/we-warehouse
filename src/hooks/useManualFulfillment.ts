@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ManualFulfillmentService, type ManualFulfillmentInput } from '@/services/manualFulfillmentService';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export const useManualFulfillment = () => {
   const { toast } = useToast();
@@ -83,7 +83,7 @@ export const useManualFulfillment = () => {
   // ดึงงาน fulfillment ล่าสุด
   const fetchRecentTasks = async (limit: number = 10) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('fulfillment_tasks')
         .select(`
           id,
@@ -119,7 +119,7 @@ export const useManualFulfillment = () => {
   // ดึงรายละเอียดงาน fulfillment
   const fetchTaskDetails = async (taskId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('fulfillment_tasks')
         .select(`
           *,

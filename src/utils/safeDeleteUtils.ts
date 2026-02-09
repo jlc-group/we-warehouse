@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 /**
  * Safe Delete Utility for Inventory Items
@@ -100,7 +100,7 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     // Step 3.5: Delete system_events that reference this item in metadata
     // This prevents foreign key constraint violations
     try {
-      await supabase
+      await localDb
         .from('system_events')
         .delete()
         .or(`metadata->>inventory_item_id.eq.${itemId},metadata->>item_id.eq.${itemId}`);

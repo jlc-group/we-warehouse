@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, AlertTriangle, Package, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useConversionRates } from '@/hooks/useConversionRates';
 import type { ConversionRateData } from '@/types/conversionTypes';
 
@@ -104,7 +104,7 @@ export function SPOUTDebug() {
   const fetchSPOUTItems = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('*')
         .eq('sku', 'SPOUT-LW02')
@@ -126,7 +126,7 @@ export function SPOUTDebug() {
   const deleteItem = async (itemId: string) => {
     try {
       setDeleting(itemId);
-      const { error } = await supabase
+      const { error } = await localDb
         .from('inventory_items')
         .delete()
         .eq('id', itemId);

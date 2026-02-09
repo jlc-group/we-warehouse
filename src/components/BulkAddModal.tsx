@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
 import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type { Database } from '@/integrations/supabase/types';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useProducts } from '@/hooks/useProducts';
@@ -61,7 +61,7 @@ export function BulkAddModal({ isOpen, onClose, onSave, availableLocations, inve
   // Fetch conversion rates from database
   const fetchConversionRates = async (sku: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('product_conversion_rates')
         .select('unit_level1_rate, unit_level2_rate')
         .eq('sku', sku)

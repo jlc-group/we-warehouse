@@ -1,5 +1,5 @@
 // User utility functions for handling user context and authentication
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 /**
  * Get current user ID from various sources with proper fallbacks
@@ -8,11 +8,11 @@ import { supabase } from '@/integrations/supabase/client';
 export async function getCurrentUserId(): Promise<string> {
   try {
     // Try to get user from Supabase auth first
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await localDb.auth.getUser();
 
     if (user?.id) {
       // Check if user exists in public.users table
-      const { data: publicUser } = await supabase
+      const { data: publicUser } = await localDb
         .from('users')
         .select('id')
         .eq('id', user.id)
@@ -47,14 +47,14 @@ export function getCurrentUserIdSync(): string {
  */
 export async function ensureUserExists(userId: string, email?: string, username?: string): Promise<void> {
   try {
-    const { data: existingUser } = await supabase
+    const { data: existingUser } = await localDb
       .from('users')
       .select('id')
       .eq('id', userId)
       .single();
 
     if (!existingUser) {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('users')
         .insert({
           id: userId,

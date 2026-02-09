@@ -42,7 +42,7 @@ import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { ProductTypeBadge, ProductTypeFilter } from '@/components/ProductTypeBadge';
 import { getProductType } from '@/data/sampleInventory';
 

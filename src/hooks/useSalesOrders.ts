@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { getCurrentUserId, ensureDemoUser } from '@/utils/authHelper';
 
@@ -114,7 +114,7 @@ export const useSalesOrders = (params?: SalesOrderSearchParams) => {
       // 1. ลองใช้ view ก่อน (ดีที่สุด)
       try {
         console.log('🔍 Trying sales_orders_with_customer view...');
-        const viewQuery = supabase
+        const viewQuery = localDb
           .from('sales_orders_with_customer')
           .select('*')
           .order('created_at', { ascending: false });
@@ -161,7 +161,7 @@ export const useSalesOrders = (params?: SalesOrderSearchParams) => {
         console.log('🔄 Trying direct sales_orders table with customer join...');
 
         try {
-          let directQuery = supabase
+          let directQuery = localDb
             .from('sales_orders')
             .select(`
               id,
@@ -303,7 +303,7 @@ export const useSalesOrder = (id: string) => {
     queryFn: async (): Promise<SalesOrder | null> => {
       if (!id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('sales_orders_with_customer')
         .select('*')
         .eq('id', id)
@@ -327,7 +327,7 @@ export const useSalesOrderItems = (orderId: string) => {
     queryFn: async (): Promise<SalesOrderItem[]> => {
       if (!orderId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('sales_order_items')
         .select('*')
         .eq('order_id', orderId)
@@ -359,7 +359,7 @@ export const useCreateSalesOrder = () => {
         console.log('🔐 Using user ID for order creation:', userId);
 
         // สร้างใบสั่งซื้อหลัก
-        const { data: order, error: orderError } = await supabase
+        const { data: order, error: orderError } = await localDb
           .from('sales_orders')
           .insert({
             customer_id: orderData.customer_id,
@@ -394,7 +394,7 @@ export const useCreateSalesOrder = () => {
 
         // สร้างรายการสินค้า
         if (orderData.order_items.length > 0) {
-          const { error: itemsError } = await supabase
+          const { error: itemsError } = await localDb
             .from('sales_order_items')
             .insert(
               orderData.order_items.map(item => ({
@@ -449,9 +449,9 @@ export const useUpdateSalesOrder = () => {
 
   return useMutation({
     mutationFn: async ({ id, ...updateData }: UpdateSalesOrderData & { id: string }): Promise<SalesOrder> => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await localDb.auth.getUser();
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('sales_orders')
         .update({
           ...updateData,
@@ -490,9 +490,9 @@ export const useCancelSalesOrder = () => {
 
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await localDb.auth.getUser();
 
-      const { error } = await supabase
+      const { error } = await localDb
         .from('sales_orders')
         .update({
           status: 'cancelled',
@@ -558,11 +558,11 @@ export const useSalesOrderStats = () => {
         { count: cancelledOrders },
         { data: revenueData }
       ] = await Promise.all([
-        supabase.from('sales_orders').select('*', { count: 'exact', head: true }),
-        supabase.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
-        supabase.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
-        supabase.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
-        supabase.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
+        localDb.from('sales_orders').select('*', { count: 'exact', head: true }),
+        localDb.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+        localDb.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'confirmed'),
+        localDb.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'delivered'),
+        localDb.from('sales_orders').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
         supabase
           .from('sales_orders')
           .select('total_amount')

@@ -21,7 +21,7 @@ import {
   FileText,
   ArrowRight
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 
@@ -70,7 +70,7 @@ export function ExportHistory() {
       setLoading(true);
 
       // Query customer_exports table instead (มีข้อมูลครบและไม่ถูกลบ)
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customer_exports')
         .select('*')
         .order('created_at', { ascending: false })

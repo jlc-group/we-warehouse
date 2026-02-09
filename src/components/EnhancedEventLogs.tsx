@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ export function EnhancedEventLogs() {
       setLoading(true);
 
       // Fetch system events
-      let eventsQuery = supabase
+      let eventsQuery = localDb
         .from('system_events')
         .select('*')
         .order('created_at', { ascending: false })
@@ -68,7 +68,7 @@ export function EnhancedEventLogs() {
       const { data, error } = await eventsQuery;
 
       // Fetch warehouse transfers
-      const { data: transfersData, error: transfersError } = await supabase
+      const { data: transfersData, error: transfersError } = await localDb
         .from('warehouse_transfers_view')
         .select('*')
         .order('created_at', { ascending: false })
@@ -148,7 +148,7 @@ export function EnhancedEventLogs() {
     fetchEvents();
 
     // Real-time subscription for system events
-    const channel = supabase
+    const channel = localDb
       .channel('system_events_changes')
       .on(
         'postgres_changes',

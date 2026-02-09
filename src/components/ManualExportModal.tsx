@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Send, Loader2, Package, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { calculateTotalBaseQuantity, formatUnitsDisplay } from '@/utils/unitCalculations';
 
@@ -167,7 +167,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .select('id, customer_name, customer_code, phone, email')
         .eq('is_active', true)
@@ -272,7 +272,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
       });
 
       // 1b. อัปเดตสต็อกก่อนเสมอ
-      const { error: updateError } = await supabase
+      const { error: updateError } = await localDb
         .from('inventory_items')
         .update(updateData)
         .eq('id', formData.selectedItemId);
@@ -285,7 +285,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
       if (reqLevel2 > 0) exportDescription.push(`${reqLevel2} ${selectedItem.unit_level2_name || 'กล่อง'}`);
       if (reqLevel3 > 0) exportDescription.push(`${reqLevel3} ${selectedItem.unit_level3_name || 'ชิ้น'}`);
 
-      const { error: movementError } = await supabase
+      const { error: movementError } = await localDb
         .from('inventory_movements')
         .insert({
           inventory_item_id: formData.selectedItemId,
@@ -318,7 +318,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
         total_value: totalValue
       });
 
-      const { data: exportRecord, error: customerExportError } = await supabase
+      const { data: exportRecord, error: customerExportError } = await localDb
         .from('customer_exports')
         .insert({
           customer_id: formData.customerId,
@@ -355,7 +355,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
       console.log('✅ [Export] Successfully saved to customer_exports:', exportRecord);
 
       // 4. บันทึก event log
-      await supabase
+      await localDb
         .from('system_events')
         .insert({
           event_type: 'inventory',
@@ -384,7 +384,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
         console.log('🗑️ Stock is zero, deleting inventory item from location:', location);
 
         // 5a. บันทึก event ว่า location ว่างแล้ว
-        await supabase
+        await localDb
           .from('system_events')
           .insert({
             event_type: 'location',
@@ -405,7 +405,7 @@ export function ManualExportModal({ isOpen, onClose, location, items = [], onExp
           });
 
         // 5b. ลบ inventory_item
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await localDb
           .from('inventory_items')
           .delete()
           .eq('id', formData.selectedItemId);

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 /**
  * Apply the products_summary view migration directly from the application
@@ -18,11 +18,11 @@ export async function applyProductsSummaryMigration(): Promise<{ success: boolea
 
     // Step 2: Drop existing views
     console.log('🗑️ Dropping existing views...');
-    const { error: dropSalesViewError } = await supabase.rpc('exec_sql', {
+    const { error: dropSalesViewError } = await localDb.rpc('exec_sql', {
       sql: 'DROP VIEW IF EXISTS public.available_products_for_sales;'
     });
 
-    const { error: dropMainViewError } = await supabase.rpc('exec_sql', {
+    const { error: dropMainViewError } = await localDb.rpc('exec_sql', {
       sql: 'DROP VIEW IF EXISTS public.products_summary;'
     });
 
@@ -126,7 +126,7 @@ GROUP BY
 ORDER BY p.product_type, p.product_name;
 `;
 
-    const { error: createError } = await supabase.rpc('exec_sql', {
+    const { error: createError } = await localDb.rpc('exec_sql', {
       sql: createViewSQL
     });
 
@@ -145,7 +145,7 @@ WHERE total_pieces > 0
 ORDER BY product_type, stock_status DESC, product_name;
 `;
 
-    const { error: salesViewError } = await supabase.rpc('exec_sql', {
+    const { error: salesViewError } = await localDb.rpc('exec_sql', {
       sql: createSalesViewSQL
     });
 
@@ -156,17 +156,17 @@ ORDER BY product_type, stock_status DESC, product_name;
 
     // Step 4: Add comments
     console.log('📝 Adding view comments...');
-    await supabase.rpc('exec_sql', {
+    await localDb.rpc('exec_sql', {
       sql: `COMMENT ON VIEW public.products_summary IS 'สรุปสินค้าสำหรับ Sales - ✅ ใช้ conversion rates จาก product_conversion_rates table ✅ มี product_type ครบถ้วน';`
     });
 
-    await supabase.rpc('exec_sql', {
+    await localDb.rpc('exec_sql', {
       sql: `COMMENT ON VIEW public.available_products_for_sales IS 'สินค้าที่มีสต็อกสำหรับการขาย - ✅ ใช้ conversion rates ที่ถูกต้อง ✅ มี product_type';`
     });
 
     // Step 5: Test the view
     console.log('✅ Testing products_summary view...');
-    const { data: testData, error: testError } = await supabase
+    const { data: testData, error: testError } = await localDb
       .from('products_summary')
       .select('sku, product_name, product_type, total_pieces, stock_status')
       .limit(3);
@@ -196,7 +196,7 @@ ORDER BY product_type, stock_status DESC, product_name;
 export async function checkSQLExecutionCapability(): Promise<boolean> {
   try {
     // Try to execute a simple test query via RPC
-    const { error } = await supabase.rpc('exec_sql', {
+    const { error } = await localDb.rpc('exec_sql', {
       sql: 'SELECT 1 as test;'
     });
 
@@ -211,7 +211,7 @@ export async function checkSQLExecutionCapability(): Promise<boolean> {
   // Alternative: try to create a simple view to test permissions
   try {
     const testViewName = `test_view_${Date.now()}`;
-    const { error: createError } = await supabase
+    const { error: createError } = await localDb
       .from('_test_sql_capability')
       .select('1')
       .limit(1);

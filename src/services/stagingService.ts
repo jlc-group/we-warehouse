@@ -1,26 +1,9 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { transferPartialStock } from './transferService';
 
 /**
- * SQL MIGRATION REQUIRED:
- * 
- * CREATE TABLE IF NOT EXISTS public.picking_staging (
- *     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
- *     inventory_item_id UUID NOT NULL REFERENCES public.inventory_items(id),
- *     product_code TEXT NOT NULL,
- *     location TEXT NOT NULL,
- *     quantity NUMERIC NOT NULL,
- *     unit TEXT,
- *     target_location TEXT DEFAULT 'PACKING',
- *     status TEXT DEFAULT 'pending', -- pending, confirmed, cancelled
- *     user_id UUID,
- *     created_at TIMESTAMPTZ DEFAULT NOW(),
- *     updated_at TIMESTAMPTZ DEFAULT NOW(),
- *     metadata JSONB
- * );
- * 
- * ALTER TABLE public.picking_staging ENABLE ROW LEVEL SECURITY;
- * CREATE POLICY "Enable all for authenticated" ON public.picking_staging FOR ALL TO authenticated USING (true) WITH CHECK (true);
+ * Picking Staging Service - ใช้ Local PostgreSQL
+ * ตาราง: picking_staging
  */
 
 export interface StagingItem {
@@ -46,7 +29,7 @@ export const addToStaging = async (
     userId?: string,
     metadata?: any
 ) => {
-    const { data, error } = await supabase
+    const { data, error } = await localDb
         .from('picking_staging')
         .insert({
             inventory_item_id: inventoryItemId,
@@ -58,9 +41,7 @@ export const addToStaging = async (
             status: 'pending',
             user_id: userId,
             metadata: metadata
-        })
-        .select()
-        .single();
+        });
 
     if (error) {
         console.error('Error adding to staging:', error);
@@ -70,16 +51,9 @@ export const addToStaging = async (
 };
 
 export const getStagingItems = async (status: string = 'pending') => {
-    const { data, error } = await supabase
+    const { data, error } = await localDb
         .from('picking_staging')
-        .select(`
-      *,
-      inventory_items:inventory_item_id (
-        product_name,
-        unit_level1_name,
-        unit_level1_rate
-      )
-    `)
+        .select('*')
         .eq('status', status)
         .order('created_at', { ascending: false });
 
@@ -92,21 +66,21 @@ export const getStagingItems = async (status: string = 'pending') => {
 
 export const confirmStagingItem = async (stagingItem: any, user: any) => {
     // 1. Fetch current inventory item (Source)
-    const { data: sourceItem, error: fetchError } = await supabase
+    const { data: sourceItems, error: fetchError } = await localDb
         .from('inventory_items')
         .select('*')
-        .eq('id', stagingItem.inventory_item_id)
-        .single();
+        .eq('id', stagingItem.inventory_item_id);
+
+    const sourceItem = sourceItems?.[0];
 
     if (fetchError || !sourceItem) {
         return { success: false, message: 'Source item not found or deleted' };
     }
 
     // 2. Perform Transfer (Source -> Target)
-    // Note: sourceItem might have changed (e.g. qty reduced). transferPartialStock checks this.
     const result = await transferPartialStock(
         sourceItem,
-        stagingItem.quantity, // Quantity to transfer
+        stagingItem.quantity,
         stagingItem.target_location || 'PACKING',
         user
     );
@@ -116,14 +90,13 @@ export const confirmStagingItem = async (stagingItem: any, user: any) => {
     }
 
     // 3. Update Status to Confirmed
-    const { error: updateError } = await supabase
+    const { error: updateError } = await localDb
         .from('picking_staging')
         .update({ status: 'confirmed' })
         .eq('id', stagingItem.id);
 
     if (updateError) {
         console.error('Error updating staging status:', updateError);
-        // Warning: Transfer happened but status update failed.
         return { success: true, warning: 'Transfer success but status update failed' };
     }
 
@@ -131,7 +104,7 @@ export const confirmStagingItem = async (stagingItem: any, user: any) => {
 };
 
 export const cancelStagingItem = async (id: string) => {
-    const { error } = await supabase
+    const { error } = await localDb
         .from('picking_staging')
         .update({ status: 'cancelled' })
         .eq('id', id);

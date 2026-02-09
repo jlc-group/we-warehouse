@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeftRight, Save, X, Package, MapPin, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { generateAllWarehouseLocations } from '@/utils/locationUtils';
 import { LocationCombobox } from './LocationCombobox';
@@ -206,7 +206,7 @@ export function LocationTransferModal({
         if (remainingQty.level1 === 0 && remainingQty.level2 === 0 && remainingQty.level3 === 0) {
 
           // ⭐ Update location of existing item (ใช้ปลายทางของรายการนั้น)
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               location: transferItem.toLocation,
@@ -239,14 +239,14 @@ export function LocationTransferModal({
             unit: 'กล่อง'
           };
 
-          const { error: insertError } = await supabase
+          const { error: insertError } = await localDb
             .from('inventory_items')
             .insert([newItemData]);
 
           if (insertError) throw insertError;
 
           // Update original item with remaining quantities
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               unit_level1_quantity: remainingQty.level1,

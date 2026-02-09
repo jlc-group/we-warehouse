@@ -11,7 +11,7 @@ import { useProducts } from '@/hooks/useProducts';
 import { Package, Hash, Save, RotateCcw, Settings, Search, X, ChevronDown } from 'lucide-react';
 import { ProductSummaryTable } from '@/components/ProductSummaryTable';
 import UnitConversionSettings from '@/components/UnitConversionSettings';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 type ProductType = 'FG' | 'PK';
 
@@ -73,7 +73,7 @@ export function AddProductForm() {
     const fetchProducts = async () => {
       console.log('🔄 [DEBUG] Starting to fetch products...');
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('products')
           .select('id, product_name, sku_code, product_type, unit_of_measure, is_active, created_at')
           .eq('is_active', true)
@@ -211,7 +211,7 @@ export function AddProductForm() {
         console.log('✅ Product added, creating default conversion rate...');
         try {
           // Get the product_id from the newly created product
-          const { data: newProduct, error: fetchError } = await supabase
+          const { data: newProduct, error: fetchError } = await localDb
             .from('products')
             .select('id, sku_code, product_name, product_type')
             .eq('sku_code', data.sku_code)
@@ -223,7 +223,7 @@ export function AddProductForm() {
           }
 
           // Insert conversion rate with all required fields
-          const { error: conversionError } = await supabase
+          const { error: conversionError } = await localDb
             .from('product_conversion_rates')
             .insert({
               product_id: newProduct.id,

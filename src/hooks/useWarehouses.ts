@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface Warehouse {
   id: string;
@@ -20,7 +20,7 @@ export function useWarehouses(activeOnly: boolean = true) {
     queryFn: async (): Promise<Warehouse[]> => {
       console.log('🏭 Fetching warehouses from database...');
 
-      let query = supabase
+      let query = localDb
         .from('warehouses')
         .select('id, name, code, description, address, is_active')
         .order('name');
@@ -63,7 +63,7 @@ export function useWarehouse(warehouseId: string | undefined) {
 
       console.log('🏭 Fetching warehouse by ID:', warehouseId);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select('id, name, code, description, address, is_active')
         .eq('id', warehouseId)

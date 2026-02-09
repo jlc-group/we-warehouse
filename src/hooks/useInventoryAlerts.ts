@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDepartmentInventory } from '@/hooks/useDepartmentInventory';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import type { InventoryItem } from '@/hooks/useDepartmentInventory';
 

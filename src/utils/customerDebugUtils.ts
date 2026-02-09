@@ -1,5 +1,5 @@
 // Debug utilities สำหรับตรวจสอบข้อมูลลูกค้าจริงในฐานข้อมูล
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface CustomerDebugInfo {
   success: boolean;
@@ -29,7 +29,7 @@ export const debugCustomersTable = async (): Promise<CustomerDebugInfo> => {
   try {
     // 1. ทดสอบว่าตาราง customers มีอยู่จริง
     console.log('1. Testing customers table existence...');
-    const { count, error: countError } = await supabase
+    const { count, error: countError } = await localDb
       .from('customers')
       .select('*', { count: 'exact', head: true });
 
@@ -46,7 +46,7 @@ export const debugCustomersTable = async (): Promise<CustomerDebugInfo> => {
     // 2. ดึงข้อมูลลูกค้าตัวอย่าง
     if (debugInfo.customersTableExists) {
       console.log('2. Fetching sample customers...');
-      const { data: customers, error: fetchError } = await supabase
+      const { data: customers, error: fetchError } = await localDb
         .from('customers')
         .select(`
           id,
@@ -80,7 +80,7 @@ export const debugCustomersTable = async (): Promise<CustomerDebugInfo> => {
     // 3. ตรวจสอบ RLS policies
     console.log('3. Checking RLS policies...');
     try {
-      const { data: policies, error: policyError } = await supabase
+      const { data: policies, error: policyError } = await localDb
         .rpc('pg_policies')
         .select('*')
         .eq('tablename', 'customers');
@@ -100,7 +100,7 @@ export const debugCustomersTable = async (): Promise<CustomerDebugInfo> => {
     console.log('4. Testing different query approaches...');
 
     // ทดสอบ query แบบง่าย
-    const { data: simpleData, error: simpleError } = await supabase
+    const { data: simpleData, error: simpleError } = await localDb
       .from('customers')
       .select('id, customer_code, customer_name')
       .limit(1);
@@ -113,7 +113,7 @@ export const debugCustomersTable = async (): Promise<CustomerDebugInfo> => {
     }
 
     // ทดสอบ query พร้อม filter
-    const { data: filteredData, error: filterError } = await supabase
+    const { data: filteredData, error: filterError } = await localDb
       .from('customers')
       .select('id, customer_code, customer_name, is_active')
       .eq('is_active', true)

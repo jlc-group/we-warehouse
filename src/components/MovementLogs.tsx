@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -32,7 +32,7 @@ export function MovementLogs() {
       setLoading(true);
       
       // Since inventory_movements table doesn't exist yet, use inventory_items for demo
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('*')
         .order('created_at', { ascending: false })
@@ -85,7 +85,7 @@ export function MovementLogs() {
     // Real-time updates disabled to improve performance and prevent UI flickering
     // Data will be manually refreshed when needed
 
-    // const channel = supabase
+    // const channel = localDb
     //   .channel('movement_changes')
     //   .on(
     //     'postgres_changes',

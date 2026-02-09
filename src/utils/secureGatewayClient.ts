@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { checkSoftDeleteSupport } from './databaseUtils';
 import { safeDeleteInventoryItem } from './safeDeleteUtils';
 
@@ -12,7 +12,7 @@ export const secureGatewayClient = {
           // Check if soft delete is supported before filtering
           const hasSoftDelete = await checkSoftDeleteSupport();
 
-          let query = supabase
+          let query = localDb
             .from('inventory_items')
             .select(`
               id,
@@ -71,7 +71,7 @@ export const secureGatewayClient = {
         }
 
         case 'customers': {
-          let query = supabase
+          let query = localDb
             .from('customers')
             .select(`
               id,
@@ -111,7 +111,7 @@ export const secureGatewayClient = {
         }
 
         case 'productBySku': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('products')
             .select('*')
             .eq('sku_code', params?.sku)
@@ -126,7 +126,7 @@ export const secureGatewayClient = {
 
         case 'conversionRates': {
           // Table already has sku and product_name columns!
-          let query = supabase
+          let query = localDb
             .from('product_conversion_rates')
             .select(`
               id,
@@ -175,7 +175,7 @@ export const secureGatewayClient = {
           // First, let's get products separately and then join with conversion rates
           // First, let's get products separately and then join with conversion rates
 
-          const { data: products, error: productsError } = await supabase
+          const { data: products, error: productsError } = await localDb
             .from('products')
             .select(`
               id,
@@ -197,7 +197,7 @@ export const secureGatewayClient = {
           }
 
           // Get all conversion rates
-          const { data: conversions, error: conversionsError } = await supabase
+          const { data: conversions, error: conversionsError } = await localDb
             .from('product_conversion_rates')
             .select(`
               sku,
@@ -228,7 +228,7 @@ export const secureGatewayClient = {
         }
 
         case 'conversionRateBySku': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('product_conversion_rates')
             .select('*')
             .eq('sku', params?.sku)
@@ -254,7 +254,7 @@ export const secureGatewayClient = {
 
         case 'productsWithConversionsView': {
 
-          let query = supabase
+          let query = localDb
             .from('products_with_conversions')
             .select('*')
             .order('sku_code');
@@ -358,7 +358,7 @@ export const secureGatewayClient = {
     try {
       switch (action) {
         case 'createInventoryItem': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('inventory_items')
             .insert([payload])
             .select()
@@ -369,7 +369,7 @@ export const secureGatewayClient = {
         }
 
         case 'updateInventoryItem': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('inventory_items')
             .update(payload.updates)
             .eq('id', payload.id)
@@ -381,7 +381,7 @@ export const secureGatewayClient = {
         }
 
         case 'createProduct': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('products')
             .insert([payload])
             .select()
@@ -392,7 +392,7 @@ export const secureGatewayClient = {
         }
 
         case 'createCustomer': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('customers')
             .insert([payload])
             .select()
@@ -403,7 +403,7 @@ export const secureGatewayClient = {
         }
 
         case 'updateCustomer': {
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('customers')
             .update(payload.updates)
             .eq('id', payload.id)
@@ -415,7 +415,7 @@ export const secureGatewayClient = {
         }
 
         case 'clearInventory': {
-          const { error } = await supabase
+          const { error } = await localDb
             .from('inventory_items')
             .delete()
             .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
@@ -428,13 +428,13 @@ export const secureGatewayClient = {
           const { clearExisting, items } = payload;
 
           if (clearExisting) {
-            await supabase
+            await localDb
               .from('inventory_items')
               .delete()
               .neq('id', '00000000-0000-0000-0000-000000000000');
           }
 
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('inventory_items')
             .upsert(items, { onConflict: 'id' })
             .select();
@@ -446,7 +446,7 @@ export const secureGatewayClient = {
         case 'transferInventoryItems': {
           const { ids, targetLocation, notes } = payload;
 
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('inventory_items')
             .update({
               location: targetLocation,
@@ -462,7 +462,7 @@ export const secureGatewayClient = {
         case 'shipOutInventoryItems': {
           const { ids, notes } = payload;
 
-          const { error } = await supabase
+          const { error } = await localDb
             .from('inventory_items')
             .delete()
             .in('id', ids);
@@ -480,7 +480,7 @@ export const secureGatewayClient = {
           // If SKU provided, find product_id
           let productId = payload.product_id;
           if (!productId && payload.sku) {
-            const { data: product } = await supabase
+            const { data: product } = await localDb
               .from('products')
               .select('id')
               .eq('sku_code', payload.sku)
@@ -515,7 +515,7 @@ export const secureGatewayClient = {
 
 
 
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('product_conversion_rates')
             .insert([insertData])
             .select(`
@@ -552,7 +552,7 @@ export const secureGatewayClient = {
           // Find product_id if SKU provided
           let productId = payload.product_id;
           if (!productId && payload.sku) {
-            const { data: product } = await supabase
+            const { data: product } = await localDb
               .from('products')
               .select('id')
               .eq('sku_code', payload.sku)
@@ -589,7 +589,7 @@ export const secureGatewayClient = {
             allowedUpdates.unit_level3_name = payload.updates.unit_level3_name;
           }
 
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('product_conversion_rates')
             .update({
               ...allowedUpdates,
@@ -612,7 +612,7 @@ export const secureGatewayClient = {
           // Find product_id if SKU provided
           let productId = payload.product_id;
           if (!productId && payload.sku) {
-            const { data: product } = await supabase
+            const { data: product } = await localDb
               .from('products')
               .select('id')
               .eq('sku_code', payload.sku)
@@ -623,7 +623,7 @@ export const secureGatewayClient = {
             }
           }
 
-          const { error } = await supabase
+          const { error } = await localDb
             .from('product_conversion_rates')
             .delete()
             .eq('product_id', productId);
@@ -649,7 +649,7 @@ export const secureGatewayClient = {
             }
           }
 
-          const { data, error } = await supabase
+          const { data, error } = await localDb
             .from('product_conversion_rates')
             .upsert(payload.conversions.map((conv: any) => ({
               ...conv,

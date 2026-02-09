@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { hasPermission as checkPermission } from '@/config/permissions';
 
 // ============== Types ==============
@@ -161,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Fallback: Query user from Supabase/local database directly
       const isEmail = emailOrUsername.includes('@');
-      let query = supabase
+      let query = localDb
         .from('users')
         .select('*')
         .eq('is_active', true);

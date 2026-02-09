@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export type ActivityType = 'MOVE_IN' | 'MOVE_OUT' | 'TRANSFER' | 'ADJUST' | 'SCAN';
 
@@ -53,7 +53,7 @@ export class LocationActivityService {
    */
   static async logActivity(params: LogActivityParams): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_logs')
         .insert({
           location: params.location,
@@ -67,9 +67,7 @@ export class LocationActivityService {
           user_name: params.userName || 'Anonymous',
           notes: params.notes,
           metadata: params.metadata
-        })
-        .select()
-        .single();
+        });
 
       if (error) {
         console.error('Error logging activity:', error);
@@ -91,7 +89,7 @@ export class LocationActivityService {
     limit: number = 50
   ): Promise<{ data: LocationActivity[]; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_logs')
         .select('*')
         .eq('location', location)
@@ -115,7 +113,7 @@ export class LocationActivityService {
    */
   static async getLocationInventory(location: string): Promise<LocationInventorySummary> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('sku, product_name, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity, unit_level1_name, lot, mfd')
         .eq('location', location);
@@ -146,7 +144,7 @@ export class LocationActivityService {
         }));
 
       // ดึง last activity
-      const { data: lastActivity } = await supabase
+      const { data: lastActivity } = await localDb
         .from('location_activity_logs')
         .select('created_at')
         .eq('location', location)
@@ -175,7 +173,7 @@ export class LocationActivityService {
    */
   static async getLocationStats(location: string) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_summary')
         .select('*')
         .eq('location', location)

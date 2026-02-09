@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface CustomerExportStats {
   customer_id: string;
@@ -31,7 +31,7 @@ export class CustomerExportService {
       const startTime = performance.now();
 
       // Step 1: ดึงข้อมูล customers ทั้งหมด
-      const { data: customers, error: customersError } = await supabase
+      const { data: customers, error: customersError } = await localDb
         .from('customers')
         .select('id, customer_name, customer_code')
         .order('customer_name');
@@ -49,7 +49,7 @@ export class CustomerExportService {
       console.log(`Found ${customers.length} customers`);
 
       // Step 2: ดึงข้อมูลการส่งออกจาก customer_exports
-      let exportsQuery = supabase
+      let exportsQuery = localDb
         .from('customer_exports')
         .select('*')
         .order('created_at', { ascending: false });
@@ -114,7 +114,7 @@ export class CustomerExportService {
       exports.forEach((exp: any) => {
         const exportDate = exp.created_at?.split('T')[0] || '';
         const groupKey = `${exp.customer_id}_${exportDate}_${exp.po_reference || 'NO_PO'}`;
-        
+
         if (!orderGroupMap.has(groupKey)) {
           orderGroupMap.set(groupKey, {
             customer_id: exp.customer_id || '',
@@ -123,7 +123,7 @@ export class CustomerExportService {
             exports: []
           });
         }
-        
+
         orderGroupMap.get(groupKey)!.exports.push(exp);
       });
 
@@ -146,11 +146,11 @@ export class CustomerExportService {
         }
 
         const customerStats = customerMap.get(orderGroup.customer_id)!;
-        
+
         // คำนวณยอดรวมของ order นี้
         const orderTotal = orderGroup.exports.reduce((sum, exp) => sum + (exp.total_value || 0), 0);
         const itemsCount = orderGroup.exports.length;
-        
+
         customerStats.total_orders += 1;
         customerStats.total_amount += orderTotal;
         customerStats.total_items += itemsCount;
@@ -191,7 +191,7 @@ export class CustomerExportService {
    */
   static async getCustomerExportDetails(customerId: string) {
     try {
-      const { data: customer, error: customerError } = await supabase
+      const { data: customer, error: customerError } = await localDb
         .from('customers')
         .select('*')
         .eq('id', customerId)
@@ -200,7 +200,7 @@ export class CustomerExportService {
       if (customerError) throw customerError;
 
       // ดึงข้อมูลการส่งออกจาก customer_exports แทน customer_orders
-      const { data: exports, error: exportsError } = await (supabase as any)
+      const { data: exports, error: exportsError } = await (localDb as any)
         .from('customer_exports')
         .select('*')
         .eq('customer_id', customerId)
@@ -210,11 +210,11 @@ export class CustomerExportService {
 
       // จัดกลุ่มการส่งออกตามวันที่และ PO
       const orderGroups = new Map<string, any[]>();
-      
+
       exports?.forEach((exp: any) => {
         const exportDate = exp.created_at?.split('T')[0] || '';
         const groupKey = `${exportDate}_${exp.po_reference || 'NO_PO'}`;
-        
+
         if (!orderGroups.has(groupKey)) {
           orderGroups.set(groupKey, []);
         }
@@ -225,7 +225,7 @@ export class CustomerExportService {
       const orders = Array.from(orderGroups.entries()).map(([key, items]) => {
         const firstItem = items[0];
         const totalValue = items.reduce((sum, item) => sum + (item.total_value || 0), 0);
-        
+
         return {
           id: firstItem.id,
           order_number: firstItem.po_reference || `EXP-${key.split('_')[0]}`,

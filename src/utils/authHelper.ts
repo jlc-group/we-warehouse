@@ -1,5 +1,5 @@
 // Utility สำหรับจัดการ Authentication ใน Sales System
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface AuthUser {
   id: string;
@@ -11,7 +11,7 @@ export interface AuthUser {
 export const getCurrentUserId = async (): Promise<string | null> => {
   try {
     // ลองดึงจาก Supabase Auth ก่อน
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await localDb.auth.getUser();
     if (user?.id) {
       return user.id;
     }
@@ -39,7 +39,7 @@ export const getCurrentUserId = async (): Promise<string | null> => {
 export const getCurrentUser = async (): Promise<AuthUser | null> => {
   try {
     // ลองดึงจาก Supabase Auth ก่อน
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await localDb.auth.getUser();
     if (user) {
       return {
         id: user.id,

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { secureGatewayClient } from '@/utils/secureGatewayClient';
 import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
 
@@ -14,7 +14,7 @@ export async function deductStock(inventoryItemId: string, quantities: {
     // ดึงข้อมูลปัจจุบันของ item นี้
     const hasSoftDelete = await checkSoftDeleteSupport();
 
-    let query = supabase
+    let query = localDb
       .from('inventory_items')
       .select('*')
       .eq('id', inventoryItemId);
@@ -40,7 +40,7 @@ export async function deductStock(inventoryItemId: string, quantities: {
     console.log('จำนวนใหม่:', { newLevel1, newLevel2, newLevel3 });
 
     // อัปเดตข้อมูล
-    const { data: updatedItem, error: updateError } = await supabase
+    const { data: updatedItem, error: updateError } = await localDb
       .from('inventory_items')
       .update({
         unit_level1_quantity: newLevel1,
@@ -97,7 +97,7 @@ export async function processOrderFulfillment(orderId: string) {
   
   try {
     // ดึงข้อมูล order items
-    const { data: orderItems, error: orderError } = await supabase
+    const { data: orderItems, error: orderError } = await localDb
       .from('order_items')
       .select('*')
       .eq('order_id', orderId);
@@ -113,7 +113,7 @@ export async function processOrderFulfillment(orderId: string) {
     // ประมวลผลแต่ละ item
     for (const item of orderItems) {
       // ตรวจสอบ inventory ที่มี
-      const { data: inventoryItems, error: invError } = await supabase
+      const { data: inventoryItems, error: invError } = await localDb
         .from('inventory_items')
         .select('*')
         .eq('sku', item.sku)
@@ -144,7 +144,7 @@ export async function processOrderFulfillment(orderId: string) {
       if (deductResult.success) {
         // Try to update order item status (may fail due to schema mismatch)
         try {
-          await supabase
+          await localDb
             .from('order_items')
             .update({
               notes: `Processed at ${new Date().toISOString()}`,

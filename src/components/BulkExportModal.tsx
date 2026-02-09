@@ -20,7 +20,7 @@ import {
   Trash2,
   Plus
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { addToStaging } from '@/services/stagingService';
 import { useAuth } from '@/contexts/AuthContextSimple';
@@ -150,7 +150,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
   const fetchCustomers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .select('id, customer_name, customer_code')
         .eq('is_active', true)
@@ -166,7 +166,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
   const fetchProductTypes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('sku_code, product_type');
 
@@ -425,7 +425,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
         toast.success(`ส่งสินค้าไปพัก (Staging) เรียบร้อย ${totalStaged} รายการ`);
 
         // Log event
-        await supabase.from('system_events').insert({
+        await localDb.from('system_events').insert({
           event_type: 'inventory',
           event_category: 'picking',
           event_action: 'bulk_staging_request',

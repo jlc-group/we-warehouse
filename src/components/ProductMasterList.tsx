@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +48,7 @@ export function ProductMasterList() {
   const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
     queryKey: ['products-master-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
@@ -62,7 +62,7 @@ export function ProductMasterList() {
   const { data: conversionRates } = useQuery({
     queryKey: ['product-conversion-rates-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('product_conversion_rates')
         .select('product_id, unit_level1_rate, unit_level2_rate, updated_at');
 

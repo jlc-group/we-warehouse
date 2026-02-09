@@ -4,7 +4,7 @@
  */
 
 import { localDb } from '@/integrations/local/client';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 const USE_LOCAL_DB = import.meta.env.VITE_USE_LOCAL_DB === 'true';
 

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 /**
  * Service to fix and populate unit-level quantities for inventory items
@@ -18,7 +18,7 @@ export class InventoryDataFixService {
       console.log('🔧 Starting unit-level quantities population...');
 
       // Fetch all inventory items that have quantity_pieces but missing unit quantities
-      const { data: items, error: fetchError } = await supabase
+      const { data: items, error: fetchError } = await localDb
         .from('inventory_items')
         .select('*')
         .gt('quantity_pieces', 0);
@@ -63,7 +63,7 @@ export class InventoryDataFixService {
           );
 
           // Update the item
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               unit_level1_quantity: carton,
@@ -113,7 +113,7 @@ export class InventoryDataFixService {
     missing: number;
   }> {
     try {
-      const { data: items, error } = await supabase
+      const { data: items, error } = await localDb
         .from('inventory_items')
         .select('*')
         .gt('quantity_pieces', 0);

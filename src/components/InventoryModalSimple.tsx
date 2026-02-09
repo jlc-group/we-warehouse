@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus, AlertTriangle } from 'lucide-react';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, type ProductType } from '@/data/sampleInventory';
@@ -144,7 +144,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
         });
       } else {
         // Fallback: Try to get product data from products table
-        const { data: productData, error: productError } = await supabase
+        const { data: productData, error: productError } = await localDb
           .from('products')
           .select('*')
           .eq('sku_code', sku)

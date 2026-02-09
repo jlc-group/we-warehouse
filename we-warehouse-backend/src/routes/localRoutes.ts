@@ -169,6 +169,9 @@ router.get('/:table/:id', LocalController.getById);
 // Create record
 router.post('/:table', LocalController.create);
 
+// Upsert record (INSERT ON CONFLICT DO UPDATE)
+router.put('/:table', LocalController.upsert);
+
 // Update records
 router.patch('/:table', LocalController.update);
 

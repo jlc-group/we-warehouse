@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Minus, Save, X, Package, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { LocationActivityService, type LocationInventorySummary } from '@/services/locationActivityService';
 import { CustomerSelector } from '@/components/CustomerSelector';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CustomerExportService } from '@/services/customerExportService';
@@ -15,7 +15,7 @@ export function DebugExportData() {
     setError(null);
     try {
       console.log('🔍 Loading raw data from customer_exports...');
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customer_exports')
         .select('*')
         .order('created_at', { ascending: false })

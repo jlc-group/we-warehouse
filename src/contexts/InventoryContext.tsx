@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
 import type { Database } from '@/integrations/supabase/types';
@@ -57,7 +57,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         // Check if soft delete is supported before filtering
         const hasSoftDelete = await checkSoftDeleteSupport();
 
-        let query = supabase
+        let query = localDb
           .from('inventory_items')
           .select('*');
 

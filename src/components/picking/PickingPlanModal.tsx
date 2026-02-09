@@ -58,7 +58,7 @@ import {
   ArrowDown,
   ArrowUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   generateBulkPickingPlans,
@@ -142,7 +142,7 @@ export const PickingPlanModal = ({
       }));
 
       // ดึงข้อมูล Inventory จาก Supabase (รวม LOT และ MFD ที่มีอยู่แล้ว)
-      const { data: inventoryData, error } = await supabase
+      const { data: inventoryData, error } = await localDb
         .from('inventory_items')
         .select('id, sku, product_name, location, unit_level1_quantity, unit_level1_rate, unit_level2_quantity, unit_level2_rate, unit_level3_quantity, unit_level1_name, unit_level2_name, unit_level3_name, warehouse_id, lot, mfd, created_at')
         .order('created_at', { ascending: true }); // เรียงตาม FIFO (วันที่สร้างเก่าก่อน)
@@ -285,7 +285,7 @@ export const PickingPlanModal = ({
           if (location.toPick <= 0) continue;
 
           // ดึง Stock ปัจจุบันจาก Database
-          const { data: currentItem, error } = await supabase
+          const { data: currentItem, error } = await localDb
             .from('inventory_items')
             .select('unit_level3_quantity')
             .eq('id', location.inventoryId)
@@ -493,7 +493,7 @@ export const PickingPlanModal = ({
           }
 
           // ดึงข้อมูล inventory item ปัจจุบัน
-          const { data: currentItem, error: fetchError } = await supabase
+          const { data: currentItem, error: fetchError } = await localDb
             .from('inventory_items')
             .select('id, unit_level3_quantity, unit_level2_quantity, unit_level1_quantity')
             .eq('id', location.inventoryId)
@@ -518,7 +518,7 @@ export const PickingPlanModal = ({
           }
 
           // อัปเดต inventory
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               unit_level3_quantity: newLevel3Qty,
@@ -539,7 +539,7 @@ export const PickingPlanModal = ({
 
       // บันทึกประวัติการ Picking (ถ้ามี table)
       try {
-        await supabase
+        await localDb
           .from('picking_history')
           .insert({
             picking_date: selectedDate,

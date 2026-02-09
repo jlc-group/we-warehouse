@@ -20,7 +20,7 @@ import { WarehouseSelector } from '@/components/WarehouseSelector';
 import { BulkExportModal } from '@/components/BulkExportModal';
 import { MultiLocationBinTransferModal } from '@/components/MultiLocationBinTransferModal';
 import { executeTransfer } from '@/services/transferService';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner'; // Ensure toast is imported
 import { useAuth } from '@/contexts/AuthContextSimple';
 

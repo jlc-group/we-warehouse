@@ -22,7 +22,7 @@ import {
   MapPin,
   Box
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import type { ProductConversionRate } from '@/integrations/supabase/types';
 
@@ -64,7 +64,7 @@ export function ProductSummaryTable() {
         setLoading(true);
 
         // Fetch products
-        const { data: productsData, error: productsError } = await supabase
+        const { data: productsData, error: productsError } = await localDb
           .from('products')
           .select('id, sku_code, product_name, product_type');
 
@@ -75,7 +75,7 @@ export function ProductSummaryTable() {
         }
 
         // Fetch all inventory items
-        const { data: inventoryData, error: inventoryError } = await supabase
+        const { data: inventoryData, error: inventoryError } = await localDb
           .from('inventory_items')
           .select('sku, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity');
 
@@ -86,7 +86,7 @@ export function ProductSummaryTable() {
         }
 
         // Fetch conversion rates
-        const { data: ratesData, error: ratesError } = await supabase
+        const { data: ratesData, error: ratesError } = await localDb
           .from('product_conversion_rates')
           .select('*');
 
