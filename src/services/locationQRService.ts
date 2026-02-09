@@ -130,11 +130,16 @@ export class LocationQRService {
             inventory_snapshot: locationData,
             last_updated: new Date().toISOString()
           })
-          .eq('id', existing.id)
-          .select()
-          .single();
-        data = result.data;
-        error = result.error;
+          .eq('id', existing.id);
+        // Re-fetch after update since localDb update doesn't return data
+        if (!result.error) {
+          const refetch = await localDb.from('location_qr_codes').select('*').eq('id', existing.id).single();
+          data = refetch.data;
+          error = refetch.error;
+        } else {
+          data = result.data;
+          error = result.error;
+        }
       } else {
         // Create new QR
         const result = await localDb
@@ -145,9 +150,7 @@ export class LocationQRService {
             qr_image_url: qrImageDataURL,
             inventory_snapshot: locationData,
             is_active: true
-          })
-          .select()
-          .single();
+          });
         data = result.data;
         error = result.error;
       }
@@ -249,15 +252,23 @@ export class LocationQRService {
    */
   static async updateQRCode(id: string, updates: any): Promise<LocationQRServiceResult<LocationQRCode>> {
     try {
-      const { data, error } = await localDb
+      const updateResult = await localDb
         .from('location_qr_codes')
         .update({
           ...updates,
           last_updated: new Date().toISOString()
         })
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
+
+      let data, error;
+      if (!updateResult.error) {
+        const refetch = await localDb.from('location_qr_codes').select('*').eq('id', id).single();
+        data = refetch.data;
+        error = refetch.error;
+      } else {
+        data = updateResult.data;
+        error = updateResult.error;
+      }
 
       if (error) {
         console.error('Error updating QR code:', error);
