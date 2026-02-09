@@ -70,55 +70,139 @@ export class LocalController {
     }
 
     /**
+     * Known foreign key relationships for JOIN support
+     * Maps: parentTable -> { joinTable -> fkColumn }
+     */
+    private static FK_MAP: Record<string, Record<string, string>> = {
+        'inventory_items': { 'products': 'sku' },  // inventory_items.sku -> products.sku_code
+    };
+
+    /**
+     * Parse Supabase-style nested select patterns like "*, products(*)"
+     * Returns: { columns for main table, join definitions }
+     */
+    private static parseJoins(tableName: string, select: string): {
+        cleanSelect: string;
+        joins: { joinTable: string; joinAlias: string; joinCols: string }[];
+    } {
+        const joins: { joinTable: string; joinAlias: string; joinCols: string }[] = [];
+        const mainCols: string[] = [];
+
+        // Split select by comma, but respect parentheses
+        const parts: string[] = [];
+        let depth = 0;
+        let current = '';
+        for (const ch of select) {
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            else if (ch === ',' && depth === 0) {
+                parts.push(current.trim());
+                current = '';
+                continue;
+            }
+            current += ch;
+        }
+        if (current.trim()) parts.push(current.trim());
+
+        for (const part of parts) {
+            const joinMatch = part.match(/^(\w+)\(([^)]*)\)$/);
+            if (joinMatch) {
+                const [, joinTable, joinCols] = joinMatch;
+                joins.push({ joinTable, joinAlias: `_j_${joinTable}`, joinCols: joinCols || '*' });
+            } else {
+                mainCols.push(part);
+            }
+        }
+
+        return {
+            cleanSelect: mainCols.join(', ') || '*',
+            joins,
+        };
+    }
+
+    /**
      * Build SQL query from parsed parameters
      */
     private static buildSelectQuery(
         tableName: string,
         params: { select: string; limit: number | null; offset: number | null; orderBy: string | null; filters: any[]; orConditions: string[] }
-    ): { sql: string; values: any[] } {
-        // Clean select - remove joins for now (handle simple selects)
-        const cleanSelect = params.select
-            .split(',')
-            .filter(col => !col.includes('('))
-            .map(col => col.trim())
-            .join(', ') || '*';
+    ): { sql: string; values: any[]; joins: { joinTable: string; joinAlias: string; joinCols: string }[] } {
+        const { cleanSelect, joins } = LocalController.parseJoins(tableName, params.select);
 
-        let sql = `SELECT ${cleanSelect} FROM ${tableName}`;
+        // Build SELECT columns - prefix main table columns and add join columns
+        let selectClause: string;
+        if (joins.length > 0) {
+            // Main table columns
+            const mainAlias = tableName;
+            const mainColsPart = cleanSelect === '*' ? `${mainAlias}.*` : cleanSelect.split(',').map(c => `${mainAlias}.${c.trim()}`).join(', ');
+
+            // Join table columns - select with alias prefixes for later nesting
+            const joinColParts = joins.map(j => {
+                if (j.joinCols === '*') {
+                    return `row_to_json(${j.joinAlias}.*) as _join_${j.joinTable}`;
+                }
+                return j.joinCols.split(',').map(c => `${j.joinAlias}.${c.trim()} as _join_${j.joinTable}_${c.trim()}`).join(', ');
+            });
+
+            selectClause = [mainColsPart, ...joinColParts].join(', ');
+        } else {
+            selectClause = cleanSelect;
+        }
+
+        let sql = `SELECT ${selectClause} FROM ${tableName}`;
+
+        // Add JOINs
+        for (const j of joins) {
+            const fkInfo = LocalController.FK_MAP[tableName]?.[j.joinTable];
+            if (fkInfo) {
+                // Use explicit FK mapping
+                if (fkInfo === 'sku') {
+                    // Special case: inventory_items.sku -> products.sku_code
+                    sql += ` LEFT JOIN ${j.joinTable} ${j.joinAlias} ON ${tableName}.sku = ${j.joinAlias}.sku_code`;
+                } else {
+                    sql += ` LEFT JOIN ${j.joinTable} ${j.joinAlias} ON ${tableName}.${fkInfo} = ${j.joinAlias}.id`;
+                }
+            } else {
+                // Convention: main_table.join_table_id -> join_table.id (singular FK)
+                const fkCol = `${j.joinTable.replace(/s$/, '')}_id`;
+                sql += ` LEFT JOIN ${j.joinTable} ${j.joinAlias} ON ${tableName}.${fkCol} = ${j.joinAlias}.id`;
+            }
+        }
+
         const values: any[] = [];
         const allWhereClauses: string[] = [];
 
-        // Add WHERE clauses from filters
+        // Add WHERE clauses from filters (prefix with tableName if joins exist)
         if (params.filters.length > 0) {
             const whereClauses = params.filters.map((f) => {
+                const colRef = joins.length > 0 ? `${tableName}.${f.column}` : f.column;
                 if (f.operator === 'IS') {
-                    return f.value === null ? `${f.column} IS NULL` : `${f.column} IS ${f.value}`;
+                    return f.value === null ? `${colRef} IS NULL` : `${colRef} IS ${f.value}`;
                 }
                 if (f.operator === 'IS NOT') {
-                    return f.value === null ? `${f.column} IS NOT NULL` : `${f.column} IS NOT ${f.value}`;
+                    return f.value === null ? `${colRef} IS NOT NULL` : `${colRef} IS NOT ${f.value}`;
                 }
                 if (f.operator === 'IN') {
-                    // Parse (val1,val2,val3) format
                     const inVals = f.value.replace(/^\(/, '').replace(/\)$/, '').split(',').map((v: string) => v.trim());
                     const placeholders = inVals.map((v: string) => { values.push(v); return `$${values.length}`; });
-                    return `${f.column} IN (${placeholders.join(', ')})`;
+                    return `${colRef} IN (${placeholders.join(', ')})`;
                 }
                 if (f.operator === 'NOT IN') {
                     const notInVals = f.value.replace(/^\(/, '').replace(/\)$/, '').split(',').map((v: string) => v.trim());
                     const placeholders = notInVals.map((v: string) => { values.push(v); return `$${values.length}`; });
-                    return `${f.column} NOT IN (${placeholders.join(', ')})`;
+                    return `${colRef} NOT IN (${placeholders.join(', ')})`;
                 }
                 if (f.operator === '@>') {
                     values.push(f.value);
-                    return `${f.column} @> $${values.length}::jsonb`;
+                    return `${colRef} @> $${values.length}::jsonb`;
                 }
                 values.push(f.value === 'true' ? true : f.value === 'false' ? false : f.value);
-                return `${f.column} ${f.operator} $${values.length}`;
+                return `${colRef} ${f.operator} $${values.length}`;
             });
             allWhereClauses.push(...whereClauses);
         }
 
         // Add OR conditions
-        // Parse Supabase-style OR: "col1.ilike.%val%,col2.ilike.%val%"
         if (params.orConditions && params.orConditions.length > 0) {
             for (const orStr of params.orConditions) {
                 const orParts = LocalController.parseOrString(orStr, values);
@@ -135,7 +219,8 @@ export class LocalController {
         // Add ORDER BY
         if (params.orderBy) {
             const [column, direction] = params.orderBy.split('.');
-            sql += ` ORDER BY ${column} ${direction?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`;
+            const orderCol = joins.length > 0 ? `${tableName}.${column}` : column;
+            sql += ` ORDER BY ${orderCol} ${direction?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC'}`;
         }
 
         // Add LIMIT
@@ -148,7 +233,7 @@ export class LocalController {
             sql += ` OFFSET ${params.offset}`;
         }
 
-        return { sql, values };
+        return { sql, values, joins };
     }
 
     /**
@@ -204,12 +289,29 @@ export class LocalController {
         try {
             const tableName = req.params.table;
             const params = LocalController.parseQueryParams(req.query);
-            const { sql, values } = LocalController.buildSelectQuery(tableName, params);
+            const { sql, values, joins } = LocalController.buildSelectQuery(tableName, params);
 
             console.log(`📊 Local DB Query: ${sql}`, values);
 
             const pool = getLocalPool();
             const result = await pool.query(sql, values);
+
+            // If joins exist, nest joined data into sub-objects
+            if (joins.length > 0) {
+                const nested = result.rows.map(row => {
+                    const newRow: any = { ...row };
+                    for (const j of joins) {
+                        const joinKey = `_join_${j.joinTable}`;
+                        if (row[joinKey] !== undefined) {
+                            // row_to_json returns a JSON object - nest it under the join table name
+                            newRow[j.joinTable] = row[joinKey];
+                            delete newRow[joinKey];
+                        }
+                    }
+                    return newRow;
+                });
+                return res.json(nested);
+            }
 
             res.json(result.rows);
         } catch (error: any) {
