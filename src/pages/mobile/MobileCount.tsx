@@ -6,16 +6,39 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import { Loader2, ClipboardCheck, ScanLine, Save, Search } from 'lucide-react';
+import { Loader2, ClipboardCheck, ScanLine, Save, Search, CheckCircle, ArrowLeft, AlertTriangle, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { CameraQRScanner } from '@/components/mobile/CameraQRScanner';
+
+// Step Indicator Component
+const StepIndicator = ({ currentStep, steps }: { currentStep: number; steps: string[] }) => (
+    <div className="flex items-center justify-center gap-1 mb-5">
+        {steps.map((label, i) => (
+            <React.Fragment key={label}>
+                <div className="flex flex-col items-center gap-1">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${i < currentStep ? 'bg-emerald-500 text-white' :
+                            i === currentStep ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/30' :
+                                'bg-slate-200 text-slate-400'
+                        }`}>
+                        {i < currentStep ? '✓' : i + 1}
+                    </div>
+                    <span className={`text-[10px] font-medium ${i === currentStep ? 'text-violet-600' : 'text-slate-400'}`}>
+                        {label}
+                    </span>
+                </div>
+                {i < steps.length - 1 && (
+                    <div className={`w-8 h-0.5 -mt-4 ${i < currentStep ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                )}
+            </React.Fragment>
+        ))}
+    </div>
+);
 
 const MobileCount = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // Scan Location -> List Items -> Count Each
     const [step, setStep] = useState<'scan_location' | 'count_items'>('scan_location');
     const [location, setLocation] = useState('');
     const [items, setItems] = useState<any[]>([]);
@@ -24,12 +47,10 @@ const MobileCount = () => {
     // Counting State
     const [activeItemIndex, setActiveItemIndex] = useState<number>(-1);
     const [countQty, setCountQty] = useState<number>(0);
-    const [remarks, setRemarks] = useState('');
 
     useScanner({
         onScan: (code) => {
             if (activeItemIndex === -1) {
-                // If not actively editing a quantity, assume location scan
                 setLocation(code);
                 handleLoadLocation(code);
             }
@@ -40,37 +61,33 @@ const MobileCount = () => {
         if (!locCode) return;
         setLoading(true);
         try {
-            // Check location exists from local database
             const { data: locData, error: locError } = await localDb
                 .from('warehouse_locations')
                 .select('location_code')
                 .eq('location_code', locCode)
                 .single();
 
-            if (locError || !locData) throw new Error('Location not found');
+            if (locError || !locData) throw new Error('ไม่พบ Location');
 
-            // Load Inventory from local database
             const { data: invData, error: invError } = await localDb
                 .from('inventory_items')
                 .select('*')
                 .eq('location', locCode)
-                .gt('quantity_pieces', 0); // Only active items
+                .gt('quantity_pieces', 0);
 
             if (invError) throw invError;
 
-            // Transform for counting ui
-            // We initialize 'counted_qty' with 0 for blind count, or system qty if guided (using blind for now)
             const countList = (invData || []).map((item: any) => ({
                 ...item,
-                counted_qty: null, // Null means not counted yet
-                status: 'pending' // pending, counted
+                counted_qty: null,
+                status: 'pending'
             }));
 
             setItems(countList);
             setStep('count_items');
-            toast.success(`Location ${locCode} loaded`);
+            toast.success(`โหลด Location ${locCode} สำเร็จ`);
         } catch (e: any) {
-            toast.error(e.message || 'Error loading location');
+            toast.error(e.message || 'เกิดข้อผิดพลาด');
         } finally {
             setLoading(false);
         }
@@ -92,32 +109,23 @@ const MobileCount = () => {
         };
 
         setItems(updatedItems);
-        setActiveItemIndex(-1); // Back to list
-        toast.success('Count saved');
+        setActiveItemIndex(-1);
+        toast.success('บันทึกจำนวนแล้ว');
     };
 
     const handleSubmitFinal = async () => {
         const uncounted = items.filter(i => i.status === 'pending');
         if (uncounted.length > 0) {
-            toast('Warning: Some items not counted');
-            // In strict mode, might block. Here we allow, assuming pending = missing?
-            // For safety, let's just warn and require explicit action or assuming 0?
-            // Simplest: User must count all or mark as 0.
+            toast.error(`ยังเหลือ ${uncounted.length} รายการที่ยังไม่ได้นับ`);
             return;
         }
 
         setLoading(true);
         try {
-            // In a real system, you create a "Cycle Count Session" record
-            // Here, we'll simulate an adjustment or just log it
-
-            // For each item, if Diff != 0, create adjustment
             let adjustments = 0;
             for (const item of items) {
                 const diff = (item.counted_qty || 0) - item.quantity_pieces;
                 if (diff !== 0) {
-                    // Update inventory directly (Prototype style)
-                    // Real world: Create Adjustment Transaction
                     await localDb.from('inventory_items')
                         .update({ quantity_pieces: item.counted_qty })
                         .eq('id', item.id);
@@ -125,48 +133,61 @@ const MobileCount = () => {
                 }
             }
 
-            toast.success(`Completed! ${adjustments} items adjusted.`);
-
-            // Reset
+            toast.success(`🎉 เสร็จสิ้น! ปรับ ${adjustments} รายการ`);
             setStep('scan_location');
             setLocation('');
             setItems([]);
         } catch (e) {
-            toast.error('Failed to submit count');
+            toast.error('บันทึกไม่สำเร็จ');
         } finally {
             setLoading(false);
         }
     };
 
     const activeItem = activeItemIndex !== -1 ? items[activeItemIndex] : null;
+    const countedCount = items.filter(i => i.status === 'counted').length;
+    const progress = items.length > 0 ? (countedCount / items.length) * 100 : 0;
+
+    // Count summary stats
+    const diffItems = items.filter(i => i.status === 'counted' && i.counted_qty !== i.quantity_pieces);
+
+    const getDiffDisplay = (item: any) => {
+        if (item.counted_qty === null) return null;
+        const diff = item.counted_qty - item.quantity_pieces;
+        if (diff === 0) return { icon: <Minus className="h-3 w-3" />, color: 'text-emerald-600', bg: 'bg-emerald-50', label: 'ตรง' };
+        if (diff > 0) return { icon: <TrendingUp className="h-3 w-3" />, color: 'text-amber-600', bg: 'bg-amber-50', label: `+${diff}` };
+        return { icon: <TrendingDown className="h-3 w-3" />, color: 'text-red-600', bg: 'bg-red-50', label: `${diff}` };
+    };
 
     return (
-        <MobileLayout title="Cycle Count" showBack={true}>
-            {step === 'scan_location' && (
-                <div className="flex flex-col items-center justify-center p-4 py-10 space-y-4">
-                    <ScanLine className="w-20 h-20 text-indigo-300" />
-                    <h2 className="text-xl font-semibold">Scan Location</h2>
+        <MobileLayout title="นับสต็อก" showBack={true}>
+            <StepIndicator
+                currentStep={step === 'scan_location' ? 0 : activeItem ? 1 : 2}
+                steps={['สแกน Loc', 'นับสินค้า', 'ส่งผล']}
+            />
 
-                    {/* Camera QR Scanner */}
+            {step === 'scan_location' && (
+                <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                    <div className="w-20 h-20 rounded-2xl bg-violet-50 flex items-center justify-center mb-2">
+                        <ScanLine className="w-10 h-10 text-violet-400" />
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-800">สแกน Location</h2>
+
                     <div className="w-full">
                         <CameraQRScanner
-                            onScan={(code) => {
-                                setLocation(code);
-                                handleLoadLocation(code);
-                            }}
+                            onScan={(code) => { setLocation(code); handleLoadLocation(code); }}
                             buttonText="📷 สแกน QR ด้วยกล้อง"
                             modalTitle="📷 สแกน Location"
                             modalHint="เล็งกล้องไปที่ QR Code ของ Location"
                             scannerId="qr-reader-count"
-                            buttonClassName="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600"
+                            buttonClassName="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
                         />
                     </div>
 
-                    {/* Divider */}
                     <div className="flex items-center gap-3 w-full">
-                        <div className="flex-1 h-px bg-gray-300" />
-                        <span className="text-gray-500 text-sm">หรือพิมพ์</span>
-                        <div className="flex-1 h-px bg-gray-300" />
+                        <div className="flex-1 h-px bg-slate-200" />
+                        <span className="text-slate-400 text-xs">หรือพิมพ์</span>
+                        <div className="flex-1 h-px bg-slate-200" />
                     </div>
 
                     <div className="flex gap-2 w-full">
@@ -174,10 +195,14 @@ const MobileCount = () => {
                             value={location}
                             onChange={e => setLocation(e.target.value.toUpperCase())}
                             placeholder="J5/4 หรือ A1/1"
-                            className="text-center text-lg h-12 uppercase font-mono"
+                            className="text-center text-base h-12 uppercase font-mono rounded-xl border-slate-200"
                         />
-                        <Button onClick={() => handleLoadLocation(location)} className="h-12 w-12 p-0 bg-indigo-600 hover:bg-indigo-700">
-                            <Search />
+                        <Button
+                            onClick={() => handleLoadLocation(location)}
+                            disabled={loading}
+                            className="h-12 w-12 p-0 rounded-xl bg-violet-600 hover:bg-violet-700"
+                        >
+                            {loading ? <Loader2 className="animate-spin" /> : <Search />}
                         </Button>
                     </div>
                 </div>
@@ -188,41 +213,79 @@ const MobileCount = () => {
                     {/* Item List View */}
                     {!activeItem && (
                         <div className="space-y-3">
-                            <div className="flex justify-between items-center bg-indigo-50 p-3 rounded border border-indigo-100">
-                                <span className="font-bold text-indigo-800">{location}</span>
-                                <span className="text-xs text-indigo-600">{items.filter(i => i.status === 'counted').length}/{items.length} Counted</span>
+                            {/* Header + Progress */}
+                            <div className="bg-gradient-to-br from-violet-50 to-purple-50 p-4 rounded-2xl border border-violet-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="font-bold text-violet-800 font-mono">{location}</span>
+                                    <span className="text-xs text-violet-600 font-medium">{countedCount}/{items.length} นับแล้ว</span>
+                                </div>
+                                <div className="w-full h-2 bg-white/70 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-violet-400 to-purple-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
                             </div>
 
+                            {/* Diff Summary (only if some counted) */}
+                            {diffItems.length > 0 && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                                    <span className="text-xs text-amber-700 font-medium">
+                                        {diffItems.length} รายการที่จำนวนไม่ตรง
+                                    </span>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
-                                {items.map((item, index) => (
-                                    <Card
-                                        key={item.id}
-                                        className={`cursor-pointer transition-colors ${item.status === 'counted' ? 'bg-green-50 border-green-200' : 'hover:bg-gray-50'}`}
-                                        onClick={() => handleSelectForCount(index)}
-                                    >
-                                        <CardContent className="p-3 flex justify-between items-center">
-                                            <div>
-                                                <p className="font-semibold text-sm">{item.product_name}</p>
-                                                <p className="text-xs text-gray-500">{item.sku}</p>
+                                {items.map((item, index) => {
+                                    const diff = getDiffDisplay(item);
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            className={`w-full text-left rounded-2xl shadow-sm border transition-all active:scale-[0.98] ${item.status === 'counted'
+                                                    ? diff && diff.label !== 'ตรง'
+                                                        ? 'bg-amber-50/50 border-amber-200'
+                                                        : 'bg-emerald-50 border-emerald-200'
+                                                    : 'bg-white border-slate-100 hover:shadow-md'
+                                                }`}
+                                            onClick={() => handleSelectForCount(index)}
+                                        >
+                                            <div className="p-3 flex justify-between items-center">
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-sm text-slate-800 truncate">{item.product_name}</p>
+                                                    <p className="text-[11px] text-slate-400 font-mono">{item.sku}</p>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                                        ระบบ: <span className="font-bold text-slate-600">{item.quantity_pieces}</span>
+                                                    </p>
+                                                </div>
+                                                <div className="text-right ml-3">
+                                                    {item.status === 'counted' ? (
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            <span className="font-bold text-lg text-slate-800">{item.counted_qty}</span>
+                                                            {diff && (
+                                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${diff.bg} ${diff.color}`}>
+                                                                    {diff.icon} {diff.label}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-xs bg-slate-100 px-3 py-1.5 rounded-lg text-slate-400 font-medium">นับ</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                {item.status === 'counted' ? (
-                                                    <span className="font-bold text-lg text-green-700">{item.counted_qty}</span>
-                                                ) : (
-                                                    <span className="text-xs bg-gray-200 px-2 py-1 rounded text-gray-500">Count</span>
-                                                )}
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             <Button
-                                className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 h-12 text-lg"
+                                className="w-full mt-4 h-14 text-base font-bold bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 rounded-xl shadow-lg shadow-violet-500/20 disabled:opacity-50"
                                 onClick={handleSubmitFinal}
-                                disabled={items.some(i => i.status === 'pending')}
+                                disabled={items.some(i => i.status === 'pending') || loading}
                             >
-                                <Save className="mr-2" /> Submit Count
+                                {loading ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />}
+                                ส่งผลการนับ
                             </Button>
                         </div>
                     )}
@@ -230,39 +293,71 @@ const MobileCount = () => {
                     {/* Active Counting View */}
                     {activeItem && (
                         <div className="space-y-4">
-                            <Card className="bg-indigo-50 border-indigo-200">
-                                <CardContent className="p-4 text-center">
-                                    <h3 className="font-bold text-lg text-indigo-900">{activeItem.product_name}</h3>
-                                    <p className="text-indigo-600">{activeItem.sku}</p>
-                                </CardContent>
-                            </Card>
+                            <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-4 border border-violet-100 text-center">
+                                <p className="text-xs text-violet-500 font-bold mb-1">สินค้าที่กำลังนับ</p>
+                                <h3 className="font-bold text-lg text-slate-800">{activeItem.product_name}</h3>
+                                <p className="text-slate-500 text-sm font-mono">{activeItem.sku}</p>
+                                <div className="mt-2 bg-white/70 rounded-lg p-2 inline-block">
+                                    <span className="text-xs text-slate-500">ระบบ: </span>
+                                    <span className="font-bold text-slate-700">{activeItem.quantity_pieces} ชิ้น</span>
+                                </div>
+                            </div>
 
-                            <div className="flex flex-col items-center space-y-4 py-4">
-                                <label className="text-sm font-bold text-gray-500">ACTUAL QUANTITY</label>
-                                <div className="flex items-center gap-4 w-full px-8">
-                                    <Button
-                                        variant="outline"
-                                        className="h-14 w-14 rounded-full text-2xl"
+                            <div className="text-center py-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">จำนวนที่นับได้</label>
+                                <div className="flex items-center gap-3 mt-3 px-4">
+                                    <button
+                                        className="h-14 w-14 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center text-2xl font-bold text-slate-600"
                                         onClick={() => setCountQty(Math.max(0, countQty - 1))}
-                                    >-</Button>
+                                    >−</button>
                                     <Input
                                         type="number"
                                         value={countQty}
                                         onChange={(e) => setCountQty(Number(e.target.value))}
-                                        className="text-center text-4xl font-bold h-20 border-2 border-indigo-200 focus:border-indigo-500"
+                                        className="text-center text-4xl font-bold h-20 flex-1 rounded-xl border-2 border-violet-200 focus:border-violet-500"
                                         autoFocus
                                     />
-                                    <Button
-                                        variant="outline"
-                                        className="h-14 w-14 rounded-full text-2xl"
+                                    <button
+                                        className="h-14 w-14 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center text-2xl font-bold text-slate-600"
                                         onClick={() => setCountQty(countQty + 1)}
-                                    >+</Button>
+                                    >+</button>
                                 </div>
+
+                                {/* Diff Preview */}
+                                {countQty !== activeItem.quantity_pieces && (
+                                    <div className={`mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold ${countQty > activeItem.quantity_pieces
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-red-100 text-red-700'
+                                        }`}>
+                                        {countQty > activeItem.quantity_pieces ? (
+                                            <><TrendingUp className="h-4 w-4" /> +{countQty - activeItem.quantity_pieces} เกิน</>
+                                        ) : (
+                                            <><TrendingDown className="h-4 w-4" /> {countQty - activeItem.quantity_pieces} ขาด</>
+                                        )}
+                                    </div>
+                                )}
+                                {countQty === activeItem.quantity_pieces && (
+                                    <div className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-700">
+                                        <CheckCircle className="h-4 w-4" /> ตรงกัน ✓
+                                    </div>
+                                )}
                             </div>
 
-                            <div className="flex gap-2 pt-4">
-                                <Button variant="outline" className="flex-1 h-12" onClick={() => setActiveItemIndex(-1)}>Cancel</Button>
-                                <Button className="flex-1 bg-indigo-600 h-12 hover:bg-indigo-700" onClick={handleSaveItemCount}>Confirm</Button>
+                            <div className="flex gap-2 pt-2">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 h-14 rounded-xl text-base"
+                                    onClick={() => setActiveItemIndex(-1)}
+                                >
+                                    <ArrowLeft className="mr-1 h-4 w-4" /> กลับ
+                                </Button>
+                                <Button
+                                    className="flex-1 h-14 rounded-xl text-base font-bold bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 shadow-lg shadow-violet-500/20 active:scale-[0.98]"
+                                    onClick={handleSaveItemCount}
+                                >
+                                    <CheckCircle className="mr-2 h-5 w-5" />
+                                    ยืนยัน
+                                </Button>
                             </div>
                         </div>
                     )}

@@ -6,12 +6,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useScanner } from '@/hooks/mobile/useScanner';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import { Loader2, ArrowRight, CheckCircle2, Camera, X } from 'lucide-react';
+import { Loader2, ArrowRight, CheckCircle2, MapPin, Package } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { transferPartialStock } from '@/services/transferService';
 import { useAuth } from '@/contexts/AuthContextSimple';
-import { recordMove } from '@/services/movementService';
-import { Html5Qrcode } from 'html5-qrcode';
+import { addToStagingQueue } from '@/services/stagingService';
+import { CameraQRScanner } from '@/components/mobile/CameraQRScanner';
 
 const ItemMove = () => {
     const navigate = useNavigate();
@@ -25,55 +24,18 @@ const ItemMove = () => {
     const [targetLocation, setTargetLocation] = useState('');
     const [moveQty, setMoveQty] = useState<number>(0);
 
-    // Camera QR Scanner state
-    const [showScanner, setShowScanner] = useState(false);
-    const [html5QrCode, setHtml5QrCode] = useState<Html5Qrcode | null>(null);
-
     // Scanner for target location
     useScanner({
         onScan: (code) => {
-            // If we are on this page, scanning usually means scanning the TARGET location
             setTargetLocation(code);
         }
     });
-
-    // Camera QR Scanner functions
-    const startCameraScanner = async () => {
-        setShowScanner(true);
-        try {
-            const scanner = new Html5Qrcode("qr-reader-move");
-            setHtml5QrCode(scanner);
-
-            await scanner.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                (decodedText) => {
-                    setTargetLocation(decodedText);
-                    stopCameraScanner();
-                    toast.success(`สแกนได้: ${decodedText}`);
-                },
-                () => { }
-            );
-        } catch (err) {
-            console.error('Camera error:', err);
-            toast.error('ไม่สามารถเปิดกล้องได้');
-            setShowScanner(false);
-        }
-    };
-
-    const stopCameraScanner = () => {
-        if (html5QrCode) {
-            html5QrCode.stop().catch(() => { });
-            setHtml5QrCode(null);
-        }
-        setShowScanner(false);
-    };
 
     useEffect(() => {
         if (itemId) {
             loadItem(itemId);
         } else {
-            toast.error('No item specified');
+            toast.error('ไม่ได้ระบุสินค้า');
             navigate('/mobile/lookup');
         }
     }, [itemId]);
@@ -88,9 +50,9 @@ const ItemMove = () => {
 
             if (error) throw error;
             setItem(data);
-            setMoveQty(data.quantity_pieces); // Default to moving ALL
+            setMoveQty(data.quantity_pieces);
         } catch (error) {
-            toast.error('Failed to load item');
+            toast.error('โหลดสินค้าไม่สำเร็จ');
             navigate('/mobile/lookup');
         } finally {
             setLoading(false);
@@ -99,138 +61,153 @@ const ItemMove = () => {
 
     const handleMove = async () => {
         if (!targetLocation) {
-            toast.error('Please scan or enter target location');
+            toast.error('กรุณาสแกนหรือพิมพ์ตำแหน่งปลายทาง');
             return;
         }
         if (moveQty <= 0 || moveQty > (item?.quantity_pieces || 0)) {
-            toast.error('Invalid quantity');
+            toast.error('จำนวนไม่ถูกต้อง');
             return;
         }
 
         setSubmitting(true);
         try {
-            const result = await transferPartialStock(
-                item.id,
-                targetLocation,
-                moveQty,
-                user
-            );
+            // ส่งไปจุดพัก (Staging Queue) — ยังไม่ย้ายจริง
+            const result = await addToStagingQueue('move', {
+                inventoryItemId: item.id,
+                sku: item.sku || item.product_name,
+                productName: item.product_name,
+                quantity: moveQty,
+                locationFrom: item.location,
+                locationTo: targetLocation,
+                referenceType: 'manual',
+                createdBy: user?.email
+            });
 
             if (result.success) {
-                // Record movement for tracking
-                await recordMove(
-                    item.sku || item.product_name,
-                    item.product_name,
-                    item.location,
-                    targetLocation,
-                    moveQty,
-                    item.warehouse_id,
-                    `Mobile move`,
-                    user?.email
-                );
-
-                toast.success(`Moved to ${targetLocation}`);
-                navigate('/mobile/lookup'); // Go back to lookup to verify or do next
+                toast.success(`📦 ส่งไปจุดพักแล้ว • รอยืนยัน`);
+                navigate('/mobile/lookup');
             } else {
-                toast.error(result.message || 'Move failed');
+                toast.error('บันทึกไม่สำเร็จ');
             }
         } catch (error: any) {
-            toast.error('Exception during move');
+            toast.error('เกิดข้อผิดพลาด');
         } finally {
             setSubmitting(false);
         }
     };
 
-    if (loading) return <div className="p-8 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
+    if (loading) {
+        return (
+            <MobileLayout title="ย้ายสินค้า" showBack={true}>
+                <div className="flex flex-col items-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                    <p className="mt-3 text-slate-400 text-sm">กำลังโหลด...</p>
+                </div>
+            </MobileLayout>
+        );
+    }
 
     return (
-        <MobileLayout title="Move Item" showBack={true}>
-            {/* Camera QR Scanner Modal */}
-            {showScanner && (
-                <div className="fixed inset-0 z-50 bg-black/90 flex flex-col">
-                    <div className="flex justify-between items-center p-4 bg-black text-white">
-                        <span className="font-bold">📷 สแกน QR Location ปลายทาง</span>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={stopCameraScanner}
-                            className="text-white hover:bg-white/20"
-                        >
-                            <X className="h-6 w-6" />
-                        </Button>
+        <MobileLayout title="ย้ายสินค้า" showBack={true}>
+            {/* Product Info */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-4 border border-blue-100 mb-4">
+                <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                        <Package className="h-5 w-5 text-blue-600" />
                     </div>
-                    <div className="flex-1 flex items-center justify-center p-4">
-                        <div id="qr-reader-move" className="w-full max-w-sm bg-white rounded-lg overflow-hidden" />
-                    </div>
-                    <div className="p-4 text-center text-white text-sm">
-                        เล็งกล้องไปที่ QR Code ของ Location ปลายทาง
+                    <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-base text-slate-800 truncate">{item.product_name}</h3>
+                        <p className="text-xs text-slate-400 font-mono">{item.sku}</p>
                     </div>
                 </div>
-            )}
+            </div>
 
-            <Card className="mb-4 bg-blue-50 border-blue-200">
-                <CardContent className="p-4">
-                    <h3 className="font-bold text-lg">{item.product_name}</h3>
-                    <div className="flex justify-between items-end mt-2">
-                        <div>
-                            <p className="text-sm text-gray-500">Current Location</p>
-                            <p className="text-xl font-mono font-bold text-blue-800">{item.location}</p>
-                        </div>
-                        <div className="text-right">
-                            <p className="text-sm text-gray-500">Available</p>
-                            <p className="text-xl font-bold">{item.quantity_pieces} <span className="text-sm font-normal">pcs</span></p>
-                        </div>
+            {/* Visual Flow: From → To */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4">
+                <div className="flex items-center gap-3">
+                    {/* From */}
+                    <div className="flex-1 bg-blue-50 rounded-xl p-3 text-center">
+                        <p className="text-[10px] text-blue-500 font-bold mb-1">ต้นทาง</p>
+                        <p className="text-lg font-mono font-bold text-blue-700">{item.location}</p>
+                        <p className="text-xs text-blue-400 mt-0.5">{item.quantity_pieces} ชิ้น</p>
                     </div>
-                </CardContent>
-            </Card>
+
+                    {/* Arrow */}
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                        <ArrowRight className="h-5 w-5 text-slate-400" />
+                        <span className="text-[10px] text-slate-400 font-bold">{moveQty}</span>
+                    </div>
+
+                    {/* To */}
+                    <div className={`flex-1 rounded-xl p-3 text-center border-2 border-dashed transition-all ${targetLocation
+                        ? 'bg-emerald-50 border-emerald-300'
+                        : 'bg-slate-50 border-slate-200'
+                        }`}>
+                        <p className={`text-[10px] font-bold mb-1 ${targetLocation ? 'text-emerald-500' : 'text-slate-400'}`}>
+                            ปลายทาง
+                        </p>
+                        <p className={`text-lg font-mono font-bold ${targetLocation ? 'text-emerald-700' : 'text-slate-300'}`}>
+                            {targetLocation || '???'}
+                        </p>
+                    </div>
+                </div>
+            </div>
 
             <div className="space-y-4">
+                {/* Quantity */}
                 <div>
-                    <label className="text-sm font-medium mb-1 block">Quantity to Move (Pieces)</label>
+                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">จำนวนที่ย้าย (ชิ้น)</label>
                     <div className="flex gap-2">
                         <Button
                             variant={moveQty === item.quantity_pieces ? "default" : "outline"}
-                            className="flex-1"
+                            className="flex-1 h-12 rounded-xl"
                             onClick={() => setMoveQty(item.quantity_pieces)}
                         >
-                            All ({item.quantity_pieces})
+                            ทั้งหมด ({item.quantity_pieces})
                         </Button>
                         <Input
                             type="number"
                             value={moveQty}
                             onChange={(e) => setMoveQty(parseInt(e.target.value) || 0)}
-                            className="w-24 text-center font-bold"
+                            className="w-24 text-center font-bold h-12 rounded-xl border-slate-200"
                         />
                     </div>
                 </div>
 
+                {/* Target Location */}
                 <div>
-                    <label className="text-sm font-medium mb-1 block">Target Location</label>
-                    {/* Camera Scanner Button */}
-                    <Button
-                        onClick={startCameraScanner}
-                        className="w-full h-12 mb-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-bold shadow-lg"
-                    >
-                        <Camera className="h-5 w-5 mr-2" />
-                        📷 สแกน QR ด้วยกล้อง
-                    </Button>
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="หรือพิมพ์ Location"
-                            value={targetLocation}
-                            onChange={(e) => setTargetLocation(e.target.value.toUpperCase())}
-                            className="text-lg h-12 border-blue-300 font-mono"
-                        />
-                    </div>
+                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">ตำแหน่งปลายทาง</label>
+                    <CameraQRScanner
+                        onScan={(code) => {
+                            setTargetLocation(code);
+                            toast.success(`สแกนได้: ${code}`);
+                        }}
+                        buttonText="📷 สแกน QR ปลายทาง"
+                        modalTitle="📷 สแกน Location ปลายทาง"
+                        modalHint="เล็งกล้องไปที่ QR Code ของ Location ปลายทาง"
+                        scannerId="qr-reader-move"
+                        buttonClassName="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                    />
+                    <Input
+                        placeholder="หรือพิมพ์ Location"
+                        value={targetLocation}
+                        onChange={(e) => setTargetLocation(e.target.value.toUpperCase())}
+                        className="text-base h-12 font-mono rounded-xl border-slate-200 mt-2"
+                    />
                 </div>
 
+                {/* Confirm Button */}
                 <Button
-                    className="w-full h-12 text-lg bg-blue-600 hover:bg-blue-700 mt-6"
+                    className="w-full h-14 text-base font-bold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 rounded-xl shadow-lg shadow-blue-500/20 active:scale-[0.98] transition-all mt-2"
                     onClick={handleMove}
-                    disabled={submitting}
+                    disabled={submitting || !targetLocation}
                 >
-                    {submitting ? <Loader2 className="animate-spin mr-2" /> : <ArrowRight className="mr-2" />}
-                    Confirm Move
+                    {submitting ? (
+                        <Loader2 className="animate-spin mr-2" />
+                    ) : (
+                        <ArrowRight className="mr-2 h-5 w-5" />
+                    )}
+                    ยืนยันการย้าย
                 </Button>
             </div>
         </MobileLayout>

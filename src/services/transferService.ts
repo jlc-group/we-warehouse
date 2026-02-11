@@ -139,13 +139,14 @@ export const transferPartialStock = async (
         console.log(`📉 Source Update: ${currentTotalPieces} -> ${remainingPieces} pieces.`);
         console.log(`   Recalculated: ${newL1} Cartons (${sourceItem.unit_level1_name}), ${newL3} Pieces (${sourceItem.unit_level3_name})`);
 
-        // 3. Update Source Item
+        // 3. Update Source Item (including quantity_pieces)
         const { error: updateSourceError } = await localDb
             .from('inventory_items')
             .update({
                 unit_level1_quantity: newL1,
                 unit_level2_quantity: newL2,
                 unit_level3_quantity: newL3,
+                quantity_pieces: remainingPieces,
                 updated_at: new Date().toISOString()
             })
             .eq('id', sourceItemId);
@@ -169,13 +170,15 @@ export const transferPartialStock = async (
         const existingTarget = existingTargetData as any;
 
         if (existingTarget) {
-            // MERGE: Add to L3 (Pieces) OF TARGET
+            // MERGE: Add to L3 (Pieces) OF TARGET + update quantity_pieces
             const targetNewL3 = (existingTarget.unit_level3_quantity || 0) + quantityToTransfer;
+            const targetNewPieces = (existingTarget.quantity_pieces || 0) + quantityToTransfer;
 
             await localDb
                 .from('inventory_items')
                 .update({
                     unit_level3_quantity: targetNewL3,
+                    quantity_pieces: targetNewPieces,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existingTarget.id);
@@ -188,6 +191,7 @@ export const transferPartialStock = async (
                 unit_level1_quantity: 0,
                 unit_level2_quantity: 0,
                 unit_level3_quantity: quantityToTransfer,
+                quantity_pieces: quantityToTransfer,
                 warehouse_id: sourceItem.warehouse_id,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()

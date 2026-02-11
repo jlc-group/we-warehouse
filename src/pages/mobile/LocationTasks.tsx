@@ -9,7 +9,7 @@ import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { recordShip, recordReceive } from '@/services/movementService';
-import { QRScanner } from '@/components/QRScanner';
+import { CameraQRScanner } from '@/components/mobile/CameraQRScanner';
 import {
     Search, Loader2, MapPin, Package, ArrowRight,
     PackagePlus, PackageCheck, ArrowRightLeft, CheckCircle2,
@@ -65,8 +65,7 @@ const LocationTasks = () => {
     const [actionQuantity, setActionQuantity] = useState<number>(0);
     const [processing, setProcessing] = useState(false);
 
-    // Camera QR Scanner
-    const [showScanner, setShowScanner] = useState(false);
+    // Camera QR Scanner state removed — CameraQRScanner manages its own modal
 
 
     useEffect(() => {
@@ -385,14 +384,20 @@ const LocationTasks = () => {
 
     return (
         <MobileLayout title="สแกน Location" showBack={true}>
-            {/* Big Scan Button */}
-            <Button
-                onClick={() => setShowScanner(true)}
-                className="w-full h-16 mb-4 text-lg bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700"
-            >
-                <Camera className="h-6 w-6 mr-3" />
-                สแกน QR Location
-            </Button>
+            {/* Camera QR Scanner */}
+            <CameraQRScanner
+                onScan={(code) => {
+                    const locCode = code.replace(/^LOC[-_]/i, '').toUpperCase();
+                    setManualInput(locCode);
+                    setSelectedLocation(locCode);
+                    handleSearch(locCode);
+                }}
+                buttonText="📷 สแกน QR Location"
+                modalTitle="📷 สแกน Location"
+                modalHint="เล็งกล้องไปที่ QR Code ของ Location"
+                scannerId="qr-reader-tasks"
+                buttonClassName="bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 mb-4"
+            />
 
             {/* Search Input */}
             <div className="flex gap-2 mb-3">
@@ -630,18 +635,7 @@ const LocationTasks = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Camera QR Scanner */}
-            <QRScanner
-                isOpen={showScanner}
-                onClose={() => setShowScanner(false)}
-                onScanSuccess={(location) => {
-                    setShowScanner(false);
-                    const locCode = location.replace(/^LOC[-_]/i, '').toUpperCase();
-                    setManualInput(locCode);
-                    setSelectedLocation(locCode);
-                    handleSearch(locCode);
-                }}
-            />
+            {/* CameraQRScanner is inline above, no separate modal needed */}
         </MobileLayout>
     );
 };

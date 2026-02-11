@@ -27,7 +27,7 @@ const SalesAnalytics = lazy(() => import('@/components/SalesAnalytics').then(m =
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
 const EnhancedEventLogs = lazy(() => import('@/components/EnhancedEventLogs').then(m => ({ default: m.EnhancedEventLogs })));
-const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
+const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const DatabaseDebug = lazy(() => import('@/components/DatabaseDebug').then(m => ({ default: m.DatabaseDebug })));
 const AIAnalyticsLab = lazy(() => import('@/components/AIAnalyticsLab').then(m => ({ default: m.AIAnalyticsLab })));
 const ProductSummaryTable = lazy(() => import('@/components/ProductSummaryTable').then(m => ({ default: m.ProductSummaryTable })));
@@ -280,7 +280,7 @@ export default function Dashboard() {
       case 'users':
         return (
           <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
-            <UserManagement />
+            <AdminPage />
           </Suspense>
         );
 
