@@ -170,8 +170,13 @@ export function ProductSummaryTable() {
                 }
               }
             } else {
-              // If no conversion rates, use simple sum as fallback
-              total_stock_quantity = inventory.totalL1 + inventory.totalL2 + inventory.totalL3;
+              // If no conversion rates, use default rates (144, 12) instead of wrong L1+L2+L3
+              const defaultL1Rate = 144;
+              const defaultL2Rate = 12;
+              total_stock_quantity =
+                inventory.totalL1 * defaultL1Rate +
+                inventory.totalL2 * defaultL2Rate +
+                inventory.totalL3;
             }
           }
 
