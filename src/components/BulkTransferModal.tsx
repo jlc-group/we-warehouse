@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { localDb } from '@/integrations/local/client';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { calculateTotalBaseQuantity } from '@/utils/unitCalculations';
 
 interface InventoryItem {
   id: string;
@@ -94,7 +95,9 @@ export function BulkTransferModal({
           location,
           quantity_pieces,
           unit_level1_quantity,
+          unit_level1_rate,
           unit_level2_quantity,
+          unit_level2_rate,
           unit_level3_quantity
         `)
         // Use normalized location for query
@@ -104,14 +107,15 @@ export function BulkTransferModal({
 
       if (itemsError) throw itemsError;
 
-      // Filter locally to find items with actual stock (sum of all levels)
-      // Cast to any to avoid TypeScript errors with partial types
-      // Filter locally to find items with actual stock (sum of all levels)
-      // Cast to any to avoid TypeScript errors with partial types
+      // Filter locally to find items with actual stock (using conversion rates)
       const itemsWithStock = ((items || []) as any[]).filter(item => {
-        const total = (item.unit_level1_quantity || 0) +
-          (item.unit_level2_quantity || 0) +
-          (item.unit_level3_quantity || 0);
+        const total = calculateTotalBaseQuantity({
+          unit_level1_quantity: item.unit_level1_quantity || 0,
+          unit_level1_rate: item.unit_level1_rate || 144,
+          unit_level2_quantity: item.unit_level2_quantity || 0,
+          unit_level2_rate: item.unit_level2_rate || 12,
+          unit_level3_quantity: item.unit_level3_quantity || 0
+        });
         return total > 0;
       });
 
@@ -139,12 +143,16 @@ export function BulkTransferModal({
 
       console.log('📦 BulkTransferModal: Fetched products:', { count: products?.length });
 
-      // 3. Merge data and calculate total quantity correctly
+      // 3. Merge data and calculate total quantity correctly (with unit conversion)
       const mergedItems: InventoryItem[] = itemsWithStock.map((item: any) => {
         const product = (products as any[])?.find((p: any) => p.sku_code === item.sku);
-        const totalQuantity = (item.unit_level1_quantity || 0) +
-          (item.unit_level2_quantity || 0) +
-          (item.unit_level3_quantity || 0);
+        const totalQuantity = calculateTotalBaseQuantity({
+          unit_level1_quantity: item.unit_level1_quantity || 0,
+          unit_level1_rate: item.unit_level1_rate || 144,
+          unit_level2_quantity: item.unit_level2_quantity || 0,
+          unit_level2_rate: item.unit_level2_rate || 12,
+          unit_level3_quantity: item.unit_level3_quantity || 0
+        });
 
         return {
           id: item.id,
