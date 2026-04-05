@@ -146,14 +146,13 @@ export default function AdminPage() {
             setLoading(true);
             setError(null);
 
-            // Use localDb directly instead of backend JWT-protected API
+            // Use localDb directly — no JWT needed
             const [usersRes, rolesRes, deptsRes] = await Promise.all([
-                localDb.from('users').select('*').eq('is_active', true).order('email'),
-                localDb.from('roles').select('*').eq('is_active', true).order('level', { ascending: false }),
-                localDb.from('departments').select('*').eq('is_active', true).order('name'),
+                localDb.from('users').select('*').order('email'),
+                localDb.from('roles').select('*').order('code'),
+                localDb.from('departments').select('*').order('name'),
             ]);
 
-            // Map DB data to component types
             const usersData: UserItem[] = (usersRes.data || []).map((u: any) => ({
                 id: u.id,
                 email: u.email || '',
@@ -167,25 +166,31 @@ export default function AdminPage() {
 
             const rolesData: Role[] = (rolesRes.data || []).map((r: any) => ({
                 id: r.id,
-                code: r.name,
-                name: r.name_thai || r.name,
-                allowed_pages: Array.isArray(r.permissions) ? r.permissions : [],
+                code: r.code,
+                name: r.name,
+                allowed_pages: Array.isArray(r.allowed_pages) ? r.allowed_pages : [],
             }));
 
             const deptsData: Department[] = (deptsRes.data || []).map((d: any) => ({
                 id: d.id,
-                code: d.name,
-                name: d.name_thai || d.name,
-                allowed_pages: [],
+                code: d.code,
+                name: d.name,
+                allowed_pages: Array.isArray(d.allowed_pages) ? d.allowed_pages : [],
             }));
 
-            // Default available pages
             const pagesData: AvailablePage[] = [
-                { code: 'overview', name: 'ภาพรวม' },
+                { code: 'dashboard', name: 'ภาพรวม' },
                 { code: 'inventory', name: 'คลังสินค้า' },
-                { code: 'shipping', name: 'การส่งออก' },
+                { code: 'locations', name: 'จัดการ Location' },
+                { code: 'orders', name: 'คำสั่งซื้อ' },
+                { code: 'picking', name: 'หยิบสินค้า' },
+                { code: 'packing', name: 'แพ็คสินค้า' },
+                { code: 'shipping', name: 'จัดส่ง' },
+                { code: 'assignment', name: 'กระจายงาน' },
                 { code: 'finance', name: 'การเงิน' },
-                { code: 'tools', name: 'เครื่องมือ' },
+                { code: 'products', name: 'สินค้า' },
+                { code: 'transfers', name: 'โอนย้าย' },
+                { code: 'reports', name: 'รายงาน' },
                 { code: 'admin', name: 'จัดการผู้ใช้' },
             ];
 
@@ -315,8 +320,7 @@ function DepartmentsMatrix({
     const handleSave = async () => {
         if (!editingId) return;
         try {
-            const nameField = type === 'roles' ? 'name_thai' : 'name_thai';
-            await localDb.from(tableName).update({ [nameField]: editName, permissions: editPages }).eq('id', editingId);
+            await localDb.from(tableName).update({ name: editName, allowed_pages: editPages }).eq('id', editingId);
             toast.success('บันทึกสำเร็จ');
             cancelEdit();
             onRefresh();
@@ -328,10 +332,9 @@ function DepartmentsMatrix({
     const handleCreate = async () => {
         try {
             await localDb.from(tableName).insert({
-                name: newCode,
-                name_thai: newName,
-                permissions: type === 'roles' ? newPages : undefined,
-                is_active: true,
+                code: newCode,
+                name: newName,
+                allowed_pages: newPages,
             });
             toast.success('สร้างสำเร็จ');
             setShowCreate(false);
@@ -345,7 +348,7 @@ function DepartmentsMatrix({
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`ยืนยันลบ "${name}"?`)) return;
         try {
-            await localDb.from(tableName).update({ is_active: false }).eq('id', id);
+            await localDb.from(tableName).delete().eq('id', id);
             toast.success('ลบสำเร็จ');
             onRefresh();
         } catch (err: any) {
