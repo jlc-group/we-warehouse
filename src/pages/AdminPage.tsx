@@ -179,19 +179,19 @@ export default function AdminPage() {
             }));
 
             const pagesData: AvailablePage[] = [
-                { code: 'dashboard', name: 'ภาพรวม' },
-                { code: 'inventory', name: 'คลังสินค้า' },
-                { code: 'locations', name: 'จัดการ Location' },
-                { code: 'orders', name: 'คำสั่งซื้อ' },
-                { code: 'picking', name: 'หยิบสินค้า' },
-                { code: 'packing', name: 'แพ็คสินค้า' },
-                { code: 'shipping', name: 'จัดส่ง' },
-                { code: 'assignment', name: 'กระจายงาน' },
-                { code: 'finance', name: 'การเงิน' },
-                { code: 'products', name: 'สินค้า' },
-                { code: 'transfers', name: 'โอนย้าย' },
-                { code: 'reports', name: 'รายงาน' },
-                { code: 'admin', name: 'จัดการผู้ใช้' },
+                { key: 'dashboard', name: 'ภาพรวม', icon: '' },
+                { key: 'inventory', name: 'คลังสินค้า', icon: '' },
+                { key: 'locations', name: 'จัดการ Location', icon: '' },
+                { key: 'orders', name: 'คำสั่งซื้อ', icon: '' },
+                { key: 'picking', name: 'หยิบสินค้า', icon: '' },
+                { key: 'packing', name: 'แพ็คสินค้า', icon: '' },
+                { key: 'shipping', name: 'จัดส่ง', icon: '' },
+                { key: 'assignment', name: 'กระจายงาน', icon: '' },
+                { key: 'finance', name: 'การเงิน', icon: '' },
+                { key: 'products', name: 'สินค้า', icon: '' },
+                { key: 'transfers', name: 'โอนย้าย', icon: '' },
+                { key: 'reports', name: 'รายงาน', icon: '' },
+                { key: 'admin', name: 'จัดการผู้ใช้', icon: '' },
             ];
 
             setUsers(usersData);
