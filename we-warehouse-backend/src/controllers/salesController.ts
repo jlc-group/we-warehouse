@@ -151,9 +151,22 @@ export class SalesController {
   static async healthCheck(req: Request, res: Response): Promise<void> {
     try {
       const health = await SQLServerService.healthCheck();
+
+      // Check local PostgreSQL too
+      let localDbStatus = 'unknown';
+      try {
+        const { getLocalPool } = await import('../config/localDatabase.js');
+        const pool = getLocalPool();
+        await pool.query('SELECT 1');
+        localDbStatus = 'connected';
+      } catch {
+        localDbStatus = 'disconnected';
+      }
+
       res.json({
         success: true,
         ...health,
+        localDb: localDbStatus,
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
