@@ -21,11 +21,10 @@ function getBackendRoot(): string {
     if (backendUrl) {
         return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
     }
-    const salesUrl = import.meta.env.VITE_SALES_API_URL || '';
-    if (salesUrl) {
-        return salesUrl.replace(/\/api\/?$/, '') || salesUrl;
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return 'http://localhost:3004';
     }
-    return 'http://localhost:3004';
+    return '';
 }
 const API_BASE = getBackendRoot();
 
