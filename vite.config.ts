@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 5178,
     strictPort: true,
+    allowedHosts: ['warehouse.wejlc.com', 'localhost'],
     proxy: {
       '/api': {
         target: 'http://localhost:3004',
