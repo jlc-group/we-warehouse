@@ -105,55 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log('🔐 Authenticating user:', emailOrUsername);
 
-      // Try JWT login endpoint first
-      try {
-        const response = await fetch(`${API_BASE}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: emailOrUsername, password }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          // Map JWT response to User format
-          const jwtUser: User = {
-            id: data.user.id,
-            email: data.user.email || '',
-            full_name: data.user.full_name || '',
-            department: data.user.department?.name || 'ทั่วไป',
-            role: data.user.roles?.[0]?.name || 'พนักงาน',
-            role_level: data.user.roles?.some((r: UserRole) => r.code === 'super_admin') ? 5
-              : data.user.roles?.some((r: UserRole) => r.code === 'manager') ? 4
-                : data.user.roles?.some((r: UserRole) => r.code === 'supervisor') ? 3
-                  : data.user.roles?.some((r: UserRole) => r.code === 'picker' || r.code === 'receiver') ? 2
-                    : 1,
-            is_active: data.user.is_active,
-            username: data.user.username,
-            roles: data.user.roles,
-            dept: data.user.department,
-            allowed_pages: data.user.allowed_pages,
-            last_login: new Date().toISOString(),
-          };
-
-          // Store token and user
-          localStorage.setItem('warehouse_token', data.access_token);
-          localStorage.setItem('warehouse_user', JSON.stringify(jwtUser));
-          setUser(jwtUser);
-
-          console.log('🎉 JWT Login successful:', jwtUser.full_name, `(${jwtUser.role})`);
-          return;
-        }
-
-        // JWT login failed — fall through to DB query fallback
-        if (!response.ok) {
-          console.warn('⚠️ JWT auth failed, falling back to DB query');
-        }
-      } catch (jwtError: any) {
-        console.warn('⚠️ JWT auth not available, falling back to DB query');
-      }
-
-      // Fallback: Query user from Supabase/local database directly
+      // Query user from local database directly (no JWT needed)
       const isEmail = emailOrUsername.includes('@');
       let query = localDb
         .from('users')
