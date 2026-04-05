@@ -8,21 +8,12 @@ const USE_LOCAL_DB = import.meta.env.VITE_USE_LOCAL_DB === 'true';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Debug: Log environment variables (safely)
-console.log('🔍 Database Config Check:', {
-  mode: USE_LOCAL_DB ? '🏠 LOCAL PostgreSQL' : '☁️ SUPABASE CLOUD',
-  supabaseUrl: supabaseUrl ? '✅ Present' : '❌ Missing',
-  supabaseKey: supabaseAnonKey ? `✅ Present (${supabaseAnonKey.substring(0, 20)}...)` : '❌ Missing',
-  localDb: USE_LOCAL_DB ? {
-    host: import.meta.env.VITE_PG_HOST,
-    database: import.meta.env.VITE_PG_DATABASE
-  } : 'Not used',
-  env: import.meta.env.MODE
-});
+// Debug: Log database mode
+console.log(`🔍 Database Mode: ${USE_LOCAL_DB ? '🏠 LOCAL PostgreSQL' : '☁️ SUPABASE CLOUD'}`);
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables');
-  console.error('Available env keys:', Object.keys(import.meta.env));
+// Only validate Supabase credentials when NOT using local DB
+if (!USE_LOCAL_DB && (!supabaseUrl || !supabaseAnonKey)) {
+  console.error('❌ Missing Supabase environment variables (required for cloud mode)');
   throw new Error('Missing Supabase environment variables');
 }
 
@@ -35,17 +26,8 @@ async function exponentialBackoff(attempt: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, delay));
 }
 
-// Connection health check
-export async function checkSupabaseConnection(): Promise<boolean> {
-  try {
-    const { error } = await supabase.from('products').select('id').limit(1);
-    return !error;
-  } catch {
-    return false;
-  }
-}
-
-const cloudClient = createClient<Database, 'public'>(supabaseUrl, supabaseAnonKey, {
+// Only create Supabase cloud client when NOT using local DB
+const cloudClient = USE_LOCAL_DB ? null : createClient<Database, 'public'>(supabaseUrl!, supabaseAnonKey!, {
   auth: {
     persistSession: true,
     autoRefreshToken: false, // CRITICAL: Disable auto refresh to prevent refresh loops
@@ -137,6 +119,19 @@ const cloudClient = createClient<Database, 'public'>(supabaseUrl, supabaseAnonKe
 });
 
 // Export the appropriate client based on mode
-// Cast localDb to any because it partially implements SupabaseClient
 export const supabase = (USE_LOCAL_DB ? localDb : cloudClient) as any;
+
+// Connection check — works with both local and cloud
+export async function checkSupabaseConnection(): Promise<boolean> {
+  try {
+    if (USE_LOCAL_DB) {
+      const { data, error } = await localDb.from('products').select('id').limit(1);
+      return !error;
+    }
+    const { error } = await cloudClient!.from('products').select('id').limit(1);
+    return !error;
+  } catch {
+    return false;
+  }
+}
 
