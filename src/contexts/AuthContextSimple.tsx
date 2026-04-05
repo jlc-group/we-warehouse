@@ -145,17 +145,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // If JWT login fails with 4xx, throw error
-        if (response.status >= 400 && response.status < 500) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+        // JWT login failed — fall through to DB query fallback
+        if (!response.ok) {
+          console.warn('⚠️ JWT auth failed, falling back to DB query');
         }
       } catch (jwtError: any) {
-        // If it's an auth error (not network), re-throw
-        if (jwtError.message && !jwtError.message.includes('fetch')) {
-          throw jwtError;
-        }
-        console.warn('⚠️ JWT auth not available, falling back to Supabase query');
+        console.warn('⚠️ JWT auth not available, falling back to DB query');
       }
 
       // Fallback: Query user from Supabase/local database directly
