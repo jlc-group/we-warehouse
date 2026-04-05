@@ -54,15 +54,14 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 function getBackendRoot(): string {
   const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
   if (backendUrl) {
-    // Strip /api/local or similar suffixes to get backend root
     return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
   }
-  // Fallback: use VITE_SALES_API_URL root or localhost
-  const salesUrl = import.meta.env.VITE_SALES_API_URL || '';
-  if (salesUrl) {
-    return salesUrl.replace(/\/api\/?$/, '') || salesUrl;
+  // Auto-detect: localhost → direct, external → relative (through Vite proxy)
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://localhost:3004';
   }
-  return 'http://localhost:3004';
+  // External (tunnel) — use empty string so URLs become relative /api/auth/login
+  return '';
 }
 const API_BASE = getBackendRoot();
 
