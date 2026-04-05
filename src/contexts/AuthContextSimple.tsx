@@ -74,8 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkSession = () => {
       console.log('🔍 DEBUG [A]: Auth checkSession started');
       const userData = localStorage.getItem('warehouse_user');
-      const token = localStorage.getItem('warehouse_token');
-      if (userData && token) {
+      if (userData) {
         try {
           const parsedUser = JSON.parse(userData);
           const normalizedUser: User = {
