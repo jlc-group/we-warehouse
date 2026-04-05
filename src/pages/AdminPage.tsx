@@ -3,7 +3,7 @@
  * UI inspired by WeOrder Super Admin Panel
  * Matrix table for Roles & Departments page permissions
  */
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -649,9 +649,8 @@ function UsersTab({
                     </thead>
                     <tbody>
                         {filteredUsers.map(u => (
-                            <>
+                            <React.Fragment key={u.id}>
                                 <tr
-                                    key={u.id}
                                     className={`border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer ${!u.is_active ? 'opacity-50' : ''
                                         } ${expandedUser === u.id ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''}`}
                                     onClick={() => setExpandedUser(expandedUser === u.id ? null : u.id)}
@@ -826,7 +825,7 @@ function UsersTab({
                                         </td>
                                     </tr>
                                 )}
-                            </>
+                            </React.Fragment>
                         ))}
                     </tbody>
                 </table>
