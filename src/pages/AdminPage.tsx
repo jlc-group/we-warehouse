@@ -14,6 +14,7 @@ import {
     CheckCircle2, XCircle, ChevronDown, ChevronUp, Search
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
+import { localDb } from '@/integrations/local/client';
 
 // Backend API base URL - derive root from VITE_BACKEND_URL
 function getBackendRoot(): string {
@@ -144,12 +145,50 @@ export default function AdminPage() {
         try {
             setLoading(true);
             setError(null);
-            const [usersData, rolesData, deptsData, pagesData] = await Promise.all([
-                apiGet<UserItem[]>('/api/admin/users'),
-                apiGet<Role[]>('/api/admin/roles'),
-                apiGet<Department[]>('/api/admin/departments'),
-                apiGet<AvailablePage[]>('/api/auth/pages'),
+
+            // Use localDb directly instead of backend JWT-protected API
+            const [usersRes, rolesRes, deptsRes] = await Promise.all([
+                localDb.from('users').select('*').eq('is_active', true).order('email'),
+                localDb.from('roles').select('*').eq('is_active', true).order('level', { ascending: false }),
+                localDb.from('departments').select('*').eq('is_active', true).order('name'),
             ]);
+
+            // Map DB data to component types
+            const usersData: UserItem[] = (usersRes.data || []).map((u: any) => ({
+                id: u.id,
+                email: u.email || '',
+                full_name: u.full_name || '',
+                username: u.username || '',
+                is_active: u.is_active ?? true,
+                department: u.department ? { id: '', name: u.department } : null,
+                roles: u.role ? [{ id: '', code: u.role, name: u.role }] : [],
+                last_login: u.last_login || null,
+            }));
+
+            const rolesData: Role[] = (rolesRes.data || []).map((r: any) => ({
+                id: r.id,
+                code: r.name,
+                name: r.name_thai || r.name,
+                allowed_pages: Array.isArray(r.permissions) ? r.permissions : [],
+            }));
+
+            const deptsData: Department[] = (deptsRes.data || []).map((d: any) => ({
+                id: d.id,
+                code: d.name,
+                name: d.name_thai || d.name,
+                allowed_pages: [],
+            }));
+
+            // Default available pages
+            const pagesData: AvailablePage[] = [
+                { code: 'overview', name: 'ภาพรวม' },
+                { code: 'inventory', name: 'คลังสินค้า' },
+                { code: 'shipping', name: 'การส่งออก' },
+                { code: 'finance', name: 'การเงิน' },
+                { code: 'tools', name: 'เครื่องมือ' },
+                { code: 'admin', name: 'จัดการผู้ใช้' },
+            ];
+
             setUsers(usersData);
             setRoles(rolesData);
             setDepartments(deptsData);
@@ -256,7 +295,7 @@ function DepartmentsMatrix({
     const [newName, setNewName] = useState('');
     const [newPages, setNewPages] = useState<string[]>([]);
 
-    const endpoint = type === 'roles' ? '/api/admin/roles' : '/api/admin/departments';
+    const tableName = type === 'roles' ? 'roles' : 'departments';
     const titleLabel = type === 'roles' ? 'Roles & Page Permissions' : 'แผนก & สิทธิ์การเข้าถึงหน้า';
     const addLabel = type === 'roles' ? '+ เพิ่ม Role' : '+ เพิ่มแผนก';
     const firstColLabel = type === 'roles' ? 'ROLE' : 'แผนก';
@@ -276,7 +315,8 @@ function DepartmentsMatrix({
     const handleSave = async () => {
         if (!editingId) return;
         try {
-            await apiPut(`${endpoint}/${editingId}`, { name: editName, allowed_pages: editPages });
+            const nameField = type === 'roles' ? 'name_thai' : 'name_thai';
+            await localDb.from(tableName).update({ [nameField]: editName, permissions: editPages }).eq('id', editingId);
             toast.success('บันทึกสำเร็จ');
             cancelEdit();
             onRefresh();
@@ -287,7 +327,12 @@ function DepartmentsMatrix({
 
     const handleCreate = async () => {
         try {
-            await apiPost(endpoint, { code: newCode, name: newName, allowed_pages: newPages });
+            await localDb.from(tableName).insert({
+                name: newCode,
+                name_thai: newName,
+                permissions: type === 'roles' ? newPages : undefined,
+                is_active: true,
+            });
             toast.success('สร้างสำเร็จ');
             setShowCreate(false);
             setNewCode(''); setNewName(''); setNewPages([]);
@@ -300,7 +345,7 @@ function DepartmentsMatrix({
     const handleDelete = async (id: string, name: string) => {
         if (!confirm(`ยืนยันลบ "${name}"?`)) return;
         try {
-            await apiDelete(`${endpoint}/${id}`);
+            await localDb.from(tableName).update({ is_active: false }).eq('id', id);
             toast.success('ลบสำเร็จ');
             onRefresh();
         } catch (err: any) {
@@ -528,7 +573,8 @@ function UsersTab({
 
     const handleAssignRoles = async (userId: string) => {
         try {
-            await apiPost(`/api/admin/users/${userId}/roles`, { role_ids: selectedRoleIds });
+            const roleName = roles.find(r => r.id === selectedRoleIds[0])?.code || '';
+            await localDb.from('users').update({ role: roleName }).eq('id', userId);
             toast.success('กำหนดบทบาทสำเร็จ');
             setEditingRoles(null);
             onRefresh();
@@ -539,7 +585,8 @@ function UsersTab({
 
     const handleUpdateDepartment = async (userId: string, deptId: string) => {
         try {
-            await apiPut(`/api/admin/users/${userId}`, { department_id: deptId || null });
+            const deptName = departments.find(d => d.id === deptId)?.code || '';
+            await localDb.from('users').update({ department: deptName, department_id: deptId || null }).eq('id', userId);
             toast.success('เปลี่ยนแผนกสำเร็จ');
             onRefresh();
         } catch (err: any) {
@@ -549,7 +596,7 @@ function UsersTab({
 
     const handleToggleActive = async (userId: string, currentActive: boolean) => {
         try {
-            await apiPut(`/api/admin/users/${userId}`, { is_active: !currentActive });
+            await localDb.from('users').update({ is_active: !currentActive }).eq('id', userId);
             toast.success(currentActive ? 'ปิดใช้งานบัญชีแล้ว' : 'เปิดใช้งานบัญชีแล้ว');
             onRefresh();
         } catch (err: any) {
@@ -559,7 +606,7 @@ function UsersTab({
 
     const handleResetPassword = async (userId: string) => {
         try {
-            await apiPut(`/api/admin/users/${userId}/reset-password`, { new_password: newPassword });
+            await localDb.from('users').update({ password_hash: newPassword }).eq('id', userId);
             toast.success('รีเซ็ตรหัสผ่านสำเร็จ');
             setResetPasswordId(null);
             setNewPassword('');
