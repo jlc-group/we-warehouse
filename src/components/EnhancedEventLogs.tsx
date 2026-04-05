@@ -164,7 +164,7 @@ export function EnhancedEventLogs() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      localDb.removeChannel(channel);
     };
   }, [fetchEvents]);
 

@@ -18,9 +18,9 @@ export const executeTransfer = async (
             .select('id, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity')
             .eq('sku', inventoryItem.sku)
             .eq('location', destinationLocation)
-            .single();
+            .maybeSingle();
 
-        if (fetchError && !fetchError.message?.includes('not found')) {
+        if (fetchError) {
             return { success: false, error: fetchError, message: `Error checking dest for ${inventoryItem.sku}` };
         }
 
@@ -161,9 +161,9 @@ export const transferPartialStock = async (
             .select('*')
             .eq('sku', sourceItem.sku)
             .eq('location', targetLocation)
-            .single();
+            .maybeSingle();
 
-        if (targetFetchError && !targetFetchError.message?.includes('not found')) {
+        if (targetFetchError) {
             console.error('Error checking target:', targetFetchError);
         }
 

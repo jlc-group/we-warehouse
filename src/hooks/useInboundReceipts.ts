@@ -188,7 +188,7 @@ export function useInboundReceipts(options?: UseInboundReceiptsOptions) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      localDb.removeChannel(channel);
     };
   }, [queryClient]);
 

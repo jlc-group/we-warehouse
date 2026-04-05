@@ -75,6 +75,12 @@ export class LocalController {
      */
     private static FK_MAP: Record<string, Record<string, string>> = {
         'inventory_items': { 'products': 'sku' },  // inventory_items.sku -> products.sku_code
+        'customer_orders': { 'customers': 'customer_id' },
+        'sales_orders': { 'customers': 'customer_id' },
+        'order_items': { 'customer_orders': 'order_id' },
+        'sales_order_items': { 'sales_orders': 'order_id' },
+        'fulfillment_items': { 'fulfillment_tasks': 'fulfillment_task_id', 'inventory_items': 'inventory_item_id' },
+        'inbound_receipt_items': { 'inbound_receipts': 'inbound_receipt_id', 'products': 'product_id' },
     };
 
     /**
@@ -410,6 +416,7 @@ export class LocalController {
 
     /**
      * PATCH /:table - Update records
+     * Supports raw SQL expressions via { __raw: "SQL expression" } values
      */
     static async update(req: Request, res: Response, next: NextFunction) {
         try {
@@ -417,12 +424,20 @@ export class LocalController {
             const data = req.body;
             const params = LocalController.parseQueryParams(req.query);
 
-            const setColumns = Object.keys(data);
-            const setValues = Object.values(data);
-            const setClauses = setColumns.map((col, i) => `${col} = $${i + 1}`);
+            const setClauses: string[] = [];
+            const values: any[] = [];
+
+            for (const [col, val] of Object.entries(data)) {
+                if (val && typeof val === 'object' && (val as any).__raw) {
+                    // Raw SQL expression - inject directly (e.g., GREATEST(col - 5, 0))
+                    setClauses.push(`${col} = ${(val as any).__raw}`);
+                } else {
+                    values.push(val);
+                    setClauses.push(`${col} = $${values.length}`);
+                }
+            }
 
             let sql = `UPDATE ${tableName} SET ${setClauses.join(', ')}`;
-            const values = [...setValues];
 
             // Add WHERE from filters
             if (params.filters.length > 0) {

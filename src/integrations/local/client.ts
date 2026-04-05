@@ -11,6 +11,19 @@
 // Backend API URL - use env variable for Tunnel or default to localhost
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004/api/local';
 
+// Raw SQL expression marker - used in .update() payloads for SQL expressions like GREATEST()
+export class RawExpression {
+    constructor(public readonly expression: string) {}
+    toJSON() { return { __raw: this.expression }; }
+}
+
+// No-op channel for Supabase real-time subscription compatibility
+class NoOpChannel {
+    on(_event: string, _opts: any, _callback?: any) { return this; }
+    subscribe(_callback?: any) { return this; }
+    unsubscribe() { return this; }
+}
+
 // Supabase-compatible query interface using HTTP API
 export class LocalDatabaseClient {
     private baseUrl: string;
@@ -21,6 +34,29 @@ export class LocalDatabaseClient {
 
     from(tableName: string) {
         return new QueryBuilder(this.baseUrl, tableName);
+    }
+
+    /**
+     * Create a raw SQL expression marker for use in .update() calls
+     * Backend will interpret { __raw: "SQL" } as a raw SQL expression
+     */
+    raw(expression: string): RawExpression {
+        return new RawExpression(expression);
+    }
+
+    /**
+     * No-op channel for Supabase real-time subscription compatibility
+     * Local PostgreSQL does not support real-time, so this returns a stub
+     */
+    channel(_name: string): NoOpChannel {
+        return new NoOpChannel();
+    }
+
+    /**
+     * No-op removeChannel for Supabase compatibility
+     */
+    removeChannel(_channel: any) {
+        // No-op: local PostgreSQL has no real-time channels
     }
 
     /**
@@ -85,6 +121,7 @@ class QueryBuilder {
     private limitValue: number | null = null;
     private offsetValue: number | null = null;
     private singleResult: boolean = false;
+    private maybeSingleMode: boolean = false;
     private pendingUpdate: any = null;
     private pendingDelete: boolean = false;
     private pendingUpsert: { data: any; onConflict?: string } | null = null;
@@ -184,6 +221,7 @@ class QueryBuilder {
 
     single() {
         this.singleResult = true;
+        this.maybeSingleMode = false;
         this.limitValue = 1;
         return this;
     }
@@ -191,6 +229,7 @@ class QueryBuilder {
     // .maybeSingle() - Like single() but returns null instead of error if no rows
     maybeSingle() {
         this.singleResult = true;
+        this.maybeSingleMode = true;
         this.limitValue = 1;
         return this;
     }
@@ -364,7 +403,11 @@ class QueryBuilder {
             const queryString = this.buildQueryParams();
             const url = `${this.baseUrl}/${this.tableName}${queryString ? '?' + queryString : ''}`;
 
-            const response = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const error = await response.json().catch(() => ({ message: response.statusText }));
@@ -373,8 +416,16 @@ class QueryBuilder {
             }
 
             const result = await response.json();
-            const data = this.singleResult ? (Array.isArray(result) ? result[0] : result) : result;
-            resolve({ data: data || null, error: null });
+            if (this.singleResult) {
+                const row = Array.isArray(result) ? result[0] : result;
+                if (!row && !this.maybeSingleMode) {
+                    resolve({ data: null, error: { message: 'Row not found', code: 'PGRST116' } });
+                } else {
+                    resolve({ data: row || null, error: null });
+                }
+            } else {
+                resolve({ data: result, error: null });
+            }
         } catch (error: any) {
             resolve({ data: null, error: { message: error.message } });
         }
