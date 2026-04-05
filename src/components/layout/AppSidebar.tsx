@@ -138,7 +138,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <Sidebar className="border-r-2 border-slate-200">
@@ -247,7 +247,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </p>
             </div>
             <button
-              onClick={() => logout()}
+              onClick={() => signOut()}
               className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
               title="ออกจากระบบ"
             >
