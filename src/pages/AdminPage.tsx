@@ -164,18 +164,31 @@ export default function AdminPage() {
                 last_login: u.last_login || null,
             }));
 
+            const parsePages = (val: any): string[] => {
+                if (Array.isArray(val)) return val;
+                if (typeof val === 'string') {
+                    try {
+                        // Handle JSON array: ["a","b"] or PostgreSQL array: {"a","b"}
+                        const cleaned = val.replace(/^\{/, '[').replace(/\}$/, ']');
+                        const parsed = JSON.parse(cleaned);
+                        return Array.isArray(parsed) ? parsed : [];
+                    } catch { return []; }
+                }
+                return [];
+            };
+
             const rolesData: Role[] = (rolesRes.data || []).map((r: any) => ({
                 id: r.id,
                 code: r.code,
                 name: r.name,
-                allowed_pages: Array.isArray(r.allowed_pages) ? r.allowed_pages : [],
+                allowed_pages: parsePages(r.allowed_pages),
             }));
 
             const deptsData: Department[] = (deptsRes.data || []).map((d: any) => ({
                 id: d.id,
                 code: d.code,
                 name: d.name,
-                allowed_pages: Array.isArray(d.allowed_pages) ? d.allowed_pages : [],
+                allowed_pages: parsePages(d.allowed_pages),
             }));
 
             const pagesData: AvailablePage[] = [
@@ -320,7 +333,7 @@ function DepartmentsMatrix({
     const handleSave = async () => {
         if (!editingId) return;
         try {
-            await localDb.from(tableName).update({ name: editName, allowed_pages: editPages }).eq('id', editingId);
+            await localDb.from(tableName).update({ name: editName, allowed_pages: JSON.stringify(editPages) }).eq('id', editingId);
             toast.success('บันทึกสำเร็จ');
             cancelEdit();
             onRefresh();
@@ -334,7 +347,7 @@ function DepartmentsMatrix({
             await localDb.from(tableName).insert({
                 code: newCode,
                 name: newName,
-                allowed_pages: newPages,
+                allowed_pages: JSON.stringify(newPages),
             });
             toast.success('สร้างสำเร็จ');
             setShowCreate(false);
