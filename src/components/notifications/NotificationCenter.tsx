@@ -58,7 +58,7 @@ export function NotificationCenter() {
                     )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[360px] rounded-xl shadow-lg border-slate-200">
+            <DropdownMenuContent align="end" className="w-[340px] rounded-xl shadow-2xl border border-slate-200 bg-white z-50">
                 {/* Header */}
                 <DropdownMenuLabel className="flex items-center justify-between py-3">
                     <span className="font-semibold text-slate-800">การแจ้งเตือน</span>
@@ -91,7 +91,7 @@ export function NotificationCenter() {
                                 return (
                                     <DropdownMenuItem
                                         key={alert.id}
-                                        className={`p-2.5 cursor-pointer rounded-lg border ${style.border} ${style.bg} focus:${style.bg}`}
+                                        className={`p-2.5 cursor-pointer rounded-lg border ${style.border} ${style.bg} hover:opacity-90`}
                                         onClick={() => acknowledgeAlert(alert.id)}
                                     >
                                         <div className="flex gap-2.5 w-full items-start">

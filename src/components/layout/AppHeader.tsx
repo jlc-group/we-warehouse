@@ -133,7 +133,7 @@ export function AppHeader({
               <ChevronDown className="h-4 w-4 text-slate-400" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-lg border-slate-200">
+          <DropdownMenuContent align="end" className="w-56 rounded-xl shadow-2xl border border-slate-200 bg-white z-50">
             <DropdownMenuLabel className="py-3">
               <div className="flex flex-col">
                 <span className="font-semibold text-slate-800">{user?.email || 'Guest'}</span>
