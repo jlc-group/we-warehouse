@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContextSimple';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { HelpButton } from '@/components/help/HelpButton';
 
 interface AppHeaderProps {
   title?: string;
@@ -35,12 +36,14 @@ interface AppHeaderProps {
   showSearch?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  helpTopic?: string;
 }
 
 export function AppHeader({
   title = 'WE Warehouse',
   subtitle,
   showSearch = true,
+  helpTopic = 'overview',
   onRefresh,
   isRefreshing = false
 }: AppHeaderProps) {
@@ -105,6 +108,9 @@ export function AppHeader({
 
         {/* Notifications - Using real-time alerts */}
         <NotificationCenter />
+
+        {/* Help Guide */}
+        <HelpButton topic={helpTopic} />
 
         {/* Dark Mode Toggle */}
         <ThemeToggle />

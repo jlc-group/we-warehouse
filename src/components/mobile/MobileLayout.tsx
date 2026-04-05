@@ -5,18 +5,22 @@ import { LogOut, Home, ArrowLeft, User, Package, ScanLine, ClipboardList, Menu }
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
 
+import { HelpButton } from '@/components/help/HelpButton';
+
 interface MobileLayoutProps {
     children: React.ReactNode;
     title?: string;
     showBack?: boolean;
     hideBottomNav?: boolean;
+    helpTopic?: string;
 }
 
 export const MobileLayout: React.FC<MobileLayoutProps> = ({
     children,
     title = 'WMS Mobile',
     showBack = false,
-    hideBottomNav = false
+    hideBottomNav = false,
+    helpTopic = 'mobile-home'
 }) => {
     const { user, signOut } = useAuth();
     const navigate = useNavigate();
@@ -75,6 +79,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                 {user?.full_name || 'User'}
                             </span>
                         </div>
+                        <HelpButton topic={helpTopic} variant="mobile" />
                         <button
                             className="flex items-center justify-center w-9 h-9 rounded-xl hover:bg-red-50 active:scale-95 transition-all"
                             onClick={handleLogout}

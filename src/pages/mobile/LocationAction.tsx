@@ -142,7 +142,7 @@ export default function LocationAction() {
   ];
 
   return (
-    <MobileLayout title={`Location ${location}`} showBack>
+    <MobileLayout title={`Location ${location}`} showBack helpTopic="location-action">
       <div className="p-4 space-y-4 pb-24">
         {/* Location Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-4 text-white shadow-lg">
