@@ -116,7 +116,7 @@ export class LocationQRService {
         .select('id')
         .eq('location', normalizedLocation)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       let data, error;
 
@@ -306,9 +306,9 @@ export class LocationQRService {
         .select('*')
         .eq('location', normalizedLocation)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('Error getting QR by location:', error);
         return {
           data: null,

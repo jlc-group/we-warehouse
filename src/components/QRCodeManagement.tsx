@@ -54,7 +54,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
   useEffect(() => {
     const fetchWarehouseLocations = async () => {
       try {
-        const { data, error } = await (supabase as any)
+        const { data, error } = await localDb
           .from('warehouse_locations')
           .select('location_code')
           .eq('is_active', true)

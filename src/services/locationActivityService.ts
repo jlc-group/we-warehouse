@@ -150,7 +150,7 @@ export class LocationActivityService {
         .eq('location', location)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       return {
         location,
@@ -177,9 +177,9 @@ export class LocationActivityService {
         .from('location_activity_summary')
         .select('*')
         .eq('location', location)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching stats:', error);
         return null;
       }
