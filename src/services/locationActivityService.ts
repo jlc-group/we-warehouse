@@ -1,6 +1,6 @@
 import { localDb } from '@/integrations/local/client';
 
-export type ActivityType = 'MOVE_IN' | 'MOVE_OUT' | 'TRANSFER' | 'ADJUST' | 'SCAN';
+export type ActivityType = 'MOVE_IN' | 'MOVE_OUT' | 'TRANSFER' | 'ADJUST' | 'SCAN' | 'RECEIVE' | 'SHIP_OUT' | 'COUNT' | 'INSPECT';
 
 export interface LocationActivity {
   id: string;
@@ -291,6 +291,105 @@ export class LocationActivityService {
       toLocation: params.toLocation,
       userName: params.userName,
       notes: `ย้ายจาก ${params.fromLocation}`
+    });
+  }
+
+  /**
+   * บันทึก RECEIVE activity (รับสินค้าเข้า location)
+   */
+  static async logReceive(params: {
+    location: string;
+    productSku: string;
+    productName: string;
+    quantity: number;
+    unit?: string;
+    referenceType?: string;
+    referenceId?: string;
+    userName?: string;
+    notes?: string;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'RECEIVE',
+      productSku: params.productSku,
+      productName: params.productName,
+      quantity: params.quantity,
+      unit: params.unit,
+      userName: params.userName,
+      notes: params.notes || `รับเข้า ${params.quantity} ${params.unit || 'ชิ้น'}`,
+      metadata: {
+        reference_type: params.referenceType,
+        reference_id: params.referenceId
+      }
+    });
+  }
+
+  /**
+   * บันทึก SHIP_OUT activity (ส่งสินค้าออกจาก location)
+   */
+  static async logShipOut(params: {
+    location: string;
+    productSku: string;
+    productName: string;
+    quantity: number;
+    unit?: string;
+    orderId?: string;
+    userName?: string;
+    notes?: string;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'SHIP_OUT',
+      productSku: params.productSku,
+      productName: params.productName,
+      quantity: -Math.abs(params.quantity),
+      unit: params.unit,
+      userName: params.userName,
+      notes: params.notes || `ส่งออก ${params.quantity} ${params.unit || 'ชิ้น'}`,
+      metadata: {
+        order_id: params.orderId
+      }
+    });
+  }
+
+  /**
+   * บันทึก COUNT activity (นับสต็อกที่ location)
+   */
+  static async logCount(params: {
+    location: string;
+    results: Array<{ sku: string; productName: string; expected: number; actual: number }>;
+    userName?: string;
+    notes?: string;
+  }) {
+    const discrepancies = params.results.filter(r => r.expected !== r.actual);
+    return this.logActivity({
+      location: params.location,
+      activityType: 'COUNT',
+      userName: params.userName,
+      notes: params.notes || `นับสต็อก ${params.results.length} รายการ${discrepancies.length > 0 ? ` (ไม่ตรง ${discrepancies.length} รายการ)` : ' (ตรงทั้งหมด)'}`,
+      metadata: {
+        total_items: params.results.length,
+        discrepancies: discrepancies.length,
+        results: params.results
+      }
+    });
+  }
+
+  /**
+   * บันทึก INSPECT activity (ตรวจสอบ location)
+   */
+  static async logInspect(params: {
+    location: string;
+    userName?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'INSPECT',
+      userName: params.userName,
+      notes: params.notes || 'ตรวจสอบตำแหน่ง',
+      metadata: params.metadata
     });
   }
 }

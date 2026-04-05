@@ -98,7 +98,9 @@ export class LocationQRService {
         baseUrl = window.location.origin;
       }
 
-      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(normalizedLocation)}&action=view`;
+      // URL-safe location format: A3/2 → A3-2
+      const urlLocation = normalizedLocation.replace(/\//g, '-');
+      const qrUrl = `${baseUrl}/mobile/location/${urlLocation}`;
 
       // Generate QR code image as data URL
       const qrImageDataURL = await QRCodeLib.toDataURL(qrUrl, {

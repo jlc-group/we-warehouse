@@ -24,6 +24,7 @@ import MobileCount from "./pages/mobile/MobileCount";
 import MobilePick from "./pages/mobile/MobilePick";
 import LocationTasks from "./pages/mobile/LocationTasks";
 import MyTasks from "./pages/mobile/MyTasks";
+import LocationAction from "./pages/mobile/LocationAction";
 import AdminPage from "./pages/AdminPage";
 
 // Development vs Production optimized query client configuration
@@ -154,6 +155,14 @@ const App = () => (
                         element={
                           <AuthGuard>
                             <MyTasks />
+                          </AuthGuard>
+                        }
+                      />
+                      <Route
+                        path="/mobile/location/:locationCode"
+                        element={
+                          <AuthGuard>
+                            <LocationAction />
                           </AuthGuard>
                         }
                       />
