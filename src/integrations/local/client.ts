@@ -8,20 +8,9 @@
  * For Cloudflare Tunnel: Set VITE_BACKEND_URL in .env
  */
 
-// Backend API URL - auto-detect: use localhost when on localhost, tunnel URL when external
-function getBackendUrl(): string {
-  // Explicit override from env
-  if (import.meta.env.VITE_BACKEND_URL) {
-    return import.meta.env.VITE_BACKEND_URL;
-  }
-  // Auto-detect: if browser is on localhost → use localhost backend
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3005/api/local';
-  }
-  // External access (e.g. warehouse.wejlc.com) → use Vite proxy /api/local
-  return '/api/local';
-}
-const BACKEND_URL = getBackendUrl();
+import { getLocalDbUrl } from '@/lib/apiConfig';
+
+const BACKEND_URL = getLocalDbUrl();
 
 // Raw SQL expression marker - used in .update() payloads for SQL expressions like GREATEST()
 export class RawExpression {

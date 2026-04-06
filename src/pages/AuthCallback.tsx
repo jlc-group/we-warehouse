@@ -20,18 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, AlertCircle, ArrowLeft } from 'lucide-react';
 
-// Backend API base URL
-function getBackendRoot(): string {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-  if (backendUrl) {
-    return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
-  }
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3005';
-  }
-  return '';
-}
-
+import { getBackendRoot } from '@/lib/apiConfig';
 const API_BASE = getBackendRoot();
 
 // Deduplication: prevent double exchange on React strict mode / refresh

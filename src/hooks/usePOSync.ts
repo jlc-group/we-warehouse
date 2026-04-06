@@ -96,8 +96,9 @@ export function usePOSync() {
 }
 
 // Helper to get backend URL
+import { getLocalDbUrl } from '@/lib/apiConfig';
 function getBackendUrl(): string {
-    return import.meta.env.VITE_BACKEND_URL || 'http://localhost:3005/api/local';
+    return getLocalDbUrl();
 }
 
 export default usePOSync;

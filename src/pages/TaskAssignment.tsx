@@ -39,15 +39,8 @@ interface Worker {
     full_name: string;
 }
 
-// Backend API URL — auto-detect localhost vs external
-function getApiUrl(): string {
-    if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL.replace('/api/local', '');
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return 'http://localhost:3005';
-    }
-    return ''; // external (tunnel) → relative through Vite proxy
-}
-const API_URL = getApiUrl();
+import { getBackendRoot } from '@/lib/apiConfig';
+const API_URL = getBackendRoot();
 
 const TaskAssignment = () => {
     const [unassignedOrders, setUnassignedOrders] = useState<ShipmentOrder[]>([]);

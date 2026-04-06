@@ -50,19 +50,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Backend API base URL - derive root from VITE_BACKEND_URL (strip /api/local suffix)
-function getBackendRoot(): string {
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-  if (backendUrl) {
-    return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
-  }
-  // Auto-detect: localhost → direct, external → relative (through Vite proxy)
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3005';
-  }
-  // External (tunnel) — use empty string so URLs become relative /api/auth/login
-  return '';
-}
+import { getBackendRoot } from '@/lib/apiConfig';
 const API_BASE = getBackendRoot();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
