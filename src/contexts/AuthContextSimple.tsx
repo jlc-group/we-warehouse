@@ -58,7 +58,7 @@ function getBackendRoot(): string {
   }
   // Auto-detect: localhost → direct, external → relative (through Vite proxy)
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3004';
+    return 'http://localhost:3005';
   }
   // External (tunnel) — use empty string so URLs become relative /api/auth/login
   return '';

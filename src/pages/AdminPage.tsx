@@ -23,7 +23,7 @@ function getBackendRoot(): string {
         return backendUrl.replace(/\/api\/local\/?$/, '').replace(/\/api\/?$/, '') || backendUrl;
     }
     if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return 'http://localhost:3004';
+        return 'http://localhost:3005';
     }
     return '';
 }

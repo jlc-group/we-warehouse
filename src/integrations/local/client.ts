@@ -2,7 +2,7 @@
  * Local PostgreSQL Client - Browser Compatible
  * Uses HTTP API backend instead of direct pg connection
  * 
- * NOTE: This requires we-warehouse-backend to be running on port 3004
+ * NOTE: This requires we-warehouse-backend to be running on port 3005
  * Uses /api/local routes for generic PostgreSQL access
  * 
  * For Cloudflare Tunnel: Set VITE_BACKEND_URL in .env
@@ -16,7 +16,7 @@ function getBackendUrl(): string {
   }
   // Auto-detect: if browser is on localhost → use localhost backend
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://localhost:3004/api/local';
+    return 'http://localhost:3005/api/local';
   }
   // External access (e.g. warehouse.wejlc.com) → use Vite proxy /api/local
   return '/api/local';

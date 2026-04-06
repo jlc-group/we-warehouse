@@ -97,7 +97,7 @@ export function usePOSync() {
 
 // Helper to get backend URL
 function getBackendUrl(): string {
-    return import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004/api/local';
+    return import.meta.env.VITE_BACKEND_URL || 'http://localhost:3005/api/local';
 }
 
 export default usePOSync;
