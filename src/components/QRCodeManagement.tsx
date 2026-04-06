@@ -10,6 +10,7 @@ import { QrCode, Download, Search, Plus, RefreshCw, Trash2, MapPin, Package, Eye
 import { useLocationQR, type LocationQRCode } from '@/hooks/useLocationQR';
 import { QRScanner } from './QRScanner';
 import { localDb } from '@/integrations/local/client';
+import { dbToUrlLocation } from '@/lib/locationFormat';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/hooks/use-toast';
@@ -247,7 +248,7 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
     if (qrCode.qr_image_url) {
       const a = document.createElement('a');
       a.href = qrCode.qr_image_url;
-      a.download = `qr-${qrCode.location.replace(/\//g, '-')}.png`;
+      a.download = `qr-${dbToUrlLocation(qrCode.location)}.png`;
       a.click();
     }
   };

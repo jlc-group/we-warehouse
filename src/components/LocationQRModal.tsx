@@ -8,6 +8,7 @@ import QRCodeLib from 'qrcode';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useLocationQR } from '@/hooks/useLocationQR';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { dbToUrlLocation } from '@/lib/locationFormat';
 
 interface LocationQRModalProps {
   isOpen: boolean;
@@ -141,7 +142,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
     if (qrCodeDataURL) {
       const a = document.createElement('a');
       a.href = qrCodeDataURL;
-      a.download = `location-${location.replace(/\//g, '-')}-qr.png`;
+      a.download = `location-${dbToUrlLocation(location)}-qr.png`;
       a.click();
     }
   }, [qrCodeDataURL, location]);
@@ -213,7 +214,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
         const printableDataURL = printCanvas.toDataURL('image/png', 1.0);
         const a = document.createElement('a');
         a.href = printableDataURL;
-        a.download = `location-${location.replace(/\//g, '-')}-printable.png`;
+        a.download = `location-${dbToUrlLocation(location)}-printable.png`;
         a.click();
       };
       qrImage.src = qrCodeDataURL;
@@ -284,7 +285,7 @@ export const LocationQRModal = memo(function LocationQRModal({ isOpen, onClose, 
                         fetch(qrCodeDataURL)
                           .then(res => res.blob())
                           .then(blob => {
-                            const file = new File([blob], `location-${location.replace(/\//g, '-')}-qr.png`, { type: 'image/png' });
+                            const file = new File([blob], `location-${dbToUrlLocation(location)}-qr.png`, { type: 'image/png' });
                             navigator.share({ files: [file], title: `QR Code - ตำแหน่ง ${location}` });
                           })
                           .catch(console.error);
