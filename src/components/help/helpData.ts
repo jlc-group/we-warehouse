@@ -425,6 +425,25 @@ export const helpGuides: Record<string, HelpGuide> = {
       { step: 6, text: '[ระบบ] ปรับปรุงจำนวนตามที่นับจริง + บันทึก Activity Log' },
     ],
   },
+  'staging-confirmation-flow': {
+    id: 'staging-confirmation-flow',
+    title: 'Workflow: Desktop ↔ Mobile ผ่าน Staging Queue',
+    icon: 'Zap',
+    description: 'หลักการสำคัญ: Mobile ไม่แก้ stock ตรง ต้องผ่าน queue → Desktop confirm',
+    steps: [
+      { step: 1, text: '[Mobile] พนักงานสแกน/เลือกสินค้า → addToStagingQueue() → รายการเข้า "pending"', tip: 'Mobile ห้ามแก้ inventory ตรง' },
+      { step: 2, text: '[Desktop] หัวหน้างานเปิด Staging Dashboard → เห็นรายการ pending แยกตามประเภท (pick/receive/move)' },
+      { step: 3, text: '[Desktop] ตรวจสอบความถูกต้อง → กด "ยืนยัน"', tip: 'รายการค้างเกิน 24 ชม. จะขึ้นกรอบแดง เตือน' },
+      { step: 4, text: '[Backend] confirmStagingQueueItem() → executePick/Receive/Move → หัก/เพิ่ม inventory 3 levels พร้อมกัน' },
+      { step: 5, text: '[Log] บันทึก stock_movements + location_activity_logs (user_id = UUID)' },
+      { step: 6, text: '[UI] รายการหายจาก queue + Mobile เห็นสถานะอัปเดต' },
+    ],
+    tips: [
+      'ป้องกันข้อผิดพลาด: มีจุด audit ชัดเจน แก้ไขได้ก่อน commit',
+      'User ID เป็น UUID เสมอ — ไม่ใช่ email',
+      'Unit Quantity เก็บครบ 3 levels (ลัง/กล่อง/ชิ้น)',
+    ]
+  },
 };
 
 // Map Dashboard section values to help guide IDs
@@ -455,5 +474,5 @@ export const sectionToHelpId: Record<string, string> = {
 export const guideCategories = [
   { label: 'Desktop', guides: ['overview', 'inventory', 'product-management', 'shelf', 'locations', 'bulk-export', 'qr-management', 'staging', 'packing-list', 'stock-card', 'logs', 'users'] },
   { label: 'Mobile', guides: ['mobile-home', 'location-action', 'receive', 'pick', 'move', 'count', 'lookup', 'my-tasks'] },
-  { label: 'Workflow', guides: ['inbound-flow', 'outbound-flow', 'transfer-flow', 'count-flow'] },
+  { label: 'Workflow', guides: ['inbound-flow', 'outbound-flow', 'transfer-flow', 'count-flow', 'staging-confirmation-flow'] },
 ];

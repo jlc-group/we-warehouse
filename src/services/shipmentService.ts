@@ -1,8 +1,12 @@
 /**
  * Shipment Service - Frontend client for shipment tracking
+ * Uses ShipmentStatus state machine to prevent invalid transitions.
  */
 
-const BACKEND_URL = import.meta.env.VITE_SALES_API_URL || '/api';
+import { getBackendRoot } from '@/lib/apiConfig';
+import { type ShipmentStatus, canTransition } from '@/lib/shipmentStatus';
+
+const BACKEND_URL = `${getBackendRoot()}/api`;
 
 export interface ShipmentOrder {
     id: string;
@@ -13,7 +17,9 @@ export interface ShipmentOrder {
     arname: string;
     total_amount: number;
     item_count: number;
-    status: 'pending' | 'picked' | 'shipped' | 'confirmed' | 'cancelled';
+    status: ShipmentStatus;
+    assigned_to?: string;
+    assigned_at?: string;
     picked_at?: string;
     shipped_at?: string;
     confirmed_at?: string;
@@ -22,6 +28,18 @@ export interface ShipmentOrder {
     notes?: string;
     created_at: string;
     updated_at: string;
+}
+
+/**
+ * Validate state transition before sending to backend.
+ * Throws if invalid — UI should catch and show toast.
+ */
+export function validateShipmentTransition(from: ShipmentStatus, to: ShipmentStatus): void {
+    if (!canTransition(from, to)) {
+        throw new Error(
+            `ไม่สามารถเปลี่ยนสถานะจาก "${from}" → "${to}" ได้ (ข้าม step)`
+        );
+    }
 }
 
 export interface ShipmentResponse {

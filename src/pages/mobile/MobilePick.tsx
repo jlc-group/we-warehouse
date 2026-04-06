@@ -156,14 +156,16 @@ const MobilePick = () => {
                 sku: item.sku,
                 productName: item.product_name,
                 quantity: pickedQty,
+                unitLevel3Quantity: pickedQty,
                 locationFrom: item.location,
                 locationTo: 'STAGING',
                 referenceType: 'order',
                 referenceId: orderData?.id,
-                createdBy: user?.email,
+                createdBy: user?.id,
                 metadata: {
                     orderItemId: item.id,
-                    orderNumber: orderData?.order_number
+                    orderNumber: orderData?.order_number,
+                    userName: user?.full_name || user?.email
                 }
             });
 

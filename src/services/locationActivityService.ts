@@ -28,6 +28,9 @@ export interface LogActivityParams {
   unit?: string;
   fromLocation?: string;
   toLocation?: string;
+  /** UUID of the user (required for audit trail) */
+  userId?: string;
+  /** Display name only (for quick-view UI, not used as FK) */
   userName?: string;
   notes?: string;
   metadata?: Record<string, any>;
@@ -57,6 +60,7 @@ export class LocationActivityService {
         .from('location_activity_logs')
         .insert({
           location: params.location,
+          location_code: params.location,
           activity_type: params.activityType,
           product_sku: params.productSku,
           product_name: params.productName,
@@ -64,6 +68,7 @@ export class LocationActivityService {
           unit: params.unit,
           from_location: params.fromLocation,
           to_location: params.toLocation,
+          user_id: params.userId || null,
           user_name: params.userName || 'Anonymous',
           notes: params.notes,
           metadata: params.metadata
@@ -192,12 +197,13 @@ export class LocationActivityService {
   }
 
   /**
-   * บันทึก SCAN activity
+   * บันทึก SCAN activity — use userId (UUID), userName for display only
    */
-  static async logScan(location: string, userName?: string) {
+  static async logScan(location: string, userId?: string, userName?: string) {
     return this.logActivity({
       location,
       activityType: 'SCAN',
+      userId,
       userName,
       notes: 'QR Code scanned'
     });
@@ -212,6 +218,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -222,6 +229,7 @@ export class LocationActivityService {
       productName: params.productName,
       quantity: params.quantity,
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes
     });
@@ -236,6 +244,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
     metadata?: Record<string, any>;
@@ -245,8 +254,9 @@ export class LocationActivityService {
       activityType: 'MOVE_OUT',
       productSku: params.productSku,
       productName: params.productName,
-      quantity: -Math.abs(params.quantity), // ทำให้เป็นลบ
+      quantity: -Math.abs(params.quantity),
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes,
       metadata: params.metadata
@@ -263,6 +273,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -276,6 +287,7 @@ export class LocationActivityService {
       unit: params.unit,
       fromLocation: params.fromLocation,
       toLocation: params.toLocation,
+      userId: params.userId,
       userName: params.userName,
       notes: `ย้ายไป ${params.toLocation}`
     });
@@ -289,6 +301,7 @@ export class LocationActivityService {
       unit: params.unit,
       fromLocation: params.fromLocation,
       toLocation: params.toLocation,
+      userId: params.userId,
       userName: params.userName,
       notes: `ย้ายจาก ${params.fromLocation}`
     });
@@ -305,6 +318,7 @@ export class LocationActivityService {
     unit?: string;
     referenceType?: string;
     referenceId?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -315,6 +329,7 @@ export class LocationActivityService {
       productName: params.productName,
       quantity: params.quantity,
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes || `รับเข้า ${params.quantity} ${params.unit || 'ชิ้น'}`,
       metadata: {
@@ -334,6 +349,7 @@ export class LocationActivityService {
     quantity: number;
     unit?: string;
     orderId?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -344,6 +360,7 @@ export class LocationActivityService {
       productName: params.productName,
       quantity: -Math.abs(params.quantity),
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes || `ส่งออก ${params.quantity} ${params.unit || 'ชิ้น'}`,
       metadata: {
@@ -358,6 +375,7 @@ export class LocationActivityService {
   static async logCount(params: {
     location: string;
     results: Array<{ sku: string; productName: string; expected: number; actual: number }>;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -365,6 +383,7 @@ export class LocationActivityService {
     return this.logActivity({
       location: params.location,
       activityType: 'COUNT',
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes || `นับสต็อก ${params.results.length} รายการ${discrepancies.length > 0 ? ` (ไม่ตรง ${discrepancies.length} รายการ)` : ' (ตรงทั้งหมด)'}`,
       metadata: {
@@ -380,6 +399,7 @@ export class LocationActivityService {
    */
   static async logInspect(params: {
     location: string;
+    userId?: string;
     userName?: string;
     notes?: string;
     metadata?: Record<string, any>;
@@ -387,6 +407,7 @@ export class LocationActivityService {
     return this.logActivity({
       location: params.location,
       activityType: 'INSPECT',
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes || 'ตรวจสอบตำแหน่ง',
       metadata: params.metadata

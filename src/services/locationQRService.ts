@@ -1,6 +1,7 @@
 import { localDb } from '@/integrations/local/client';
 import QRCodeLib from 'qrcode';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { dbToUrlLocation } from '@/lib/locationFormat';
 
 export interface LocationQRServiceResult<T = any> {
   data: T | null;
@@ -98,8 +99,8 @@ export class LocationQRService {
         baseUrl = window.location.origin;
       }
 
-      // URL-safe location format: A3/2 → A3-2
-      const urlLocation = normalizedLocation.replace(/\//g, '-');
+      // URL-safe location format: A3/2 → A3-2 (via shared helper)
+      const urlLocation = dbToUrlLocation(normalizedLocation);
       const qrUrl = `${baseUrl}/mobile/location/${urlLocation}`;
 
       // Generate QR code image as data URL

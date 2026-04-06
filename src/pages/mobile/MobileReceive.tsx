@@ -145,14 +145,16 @@ const MobileReceive = () => {
                 sku: activeItem.product_code,
                 productName: activeItem.product_name,
                 quantity: quantity,
+                unitLevel3Quantity: quantity,
                 locationFrom: undefined,
                 locationTo: scanLocation,
                 referenceType: 'po',
                 referenceId: poData.id,
-                createdBy: user?.email,
+                createdBy: user?.id,
                 metadata: {
                     receiptItemId: activeItem.id,
-                    documentNumber: poData.document_number
+                    documentNumber: poData.document_number,
+                    userName: user?.full_name || user?.email
                 }
             });
 

@@ -18,17 +18,47 @@ export interface StagingQueueItem {
     inventory_item_id?: string;
     sku?: string;
     product_name?: string;
+    /** Total base pieces (legacy; still required for backward compat) */
     quantity: number;
+    /** Level 1 (ลัง) quantity */
+    unit_level1_quantity?: number;
+    /** Level 2 (กล่อง) quantity */
+    unit_level2_quantity?: number;
+    /** Level 3 (ชิ้น) quantity */
+    unit_level3_quantity?: number;
     location_from?: string;
     location_to?: string;
     reference_type?: string;
     reference_id?: string;
     status: 'pending' | 'confirmed' | 'cancelled';
+    /** UUID of user who created the staging item (not email) */
     created_by?: string;
+    /** UUID of user who confirmed/cancelled */
     confirmed_by?: string;
     confirmed_at?: string;
     metadata?: any;
     created_at: string;
+}
+
+export interface AddToStagingData {
+    inventoryItemId?: string;
+    sku?: string;
+    productName?: string;
+    /** Total base pieces (required) */
+    quantity: number;
+    /** Level 1 (ลัง) quantity */
+    unitLevel1Quantity?: number;
+    /** Level 2 (กล่อง) quantity */
+    unitLevel2Quantity?: number;
+    /** Level 3 (ชิ้น) quantity */
+    unitLevel3Quantity?: number;
+    locationFrom?: string;
+    locationTo?: string;
+    referenceType?: string;
+    referenceId?: string;
+    /** UUID of the user (NOT email) */
+    createdBy?: string;
+    metadata?: any;
 }
 
 // ============ Queue Operations ============
@@ -38,18 +68,7 @@ export interface StagingQueueItem {
  */
 export const addToStagingQueue = async (
     operationType: StagingOperationType,
-    data: {
-        inventoryItemId?: string;
-        sku?: string;
-        productName?: string;
-        quantity: number;
-        locationFrom?: string;
-        locationTo?: string;
-        referenceType?: string;
-        referenceId?: string;
-        createdBy?: string;
-        metadata?: any;
-    }
+    data: AddToStagingData
 ): Promise<{ success: boolean; error?: any }> => {
     try {
         const { error } = await localDb
@@ -60,12 +79,15 @@ export const addToStagingQueue = async (
                 sku: data.sku || null,
                 product_name: data.productName || null,
                 quantity: data.quantity,
+                unit_level1_quantity: data.unitLevel1Quantity ?? 0,
+                unit_level2_quantity: data.unitLevel2Quantity ?? 0,
+                unit_level3_quantity: data.unitLevel3Quantity ?? data.quantity,
                 location_from: data.locationFrom || null,
                 location_to: data.locationTo || null,
                 reference_type: data.referenceType || 'manual',
                 reference_id: data.referenceId || null,
                 status: 'pending',
-                created_by: data.createdBy || 'system',
+                created_by: data.createdBy || null,
                 metadata: data.metadata || {}
             });
 
@@ -205,12 +227,21 @@ async function executePick(item: StagingQueueItem) {
         const invItem = (invItems as any[])?.[0];
 
         if (invItem) {
-            // Deduct from inventory_items
+            // Deduct all 3 levels (with pieces fallback)
+            const deductL1 = item.unit_level1_quantity ?? 0;
+            const deductL2 = item.unit_level2_quantity ?? 0;
+            const deductL3 = item.unit_level3_quantity ?? item.quantity;
             const newQty = Math.max(0, (invItem.quantity_pieces || 0) - item.quantity);
+            const newL1 = Math.max(0, (invItem.unit_level1_quantity || 0) - deductL1);
+            const newL2 = Math.max(0, (invItem.unit_level2_quantity || 0) - deductL2);
+            const newL3 = Math.max(0, (invItem.unit_level3_quantity || 0) - deductL3);
             await localDb
                 .from('inventory_items')
                 .update({
                     quantity_pieces: newQty,
+                    unit_level1_quantity: newL1,
+                    unit_level2_quantity: newL2,
+                    unit_level3_quantity: newL3,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', invItem.id);
@@ -258,31 +289,41 @@ async function executeReceive(item: StagingQueueItem) {
             .select('*')
             .eq('sku', item.sku)
             .eq('location', item.location_to)
-            .single();
+            .maybeSingle();
+
+        const addL1 = item.unit_level1_quantity ?? 0;
+        const addL2 = item.unit_level2_quantity ?? 0;
+        const addL3 = item.unit_level3_quantity ?? item.quantity;
 
         if (existing) {
-            // Add quantity to existing
+            // Add quantity to existing (all 3 levels)
             const newQty = ((existing as any).quantity_pieces || 0) + item.quantity;
-            const newL3 = ((existing as any).unit_level3_quantity || 0) + item.quantity;
+            const newL1 = ((existing as any).unit_level1_quantity || 0) + addL1;
+            const newL2 = ((existing as any).unit_level2_quantity || 0) + addL2;
+            const newL3 = ((existing as any).unit_level3_quantity || 0) + addL3;
             await localDb
                 .from('inventory_items')
                 .update({
                     quantity_pieces: newQty,
+                    unit_level1_quantity: newL1,
+                    unit_level2_quantity: newL2,
                     unit_level3_quantity: newL3,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', (existing as any).id);
         } else {
-            // Create new inventory item
+            // Create new inventory item with all 3 levels
             await localDb.from('inventory_items').insert({
                 sku: item.sku,
                 product_name: item.product_name,
                 location: item.location_to,
                 quantity_pieces: item.quantity,
-                unit_level3_quantity: item.quantity,
+                unit_level1_quantity: addL1,
+                unit_level1_name: 'ลัง',
+                unit_level2_quantity: addL2,
+                unit_level2_name: 'กล่อง',
+                unit_level3_quantity: addL3,
                 unit_level3_name: 'ชิ้น',
-                unit_level1_quantity: 0,
-                unit_level2_quantity: 0,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             });

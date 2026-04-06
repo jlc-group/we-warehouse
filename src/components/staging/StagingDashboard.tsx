@@ -115,7 +115,7 @@ export function StagingDashboard() {
     const handleConfirmQueueItem = async (item: StagingQueueItem) => {
         setProcessingId(item.id);
         try {
-            const result = await confirmStagingQueueItem(item, user?.email || 'system');
+            const result = await confirmStagingQueueItem(item, user?.id || 'system');
             if (result.success) {
                 toast({
                     title: `✅ ยืนยัน${getOpLabel(item.operation_type)}สำเร็จ`,
@@ -136,7 +136,7 @@ export function StagingDashboard() {
     const handleCancelQueueItem = async (item: StagingQueueItem) => {
         setProcessingId(item.id);
         try {
-            const result = await cancelStagingQueueItem(item.id, user?.email);
+            const result = await cancelStagingQueueItem(item.id, user?.id);
             if (result.success) {
                 toast({ title: 'ยกเลิกรายการแล้ว' });
                 setQueueItems(prev => prev.filter(q => q.id !== item.id));
@@ -155,7 +155,7 @@ export function StagingDashboard() {
         let success = 0, failed = 0;
         for (const item of queueItems) {
             try {
-                const result = await confirmStagingQueueItem(item, user?.email || 'system');
+                const result = await confirmStagingQueueItem(item, user?.id || 'system');
                 result.success ? success++ : failed++;
             } catch { failed++; }
         }
@@ -307,12 +307,15 @@ export function StagingDashboard() {
                                 <div className="space-y-3">
                                     {queueItems.map((item) => {
                                         const badge = getOpBadge(item.operation_type);
+                                        const ageMs = Date.now() - new Date(item.created_at).getTime();
+                                        const isStale = ageMs > 24 * 60 * 60 * 1000; // > 24h
                                         return (
                                             <div
                                                 key={item.id}
-                                                className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50 transition-colors gap-4 border-l-4 ${item.operation_type === 'pick' ? 'border-l-amber-400' :
-                                                        item.operation_type === 'receive' ? 'border-l-green-400' :
-                                                            'border-l-blue-400'
+                                                className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50 transition-colors gap-4 border-l-4 ${isStale ? 'border-l-red-500 bg-red-50' :
+                                                        item.operation_type === 'pick' ? 'border-l-amber-400' :
+                                                            item.operation_type === 'receive' ? 'border-l-green-400' :
+                                                                'border-l-blue-400'
                                                     }`}
                                             >
                                                 <div className="flex-1">
@@ -321,6 +324,11 @@ export function StagingDashboard() {
                                                         <span className="font-semibold text-gray-800">
                                                             {item.product_name || item.sku}
                                                         </span>
+                                                        {isStale && (
+                                                            <Badge className="bg-red-100 text-red-700 text-xs">
+                                                                ⚠️ ค้างเกิน 24 ชม.
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                     <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
                                                         <span>📦 จำนวน: <strong>{item.quantity}</strong> ชิ้น</span>

@@ -6,6 +6,7 @@ import { localDb } from '@/integrations/local/client';
 import { LocationActivityService } from '@/services/locationActivityService';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { Badge } from '@/components/ui/badge';
+import { urlToDbLocation } from '@/lib/locationFormat';
 
 /**
  * Mobile Location Action Page
@@ -17,8 +18,8 @@ export default function LocationAction() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Convert URL format back: A3-2 → A3/2
-  const location = (locationCode || '').replace(/-/g, '/');
+  // Convert URL format back to DB format (A3-2 → A3/2)
+  const location = urlToDbLocation(locationCode || '');
 
   const [inventory, setInventory] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
@@ -41,7 +42,7 @@ export default function LocationAction() {
 
       // Fetch recent activity history
       const historyResult = await LocationActivityService.getLocationHistory(location, 10);
-      setHistory(historyResult || []);
+      setHistory(historyResult?.data || []);
     } catch (e) {
       console.error('Error fetching location data:', e);
     } finally {
@@ -52,9 +53,9 @@ export default function LocationAction() {
   useEffect(() => {
     fetchData();
 
-    // Log scan activity
+    // Log scan activity — pass UUID + name separately
     if (location && user) {
-      LocationActivityService.logScan(location, user.email || user.id || 'unknown');
+      LocationActivityService.logScan(location, user.id, user.full_name || user.email);
     }
   }, [fetchData, location, user]);
 

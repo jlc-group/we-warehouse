@@ -77,10 +77,14 @@ const ItemMove = () => {
                 sku: item.sku || item.product_name,
                 productName: item.product_name,
                 quantity: moveQty,
+                unitLevel3Quantity: moveQty,
                 locationFrom: item.location,
                 locationTo: targetLocation,
                 referenceType: 'manual',
-                createdBy: user?.email
+                createdBy: user?.id,
+                metadata: {
+                    userName: user?.full_name || user?.email
+                }
             });
 
             if (result.success) {
