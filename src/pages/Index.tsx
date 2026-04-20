@@ -23,6 +23,7 @@ import { QRScanner } from '@/components/QRScanner';
 import { FloatingQRScanner } from '@/components/FloatingQRScanner';
 import { DatabaseDebug } from '@/components/DatabaseDebug';
 import { DisabledComponent } from '@/components/DisabledComponents';
+import { DataExport } from '@/components/DataExport';
 import { UserProfile } from '@/components/profile/UserProfile';
 import { ManualExportModal } from '@/components/ManualExportModal';
 import { BulkExportModal } from '@/components/BulkExportModal';
@@ -1310,7 +1311,7 @@ const Index = memo(() => {
               </TabsContent>
 
               <TabsContent value="export" className="space-y-4">
-                <DisabledComponent name="Data Export" />
+                <DataExport />
               </TabsContent>
 
               <TabsContent value="debug-spout" className="space-y-4">

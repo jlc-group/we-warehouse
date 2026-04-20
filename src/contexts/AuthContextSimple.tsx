@@ -85,52 +85,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkSession();
   }, []);
 
-  // Login function - tries JWT auth first, falls back to Supabase query
+  // Login function — calls backend /api/auth/login (bcrypt-verified)
   const signIn = useCallback(async (emailOrUsername: string, password: string) => {
     try {
       setLoading(true);
 
-      console.log('🔐 Authenticating user:', emailOrUsername);
+      console.log('🔐 Authenticating via backend:', emailOrUsername);
 
-      // Query user from local database directly (no JWT needed)
-      const isEmail = emailOrUsername.includes('@');
-      let query = localDb
-        .from('users')
-        .select('*')
-        .eq('is_active', true);
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: emailOrUsername, password }),
+      });
 
-      if (isEmail) {
-        query = query.eq('email', emailOrUsername);
-      } else {
-        query = query.eq('username', emailOrUsername);
+      if (!res.ok) {
+        let errMsg = 'ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง';
+        try {
+          const errBody = await res.json();
+          if (errBody?.error) errMsg = errBody.error;
+        } catch { /* non-JSON response */ }
+        throw new Error(errMsg);
       }
 
-      const { data: userData, error } = await query.single();
+      const { access_token, user: backendUser } = await res.json();
 
-      if (error || !userData) {
-        throw new Error('ชื่อผู้ใช้/อีเมล หรือรหัสผ่านไม่ถูกต้อง');
-      }
-
-      console.log('✅ User found in database (fallback):', userData.full_name);
+      // Backend returns { id, username, email, full_name, is_active, roles, department, allowed_pages }
+      const firstRole = backendUser.roles?.[0];
+      const isSuperAdmin = backendUser.roles?.some((r: UserRole) => r.code === 'super_admin');
 
       const user: User = {
-        id: userData.id,
-        email: userData.email,
-        full_name: userData.full_name,
-        department: userData.department,
-        role: userData.role,
-        role_level: userData.role_level,
-        employee_code: userData.employee_code || undefined,
-        phone: userData.phone || undefined,
-        avatar_url: userData.avatar_url || undefined,
-        is_active: userData.is_active,
-        last_login: new Date().toISOString()
+        id: backendUser.id,
+        email: backendUser.email,
+        full_name: backendUser.full_name,
+        department: backendUser.department?.name || 'ทั่วไป',
+        role: firstRole?.name || 'ผู้ใช้งาน',
+        role_level: isSuperAdmin ? 5 : (firstRole ? 3 : 2),
+        is_active: backendUser.is_active,
+        last_login: new Date().toISOString(),
+        roles: backendUser.roles,
+        dept: backendUser.department,
+        allowed_pages: backendUser.allowed_pages,
+        username: backendUser.username,
       };
 
       localStorage.setItem('warehouse_user', JSON.stringify(user));
+      if (access_token) {
+        localStorage.setItem('warehouse_token', access_token);
+      }
       setUser(user);
 
-      console.log('🎉 Fallback login successful:', user.full_name, `(${user.role})`);
+      console.log('🎉 Login successful:', user.full_name, `(${user.role})`);
 
     } catch (error: any) {
       console.error('Login error:', error);
