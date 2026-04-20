@@ -121,7 +121,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       console.log('InventoryModalSimple: Loading conversion rate for SKU:', sku);
 
       // First, try to get conversion rate from product_conversion_rates table
-      const { data: conversionData, error: conversionError } = await (supabase as any)
+      const { data: conversionData, error: conversionError } = await (localDb as any)
         .from('product_conversion_rates')
         .select('*')
         .eq('sku', sku)
