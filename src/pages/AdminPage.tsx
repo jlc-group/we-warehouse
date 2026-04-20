@@ -565,6 +565,22 @@ function UsersTab({
     const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [showCreate, setShowCreate] = useState(false);
+    const [newUser, setNewUser] = useState({
+        email: '',
+        username: '',
+        full_name: '',
+        password: '',
+        role_id: '',
+        department_id: '',
+        employee_code: '',
+    });
+    const [creating, setCreating] = useState(false);
+
+    const resetNewUser = () => setNewUser({
+        email: '', username: '', full_name: '', password: '',
+        role_id: '', department_id: '', employee_code: '',
+    });
 
     const filteredUsers = users.filter(u => {
         if (!searchQuery) return true;
@@ -621,21 +637,157 @@ function UsersTab({
         }
     };
 
+    const handleCreateUser = async () => {
+        if (!newUser.email || !newUser.full_name || !newUser.password) {
+            toast.error('กรุณากรอก อีเมล, ชื่อจริง, รหัสผ่าน');
+            return;
+        }
+        if (newUser.password.length < 4) {
+            toast.error('รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร');
+            return;
+        }
+        try {
+            setCreating(true);
+            const roleCode = roles.find(r => r.id === newUser.role_id)?.code || '';
+            const deptCode = departments.find(d => d.id === newUser.department_id)?.code || '';
+            await localDb.from('users').insert({
+                email: newUser.email,
+                username: newUser.username || newUser.email,
+                full_name: newUser.full_name,
+                password_hash: newUser.password,
+                role: roleCode,
+                department: deptCode,
+                department_id: newUser.department_id || null,
+                employee_code: newUser.employee_code || null,
+                is_active: true,
+            });
+            toast.success('เพิ่มผู้ใช้สำเร็จ');
+            setShowCreate(false);
+            resetNewUser();
+            onRefresh();
+        } catch (err: any) {
+            toast.error(err.message || 'ไม่สามารถเพิ่มผู้ใช้ได้');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId: string, name: string) => {
+        if (!confirm(`ยืนยันลบผู้ใช้ "${name}"?\nการดำเนินการนี้ไม่สามารถย้อนกลับได้`)) return;
+        try {
+            await localDb.from('users').delete().eq('id', userId);
+            toast.success('ลบผู้ใช้สำเร็จ');
+            onRefresh();
+        } catch (err: any) {
+            toast.error(err.message || 'ไม่สามารถลบผู้ใช้ได้');
+        }
+    };
+
     return (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                 <h3 className="font-semibold text-gray-700 dark:text-gray-200">รายชื่อผู้ใช้งาน</h3>
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                        placeholder="ค้นหาผู้ใช้..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-9 h-9 w-64 text-sm"
-                    />
+                <div className="flex items-center gap-2">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                            placeholder="ค้นหาผู้ใช้..."
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="pl-9 h-9 w-64 text-sm"
+                        />
+                    </div>
+                    <Button
+                        size="sm"
+                        onClick={() => setShowCreate(s => !s)}
+                        className="bg-green-600 hover:bg-green-700 text-white h-9"
+                    >
+                        <Plus className="h-4 w-4 mr-1" />
+                        เพิ่มผู้ใช้
+                    </Button>
                 </div>
             </div>
+
+            {/* Create User Form */}
+            {showCreate && (
+                <div className="px-6 py-4 bg-green-50/50 dark:bg-green-950/20 border-b border-green-100 dark:border-green-900">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <Input
+                            placeholder="อีเมล *"
+                            type="email"
+                            value={newUser.email}
+                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                            className="h-9 text-sm"
+                        />
+                        <Input
+                            placeholder="ชื่อจริง *"
+                            value={newUser.full_name}
+                            onChange={e => setNewUser({ ...newUser, full_name: e.target.value })}
+                            className="h-9 text-sm"
+                        />
+                        <Input
+                            placeholder="Username (ว่าง = ใช้อีเมล)"
+                            value={newUser.username}
+                            onChange={e => setNewUser({ ...newUser, username: e.target.value })}
+                            className="h-9 text-sm"
+                        />
+                        <Input
+                            placeholder="รหัสผ่าน *"
+                            type="password"
+                            value={newUser.password}
+                            onChange={e => setNewUser({ ...newUser, password: e.target.value })}
+                            className="h-9 text-sm"
+                        />
+                        <Input
+                            placeholder="รหัสพนักงาน"
+                            value={newUser.employee_code}
+                            onChange={e => setNewUser({ ...newUser, employee_code: e.target.value })}
+                            className="h-9 text-sm"
+                        />
+                        <select
+                            value={newUser.role_id}
+                            onChange={e => setNewUser({ ...newUser, role_id: e.target.value })}
+                            className="border rounded-md px-3 h-9 text-sm bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                        >
+                            <option value="">-- เลือกบทบาท --</option>
+                            {roles.map(r => (
+                                <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={newUser.department_id}
+                            onChange={e => setNewUser({ ...newUser, department_id: e.target.value })}
+                            className="border rounded-md px-3 h-9 text-sm bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
+                        >
+                            <option value="">-- เลือกแผนก --</option>
+                            {departments.map(d => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                        <Button
+                            size="sm"
+                            onClick={handleCreateUser}
+                            disabled={creating || !newUser.email || !newUser.full_name || !newUser.password}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                        >
+                            <Save className="h-4 w-4 mr-1" />
+                            {creating ? 'กำลังบันทึก...' : 'บันทึกผู้ใช้'}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => { setShowCreate(false); resetNewUser(); }}
+                            disabled={creating}
+                        >
+                            ยกเลิก
+                        </Button>
+                        <span className="text-xs text-gray-500 ml-auto">* ช่องที่ต้องกรอก</span>
+                    </div>
+                </div>
+            )}
 
             {/* Table */}
             <div className="overflow-x-auto">
@@ -727,6 +879,16 @@ function UsersTab({
                                             >
                                                 {u.is_active ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
                                             </Button>
+                                            {!u.roles.some(r => r.code === 'super_admin') && (
+                                                <Button
+                                                    size="sm" variant="outline"
+                                                    onClick={() => handleDeleteUser(u.id, u.full_name || u.username || u.email)}
+                                                    className="h-8 w-8 p-0 border-red-200 text-red-600 hover:bg-red-50"
+                                                    title="ลบผู้ใช้"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
