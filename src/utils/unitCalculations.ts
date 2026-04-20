@@ -227,15 +227,15 @@ export function parseSKUWithMultiplier(sku: string): SKUParseResult {
   }
 
   const originalSKU = sku.trim();
-  
+
   // Pattern: ตัวอักษรหรือตัวเลขใดๆ ตามด้วย X และตัวเลข 1-3 หลัก ท้าย string
   // รองรับ: L3-8GX6, L4-8GX12, ABC-123X24, etc.
   const match = originalSKU.match(/^(.+?)X(\d{1,3})$/i);
-  
+
   if (match) {
     const baseSKU = match[1];
     const multiplier = parseInt(match[2], 10);
-    
+
     // ตรวจสอบว่า multiplier มีค่ามากกว่า 1 (X1 ถือว่าไม่มี multiplier)
     if (multiplier > 1) {
       return {
@@ -246,7 +246,7 @@ export function parseSKUWithMultiplier(sku: string): SKUParseResult {
       };
     }
   }
-  
+
   // ไม่พบ pattern X{NUMBER} หรือ multiplier = 1
   return {
     baseSKU: originalSKU,
@@ -326,7 +326,8 @@ export async function calculateTotalQuantityWithDynamicRates(
     const cachedRate = cache.get(item.sku)!;
     level1Rate = cachedRate.unit_level1_rate;
     level2Rate = cachedRate.unit_level2_rate;
-    console.log(`🧮 UTIL ${item.sku} - Using cached rates - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3}`);
+    level1Rate = cachedRate.unit_level1_rate;
+    level2Rate = cachedRate.unit_level2_rate;
   } else {
     // Fetch from database if not in cache
     try {
@@ -335,7 +336,8 @@ export async function calculateTotalQuantityWithDynamicRates(
         level1Rate = conversionRate.unit_level1_rate;
         level2Rate = conversionRate.unit_level2_rate;
         cache.set(item.sku, conversionRate);
-        console.log(`🧮 UTIL ${item.sku} - Using DB rates (${level1Rate}/${level2Rate}) - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3}`);
+        level2Rate = conversionRate.unit_level2_rate;
+        cache.set(item.sku, conversionRate);
       }
     } catch (error) {
       console.warn(`⚠️ UTIL Could not fetch conversion rate for ${item.sku}, using defaults`);
@@ -365,7 +367,6 @@ export function calculateTotalQuantityWithCache(
   if (cache.has(item.sku)) {
     const cachedRate = cache.get(item.sku)!;
     const total = (level1 * cachedRate.unit_level1_rate) + (level2 * cachedRate.unit_level2_rate) + level3;
-    console.log(`🧮 UTIL SYNC ${item.sku} - Using cached - Level1: ${level1}x${cachedRate.unit_level1_rate}, Level2: ${level2}x${cachedRate.unit_level2_rate}, Level3: ${level3} = ${total}`);
     return total;
   }
 
@@ -373,6 +374,5 @@ export function calculateTotalQuantityWithCache(
   const level1Rate = item.unit_level1_rate || 144;
   const level2Rate = item.unit_level2_rate || 12;
   const total = (level1 * level1Rate) + (level2 * level2Rate) + level3;
-  console.log(`🧮 UTIL SYNC ${item.sku} - Using fallback - Level1: ${level1}x${level1Rate}, Level2: ${level2}x${level2Rate}, Level3: ${level3} = ${total}`);
   return total;
 }

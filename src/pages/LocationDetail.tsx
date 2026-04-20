@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,15 +14,22 @@ import {
   Send,
   ArrowLeft,
   BarChart3,
-  Clock
+  Clock,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Calculator,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { LocationEditModal } from '@/components/location/LocationEditModal';
 import { LocationAddItemModal } from '@/components/location/LocationAddItemModal';
 import { LocationTransferModal } from '@/components/location/LocationTransferModal';
 import { LocationRemoveItemModal } from '@/components/location/LocationRemoveItemModal';
 import { BulkTransferModal } from '@/components/BulkTransferModal';
+import { UnitConverter } from '@/components/UnitConverter';
 import { convertUrlToDbFormat } from '@/utils/locationUtils';
 
 interface LocationInventory {
@@ -48,14 +55,28 @@ interface LocationInfo {
   position: string;
 }
 
-export function LocationDetail() {
-  const { locationId } = useParams<{ locationId: string }>();
+interface LocationDetailProps {
+  propLocationId?: string;
+  isEmbedded?: boolean;
+}
+
+export function LocationDetail({ propLocationId, isEmbedded = false }: LocationDetailProps) {
+  const { locationId: paramLocationId } = useParams<{ locationId: string }>();
+  const locationId = propLocationId || paramLocationId;
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const [locationInfo, setLocationInfo] = useState<LocationInfo | null>(null);
   const [inventory, setInventory] = useState<LocationInventory[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Storage type state
+  const [storageType, setStorageType] = useState<'full_carton_only' | 'allow_all'>('allow_all');
+  const [storageTypeLoading, setStorageTypeLoading] = useState(false);
+
+  // Unit converter toggle per item
+  const [expandedConverters, setExpandedConverters] = useState<Set<string>>(new Set());
 
   // Modal states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -69,12 +90,14 @@ export function LocationDetail() {
     locationId,
     inventory: inventory.length,
     loading,
-    locationInfo
+    locationInfo,
+    storageType
   });
 
   useEffect(() => {
     if (locationId) {
       loadLocationData();
+      loadStorageType();
     }
   }, [locationId]);
 
@@ -89,23 +112,10 @@ export function LocationDetail() {
         converted: dbLocationId
       });
 
-      // Load inventory items for this location
-      // Cast to any to avoid TypeScript errors with complex joins/Supabase types
-      const { data: inventoryData, error: inventoryError } = await supabase
+      // Load inventory items for this location using localDb
+      const { data: inventoryData, error: inventoryError } = await localDb
         .from('inventory_items')
-        .select(`
-          id,
-          sku,
-          product_name,
-          unit_level1_quantity,
-          unit_level2_quantity,
-          unit_level3_quantity,
-          unit_level1_name,
-          unit_level2_name,
-          unit_level3_name,
-          unit_level1_rate,
-          unit_level2_rate
-        `)
+        .select('id,sku,product_name,unit_level1_quantity,unit_level2_quantity,unit_level3_quantity,unit_level1_name,unit_level2_name,unit_level3_name,unit_level1_rate,unit_level2_rate')
         .eq('location', dbLocationId)
         .order('sku');
 
@@ -120,7 +130,6 @@ export function LocationDetail() {
       }
 
       // Calculate total pieces for each item
-      // Cast to any because the join columns from Supabase query are not strictly typed in the auto-generated types
       const processedInventory = (inventoryData as any[])?.map(item => {
         const level1Pieces = (item.unit_level1_quantity || 0) * (item.unit_level1_rate || 0);
         const level2Pieces = (item.unit_level2_quantity || 0) * (item.unit_level2_rate || 0);
@@ -159,6 +168,96 @@ export function LocationDetail() {
     }
   };
 
+  // Load storage type setting for this location
+  const loadStorageType = async () => {
+    if (!locationId) return;
+    try {
+      const dbLocationId = convertUrlToDbFormat(locationId);
+      const { data, error } = await localDb
+        .from('location_settings')
+        .select('*')
+        .eq('location', dbLocationId)
+        .single();
+
+      if (data && !error) {
+        setStorageType(data.storage_type || 'allow_all');
+      }
+    } catch (err) {
+      // Table might not exist yet - that's ok, default to allow_all
+      console.log('📦 Location settings not found, using default');
+    }
+  };
+
+  // Toggle storage type
+  const handleToggleStorageType = useCallback(async () => {
+    if (!locationId) return;
+    const dbLocationId = convertUrlToDbFormat(locationId);
+    const newType = storageType === 'allow_all' ? 'full_carton_only' : 'allow_all';
+
+    setStorageTypeLoading(true);
+    try {
+      // Try update first
+      const { data: existing } = await localDb
+        .from('location_settings')
+        .select('id')
+        .eq('location', dbLocationId)
+        .single();
+
+      if (existing) {
+        await localDb
+          .from('location_settings')
+          .update({ storage_type: newType })
+          .eq('location', dbLocationId);
+      } else {
+        await localDb
+          .from('location_settings')
+          .insert({ location: dbLocationId, storage_type: newType });
+      }
+
+      setStorageType(newType);
+      toast({
+        title: newType === 'full_carton_only' ? '🔒 ตั้งค่าเต็มลังเท่านั้น' : '📦 อนุญาตมีเศษได้',
+        description: `Location ${locationId} ${newType === 'full_carton_only' ? 'รับเฉพาะเต็มลัง' : 'รับทุกจำนวน'}`,
+      });
+    } catch (error) {
+      console.error('Error updating storage type:', error);
+      toast({
+        title: 'ข้อผิดพลาด',
+        description: 'ไม่สามารถอัปเดตการตั้งค่าได้',
+        variant: 'destructive'
+      });
+    } finally {
+      setStorageTypeLoading(false);
+    }
+  }, [locationId, storageType, toast]);
+
+  // Check if any item has loose pieces (not full cartons)
+  const hasLoosePieces = useCallback((): { hasLoose: boolean; looseItems: { name: string; remainder: number }[] } => {
+    const looseItems: { name: string; remainder: number }[] = [];
+    for (const item of inventory) {
+      if (item.unit_level1_rate > 0) {
+        const remainder = item.total_pieces % item.unit_level1_rate;
+        if (remainder > 0) {
+          looseItems.push({ name: item.product_name, remainder });
+        }
+      }
+    }
+    return { hasLoose: looseItems.length > 0, looseItems };
+  }, [inventory]);
+
+  // Toggle converter visibility for an item
+  const toggleConverter = useCallback((itemId: string) => {
+    setExpandedConverters(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
+
   const formatQuantityDisplay = (item: LocationInventory): string => {
     const parts = [];
 
@@ -183,6 +282,8 @@ export function LocationDetail() {
     return inventory.length;
   };
 
+  const looseCheck = hasLoosePieces();
+
   if (loading) {
     return (
       <div className="container mx-auto p-4 max-w-4xl">
@@ -199,8 +300,8 @@ export function LocationDetail() {
   if (!locationInfo) {
     return (
       <div className="container mx-auto p-4 max-w-4xl">
-        <div className="text-center py-8">
-          <p className="text-gray-500">ไม่พบข้อมูล Location</p>
+        <div className="text-center py-8 text-gray-500">
+          <p>ไม่พบข้อมูล Location</p>
           <Button onClick={() => navigate('/')} className="mt-4">
             <ArrowLeft className="h-4 w-4 mr-2" />
             กลับหน้าหลัก
@@ -212,17 +313,19 @@ export function LocationDetail() {
 
   return (
     <div className="container mx-auto p-4 max-w-4xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          onClick={() => navigate('/')}
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          กลับ
-        </Button>
-      </div>
+      {/* Header - Only show if not embedded */}
+      {!isEmbedded && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            กลับ
+          </Button>
+        </div>
+      )}
 
       {/* Location Info Card */}
       <Card>
@@ -258,6 +361,88 @@ export function LocationDetail() {
         </CardContent>
       </Card>
 
+      {/* Storage Type Toggle Card */}
+      <Card className={`border-2 transition-colors ${storageType === 'full_carton_only' ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {storageType === 'full_carton_only' ? (
+                <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Lock className="h-5 w-5 text-amber-600" />
+                </div>
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <Unlock className="h-5 w-5 text-green-600" />
+                </div>
+              )}
+              <div>
+                <div className="font-medium text-sm">
+                  {storageType === 'full_carton_only' ? '🔒 เต็มลังเท่านั้น' : '📦 มีเศษได้'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {storageType === 'full_carton_only'
+                    ? 'Location นี้รับเฉพาะสินค้าที่ครบลัง'
+                    : 'Location นี้รับสินค้าทุกจำนวน'}
+                </div>
+              </div>
+            </div>
+
+            <Button
+              variant={storageType === 'full_carton_only' ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleToggleStorageType}
+              disabled={storageTypeLoading}
+              className={`transition-all ${storageType === 'full_carton_only'
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                  : 'border-gray-300 hover:bg-gray-50'
+                }`}
+            >
+              {storageTypeLoading ? (
+                <span className="animate-pulse">...</span>
+              ) : storageType === 'full_carton_only' ? (
+                <>
+                  <Unlock className="h-4 w-4 mr-1" />
+                  ปลดล็อค
+                </>
+              ) : (
+                <>
+                  <Lock className="h-4 w-4 mr-1" />
+                  ล็อคเต็มลัง
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Warning: Loose pieces detected in full_carton_only mode */}
+          {storageType === 'full_carton_only' && looseCheck.hasLoose && (
+            <div className="mt-3 bg-orange-100 border border-orange-300 rounded-lg p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="font-medium text-orange-800 text-sm">
+                    ⚠️ พบเศษสินค้าที่ไม่ครบลัง!
+                  </div>
+                  <div className="text-xs text-orange-700 mt-1 space-y-0.5">
+                    {looseCheck.looseItems.map((item, idx) => (
+                      <div key={idx}>• {item.name}: เศษ {item.remainder} ชิ้น</div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 text-orange-700 border-orange-400 hover:bg-orange-200 text-xs"
+                    onClick={() => setTransferModalOpen(true)}
+                  >
+                    <ArrowLeftRight className="h-3 w-3 mr-1" />
+                    ย้ายเศษไป location อื่น
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Inventory List */}
       <Card>
         <CardHeader>
@@ -273,38 +458,95 @@ export function LocationDetail() {
               <p>ไม่มีสินค้าใน Location นี้</p>
             </div>
           ) : (
-            <ScrollArea className="h-96">
-              <div className="space-y-3">
-                {inventory.map((item) => (
+            <div className="space-y-3">
+              {inventory.map((item) => {
+                const isConverterOpen = expandedConverters.has(item.id);
+                const hasRate = item.unit_level1_rate > 0 && item.unit_level2_rate > 0;
+
+                return (
                   <div
                     key={item.id}
-                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    className="border rounded-lg overflow-hidden hover:border-blue-200 transition-colors"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="font-mono">
-                            {item.sku}
-                          </Badge>
-                        </div>
-                        <h3 className="font-medium text-gray-900 mb-2">
-                          {item.product_name}
-                        </h3>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          <div>📦 {formatQuantityDisplay(item)}</div>
-                          <div className="flex items-center gap-2">
-                            <BarChart3 className="h-4 w-4" />
-                            <span className="font-medium text-green-600">
-                              รวม {item.total_pieces.toLocaleString()} ชิ้น
-                            </span>
+                    {/* Item Info */}
+                    <div className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="outline" className="font-mono">
+                              {item.sku}
+                            </Badge>
+                            {storageType === 'full_carton_only' && item.unit_level1_rate > 0 && (
+                              item.total_pieces % item.unit_level1_rate !== 0 ? (
+                                <Badge variant="destructive" className="text-xs">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  มีเศษ
+                                </Badge>
+                              ) : (
+                                <Badge className="text-xs bg-green-100 text-green-700 border-green-300">
+                                  ✓ ครบลัง
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                          <h3 className="font-medium text-gray-900 mb-2">
+                            {item.product_name}
+                          </h3>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>📦 {formatQuantityDisplay(item)}</div>
+                            <div className="flex items-center gap-2">
+                              <BarChart3 className="h-4 w-4" />
+                              <span className="font-medium text-green-600">
+                                รวม {item.total_pieces.toLocaleString()} ชิ้น
+                              </span>
+                            </div>
+                            {hasRate && (
+                              <div className="text-xs text-gray-400">
+                                อัตรา: 1 {item.unit_level1_name || 'ลัง'} = {item.unit_level1_rate} ชิ้น | 1 {item.unit_level2_name || 'กล่อง'} = {item.unit_level2_rate} ชิ้น
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
+
+                      {/* Toggle converter button */}
+                      {hasRate && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full mt-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-xs"
+                          onClick={() => toggleConverter(item.id)}
+                        >
+                          <Calculator className="h-3 w-3 mr-1" />
+                          {isConverterOpen ? 'ซ่อน' : 'เปิด'} เครื่องคิดเลขหน่วย
+                          {isConverterOpen ? (
+                            <ChevronUp className="h-3 w-3 ml-1" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 ml-1" />
+                          )}
+                        </Button>
+                      )}
                     </div>
+
+                    {/* Unit Converter (expandable) */}
+                    {isConverterOpen && hasRate && (
+                      <div className="px-4 pb-4">
+                        <UnitConverter
+                          unit1Name={item.unit_level1_name || 'ลัง'}
+                          unit2Name={item.unit_level2_name || 'กล่อง'}
+                          unit3Name={item.unit_level3_name || 'ชิ้น'}
+                          unit1Rate={item.unit_level1_rate}
+                          unit2Rate={item.unit_level2_rate}
+                          initialPieces={item.total_pieces}
+                          showRemainderWarning={storageType === 'full_carton_only'}
+                          compact={false}
+                        />
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

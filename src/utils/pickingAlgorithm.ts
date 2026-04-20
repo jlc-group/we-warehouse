@@ -113,12 +113,12 @@ export function sortLocationsByFIFO(locations: PickingLocation[]): PickingLocati
     } else if (!a.mfd && b.mfd) {
       return 1; // ที่ไม่มี MFD ไปหลัง
     }
-    
+
     // 2. ถ้า MFD เท่ากัน เรียงตาม LOT
     if (a.lot && b.lot && a.lot !== b.lot) {
       return a.lot.localeCompare(b.lot);
     }
-    
+
     // 3. สุดท้าย เรียงตาม Location (Zone → Position → Level)
     if (a.zone !== b.zone) {
       return a.zone.localeCompare(b.zone);
@@ -158,8 +158,6 @@ export function calculatePickingPlan(
   const multiplier = skuParsed.multiplier;
   const totalNeeded = skuParsed.actualQuantity; // originalQuantity × multiplier
 
-  console.log(`🔍 Picking: ${productCode} → Base: ${baseSKU}, Multiplier: ${multiplier}, Need: ${originalQuantity} × ${multiplier} = ${totalNeeded}`);
-
   // กรองเฉพาะ inventory ที่ตรงกับ BASE SKU (ไม่ใช่ original SKU)
   const matchingInventory = inventoryLocations.filter(inv => {
     // ตรวจสอบ SKU ต้องตรงกับ BASE SKU (case-insensitive)
@@ -168,7 +166,7 @@ export function calculatePickingPlan(
   });
 
   if (matchingInventory.length === 0) {
-    console.log(`❌ Not found: ${baseSKU} (original: ${productCode})`);
+
     return {
       productCode,
       baseSKU,
@@ -246,7 +244,7 @@ export function calculatePickingPlan(
   const status: 'sufficient' | 'insufficient' = totalAvailable >= totalNeeded ? 'sufficient' : 'insufficient';
   const percentage = totalAvailable > 0 ? Math.min((totalAvailable / totalNeeded) * 100, 100) : 0;
 
-  console.log(`✅ Picking Plan: ${productCode} (${baseSKU} × ${multiplier}) - Available: ${totalAvailable}/${totalNeeded} (${percentage.toFixed(1)}%)`);
+
 
   return {
     productCode,

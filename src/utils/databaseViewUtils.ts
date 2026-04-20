@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 // Cache สำหรับเก็บผลการตรวจสอบ view
 const viewExistenceCache = new Map<string, boolean>();
@@ -40,7 +40,7 @@ export async function checkViewExists(
 
   try {
     // ลองเรียก view เพื่อตรวจสอบ
-    const { error } = await supabase
+    const { error } = await localDb
       .from(viewName)
       .select('*')
       .limit(1);

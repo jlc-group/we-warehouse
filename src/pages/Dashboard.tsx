@@ -2,7 +2,7 @@
  * Dashboard - หน้าหลักใหม่ พร้อม Sidebar และ Header
  */
 
-import { useState, Suspense, lazy, useCallback } from 'react';
+import { useState, Suspense, lazy, useCallback, useMemo } from 'react';
 import { AppLayout } from '@/components/layout';
 import { ComponentLoadingFallback } from '@/components/ui/loading-fallback';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -16,6 +16,7 @@ import { Package, Hash, PackagePlus } from 'lucide-react';
 const EnhancedOverview = lazy(() => import('@/components/EnhancedOverview').then(m => ({ default: m.EnhancedOverview })));
 const StockOverviewPage = lazy(() => import('@/components/stock-overview/StockOverviewPage').then(m => ({ default: m.StockOverviewPage })));
 const InventoryTable = lazy(() => import('@/components/InventoryTable').then(m => ({ default: m.InventoryTable })));
+const StagingDashboard = lazy(() => import('@/components/staging/StagingDashboard').then(m => ({ default: m.StagingDashboard })));
 const ShelfGrid = lazy(() => import('@/components/ShelfGrid').then(m => ({ default: m.ShelfGrid })));
 const PackingListTab = lazy(() => import('@/components/PackingListTab').then(m => ({ default: m.PackingListTab })));
 const DailyShipmentSummary = lazy(() => import('@/components/DailyShipmentSummary').then(m => ({ default: m.DailyShipmentSummary })));
@@ -26,13 +27,19 @@ const SalesAnalytics = lazy(() => import('@/components/SalesAnalytics').then(m =
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
 const EnhancedEventLogs = lazy(() => import('@/components/EnhancedEventLogs').then(m => ({ default: m.EnhancedEventLogs })));
-const UserManagement = lazy(() => import('@/components/admin/UserManagement'));
+const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const DatabaseDebug = lazy(() => import('@/components/DatabaseDebug').then(m => ({ default: m.DatabaseDebug })));
 const AIAnalyticsLab = lazy(() => import('@/components/AIAnalyticsLab').then(m => ({ default: m.AIAnalyticsLab })));
 const ProductSummaryTable = lazy(() => import('@/components/ProductSummaryTable').then(m => ({ default: m.ProductSummaryTable })));
 const ProductManagementPage = lazy(() => import('@/components/ProductManagementPage').then(m => ({ default: m.ProductManagementPage })));
 const LocationQRScannerModal = lazy(() => import('@/components/LocationQRScannerModal').then(m => ({ default: m.LocationQRScannerModal })));
 const WarehouseOperations = lazy(() => import('@/components/WarehouseOperations'));
+const TaskAssignment = lazy(() => import('@/pages/TaskAssignment'));
+
+// Import modals for quick actions
+import { BulkExportModal } from '@/components/BulkExportModal';
+import { InventoryModalSimple } from '@/components/InventoryModalSimple';
+import { generateAllWarehouseLocations } from '@/utils/locationUtils';
 
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { useToast } from '@/hooks/use-toast';
@@ -43,23 +50,47 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | undefined>();
 
+  // Modal states for quick actions
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showBulkExportModal, setShowBulkExportModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string>(''); // สำหรับ Add Modal
+
   // ใช้ useDepartmentInventory เพื่อ filter ตาม warehouse
   const {
     items: inventoryItems,
     loading,
-    fetchItems
+    refetch,
+    addItem
   } = useDepartmentInventory(selectedWarehouseId);
+
+  // รวบรวม locations ทั้งหมด - จาก warehouse structure + inventory items
+  const availableLocations = useMemo(() => {
+    // ดึง warehouse locations ทั้งหมด (A-Z, 1-20, 1-4)
+    const warehouseLocations = generateAllWarehouseLocations();
+
+    // รวม locations จาก inventory items ด้วย (อาจมีตำแหน่งนอก structure)
+    const inventoryLocations = new Set<string>();
+    inventoryItems.forEach(item => {
+      if (item.location) {
+        inventoryLocations.add(item.location);
+      }
+    });
+
+    // รวมทั้งสอง set และ deduplicate
+    const allLocations = [...new Set([...warehouseLocations, ...Array.from(inventoryLocations)])];
+    return allLocations.sort();
+  }, [inventoryItems]);
 
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [showQRScanner, setShowQRScanner] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await fetchItems();
+    await refetch();
     setIsRefreshing(false);
-  }, [fetchItems]);
+  }, [refetch]);
 
   // Render Warehouse Selector สำหรับบาง tabs
   const renderWarehouseSelector = () => {
@@ -92,15 +123,16 @@ export default function Dashboard() {
                 navigate(`/location/${encodedLocation}`);
               }}
               onAddItem={() => {
-                toast({
-                  title: "เลือกตำแหน่งสินค้า",
-                  description: "กรุณาเลือกตำแหน่ง (Location) จากตาราง หรือสแกน QR Code ก่อนเพิ่มสินค้า",
-                });
+                console.log('🔥 Opening Add Modal');
+                setShowAddModal(true);
               }}
               onTransferItem={() => {
+                console.log('🔥 Navigate to operations for transfer');
+                // Navigate to warehouse operations page for transfer
+                setActiveTab('operations');
                 toast({
-                  title: "เลือกตำแหน่งสินค้า",
-                  description: "กรุณาเลือกตำแหน่ง (Location) ต้นทางจากตาราง หรือสแกน QR Code ก่อนเริ่มย้ายสินค้า",
+                  title: "ย้ายสินค้า",
+                  description: "ไปที่หน้า Operations เพื่อทำการย้ายสินค้า",
                 });
               }}
               onWarehouseTransfer={(items) => {
@@ -111,14 +143,18 @@ export default function Dashboard() {
                 });
               }}
               onExportItem={async (id, cartonQty, boxQty, looseQty, destination, notes) => {
-                console.log('Export item:', { id, cartonQty, boxQty, looseQty, destination, notes });
+                console.log('Export item from EnhancedOverview:', { id, cartonQty, boxQty, looseQty, destination, notes });
+                // Export is handled by EnhancedOverview's internal dialog
                 toast({
-                  title: "บันทึกการส่งออก",
-                  description: "ระบบได้รับข้อมูลการส่งออกแล้ว (Simulation)",
+                  title: "✅ บันทึกการส่งออก",
+                  description: "บันทึกการส่งออกสินค้าเรียบร้อยแล้ว",
                 });
               }}
               onScanQR={() => {
                 setShowQRScanner(true);
+              }}
+              onBulkExport={() => {
+                setShowBulkExportModal(true);
               }}
             />
           </Suspense>
@@ -183,6 +219,13 @@ export default function Dashboard() {
           </Suspense>
         );
 
+      case 'staging':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Staging Area" />}>
+            <StagingDashboard />
+          </Suspense>
+        );
+
       case 'daily-shipment':
         return (
           <Suspense fallback={<ComponentLoadingFallback componentName="Daily Shipment" />}>
@@ -237,7 +280,7 @@ export default function Dashboard() {
       case 'users':
         return (
           <Suspense fallback={<ComponentLoadingFallback componentName="User Management" />}>
-            <UserManagement />
+            <AdminPage />
           </Suspense>
         );
 
@@ -289,6 +332,13 @@ export default function Dashboard() {
           </Suspense>
         );
 
+      case 'task-assignment':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Task Assignment" />}>
+            <TaskAssignment />
+          </Suspense>
+        );
+
       default:
         return (
           <div className="flex items-center justify-center h-64">
@@ -318,6 +368,32 @@ export default function Dashboard() {
             />
           )}
         </Suspense>
+
+        {/* Bulk Export Modal - ใช้สำหรับส่งออกหลายรายการ */}
+        <BulkExportModal
+          open={showBulkExportModal}
+          onOpenChange={setShowBulkExportModal}
+          inventoryItems={inventoryItems}
+        />
+
+        {/* Add Item Modal */}
+        <InventoryModalSimple
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSave={async (item) => {
+            console.log('💾 Saving item:', item);
+            await addItem(item);
+            setShowAddModal(false);
+            await refetch();
+            toast({
+              title: "✅ เพิ่มสินค้าสำเร็จ",
+              description: `เพิ่ม ${item.product_name} เรียบร้อยแล้ว`,
+            });
+          }}
+          location={selectedLocation}
+          otherItemsAtLocation={inventoryItems.filter(i => i.location === selectedLocation)}
+          availableLocations={availableLocations}
+        />
       </AppLayout>
     </ErrorBoundary>
   );

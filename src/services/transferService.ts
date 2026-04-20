@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface TransferResult {
     success: boolean;
@@ -13,7 +13,7 @@ export const executeTransfer = async (
 ): Promise<TransferResult> => {
     try {
         // 1. Check if destination item exists for this SKU
-        const { data: existingDestItem, error: fetchError } = await supabase
+        const { data: existingDestItem, error: fetchError } = await localDb
             .from('inventory_items')
             .select('id, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity')
             .eq('sku', inventoryItem.sku)
@@ -30,7 +30,7 @@ export const executeTransfer = async (
             const newL2 = existingDestItem.unit_level2_quantity + inventoryItem.unit_level2_quantity;
             const newL3 = existingDestItem.unit_level3_quantity + inventoryItem.unit_level3_quantity;
 
-            const { error: updateError } = await supabase
+            const { error: updateError } = await localDb
                 .from('inventory_items')
                 .update({
                     unit_level1_quantity: newL1,
@@ -44,7 +44,7 @@ export const executeTransfer = async (
             }
 
             // Delete source
-            const { error: deleteError } = await supabase
+            const { error: deleteError } = await localDb
                 .from('inventory_items')
                 .delete()
                 .eq('id', inventoryItem.id);
@@ -55,7 +55,7 @@ export const executeTransfer = async (
 
         } else {
             // MOVE: Just update the location
-            const { error: moveError } = await supabase
+            const { error: moveError } = await localDb
                 .from('inventory_items')
                 .update({ location: destinationLocation })
                 .eq('id', inventoryItem.id);
@@ -66,7 +66,7 @@ export const executeTransfer = async (
         }
 
         // Log movement
-        await supabase.from('inventory_movements').insert({
+        await localDb.from('inventory_movements').insert({
             inventory_item_id: inventoryItem.id,
             movement_type: 'transfer',
             quantity_boxes_before: inventoryItem.unit_level1_quantity,
@@ -84,5 +84,143 @@ export const executeTransfer = async (
     } catch (e) {
         console.error('Transfer execution error', e);
         return { success: false, error: e, message: 'Exception during transfer' };
+    }
+};
+
+/**
+ * Transfer specific quantity (in base units/pieces) from source to destination.
+ * Handles recalculation of units (Cartons/Boxes) for the remaining quantity.
+ */
+export const transferPartialStock = async (
+    sourceItemId: string,
+    targetLocation: string,
+    quantityToTransfer: number, // In base units (pieces)
+    user: any
+): Promise<TransferResult> => {
+    try {
+        console.log(`📦 Partial Transfer: ${quantityToTransfer} pieces from ${sourceItemId} to ${targetLocation}`);
+
+        // 1. Fetch Source Item including rates
+        const { data: sourceItemData, error: fetchError } = await localDb
+            .from('inventory_items')
+            .select('*')
+            .eq('id', sourceItemId)
+            .single();
+
+        if (fetchError || !sourceItemData) {
+            return { success: false, error: fetchError, message: 'Source item not found' };
+        }
+
+        // Type casting for safety
+        const sourceItem = sourceItemData as any;
+
+        const level1Rate = sourceItem.unit_level1_rate || 144;
+        const level2Rate = sourceItem.unit_level2_rate || 12;
+
+        // Calculate total available in pieces
+        const currentTotalPieces =
+            (sourceItem.unit_level1_quantity || 0) * level1Rate +
+            (sourceItem.unit_level2_quantity || 0) * level2Rate +
+            (sourceItem.unit_level3_quantity || 0);
+
+        if (quantityToTransfer > currentTotalPieces) {
+            return { success: false, message: `Not enough stock. Available: ${currentTotalPieces}, Requested: ${quantityToTransfer}` };
+        }
+
+        // 2. Calculate New Source Quantities (Smart Recalculation)
+        const remainingPieces = currentTotalPieces - quantityToTransfer;
+
+        // Recalculate remaining into optimal units (Greedy approach: Fill L1 -> L2 -> L3)
+        const newL1 = Math.floor(remainingPieces / level1Rate);
+        const remainderAfterL1 = remainingPieces % level1Rate;
+        const newL2 = 0; // Skip L2 to avoid confusion
+        const newL3 = remainderAfterL1;
+
+        console.log(`📉 Source Update: ${currentTotalPieces} -> ${remainingPieces} pieces.`);
+        console.log(`   Recalculated: ${newL1} Cartons (${sourceItem.unit_level1_name}), ${newL3} Pieces (${sourceItem.unit_level3_name})`);
+
+        // 3. Update Source Item (including quantity_pieces)
+        const { error: updateSourceError } = await localDb
+            .from('inventory_items')
+            .update({
+                unit_level1_quantity: newL1,
+                unit_level2_quantity: newL2,
+                unit_level3_quantity: newL3,
+                quantity_pieces: remainingPieces,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', sourceItemId);
+
+        if (updateSourceError) {
+            return { success: false, error: updateSourceError, message: 'Failed to update source item' };
+        }
+
+        // 4. Update/Create Target Item
+        const { data: existingTargetData, error: targetFetchError } = await localDb
+            .from('inventory_items')
+            .select('*')
+            .eq('sku', sourceItem.sku)
+            .eq('location', targetLocation)
+            .maybeSingle();
+
+        if (targetFetchError) {
+            console.error('Error checking target:', targetFetchError);
+        }
+
+        const existingTarget = existingTargetData as any;
+
+        if (existingTarget) {
+            // MERGE: Add to L3 (Pieces) OF TARGET + update quantity_pieces
+            const targetNewL3 = (existingTarget.unit_level3_quantity || 0) + quantityToTransfer;
+            const targetNewPieces = (existingTarget.quantity_pieces || 0) + quantityToTransfer;
+
+            await localDb
+                .from('inventory_items')
+                .update({
+                    unit_level3_quantity: targetNewL3,
+                    quantity_pieces: targetNewPieces,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', existingTarget.id);
+        } else {
+            // CREATE NEW: With L3 = quantity
+            const newItem = {
+                ...sourceItem,
+                id: undefined, // Let DB generate ID
+                location: targetLocation,
+                unit_level1_quantity: 0,
+                unit_level2_quantity: 0,
+                unit_level3_quantity: quantityToTransfer,
+                quantity_pieces: quantityToTransfer,
+                warehouse_id: sourceItem.warehouse_id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            delete newItem.id;
+
+            await localDb.from('inventory_items').insert(newItem);
+        }
+
+        // 5. Log Movement
+        await localDb.from('inventory_movements').insert({
+            inventory_item_id: sourceItemId,
+            movement_type: 'transfer_partial',
+            quantity_boxes_before: sourceItem.unit_level1_quantity || 0,
+            quantity_loose_before: sourceItem.unit_level3_quantity || 0,
+            quantity_boxes_after: newL1,
+            quantity_loose_after: newL3,
+            quantity_boxes_change: newL1 - (sourceItem.unit_level1_quantity || 0),
+            quantity_loose_change: newL3 - (sourceItem.unit_level3_quantity || 0),
+            location_before: sourceItem.location,
+            location_after: targetLocation,
+            notes: `Partial Staging: Moved ${quantityToTransfer} pieces to ${targetLocation}`
+        });
+
+        return { success: true };
+
+    } catch (e) {
+        console.error('Partial transfer error', e);
+        return { success: false, error: e, message: 'Exception during partial transfer' };
     }
 };

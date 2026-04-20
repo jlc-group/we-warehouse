@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Settings, Search, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
 import { useProducts } from '@/contexts/ProductsContext';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -89,7 +89,7 @@ export const ProductManagementTable = () => {
     if (!editingProduct) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('products')
         .update({
           product_name: editForm.product_name,
@@ -122,7 +122,7 @@ export const ProductManagementTable = () => {
 
     try {
       // Check if product is used in inventory
-      const { data: inventoryItems, error: checkError } = await supabase
+      const { data: inventoryItems, error: checkError } = await localDb
         .from('inventory_items')
         .select('id')
         .eq('sku', deletingProduct.sku_code)
@@ -137,7 +137,7 @@ export const ProductManagementTable = () => {
       }
 
       // Delete product
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await localDb
         .from('products')
         .delete()
         .eq('id', deletingProduct.id);

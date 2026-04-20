@@ -12,11 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ArrowRight, MapPin, AlertTriangle, CheckCircle2, RotateCcw } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { displayLocation, normalizeLocation } from '@/utils/locationUtils';
 import { useAuth } from '@/contexts/AuthContextSimple';
 import { executeTransfer } from '@/services/transferService';
+import { addToStaging } from '@/services/stagingService';
+import { Switch } from '@/components/ui/switch';
 
 interface InventoryItem {
     id: string;
@@ -55,6 +57,7 @@ export function MultiLocationBinTransferModal({
     const [items, setItems] = useState<TransferItemState[]>([]);
     const [globalDestination, setGlobalDestination] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isStagingMode, setIsStagingMode] = useState(false); // New State
 
     // Initialize state when selected items change
     useEffect(() => {
@@ -116,22 +119,44 @@ export function MultiLocationBinTransferModal({
             for (const itemState of items) {
                 const { inventoryItem, destinationLocation } = itemState;
 
-                const result = await executeTransfer(inventoryItem, destinationLocation, user);
+                let result;
+                if (isStagingMode) {
+                    // Send to Staging
+                    result = await addToStaging(
+                        inventoryItem.id,
+                        inventoryItem.sku,
+                        inventoryItem.location,
+                        calculateTotalPieces(inventoryItem), // Quantity Level 3 Total
+                        inventoryItem.unit_level3_name || 'ชิ้น',
+                        destinationLocation,
+                        user?.id,
+                        { source: 'bulk_transfer', original_process: 'transfer' }
+                    );
+                } else {
+                    // Immediate Transfer
+                    result = await executeTransfer(inventoryItem, destinationLocation, user);
+                }
 
                 if (result.success) {
                     successCount++;
                 } else {
-                    console.error(result.message, result.error);
+                    console.error(result.message || 'Error', result.error);
                     errors.push(result.message || 'Error');
                 }
             }
 
             if (successCount > 0) {
-                toast.success(`ย้ายสำเร็จ ${successCount} รายการ`);
+                if (isStagingMode) {
+                    toast.success(`ส่งไปพักสินค้า (Staging) เรียบร้อย ${successCount} รายการ`);
+                } else {
+                    toast.success(`ย้ายสำเร็จ ${successCount} รายการ`);
+                }
                 onClose(); // Close modal
-                window.location.reload(); // Refresh to show changes
+                // window.location.reload(); // Refresh? Maybe just let query refresh
+                // Actually reloading is handled by caller often, but here we do it to be safe
+                window.location.reload();
             } else {
-                toast.error('ไม่สามารถย้ายรายการได้');
+                toast.error('ไม่สามารถดำเนินการได้');
             }
 
         } catch (e) {
@@ -166,6 +191,20 @@ export function MultiLocationBinTransferModal({
                         <Button onClick={handleApplyGlobalDestination} variant="secondary">
                             นำไปใช้กับทุกรายการ
                         </Button>
+                    </div>
+
+                    <div className="flex items-center space-x-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                        <Switch
+                            id="staging-mode"
+                            checked={isStagingMode}
+                            onCheckedChange={setIsStagingMode}
+                        />
+                        <Label htmlFor="staging-mode" className="font-medium cursor-pointer">
+                            ส่งไปพักสินค้า (Staging) เพื่อตรวจสอบก่อน
+                        </Label>
+                        <Badge variant="outline" className="ml-auto bg-purple-100 text-purple-700 border-purple-200">
+                            {isStagingMode ? 'เปิดใช้งาน' : 'ปิด'}
+                        </Badge>
                     </div>
 
                     {/* List */}

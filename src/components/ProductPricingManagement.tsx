@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Search, DollarSign, Edit, Save, X, TrendingUp, Package, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -54,7 +54,7 @@ export const ProductPricingManagement = () => {
 
   const loadProducts = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('id, sku_code, product_name, product_type, unit_cost, category, is_active')
         .order('product_name');
@@ -73,7 +73,7 @@ export const ProductPricingManagement = () => {
 
   const loadExportsWithoutPrice = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customer_exports')
         .select('id, product_name, product_code, customer_name, quantity_exported, created_at, unit_price, total_value')
         .is('unit_price', null)
@@ -136,7 +136,7 @@ export const ProductPricingManagement = () => {
 
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('products')
         .update({ unit_cost: price })
         .eq('id', editingProduct.id);
@@ -165,15 +165,15 @@ export const ProductPricingManagement = () => {
   const handleBackfillPrices = async () => {
     try {
       // Update customer_exports ที่ไม่มีราคาด้วยราคาจาก products
-      const { error } = await supabase.rpc('backfill_export_prices');
+      const { error } = await localDb.rpc('backfill_export_prices');
 
       if (error) {
         // ถ้าไม่มี function ให้ทำแบบ manual
-        const { error: updateError } = await supabase
+        const { error: updateError } = await localDb
           .from('customer_exports')
           .update({
-            unit_price: supabase.raw('(SELECT unit_cost FROM products WHERE sku_code = customer_exports.product_code)'),
-            total_value: supabase.raw('quantity_exported * (SELECT unit_cost FROM products WHERE sku_code = customer_exports.product_code)'),
+            unit_price: localDb.raw('(SELECT unit_cost FROM products WHERE sku_code = customer_exports.product_code)'),
+            total_value: localDb.raw('quantity_exported * (SELECT unit_cost FROM products WHERE sku_code = customer_exports.product_code)'),
           })
           .is('unit_price', null);
 

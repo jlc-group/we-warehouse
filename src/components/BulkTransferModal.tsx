@@ -23,7 +23,7 @@ import {
   ArrowRight,
   CheckCircle2,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { calculateTotalBaseQuantity } from '@/utils/unitCalculations';
 
@@ -86,7 +86,7 @@ export function BulkTransferModal({
       console.log('🔍 Normalized location:', normalizedLocation);
 
       // 1. Fetch inventory items (using unit level columns for accurate stock)
-      const { data: items, error: itemsError } = await supabase
+      const { data: items, error: itemsError } = await localDb
         .from('inventory_items')
         .select(`
           id,
@@ -131,7 +131,7 @@ export function BulkTransferModal({
       const skus = [...new Set(itemsWithStock.map(i => i.sku).filter(Boolean))];
       console.log('🔍 BulkTransferModal: Fetching products for SKUs:', skus.length);
 
-      const { data: products, error: productsError } = await supabase
+      const { data: products, error: productsError } = await localDb
         .from('products')
         .select('id, sku_code, product_name')
         .in('sku_code', skus);
@@ -185,7 +185,7 @@ export function BulkTransferModal({
 
   const loadAllLocations = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('location')
         .neq('location', sourceLocation);
@@ -317,7 +317,7 @@ export function BulkTransferModal({
       }));
 
       // Call bulk transfer service
-      const { error } = await supabase.rpc('bulk_transfer_inventory', {
+      const { error } = await localDb.rpc('bulk_transfer_inventory', {
         transfers_json: JSON.stringify(transfers)
       });
 

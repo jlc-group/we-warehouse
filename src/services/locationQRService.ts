@@ -1,6 +1,7 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import QRCodeLib from 'qrcode';
 import { normalizeLocation } from '@/utils/locationUtils';
+import { dbToUrlLocation } from '@/lib/locationFormat';
 
 export interface LocationQRServiceResult<T = any> {
   data: T | null;
@@ -39,13 +40,12 @@ export class LocationQRService {
       console.log('🔍 LocationQRService: Fetching QR codes...');
 
       // Simple query with timeout - no retry to prevent error spam
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_qr_codes')
-        .select('id, location, qr_code_data, is_active, created_at')
+        .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(100) // Reduced limit for faster query
-        .abortSignal(AbortSignal.timeout(10000)); // 10 second timeout
+        .limit(1000); // Increased limit to fetch all QR codes
 
       if (error) {
         console.warn('⚠️ LocationQRService: Error fetching QR codes (returning empty array):', error.message);
@@ -90,12 +90,18 @@ export class LocationQRService {
       };
 
       // Create URL for QR Code that opens location view
+      // ใช้ VITE_APP_URL ถ้าตั้งค่าไว้ (สำหรับ production)
+      // ถ้าไม่มี จะใช้ URL ปัจจุบัน (window.location.origin)
       let baseUrl = '';
-      if (typeof window !== 'undefined') {
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_URL) {
+        baseUrl = import.meta.env.VITE_APP_URL;
+      } else if (typeof window !== 'undefined') {
         baseUrl = window.location.origin;
       }
 
-      const qrUrl = `${baseUrl}?tab=overview&location=${encodeURIComponent(normalizedLocation)}&action=view`;
+      // URL-safe location format: A3/2 → A3-2 (via shared helper)
+      const urlLocation = dbToUrlLocation(normalizedLocation);
+      const qrUrl = `${baseUrl}/mobile/location/${urlLocation}`;
 
       // Generate QR code image as data URL
       const qrImageDataURL = await QRCodeLib.toDataURL(qrUrl, {
@@ -108,18 +114,18 @@ export class LocationQRService {
       });
 
       // Check if QR exists for this location
-      const { data: existing } = await supabase
+      const { data: existing } = await localDb
         .from('location_qr_codes')
         .select('id')
         .eq('location', normalizedLocation)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       let data, error;
-      
+
       if (existing) {
         // Update existing QR
-        const result = await supabase
+        const result = await localDb
           .from('location_qr_codes')
           .update({
             qr_code_data: qrUrl,
@@ -127,14 +133,19 @@ export class LocationQRService {
             inventory_snapshot: locationData,
             last_updated: new Date().toISOString()
           })
-          .eq('id', existing.id)
-          .select()
-          .single();
-        data = result.data;
-        error = result.error;
+          .eq('id', existing.id);
+        // Re-fetch after update since localDb update doesn't return data
+        if (!result.error) {
+          const refetch = await localDb.from('location_qr_codes').select('*').eq('id', existing.id).single();
+          data = refetch.data;
+          error = refetch.error;
+        } else {
+          data = result.data;
+          error = result.error;
+        }
       } else {
         // Create new QR
-        const result = await supabase
+        const result = await localDb
           .from('location_qr_codes')
           .insert({
             location: normalizedLocation,
@@ -142,9 +153,7 @@ export class LocationQRService {
             qr_image_url: qrImageDataURL,
             inventory_snapshot: locationData,
             is_active: true
-          })
-          .select()
-          .single();
+          });
         data = result.data;
         error = result.error;
       }
@@ -178,7 +187,7 @@ export class LocationQRService {
    */
   static async deleteQRCode(id: string): Promise<LocationQRServiceResult<boolean>> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('location_qr_codes')
         .update({ is_active: false })
         .eq('id', id);
@@ -212,7 +221,7 @@ export class LocationQRService {
    */
   static async deleteAllQRCodes(): Promise<LocationQRServiceResult<boolean>> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('location_qr_codes')
         .update({ is_active: false })
         .eq('is_active', true);
@@ -246,15 +255,23 @@ export class LocationQRService {
    */
   static async updateQRCode(id: string, updates: any): Promise<LocationQRServiceResult<LocationQRCode>> {
     try {
-      const { data, error } = await supabase
+      const updateResult = await localDb
         .from('location_qr_codes')
         .update({
           ...updates,
           last_updated: new Date().toISOString()
         })
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
+
+      let data, error;
+      if (!updateResult.error) {
+        const refetch = await localDb.from('location_qr_codes').select('*').eq('id', id).single();
+        data = refetch.data;
+        error = refetch.error;
+      } else {
+        data = updateResult.data;
+        error = updateResult.error;
+      }
 
       if (error) {
         console.error('Error updating QR code:', error);
@@ -287,14 +304,14 @@ export class LocationQRService {
     try {
       const normalizedLocation = normalizeLocation(location);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_qr_codes')
         .select('*')
         .eq('location', normalizedLocation)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error) {
         console.error('Error getting QR by location:', error);
         return {
           data: null,

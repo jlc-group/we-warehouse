@@ -6,13 +6,29 @@
 // API Configuration - ใช้ environment variable สำหรับ production
 const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { createAndPickShipments, getShipments, assignOrdersToWorker, getWorkersList } from '@/services/shipmentService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { PickingPlanModal } from '@/components/picking/PickingPlanModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -39,7 +55,12 @@ import {
   DollarSign,
   MapPin,
   Warehouse,
-  Building2
+  Building2,
+  Send,
+  Truck,
+  CheckSquare,
+  Users,
+  UserPlus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
@@ -100,6 +121,20 @@ export const PackingListTab = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [showPickingPlan, setShowPickingPlan] = useState(false);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [isSending, setIsSending] = useState(false);
+
+  // Task Assignment State
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedWorker, setSelectedWorker] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState('normal');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [workers, setWorkers] = useState<{ email: string; full_name: string }[]>([]);
+
+  // Fetch workers list
+  useEffect(() => {
+    getWorkersList().then(setWorkers).catch(console.error);
+  }, []);
 
   // Fetch packing list data
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -177,13 +212,13 @@ export const PackingListTab = () => {
     const totalOrders = filteredOrders.length;
     const totalAmount = filteredOrders.reduce((sum, order) => sum + (order.TOTALAMOUNT || 0), 0);
     const totalItems = filteredOrders.reduce((sum, order) => sum + (order.ITEM_COUNT || 0), 0);
-    
+
     // คำนวณจำนวนชิ้นทั้งหมด (รวม QUANTITY)
     const totalQuantity = filteredOrders.reduce((sum, order) => {
       const orderQty = (order.ITEMS || []).reduce((itemSum, item) => itemSum + (item.QUANTITY || 0), 0);
       return sum + orderQty;
     }, 0);
-    
+
     const uniqueCustomers = new Set(filteredOrders.map(o => o.ARCODE)).size;
     const uniqueTaxNos = ordersByTaxNo.size;
 
@@ -220,6 +255,138 @@ export const PackingListTab = () => {
     });
   };
 
+  // Order selection helpers
+  const toggleOrderSelection = (taxno: string, docno: string) => {
+    const key = `${taxno}|${docno}`;
+    setSelectedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllOrders = () => {
+    const keys = filteredOrders.map(o => `${o.TAXNO}|${o.DOCNO}`);
+    setSelectedOrders(new Set(keys));
+  };
+
+  const deselectAllOrders = () => {
+    setSelectedOrders(new Set());
+  };
+
+  // Send selected orders to staging
+  const handleSendToStaging = async () => {
+    if (selectedOrders.size === 0) {
+      toast({
+        title: 'ไม่มีรายการที่เลือก',
+        description: 'กรุณาเลือกรายการที่ต้องการส่งไปพักสินค้า',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const ordersToSend = filteredOrders.filter(o =>
+        selectedOrders.has(`${o.TAXNO}|${o.DOCNO}`)
+      ).map(o => ({
+        taxno: o.TAXNO,
+        docno: o.DOCNO,
+        taxdate: o.TAXDATE,
+        arcode: o.ARCODE,
+        arname: o.ARNAME,
+        total_amount: o.TOTALAMOUNT,
+        item_count: o.ITEM_COUNT
+      }));
+
+      const result = await createAndPickShipments(ordersToSend, user?.email || 'system');
+
+      toast({
+        title: '✅ ส่งไปพักสินค้าสำเร็จ',
+        description: `สำเร็จ ${result.success} รายการ${result.failed > 0 ? `, ไม่สำเร็จ ${result.failed} รายการ` : ''}`,
+        className: 'bg-green-50 border-green-200'
+      });
+
+      setSelectedOrders(new Set());
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message || 'ไม่สามารถส่งไปพักสินค้าได้',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  // Assign selected orders to worker
+  const handleAssignToWorker = async () => {
+    if (!selectedWorker) {
+      toast({
+        title: 'กรุณาเลือกพนักงาน',
+        description: 'โปรดเลือกพนักงานที่ต้องการมอบหมายงาน',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setIsAssigning(true);
+    try {
+      // Get selected orders data
+      const ordersToAssign = filteredOrders.filter(o =>
+        selectedOrders.has(`${o.TAXNO}|${o.DOCNO}`)
+      ).map(o => ({
+        taxno: o.TAXNO,
+        docno: o.DOCNO,
+        taxdate: o.TAXDATE,
+        arcode: o.ARCODE,
+        arname: o.ARNAME,
+        total_amount: o.TOTALAMOUNT,
+        item_count: o.ITEM_COUNT
+      }));
+
+      const result = await assignOrdersToWorker(
+        ordersToAssign,
+        selectedWorker,
+        selectedPriority,
+        user?.email || 'system'
+      );
+
+      if (result.success) {
+        const workerName = workers.find(w => w.email === selectedWorker)?.full_name || selectedWorker;
+        toast({
+          title: '✅ กระจายงานสำเร็จ',
+          description: `มอบหมาย ${result.assigned} รายการให้ ${workerName}`,
+          className: 'bg-green-50 border-green-200'
+        });
+
+        setSelectedOrders(new Set());
+        setShowAssignModal(false);
+        setSelectedWorker('');
+        setSelectedPriority('normal');
+      } else {
+        toast({
+          title: 'เกิดข้อผิดพลาด',
+          description: result.message || 'ไม่สามารถกระจายงานได้',
+          variant: 'destructive'
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'เกิดข้อผิดพลาด',
+        description: error.message || 'ไม่สามารถกระจายงานได้',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -244,16 +411,70 @@ export const PackingListTab = () => {
             </Badge>
           )}
         </div>
-        <Button
-          onClick={() => refetch()}
-          disabled={isFetching}
-          variant="outline"
-          size="sm"
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-          รีเฟรช
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedOrders.size > 0 && (
+            <Button
+              onClick={handleSendToStaging}
+              disabled={isSending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isSending ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              ส่งไปพักสินค้า ({selectedOrders.size})
+            </Button>
+          )}
+          {selectedOrders.size > 0 && (
+            <Button
+              onClick={() => setShowAssignModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              📤 กระจายงาน ({selectedOrders.size})
+            </Button>
+          )}
+          <Button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+            รีเฟรช
+          </Button>
+        </div>
       </div>
+
+      {/* Selection Toolbar */}
+      {filteredOrders.length > 0 && (
+        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={selectAllOrders}
+            >
+              <CheckSquare className="h-4 w-4 mr-1" />
+              เลือกทั้งหมด
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={deselectAllOrders}
+              disabled={selectedOrders.size === 0}
+            >
+              ยกเลิกการเลือก
+            </Button>
+          </div>
+          {selectedOrders.size > 0 && (
+            <Badge className="bg-purple-100 text-purple-700">
+              เลือก {selectedOrders.size} รายการ
+            </Badge>
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -543,76 +764,84 @@ export const PackingListTab = () => {
                     <AccordionContent>
                       <div className="space-y-4 pt-4">
                         {orders.map((order) => (
-                          <Card key={order.DOCNO} className="border-l-4 border-l-blue-500">
-                            <CardHeader className="pb-3">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-semibold">เอกสาร: {order.DOCNO}</p>
-                                  <p className="text-sm text-gray-600">
-                                    วันที่: {formatDate(order.DOCDATE)} |
-                                    ใบกำกับภาษี: {formatDate(order.TAXDATE)}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  {/* Show price ONLY for Finance role */}
-                                  {canViewPrices && (
-                                    <p className="font-semibold text-green-600">
-                                      {formatCurrency(order.TOTALAMOUNT)}
+                          <div key={order.DOCNO} className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              className="mt-6 h-5 w-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                              checked={selectedOrders.has(`${order.TAXNO}|${order.DOCNO}`)}
+                              onChange={() => toggleOrderSelection(order.TAXNO, order.DOCNO)}
+                            />
+                            <Card className="flex-1 border-l-4 border-l-blue-500">
+                              <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-semibold">เอกสาร: {order.DOCNO}</p>
+                                    <p className="text-sm text-gray-600">
+                                      วันที่: {formatDate(order.DOCDATE)} |
+                                      ใบกำกับภาษี: {formatDate(order.TAXDATE)}
                                     </p>
-                                  )}
-                                  <Badge variant={order.CLOSEFLAG === 1 ? 'default' : 'secondary'}>
-                                    {order.CLOSEFLAG === 1 ? 'ปิดแล้ว' : 'เปิดอยู่'}
-                                  </Badge>
-                                </div>
-                              </div>
-                            </CardHeader>
-                            <CardContent>
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead className="w-[100px]">รหัสสินค้า</TableHead>
-                                    <TableHead>ชื่อสินค้า</TableHead>
-                                    <TableHead className="text-right">จำนวน</TableHead>
-                                    <TableHead>หน่วย</TableHead>
-                                    {/* Show price columns ONLY for Finance role */}
+                                  </div>
+                                  <div className="text-right">
+                                    {/* Show price ONLY for Finance role */}
                                     {canViewPrices && (
-                                      <>
-                                        <TableHead className="text-right">ราคา/หน่วย</TableHead>
-                                        <TableHead className="text-right">มูลค่า</TableHead>
-                                      </>
+                                      <p className="font-semibold text-green-600">
+                                        {formatCurrency(order.TOTALAMOUNT)}
+                                      </p>
                                     )}
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {(order.ITEMS || []).map((item) => (
-                                    <TableRow key={item.LINEID}>
-                                      <TableCell className="font-mono">
-                                        {item.PRODUCTCODE}
-                                      </TableCell>
-                                      <TableCell>{item.PRODUCTNAME}</TableCell>
-                                      <TableCell className="text-right font-semibold">
-                                        {(item.QUANTITY || 0).toLocaleString()}
-                                      </TableCell>
-                                      <TableCell>
-                                        <Badge variant="outline">{item.UNIT || '-'}</Badge>
-                                      </TableCell>
+                                    <Badge variant={order.CLOSEFLAG === 1 ? 'default' : 'secondary'}>
+                                      {order.CLOSEFLAG === 1 ? 'ปิดแล้ว' : 'เปิดอยู่'}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                              <CardContent>
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-[100px]">รหัสสินค้า</TableHead>
+                                      <TableHead>ชื่อสินค้า</TableHead>
+                                      <TableHead className="text-right">จำนวน</TableHead>
+                                      <TableHead>หน่วย</TableHead>
                                       {/* Show price columns ONLY for Finance role */}
                                       {canViewPrices && (
                                         <>
-                                          <TableCell className="text-right">
-                                            {formatCurrency(item.UNITPRICE)}
-                                          </TableCell>
-                                          <TableCell className="text-right font-semibold">
-                                            {formatCurrency(item.NETAMOUNT)}
-                                          </TableCell>
+                                          <TableHead className="text-right">ราคา/หน่วย</TableHead>
+                                          <TableHead className="text-right">มูลค่า</TableHead>
                                         </>
                                       )}
                                     </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
-                            </CardContent>
-                          </Card>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {(order.ITEMS || []).map((item) => (
+                                      <TableRow key={item.LINEID}>
+                                        <TableCell className="font-mono">
+                                          {item.PRODUCTCODE}
+                                        </TableCell>
+                                        <TableCell>{item.PRODUCTNAME}</TableCell>
+                                        <TableCell className="text-right font-semibold">
+                                          {(item.QUANTITY || 0).toLocaleString()}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline">{item.UNIT || '-'}</Badge>
+                                        </TableCell>
+                                        {/* Show price columns ONLY for Finance role */}
+                                        {canViewPrices && (
+                                          <>
+                                            <TableCell className="text-right">
+                                              {formatCurrency(item.UNITPRICE)}
+                                            </TableCell>
+                                            <TableCell className="text-right font-semibold">
+                                              {formatCurrency(item.NETAMOUNT)}
+                                            </TableCell>
+                                          </>
+                                        )}
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </CardContent>
+                            </Card>
+                          </div>
                         ))}
                       </div>
                     </AccordionContent>
@@ -623,6 +852,80 @@ export const PackingListTab = () => {
           )}
         </CardContent>
       </Card>
-    </div>
+
+      {/* Task Assignment Modal */}
+      <Dialog open={showAssignModal} onOpenChange={setShowAssignModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-indigo-600" />
+              📤 กระจายงาน
+            </DialogTitle>
+            <DialogDescription>
+              เลือก {selectedOrders.size} รายการ - มอบหมายให้พนักงานหยิบสินค้า
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Worker Selection */}
+            <div className="space-y-2">
+              <Label>เลือกพนักงาน</Label>
+              <Select value={selectedWorker} onValueChange={setSelectedWorker}>
+                <SelectTrigger>
+                  <SelectValue placeholder="เลือกพนักงานที่ต้องการมอบหมาย" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workers.map(w => (
+                    <SelectItem key={w.email} value={w.email}>
+                      {w.full_name || w.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Priority Selection */}
+            <div className="space-y-2">
+              <Label>ความเร่งด่วน</Label>
+              <Select value={selectedPriority} onValueChange={setSelectedPriority}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="urgent">🔴 ด่วนมาก (Urgent)</SelectItem>
+                  <SelectItem value="high">🟠 ด่วน (High)</SelectItem>
+                  <SelectItem value="normal">🟢 ปกติ (Normal)</SelectItem>
+                  <SelectItem value="low">⚪ ไม่ด่วน (Low)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Selected Orders Summary */}
+            <div className="p-3 bg-gray-50 rounded-lg text-sm">
+              <p className="font-medium">รายการที่เลือก:</p>
+              <p className="text-gray-600">{selectedOrders.size} รายการ</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignModal(false)}>
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={handleAssignToWorker}
+              disabled={isAssigning || !selectedWorker}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {isAssigning ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-2" />
+              )}
+              มอบหมายงาน
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 };

@@ -92,7 +92,9 @@ const menuGroups: MenuGroup[] = [
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
     items: [
+      { title: '📋 กระจายงาน', icon: ClipboardList, value: 'task-assignment', badge: 'ใหม่!', badgeColor: 'bg-indigo-600' },
       { title: 'รายการส่งของ', icon: ClipboardList, value: 'packing-list', badge: 'Picking' },
+      { title: 'พักสินค้า (Staging)', icon: Package, value: 'staging', badge: 'ใหม่', badgeColor: 'bg-purple-500' },
       { title: 'สรุปส่ง Csmile', icon: Send, value: 'daily-shipment', badge: 'ใหม่', badgeColor: 'bg-green-500' },
     ]
   },
@@ -136,7 +138,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
-  const { user, logout } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <Sidebar className="border-r-2 border-slate-200">
@@ -245,7 +247,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
               </p>
             </div>
             <button
-              onClick={() => logout()}
+              onClick={() => signOut()}
               className="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"
               title="ออกจากระบบ"
             >

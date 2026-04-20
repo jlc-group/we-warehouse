@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import type {
   AuthContextType,
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session }, error } = await localDb.auth.getSession();
 
         if (error) {
           console.error('Auth initialization error:', error);
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     initializeAuth();
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = localDb.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
@@ -158,7 +158,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await localDb.auth.signInWithPassword({
         email,
         password,
       });
@@ -189,7 +189,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signUp = async (email: string, password: string, userData?: any) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await localDb.auth.signUp({
         email,
         password,
         options: {
@@ -226,7 +226,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await updateSession(user.id, 'end');
       }
 
-      const { error } = await supabase.auth.signOut();
+      const { error } = await localDb.auth.signOut();
 
       if (error) {
         toast({

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Save, X, Package, Search } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { LocationActivityService } from '@/services/locationActivityService';
 import { useProducts } from '@/contexts/ProductsContext';
@@ -92,7 +92,7 @@ export function LocationAddItemModal({
       setLoading(true);
 
       // Insert new inventory item
-      const { error: insertError } = await supabase
+      const { error: insertError } = await localDb
         .from('inventory_items')
         .insert([{
           sku: selectedProduct.sku,

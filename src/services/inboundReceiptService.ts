@@ -3,7 +3,7 @@
  * จัดการระบบรับเข้าสินค้า (Goods Receipt)
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 // =====================================================
 // TypeScript Interfaces
@@ -149,7 +149,7 @@ export class InboundReceiptService {
   static async createReceipt(input: CreateInboundReceiptInput, userId?: string): Promise<{ success: boolean; receipt?: InboundReceipt; error?: string }> {
     try {
       // 1. สร้าง receipt header
-      const { data: receipt, error: receiptError } = await supabase
+      const { data: receipt, error: receiptError } = await localDb
         .from('inbound_receipts')
         .insert({
           receipt_type: input.receipt_type,
@@ -204,7 +204,7 @@ export class InboundReceiptService {
         notes: item.notes
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await localDb
         .from('inbound_receipt_items')
         .insert(itemsToInsert);
 
@@ -228,7 +228,7 @@ export class InboundReceiptService {
     date_to?: string;
   }): Promise<{ success: boolean; receipts?: InboundReceipt[]; error?: string }> {
     try {
-      let query = supabase
+      let query = localDb
         .from('inbound_receipts')
         .select('*')
         .order('receipt_date', { ascending: false });
@@ -270,7 +270,7 @@ export class InboundReceiptService {
   static async getReceiptById(receiptId: string): Promise<{ success: boolean; receipt?: InboundReceipt; items?: InboundReceiptItem[]; error?: string }> {
     try {
       // Get receipt header
-      const { data: receipt, error: receiptError } = await supabase
+      const { data: receipt, error: receiptError } = await localDb
         .from('inbound_receipts')
         .select('*')
         .eq('id', receiptId)
@@ -279,7 +279,7 @@ export class InboundReceiptService {
       if (receiptError) throw receiptError;
 
       // Get receipt items
-      const { data: items, error: itemsError } = await supabase
+      const { data: items, error: itemsError } = await localDb
         .from('inbound_receipt_items')
         .select('*')
         .eq('inbound_receipt_id', receiptId)
@@ -325,7 +325,7 @@ export class InboundReceiptService {
         updateData.qc_notes = notes;
       }
 
-      const { error } = await supabase
+      const { error } = await localDb
         .from('inbound_receipts')
         .update(updateData)
         .eq('id', receiptId);
@@ -348,7 +348,7 @@ export class InboundReceiptService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // 1. ดึงข้อมูล receipt items
-      const { data: items, error: itemsError } = await supabase
+      const { data: items, error: itemsError } = await localDb
         .from('inbound_receipt_items')
         .select('*')
         .eq('inbound_receipt_id', receiptId)
@@ -364,7 +364,7 @@ export class InboundReceiptService {
         // ถ้ามี location + product_id + lot_number ตรงกัน -> อัปเดตจำนวน
         // ถ้าไม่มี -> สร้างใหม่
 
-        const { data: existingItem, error: checkError } = await supabase
+        const { data: existingItem, error: checkError } = await localDb
           .from('inventory_items')
           .select('id, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity')
           .eq('location', item.location || '')
@@ -376,7 +376,7 @@ export class InboundReceiptService {
 
         if (existingItem) {
           // อัปเดตจำนวนเพิ่ม
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               unit_level1_quantity: (existingItem.unit_level1_quantity || 0) + (item.received_quantity_level1 || 0),
@@ -388,13 +388,13 @@ export class InboundReceiptService {
           if (updateError) throw updateError;
 
           // อัปเดต inventory_item_id ใน receipt item
-          await supabase
+          await localDb
             .from('inbound_receipt_items')
             .update({ inventory_item_id: existingItem.id, status: 'stocked' })
             .eq('id', item.id);
         } else {
           // สร้างใหม่
-          const { data: newItem, error: insertError } = await supabase
+          const { data: newItem, error: insertError } = await localDb
             .from('inventory_items')
             .insert({
               product_id: item.product_id,
@@ -421,7 +421,7 @@ export class InboundReceiptService {
           if (insertError) throw insertError;
 
           // อัปเดต inventory_item_id ใน receipt item
-          await supabase
+          await localDb
             .from('inbound_receipt_items')
             .update({ inventory_item_id: newItem.id, status: 'stocked' })
             .eq('id', item.id);
@@ -450,7 +450,7 @@ export class InboundReceiptService {
     inspectorName?: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('inbound_qc_logs')
         .insert({
           inbound_receipt_id: receiptId,
@@ -476,7 +476,7 @@ export class InboundReceiptService {
    */
   static async cancelReceipt(receiptId: string, userId?: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('inbound_receipts')
         .update({ status: 'cancelled', updated_by: userId })
         .eq('id', receiptId);

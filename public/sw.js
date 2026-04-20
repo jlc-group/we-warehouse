@@ -1,8 +1,7 @@
 // Service Worker for WE Warehouse PWA
-const CACHE_NAME = 'we-warehouse-v1';
+const CACHE_NAME = 'we-warehouse-v3';
+// Don't cache index.html — always fetch fresh to get latest bundle references
 const STATIC_ASSETS = [
-    '/',
-    '/index.html',
     '/manifest.json',
     '/favicon.ico',
 ];
@@ -49,6 +48,12 @@ self.addEventListener('fetch', (event) => {
 
     // Skip API requests - always network
     if (event.request.url.includes('/api/')) return;
+
+    // Skip index.html and root navigation — always network to get latest bundle
+    const url = new URL(event.request.url);
+    if (url.pathname === '/' || url.pathname === '/index.html' || event.request.mode === 'navigate') {
+        return;
+    }
 
     event.respondWith(
         fetch(event.request)

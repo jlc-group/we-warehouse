@@ -58,7 +58,7 @@ import {
   ArrowDown,
   ArrowUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   generateBulkPickingPlans,
@@ -67,6 +67,10 @@ import {
   type PickingPlan,
   type PickingRoute
 } from '@/utils/pickingAlgorithm';
+import { executeTransfer, transferPartialStock } from '@/services/transferService';
+import { addToStaging } from '@/services/stagingService';
+import { useAuth } from '@/contexts/AuthContextSimple';
+
 
 interface PickingPlanModalProps {
   isOpen: boolean;
@@ -87,6 +91,7 @@ export const PickingPlanModal = ({
   selectedDate
 }: PickingPlanModalProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -102,7 +107,7 @@ export const PickingPlanModal = ({
     totalLocations: 0
   });
   const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
-  
+
   // State สำหรับ Stock Change Warning
   const [stockChanges, setStockChanges] = useState<Array<{
     location: string;
@@ -113,7 +118,7 @@ export const PickingPlanModal = ({
     canProceed: boolean;
   }>>([]);
   const [planCreatedAt, setPlanCreatedAt] = useState<Date | null>(null);
-  
+
   // State สำหรับ Edit จำนวนที่หยิบ (key: productCode-location, value: quantity)
   const [editedQuantities, setEditedQuantities] = useState<Map<string, number>>(new Map());
 
@@ -137,10 +142,9 @@ export const PickingPlanModal = ({
       }));
 
       // ดึงข้อมูล Inventory จาก Supabase (รวม LOT และ MFD ที่มีอยู่แล้ว)
-      const { data: inventoryData, error } = await supabase
+      const { data: inventoryData, error } = await localDb
         .from('inventory_items')
         .select('id, sku, product_name, location, unit_level1_quantity, unit_level1_rate, unit_level2_quantity, unit_level2_rate, unit_level3_quantity, unit_level1_name, unit_level2_name, unit_level3_name, warehouse_id, lot, mfd, created_at')
-        .or('unit_level1_quantity.gt.0,unit_level2_quantity.gt.0,unit_level3_quantity.gt.0') // เฉพาะที่มีของอยู่
         .order('created_at', { ascending: true }); // เรียงตาม FIFO (วันที่สร้างเก่าก่อน)
 
       if (error) {
@@ -153,7 +157,14 @@ export const PickingPlanModal = ({
         return;
       }
 
-      const inventoryLocations: InventoryLocation[] = (inventoryData || []) as any;
+      // Filter client-side: เฉพาะที่มีของอยู่ (unit_level1, 2, หรือ 3 > 0)
+      const filteredData = (inventoryData || []).filter((item: any) =>
+        (item.unit_level1_quantity > 0) ||
+        (item.unit_level2_quantity > 0) ||
+        (item.unit_level3_quantity > 0)
+      );
+
+      const inventoryLocations: InventoryLocation[] = filteredData as any;
 
       // สร้าง Picking Plans
       const result = generateBulkPickingPlans(productNeeds, inventoryLocations);
@@ -254,7 +265,7 @@ export const PickingPlanModal = ({
   const validateStockBeforeConfirm = async (): Promise<boolean> => {
     setValidating(true);
     const changes: typeof stockChanges = [];
-    
+
     try {
       // ตรวจสอบว่าแผนหมดอายุหรือไม่ (เกิน 30 นาที)
       if (planAgeMinutes > 30) {
@@ -274,7 +285,7 @@ export const PickingPlanModal = ({
           if (location.toPick <= 0) continue;
 
           // ดึง Stock ปัจจุบันจาก Database
-          const { data: currentItem, error } = await supabase
+          const { data: currentItem, error } = await localDb
             .from('inventory_items')
             .select('unit_level3_quantity')
             .eq('id', location.inventoryId)
@@ -356,6 +367,87 @@ export const PickingPlanModal = ({
   };
 
   /**
+   * ย้ายสินค้าที่เลือกไปพักที่ Packing (Staging)
+   * โดยยังไม่ตัดสต็อกจริงแต่ย้าย Location
+   */
+  /**
+   * ส่งสินค้าไปที่ Staging (จุดพัก)
+   * บันทึกรายการลง picking_staging และยังไม่ตัดสต็อกจริง
+   */
+  const handleSendToStaging = async () => {
+    if (pickingPlans.length === 0) return;
+    if (completedItems.size === 0) {
+      toast({
+        title: '⚠️ กรุณาเลือกรายการที่หยิบแล้ว',
+        description: 'ต้อง tick (☑️) อย่างน้อย 1 รายการก่อนส่งไปพักสินค้า',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    setConfirming(true);
+    try {
+      let stagedCount = 0;
+      let errors: string[] = [];
+
+      for (const plan of pickingPlans) {
+        if (plan.status === 'not_found') continue;
+        for (const location of plan.locations) {
+          const itemKey = `${plan.productCode}-${location.location}`;
+          if (!completedItems.has(itemKey)) continue;
+
+          const actualPickQty = getActualPickQuantity(itemKey, location.toPick);
+          if (actualPickQty <= 0) continue;
+
+          // Add to Staging Queue (Deferred Deduction)
+          const result = await addToStaging(
+            location.inventoryId,
+            plan.productCode,
+            location.location,
+            actualPickQty,
+            'ชิ้น', // Base unit
+            'PACKING',
+            user?.id
+          );
+
+          if (!result.success) {
+            console.error('Staging error:', result.error);
+            errors.push(`Error staging ${plan.productCode}: ${result.error?.message}`);
+          } else {
+            stagedCount++;
+          }
+        }
+      }
+
+      if (errors.length > 0) {
+        toast({
+          title: 'เกิดข้อผิดพลาดบางรายการ',
+          description: errors.join(', '),
+          variant: 'destructive'
+        });
+      }
+
+      if (stagedCount > 0) {
+        toast({
+          title: '✅ ส่งไปจุดพักสินค้าเรียบร้อย',
+          description: `ส่งสินค้า ${stagedCount} รายการไปรอตรวจสอบที่จุดพัก (Staging) แล้ว`,
+          className: 'bg-purple-50 border-purple-200'
+        });
+        onClose(); // Close modal after successful staging
+      }
+    } catch (e) {
+      console.error('Staging exception:', e);
+      toast({
+        title: 'Error',
+        description: 'Failed to send to staging',
+        variant: 'destructive'
+      });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  /**
    * ยืนยันการ Picking และหัก Stock จริง
    * - หักเฉพาะ Location ที่ tick (☑️) แล้วเท่านั้น
    * - อัปเดต unit_level3_quantity ใน inventory_items
@@ -401,7 +493,7 @@ export const PickingPlanModal = ({
           }
 
           // ดึงข้อมูล inventory item ปัจจุบัน
-          const { data: currentItem, error: fetchError } = await supabase
+          const { data: currentItem, error: fetchError } = await localDb
             .from('inventory_items')
             .select('id, unit_level3_quantity, unit_level2_quantity, unit_level1_quantity')
             .eq('id', location.inventoryId)
@@ -426,7 +518,7 @@ export const PickingPlanModal = ({
           }
 
           // อัปเดต inventory
-          const { error: updateError } = await supabase
+          const { error: updateError } = await localDb
             .from('inventory_items')
             .update({
               unit_level3_quantity: newLevel3Qty,
@@ -447,7 +539,7 @@ export const PickingPlanModal = ({
 
       // บันทึกประวัติการ Picking (ถ้ามี table)
       try {
-        await supabase
+        await localDb
           .from('picking_history')
           .insert({
             picking_date: selectedDate,
@@ -503,6 +595,7 @@ export const PickingPlanModal = ({
       setConfirming(false);
     }
   };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -813,7 +906,7 @@ export const PickingPlanModal = ({
                   ปิด
                 </Button>
                 {/* ปุ่มเลือกทั้งหมด */}
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => {
                     const allKeys = new Set<string>();
@@ -835,7 +928,7 @@ export const PickingPlanModal = ({
                 </Button>
                 {/* ปุ่มยกเลิกการเลือก */}
                 {completedItems.size > 0 && (
-                  <Button 
+                  <Button
                     variant="outline"
                     onClick={() => {
                       setCompletedItems(new Set());
@@ -858,9 +951,9 @@ export const PickingPlanModal = ({
                   <Download className="h-4 w-4 mr-2" />
                   ส่งออก Excel
                 </Button>
-                
+
                 {/* ปุ่มยืนยันและหัก Stock - หักเฉพาะที่ tick แล้ว */}
-                <Button 
+                <Button
                   onClick={handleConfirmClick}
                   className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
                   disabled={completedItems.size === 0 || validating}
@@ -895,7 +988,7 @@ export const PickingPlanModal = ({
                   <p className="text-gray-700">
                     พบว่า Stock มีการเปลี่ยนแปลงตั้งแต่คุณสร้างแผน ({planAgeMinutes} นาทีที่แล้ว)
                   </p>
-                  
+
                   {/* Plan Age Warning */}
                   {planAgeMinutes > 15 && (
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-center gap-2">
@@ -935,9 +1028,8 @@ export const PickingPlanModal = ({
                               {change.currentStock.toLocaleString()}
                             </TableCell>
                             <TableCell className="text-right">
-                              <span className={`flex items-center justify-end gap-1 ${
-                                change.difference > 0 ? 'text-green-600' : 'text-red-600'
-                              }`}>
+                              <span className={`flex items-center justify-end gap-1 ${change.difference > 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
                                 {change.difference > 0 ? (
                                   <ArrowUp className="h-3 w-3" />
                                 ) : (
@@ -1028,7 +1120,7 @@ export const PickingPlanModal = ({
               <AlertDialogDescription asChild>
                 <div className="space-y-4">
                   <p>คุณกำลังจะยืนยันการจัดสินค้าและหัก Stock ออกจากคลัง</p>
-                  
+
                   <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between">
                       <span>📅 วันที่:</span>
@@ -1047,12 +1139,12 @@ export const PickingPlanModal = ({
                   {completedItems.size < pickingRoute.length && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                       <p className="text-sm text-blue-800">
-                        ℹ️ <strong>หมายเหตุ:</strong> คุณเลือกเพียง {completedItems.size} จาก {pickingRoute.length} รายการ 
+                        ℹ️ <strong>หมายเหตุ:</strong> คุณเลือกเพียง {completedItems.size} จาก {pickingRoute.length} รายการ
                         ระบบจะหัก Stock เฉพาะรายการที่เลือกเท่านั้น
                       </p>
                     </div>
                   )}
-                  
+
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                     <p className="text-sm text-yellow-800">
                       ⚠️ <strong>คำเตือน:</strong> หลังจากยืนยันแล้ว Stock จะถูกหักทันที และไม่สามารถย้อนกลับได้
@@ -1063,6 +1155,25 @@ export const PickingPlanModal = ({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={confirming}>ยกเลิก</AlertDialogCancel>
+
+              <Button
+                onClick={handleSendToStaging}
+                disabled={confirming}
+                className="bg-purple-600 hover:bg-purple-700 text-white border-0"
+              >
+                {confirming ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    กำลังย้าย...
+                  </>
+                ) : (
+                  <>
+                    <Package className="h-4 w-4 mr-2" />
+                    พักสินค้า (Staging)
+                  </>
+                )}
+              </Button>
+
               <AlertDialogAction
                 onClick={confirmPicking}
                 disabled={confirming}

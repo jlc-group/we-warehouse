@@ -7,14 +7,22 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import salesRoutes from './routes/salesRoutes.js';
 import stockRoutes from './routes/stockRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
+import localRoutes from './routes/localRoutes.js';
+import shipmentRoutes from './routes/shipmentRoutes.js';
+import csmileRoutes from './routes/csmileRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import { extractUser } from './controllers/authController.js';
 import { SalesController } from './controllers/salesController.js';
 import { getConnection } from './config/database.js';
+import { testLocalConnection } from './config/localDatabase.js';
+import { schedulerService } from './services/schedulerService.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3003;
 
 // Middleware
 app.use(helmet()); // Security headers
@@ -28,6 +36,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Extract JWT user on all requests (non-blocking)
+app.use(extractUser);
+
 // Health check endpoint
 app.get('/health', SalesController.healthCheck);
 
@@ -35,6 +46,11 @@ app.get('/health', SalesController.healthCheck);
 app.use('/api/sales', salesRoutes);
 app.use('/api/stock', stockRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/local', localRoutes);  // Local PostgreSQL routes for warehouse data
+app.use('/api/shipments', shipmentRoutes);  // Shipment tracking routes
+app.use('/api/csmile', csmileRoutes);  // Csmile integration routes (prepared)
+app.use('/api/auth', authRoutes);  // Authentication routes (login, me, etc.)
+app.use('/api/admin', adminRoutes);  // Admin routes (users, roles, departments)
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -90,6 +106,10 @@ async function startServer() {
     console.error('⚠️  Database connection failed (server still running):', error.message);
     console.log('💡 Server is ready to accept requests, but database queries will fail until connection is established.');
   }
+
+  // Start PO Sync Scheduler (every 6 hours)
+  console.log('\n⏰ Starting scheduled tasks...');
+  schedulerService.start();
 }
 
 startServer();

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 interface FeatureFlags {
   billClearing: boolean;
@@ -21,7 +21,7 @@ async function checkBillClearingTables(): Promise<Partial<FeatureFlags>> {
 
   try {
     // Check if bill_clearing_permissions table exists
-    const { error: permissionsError } = await supabase
+    const { error: permissionsError } = await localDb
       .from('bill_clearing_permissions')
       .select('id')
       .limit(1);
@@ -33,7 +33,7 @@ async function checkBillClearingTables(): Promise<Partial<FeatureFlags>> {
 
   try {
     // Check if order_status_history table exists
-    const { error: historyError } = await supabase
+    const { error: historyError } = await localDb
       .from('order_status_history')
       .select('id')
       .limit(1);
@@ -45,7 +45,7 @@ async function checkBillClearingTables(): Promise<Partial<FeatureFlags>> {
 
   try {
     // Check if clearing_batches table exists
-    const { error: batchesError } = await supabase
+    const { error: batchesError } = await localDb
       .from('clearing_batches')
       .select('id')
       .limit(1);
@@ -57,7 +57,7 @@ async function checkBillClearingTables(): Promise<Partial<FeatureFlags>> {
 
   try {
     // Check if clearable_orders_view exists
-    const { error: viewError } = await supabase
+    const { error: viewError } = await localDb
       .from('clearable_orders_view')
       .select('id')
       .limit(1);
@@ -73,7 +73,7 @@ async function checkBillClearingTables(): Promise<Partial<FeatureFlags>> {
 // Check if the customer_orders table has bill clearing columns
 async function checkBillClearingColumns(): Promise<boolean> {
   try {
-    const { error } = await supabase
+    const { error } = await localDb
       .from('customer_orders')
       .select('cleared_at, cleared_by, payment_status')
       .limit(1);

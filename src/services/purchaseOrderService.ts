@@ -3,7 +3,7 @@
  * Handles fetching PO data and converting to warehouse fulfillment tasks
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 // API Configuration
 // Use VITE_JLC_API_BASE for JH Database API endpoints
@@ -53,6 +53,7 @@ export type FulfillmentStatus =
   | 'packed'       // จัดครบแล้ว รอส่ง (ยังยกเลิกได้)
   | 'shipped'      // จัดส่งแล้ว
   | 'delivered'    // ลูกค้าได้รับแล้ว
+  | 'completed'    // เสร็จสิ้น
   | 'cancelled';   // ยกเลิก
 
 // Source type
@@ -191,7 +192,7 @@ export class PurchaseOrderService {
   } | null> {
     try {
       // First, try to find exact match by product name
-      const inventoryTable = supabase.from('inventory_items') as any;
+      const inventoryTable = localDb.from('inventory_items') as any;
       const initialResult = await inventoryTable
         .select('id, product_name, sku, unit_level3_quantity, location')
         .eq('product_name' as any, productKeydata)
@@ -205,7 +206,7 @@ export class PurchaseOrderService {
       // If no exact match, try multiple fallback strategies
       if (error || !inventoryData) {
         // Strategy 1: Partial match with stock
-        const { data: partialMatchData, error: partialError } = await supabase
+        const { data: partialMatchData, error: partialError } = await localDb
           .from('inventory_items')
           .select('id, product_name, sku, unit_level3_quantity, location')
           .ilike('product_name', `%${productKeydata}%`)
@@ -217,7 +218,7 @@ export class PurchaseOrderService {
           inventoryData = partialMatchData[0];
         } else {
           // Strategy 2: Any item with stock and location (for demo purposes)
-          const { data: fallbackData, error: fallbackError } = await supabase
+          const { data: fallbackData, error: fallbackError } = await localDb
             .from('inventory_items')
             .select('id, product_name, sku, unit_level3_quantity, location')
             .gt('unit_level3_quantity', 0)
@@ -230,7 +231,7 @@ export class PurchaseOrderService {
             console.warn(`Using fallback inventory for product: ${productKeydata} -> ${inventoryData?.product_name ?? 'unknown'}`);
           } else {
             // Strategy 3: Any item regardless of stock (last resort)
-            const { data: lastResortData, error: lastResortError } = await supabase
+            const { data: lastResortData, error: lastResortError } = await localDb
               .from('inventory_items')
               .select('id, product_name, sku, unit_level3_quantity, location')
               .order('created_at', { ascending: false, nullsFirst: false })
@@ -423,9 +424,9 @@ export class PurchaseOrderService {
   }>> {
     try {
       console.log('🔍 Searching inventory for product:', productName);
-      
+
       // ค้นหาจาก inventory_items table โดยตรง
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('id, product_name, location, quantity')
         .gt('quantity', 0)
@@ -446,11 +447,11 @@ export class PurchaseOrderService {
       const filteredData = data.filter(item => {
         const itemName = (item.product_name || '').toLowerCase().trim();
         // ตรวจสอบหลายเงื่อนไข: exact match, contains, หรือ partial match
-        return itemName === searchName || 
-               itemName.includes(searchName) || 
-               searchName.includes(itemName) ||
-               // ตรวจสอบคำแรก
-               itemName.split(' ')[0] === searchName.split(' ')[0];
+        return itemName === searchName ||
+          itemName.includes(searchName) ||
+          searchName.includes(itemName) ||
+          // ตรวจสอบคำแรก
+          itemName.split(' ')[0] === searchName.split(' ')[0];
       });
 
       console.log(`✅ Found ${filteredData.length} locations for product: ${productName}`);
@@ -473,7 +474,7 @@ export class PurchaseOrderService {
     inventoryItemId: string
   ): Promise<number> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('quantity')
         .eq('id', inventoryItemId)

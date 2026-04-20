@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export type SeverityLevel = 'INFO' | 'SUCCESS' | 'WARNING' | 'ERROR';
 export type EventCategory =
@@ -60,12 +60,12 @@ export class EventLoggingService {
       let validUserId: string | null = null;
       if (params.user_id) {
         try {
-          const { data: userData, error: userError } = await supabase
+          const { data: userData, error: userError } = await localDb
             .from('users' as any)
             .select('id')
             .eq('id', params.user_id as any)
             .single();
-          
+
           if (!userError && userData) {
             validUserId = params.user_id;
           } else {
@@ -76,7 +76,7 @@ export class EventLoggingService {
         }
       }
 
-      const { error } = await supabase
+      const { error } = await localDb
         .from('system_events')
         .insert({
           event_type: params.event_type,

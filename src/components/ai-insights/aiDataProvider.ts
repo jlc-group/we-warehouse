@@ -9,7 +9,7 @@
  * - Aggregations & Analytics
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { SCHEMA_METADATA, TableMeta } from './aiSchemaMetadata';
 
 const SALES_API_BASE = import.meta.env.VITE_SALES_API_URL || '/api';
@@ -327,7 +327,7 @@ export class AIDataProvider {
    */
   async getInventorySummary(): Promise<AIQueryResult<InventorySummary>> {
     try {
-      const { data: items, error } = await supabase
+      const { data: items, error } = await localDb
         .from('inventory_items')
         .select('*');
       
@@ -383,13 +383,13 @@ export class AIDataProvider {
 
   async getWarehouseStats(): Promise<AIQueryResult<WarehouseStat[]>> {
     try {
-      const { data: warehouses, error: warehousesError } = await supabase
+      const { data: warehouses, error: warehousesError } = await localDb
         .from('warehouses')
         .select('id, name, code, is_active');
 
       if (warehousesError) throw warehousesError;
 
-      const { data: inventoryItems, error: inventoryError } = await supabase
+      const { data: inventoryItems, error: inventoryError } = await localDb
         .from('inventory_items')
         .select('warehouse_id, sku, product_name, location, quantity_pieces, unit_level3_quantity');
 
@@ -487,7 +487,7 @@ export class AIDataProvider {
    */
   async getProductInfo(query: string): Promise<AIQueryResult<ProductInfo[]>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('*')
         .or(`sku.ilike.%${query}%,product_name.ilike.%${query}%`)
@@ -543,7 +543,7 @@ export class AIDataProvider {
    */
   async searchInventory(query: string, limit: number = 10): Promise<AIQueryResult<any[]>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('id, sku, product_name, location, unit_level3_quantity, lot, mfd, exp')
         .or(`sku.ilike.%${query}%,product_name.ilike.%${query}%,location.ilike.%${query}%`)
@@ -573,7 +573,7 @@ export class AIDataProvider {
    */
   async getLowStockItems(threshold: number = 10): Promise<AIQueryResult<any[]>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('sku, product_name, location, unit_level3_quantity')
         .lt('unit_level3_quantity', threshold)
@@ -608,7 +608,7 @@ export class AIDataProvider {
       // Normalize location format
       const normalizedLocation = location.replace(/\//g, '/').toUpperCase();
       
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('*')
         .ilike('location', `%${normalizedLocation}%`);
@@ -639,7 +639,7 @@ export class AIDataProvider {
    */
   async getRecentMovements(limit: number = 20): Promise<AIQueryResult<MovementHistory[]>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_history')
         .select('*')
         .order('created_at', { ascending: false })
@@ -680,7 +680,7 @@ export class AIDataProvider {
    */
   async getProductMovements(sku: string): Promise<AIQueryResult<MovementHistory[]>> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_history')
         .select('*')
         .ilike('sku', `%${sku}%`)
@@ -724,7 +724,7 @@ export class AIDataProvider {
    */
   async getInventoryAnalytics(): Promise<AIQueryResult<any>> {
     try {
-      const { data: items, error } = await supabase
+      const { data: items, error } = await localDb
         .from('inventory_items')
         .select('*');
       
@@ -841,7 +841,7 @@ export class AIDataProvider {
         throw new Error(`ตาราง ${normalized} ยังไม่ได้เปิดให้ AI ใช้งานในโหมดตัวอย่างข้อมูล`);
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from(normalized)
         .select('*')
         .limit(limit);
@@ -887,7 +887,7 @@ export class AIDataProvider {
 
       const skuUpper = rawSku.toUpperCase();
 
-      const { data: items, error: inventoryError } = await supabase
+      const { data: items, error: inventoryError } = await localDb
         .from('inventory_items')
         .select('sku, product_name, unit_level3_quantity')
         .ilike('sku', `%${skuUpper}%`);

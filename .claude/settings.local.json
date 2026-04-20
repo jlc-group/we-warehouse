@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/components -name \"*.tsx\" -type f -exec wc -l {})",
+      "Bash(grep -r \"staging\\\\|queue\\\\|mobile\\\\|pick\\\\|receive\" /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/components/*.tsx)",
+      "Bash(grep -r \"DisabledComponent\\\\|TODO\\\\|placeholder\\\\|not.*implemented\" /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/components/location*)",
+      "Bash(grep -n \"DisabledComponent\\\\|disabled=true\\\\|onClick={\\(\\).*{}$\" /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/pages/Index.tsx)",
+      "Bash(find /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/hooks -type f -name *.ts -o -name *.tsx)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -rn \"<Button\\\\|<button\" /d/AI_WORKSPACE/AI_Project/Github/we-warehouse/src/pages/*.tsx)",
+      "Bash(npm run:*)",
+      "Bash(grep -l mobile_staging_queue supabase/migrations/*.sql)"
+    ]
+  }
+}

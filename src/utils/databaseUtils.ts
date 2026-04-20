@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 // Cache for column existence to avoid repeated checks
 let columnExistenceCache: { [key: string]: boolean } = {};
@@ -35,7 +35,7 @@ async function checkColumnExistsFallback(tableName: string, columnName: string):
 
   try {
     // Try to select just one row with the specific column
-    const { error } = await supabase
+    const { error } = await localDb
       .from(tableName)
       .select(columnName)
       .limit(1);

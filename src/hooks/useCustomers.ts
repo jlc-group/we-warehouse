@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { getCurrentUserId, ensureDemoUser } from '@/utils/authHelper';
 import { gatherDebugInfo, logDebugInfo } from '@/utils/debugUtils';
@@ -132,7 +132,7 @@ export const useCustomers = (params?: CustomerSearchParams) => {
 
         // ลองใช้ direct query ก่อน - พยายามดึงข้อมูลจริง
         console.log('📊 Attempting to fetch real customer data...');
-        let query = supabase
+        let query = localDb
           .from('customers')
           .select(`
             id,
@@ -344,7 +344,7 @@ export const useCustomer = (id: string) => {
       if (!id) return null;
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('customers')
           .select(`
             id,
@@ -428,7 +428,7 @@ export const useCreateCustomer = () => {
       ensureDemoUser(); // สร้าง demo user ถ้าไม่มี
       const userId = await getCurrentUserId();
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .insert({
           ...customerData,
@@ -468,7 +468,7 @@ export const useUpdateCustomer = () => {
     mutationFn: async ({ id, ...updateData }: UpdateCustomerData & { id: string }): Promise<Customer> => {
       const userId = await getCurrentUserId();
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .update({
           ...updateData,
@@ -507,10 +507,10 @@ export const useDeleteCustomer = () => {
 
   return useMutation({
     mutationFn: async (id: string): Promise<void> => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await localDb.auth.getUser();
 
       // Soft delete โดยการ set is_active = false
-      const { error } = await supabase
+      const { error } = await localDb
         .from('customers')
         .update({
           is_active: false,
@@ -579,9 +579,9 @@ export const useCustomerStats = () => {
         { count: activeCustomers },
         { count: inactiveCustomers }
       ] = await Promise.all([
-        supabase.from('customers').select('*', { count: 'exact', head: true }),
-        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('is_active', true),
-        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('is_active', false),
+        localDb.from('customers').select('*', { count: 'exact', head: true }),
+        localDb.from('customers').select('*', { count: 'exact', head: true }).eq('is_active', true),
+        localDb.from('customers').select('*', { count: 'exact', head: true }).eq('is_active', false),
       ]);
 
       return {

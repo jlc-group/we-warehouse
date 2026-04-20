@@ -1,5 +1,5 @@
 // Debug utilities for monitoring database connectivity and cache management
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface DebugInfo {
   localStorage: Record<string, any>;
@@ -80,7 +80,7 @@ export const gatherDebugInfo = async (): Promise<DebugInfo> => {
     };
 
     // Test Supabase connection
-    const { data: connectionTest, error: connectionError } = await supabase
+    const { data: connectionTest, error: connectionError } = await localDb
       .from('customers')
       .select('count', { count: 'exact', head: true });
 
@@ -95,7 +95,7 @@ export const gatherDebugInfo = async (): Promise<DebugInfo> => {
     }
 
     // Additional table structure check
-    const { data: tableCheck, error: tableError } = await supabase
+    const { data: tableCheck, error: tableError } = await localDb
       .from('customers')
       .select('id, name, phone')
       .limit(1);

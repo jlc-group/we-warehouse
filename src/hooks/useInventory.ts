@@ -1139,11 +1139,11 @@ export function useInventory(warehouseId?: string) {
     transferItems,
     shipOutItems,
     getItemsAtLocation,
-    refetch: () => {
+    refetch: useCallback(() => {
       // Manual refetch only when explicitly requested by user
       console.log('Manual refetch requested');
       return fetchItemsRef.current?.();
-    },
+    }, []),
     loadSampleData,
     clearAllData,
     retryConnection,

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useInventory } from '@/hooks/useInventory';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { checkViewExists, REQUIRED_VIEWS } from '@/utils/databaseViewUtils';
@@ -92,7 +92,7 @@ export function useProductsSummary() {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('products_summary')
           .select('*')
           .order('product_name');
@@ -172,7 +172,7 @@ async function generateProductSummaryFromInventory(
 
   // ✅ ดึงข้อมูลครบถ้วนจาก products table และ conversion rates table
   console.log('📋 Fetching products data from products table...');
-  const { data: productsData, error: productsError } = await supabase
+  const { data: productsData, error: productsError } = await localDb
     .from('products')
     .select('id, sku_code, product_name, product_type, category, subcategory, brand, unit_of_measure, unit_cost, description, is_active');
 
@@ -181,7 +181,7 @@ async function generateProductSummaryFromInventory(
   }
 
   console.log('📋 Fetching conversion rates from product_conversion_rates table...');
-  const { data: conversionRates, error: conversionError } = await supabase
+  const { data: conversionRates, error: conversionError } = await localDb
     .from('product_conversion_rates')
     .select('sku, unit_level1_name, unit_level1_rate, unit_level2_name, unit_level2_rate, unit_level3_name');
 
@@ -648,7 +648,7 @@ export function useProductSummaryById(productId: string) {
       console.log('📋 Fetching product summary by ID:', productId);
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('products_summary')
           .select('*')
           .eq('product_id', productId)
@@ -693,7 +693,7 @@ export function useProductSummaryBySku(sku: string) {
       console.log('🔍 Fetching product summary by SKU:', sku);
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('products_summary')
           .select('*')
           .eq('sku', sku)

@@ -30,7 +30,7 @@ import {
   Download,
   Filter
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -90,7 +90,7 @@ export function UnifiedExportHistory() {
       console.log('🔄 Loading export history from customer_exports...');
 
       // Load export data from customer_exports table
-      let query = supabase
+      let query = localDb
         .from('customer_exports')
         .select('*')
         .order('created_at', { ascending: false });

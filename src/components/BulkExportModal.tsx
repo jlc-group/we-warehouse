@@ -20,8 +20,10 @@ import {
   Trash2,
   Plus
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
+import { addToStaging } from '@/services/stagingService';
+import { useAuth } from '@/contexts/AuthContextSimple';
 
 interface InventoryItem {
   id: string;
@@ -83,6 +85,7 @@ interface BulkExportModalProps {
 }
 
 export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryItemsProp, preSelectedItems }: BulkExportModalProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<'select_items' | 'allocate_customers' | 'summary'>('select_items');
 
   // เพิ่ม state สำหรับ PO Number และ Invoice Number
@@ -147,7 +150,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
   const fetchCustomers = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('customers')
         .select('id, customer_name, customer_code')
         .eq('is_active', true)
@@ -163,7 +166,7 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
 
   const fetchProductTypes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('sku_code, product_type');
 
@@ -382,142 +385,69 @@ export function BulkExportModal({ open, onOpenChange, inventoryItems: inventoryI
     setIsSubmitting(true);
 
     try {
-      let totalCustomers = 0;
-      let totalExports = 0;
+      let totalStaged = 0;
 
       // สำหรับแต่ละสินค้า
       for (const selectedItem of selectedItems) {
-        if (selectedItem.allocations.length === 0) continue;
+        if (selectedItem.totalAllocated.pieces === 0) continue;
 
         const item = selectedItem.inventoryItem;
-        const location = item.location;
 
-        // สำหรับแต่ละลูกค้าในสินค้านี้
-        for (const allocation of selectedItem.allocations) {
-          if (allocation.totalPieces === 0) continue;
+        // Prepare metadata with allocation details
+        const metadata = {
+          allocations: selectedItem.allocations,
+          totalAllocated: selectedItem.totalAllocated,
+          poNumber,
+          invoiceNumber,
+          source: 'bulk_export'
+        };
 
-          // สร้าง notes รวม PO และ Invoice
-          const notes = [
-            'ส่งออกแบบหลายรายการพร้อมกัน',
-            poNumber ? `PO: ${poNumber}` : null,
-            invoiceNumber ? `Invoice: ${invoiceNumber}` : null
-          ].filter(Boolean).join(' | ');
+        // Add to Staging instead of direct deduction
+        const result = await addToStaging(
+          item.id,
+          item.sku || 'UNKNOWN',
+          item.location,
+          selectedItem.totalAllocated.pieces,
+          item.unit_level3_name || 'ชิ้น', // Use smallest unit for simplified staging logic
+          'PACKING',
+          user?.id,
+          metadata
+        );
 
-          // บันทึก customer_exports
-          await supabase.from('customer_exports').insert({
-            customer_id: allocation.customerId,
-            customer_name: allocation.customerName,
-            customer_code: allocation.customerCode,
-            product_name: item.product_name,
-            product_code: item.sku,
-            inventory_item_id: item.id,
-            quantity_exported: allocation.totalPieces,
-            quantity_level1: allocation.level1,
-            quantity_level2: allocation.level2,
-            quantity_level3: allocation.level3,
-            unit_level1_name: allocation.unitLevel1Name,
-            unit_level2_name: allocation.unitLevel2Name,
-            unit_level3_name: allocation.unitLevel3Name,
-            unit_level1_rate: allocation.unitLevel1Rate,
-            unit_level2_rate: allocation.unitLevel2Rate,
-            from_location: location,
-            notes: notes,
-            user_id: '00000000-0000-0000-0000-000000000000'
-          });
-
-          // บันทึก system_events พร้อม PO และ Invoice ใน metadata
-          await supabase.from('system_events').insert({
-            event_type: 'inventory',
-            event_category: 'stock_movement',
-            event_action: 'bulk_export',
-            event_title: 'ส่งออกหลายรายการ',
-            event_description: `ส่งออก ${item.product_name} จาก ${location} จำนวน ${allocation.totalPieces} ชิ้น ไปยัง ${allocation.customerName}${poNumber ? ` (PO: ${poNumber})` : ''}${invoiceNumber ? ` (Invoice: ${invoiceNumber})` : ''}`,
-            metadata: {
-              item_id: item.id,
-              product_name: item.product_name,
-              quantity: allocation.totalPieces,
-              location: location,
-              customer_id: allocation.customerId,
-              customer_name: allocation.customerName,
-              level1: allocation.level1,
-              level2: allocation.level2,
-              level3: allocation.level3,
-              po_number: poNumber || null,
-              invoice_number: invoiceNumber || null
-            },
-            user_id: '00000000-0000-0000-0000-000000000000'
-          });
-
-          totalExports++;
-        }
-
-        // คำนวณสต็อกใหม่ (หักรวมจากทุกลูกค้า)
-        const newLevel1 = item.unit_level1_quantity - selectedItem.totalAllocated.level1;
-        const newLevel2 = item.unit_level2_quantity - selectedItem.totalAllocated.level2;
-        const newLevel3 = item.unit_level3_quantity - selectedItem.totalAllocated.level3;
-
-        // อัปเดตสต็อก
-        const { error: updateError } = await supabase
-          .from('inventory_items')
-          .update({
-            unit_level1_quantity: newLevel1,
-            unit_level2_quantity: newLevel2,
-            unit_level3_quantity: newLevel3
-          })
-          .eq('id', item.id);
-
-        if (updateError) throw updateError;
-
-        // บันทึกประวัติ inventory_movements
-        await supabase.from('inventory_movements').insert({
-          inventory_item_id: item.id,
-          movement_type: 'out',
-          quantity_boxes_before: item.unit_level1_quantity,
-          quantity_loose_before: item.unit_level2_quantity,
-          quantity_boxes_after: newLevel1,
-          quantity_loose_after: newLevel2,
-          quantity_boxes_change: -selectedItem.totalAllocated.level1,
-          quantity_loose_change: -selectedItem.totalAllocated.level2,
-          location_before: location,
-          location_after: `ส่งออกให้ ${selectedItem.allocations.length} ลูกค้า`,
-          notes: `ส่งออกแบบหลายรายการ - รวม ${selectedItem.totalAllocated.pieces} ชิ้น`
-        });
-
-        // ลบ item ถ้าสต็อกเป็น 0
-        if (newLevel1 === 0 && newLevel2 === 0 && newLevel3 === 0) {
-          await supabase.from('inventory_items').delete().eq('id', item.id);
-
-          await supabase.from('system_events').insert({
-            event_type: 'location',
-            event_category: 'location_management',
-            event_action: 'location_cleared',
-            event_title: `ตำแหน่ง ${location} ว่างแล้ว`,
-            event_description: `สินค้า ${item.product_name} ถูกส่งออกหมดจาก ${location}`,
-            metadata: { location, product_name: item.product_name },
-            location_context: location,
-            status: 'success',
-            user_id: '00000000-0000-0000-0000-000000000000'
-          });
+        if (result.success) {
+          totalStaged++;
+        } else {
+          console.error('Staging failed for item:', item.sku, result.error);
         }
       }
 
-      // นับจำนวนลูกค้าทั้งหมด (ไม่ซ้ำ)
-      const uniqueCustomers = new Set(
-        selectedItems.flatMap(si => si.allocations.map(a => a.customerId))
-      );
-      totalCustomers = uniqueCustomers.size;
+      if (totalStaged > 0) {
+        toast.success(`ส่งสินค้าไปพัก (Staging) เรียบร้อย ${totalStaged} รายการ`);
 
-      toast.success(`ส่งออกสำเร็จ ${totalExports} รายการ ให้ ${totalCustomers} ลูกค้า!`);
+        // Log event
+        await localDb.from('system_events').insert({
+          event_type: 'inventory',
+          event_category: 'picking',
+          event_action: 'bulk_staging_request',
+          event_title: 'ส่งรายการไปพักสินค้า (Staging)',
+          event_description: `ส่งรายการ ${totalStaged} รายการไปยัง Staging Area เพื่อรอตรวจสอบ`,
+          user_id: user?.id
+        });
 
-      // รีเซ็ตและปิด Modal
-      handleClose();
+        // รีเซ็ตและปิด Modal
+        handleClose();
 
-      // รีเฟรชหน้า
-      window.location.reload();
+        // เราไม่ reload หน้า เพราะ stock ยังไม่ตัดจริง
+        // window.location.reload(); 
+        // อาจจะ refresh แค่ selection?
+        onOpenChange(false);
+      } else {
+        toast.error('ไม่สามารถส่งรายการไป Staging ได้');
+      }
 
     } catch (error) {
-      console.error('Error bulk export:', error);
-      toast.error('เกิดข้อผิดพลาดในการส่งออก');
+      console.error('Error bulk export staging:', error);
+      toast.error('เกิดข้อผิดพลาดในการส่งข้อมูล');
     } finally {
       setIsSubmitting(false);
     }

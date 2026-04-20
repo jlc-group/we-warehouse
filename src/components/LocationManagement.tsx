@@ -11,7 +11,7 @@ import { Plus, MapPin, Edit, Trash2, Search, Grid3X3, RefreshCw } from 'lucide-r
 import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locationUtils';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type LocationRow = Database['public']['Tables']['warehouse_locations']['Row'];
@@ -135,7 +135,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
 
       if (editingLocation) {
         // Update existing location
-        const { error } = await supabase
+        const { error } = await localDb
           .from('warehouse_locations')
           .update(locationData)
           .eq('id', editingLocation.id);
@@ -148,7 +148,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
         });
       } else {
         // Create new location
-        const { error } = await supabase
+        const { error } = await localDb
           .from('warehouse_locations')
           .insert([locationData]);
 
@@ -227,7 +227,7 @@ export function LocationManagement({ userRoleLevel }: LocationManagementProps) {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await localDb
         .from('warehouse_locations')
         .delete()
         .eq('id', location.id);

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { EventLoggingService } from '@/services/eventLoggingService';
 import { toast } from '@/components/ui/sonner';
 import { Loader2, AlertCircle, Lock, Save } from 'lucide-react';
@@ -43,7 +43,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
   });
 
   const fetchConversionRates = useCallback(async () => {
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('product_conversion_rates')
       .select('unit_level1_rate, unit_level2_rate')
       .eq('product_id', product.id as any)
@@ -96,7 +96,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
       if (hasProductChanges) {
         productUpdates.updated_at = new Date().toISOString();
 
-        const { error: productError } = await supabase
+        const { error: productError } = await localDb
           .from('products')
           .update(productUpdates)
           .eq('id', product.id as any);
@@ -105,7 +105,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
       }
 
       // Check if conversion rates exist
-      const { data: existingRates, error: ratesError } = await supabase
+      const { data: existingRates, error: ratesError } = await localDb
         .from('product_conversion_rates')
         .select('*')
         .eq('product_id', product.id as any)
@@ -132,7 +132,7 @@ export function ProductEditModal({ open, onOpenChange, product, onSuccess }: Pro
         if (hasConversionChanges) {
           rateUpdates.updated_at = new Date().toISOString();
 
-          const { error: rateError } = await supabase
+          const { error: rateError } = await localDb
             .from('product_conversion_rates')
             .update(rateUpdates)
             .eq('product_id', product.id as any);

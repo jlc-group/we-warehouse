@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface StockOverviewSummary {
   totalItems: number;
@@ -33,7 +33,7 @@ export interface StockOverviewData {
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
 
 async function fetchStockOverview(warehouseId?: string): Promise<StockOverviewData> {
-  const { data, error } = await supabase.rpc('get_stock_overview', {
+  const { data, error } = await localDb.rpc('get_stock_overview', {
     p_warehouse_id: warehouseId || null
   });
 

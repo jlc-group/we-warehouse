@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 
 // User interface matching actual database schema
@@ -56,7 +56,7 @@ export function useUsers() {
       console.log('🔍 Fetching users from database...');
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('users')
           .select('*')
           .order('role_level', { ascending: true });
@@ -111,7 +111,7 @@ export function useUser(userId: string) {
       console.log('🔍 Fetching user by ID:', userId);
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('users')
           .select('*')
           .eq('id', userId)
@@ -145,7 +145,7 @@ export function useCreateUser() {
     mutationFn: async (userData: UserInsert): Promise<User> => {
       console.log('➕ Creating new user:', userData.email);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('users')
         .insert({
           ...userData,
@@ -188,7 +188,7 @@ export function useUpdateUser() {
     mutationFn: async ({ userId, updates }: { userId: string; updates: UserUpdate }): Promise<User> => {
       console.log('✏️ Updating user:', userId, updates);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('users')
         .update(updates)
         .eq('id', userId)
@@ -229,7 +229,7 @@ export function useDeleteUser() {
     mutationFn: async (userId: string): Promise<void> => {
       console.log('🗑️ Deleting user:', userId);
 
-      const { error } = await supabase
+      const { error } = await localDb
         .from('users')
         .delete()
         .eq('id', userId);
@@ -265,7 +265,7 @@ export function useToggleUserStatus() {
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }): Promise<User> => {
       console.log('🔄 Toggling user status:', userId, isActive);
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('users')
         .update({ is_active: isActive })
         .eq('id', userId)
@@ -303,7 +303,7 @@ export function useUpdateLastLogin() {
     mutationFn: async (userId: string): Promise<void> => {
       console.log('🔄 Updating last login for user:', userId);
 
-      const { error } = await supabase
+      const { error } = await localDb
         .from('users')
         .update({
           last_login: new Date().toISOString(),

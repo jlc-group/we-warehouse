@@ -9,7 +9,7 @@
  * - Audit trail
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import type {
   StockReservation,
   CreateReservationParams,
@@ -34,7 +34,7 @@ export class StockReservationService {
   ): Promise<ReserveStockResult> {
     try {
       // ใช้ Function ที่เป็น Transaction-safe
-      const { data, error } = await supabase.rpc('reserve_stock_safe', {
+      const { data, error } = await localDb.rpc('reserve_stock_safe', {
         p_inventory_item_id: params.inventory_item_id,
         p_fulfillment_item_id: params.fulfillment_item_id || null,
         p_warehouse_code: params.warehouse_code,
@@ -56,7 +56,7 @@ export class StockReservationService {
       }
 
       // Fetch created reservation
-      const { data: reservation } = await supabase
+      const { data: reservation } = await localDb
         .from('stock_reservations')
         .select('*')
         .eq('id', data)
@@ -124,7 +124,7 @@ export class StockReservationService {
     params: CancelReservationParams
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase.rpc('cancel_reservation', {
+      const { data, error } = await localDb.rpc('cancel_reservation', {
         p_reservation_id: params.reservation_id,
         p_cancelled_by: params.cancelled_by,
       });
@@ -139,7 +139,7 @@ export class StockReservationService {
 
       // Update notes if provided
       if (params.reason) {
-        await supabase
+        await localDb
           .from('stock_reservations')
           .update({ notes: params.reason })
           .eq('id', params.reservation_id);
@@ -162,7 +162,7 @@ export class StockReservationService {
     params: FulfillReservationParams
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase.rpc('fulfill_reservation', {
+      const { data, error } = await localDb.rpc('fulfill_reservation', {
         p_reservation_id: params.reservation_id,
         p_fulfilled_by: params.fulfilled_by,
       });
@@ -177,7 +177,7 @@ export class StockReservationService {
 
       // Update notes if provided
       if (params.notes) {
-        await supabase
+        await localDb
           .from('stock_reservations')
           .update({ notes: params.notes })
           .eq('id', params.reservation_id);
@@ -233,7 +233,7 @@ export class StockReservationService {
    */
   static async getReservation(reservationId: string): Promise<StockReservation | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('stock_reservations')
         .select('*')
         .eq('id', reservationId)
@@ -258,7 +258,7 @@ export class StockReservationService {
     fulfillmentItemId: string
   ): Promise<StockReservation[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('stock_reservations')
         .select('*')
         .eq('fulfillment_item_id', fulfillmentItemId)
@@ -281,7 +281,7 @@ export class StockReservationService {
    */
   static async getActiveReservations(inventoryItemId: string): Promise<StockReservation[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('stock_reservations')
         .select('*')
         .eq('inventory_item_id', inventoryItemId)
@@ -305,7 +305,7 @@ export class StockReservationService {
    */
   static async getAvailableStock(inventoryItemId: string): Promise<AvailableStockInfo | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_available')
         .select('*')
         .eq('id', inventoryItemId)
@@ -361,7 +361,7 @@ export class StockReservationService {
     filters: ReservationFilters
   ): Promise<ReservationWithProduct[]> {
     try {
-      let query = supabase
+      let query = localDb
         .from('reservation_history')
         .select('*');
 
@@ -411,7 +411,7 @@ export class StockReservationService {
    */
   static async getReservationSummaryByWarehouse(): Promise<ReservationSummary[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('reservation_summary_by_warehouse')
         .select('*');
 

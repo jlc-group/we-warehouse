@@ -751,9 +751,9 @@ const Index = memo(() => {
                     <DropdownMenuSeparator />
                     {showAdminFeatures && (
                       <>
-                        <DropdownMenuItem onClick={() => setActiveTab('admin')}>
+                        <DropdownMenuItem onClick={() => navigate('/admin')}>
                           <Users className="mr-2 h-4 w-4" />
-                          <span>Admin</span>
+                          <span>Admin จัดการสิทธิ์</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setActiveTab('management')}>
                           <Archive className="mr-2 h-4 w-4" />
@@ -814,13 +814,13 @@ const Index = memo(() => {
                   </div>
                   <div className="text-xs sm:text-sm text-muted-foreground">
                     สถานะ: {connectionStatus === 'connected' ? '🟢 เชื่อมต่อแล้ว' :
-                           connectionStatus === 'connecting' ? '🟡 กำลังเชื่อมต่อ...' :
-                           '🔴 ไม่สามารถเชื่อมต่อได้'}
+                      connectionStatus === 'connecting' ? '🟡 กำลังเชื่อมต่อ...' :
+                        '🔴 ไม่สามารถเชื่อมต่อได้'}
                   </div>
                 </div>
               </div>
             )}
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
                 <p className="text-sm sm:text-base text-muted-foreground">
@@ -1139,118 +1139,118 @@ const Index = memo(() => {
 
           {/* 📈 รายงาน - Reports Tab with 3 sub-tabs */}
           <TabsContent value="reports" className="space-y-4">
-              <Tabs defaultValue="analytics" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
-                  <TabsTrigger value="analytics" className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    Analytics
-                  </TabsTrigger>
-                  <TabsTrigger value="department-analytics" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Analytics แผนก
-                  </TabsTrigger>
-                  <TabsTrigger value="history" className="flex items-center gap-2">
-                    <Archive className="h-4 w-4" />
-                    ประวัติ
-                  </TabsTrigger>
-                </TabsList>
+            <Tabs defaultValue="analytics" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200">
+                <TabsTrigger value="analytics" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Analytics
+                </TabsTrigger>
+                <TabsTrigger value="department-analytics" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Analytics แผนก
+                </TabsTrigger>
+                <TabsTrigger value="history" className="flex items-center gap-2">
+                  <Archive className="h-4 w-4" />
+                  ประวัติ
+                </TabsTrigger>
+              </TabsList>
 
-                <TabsContent value="analytics" className="space-y-4">
-                  {loading ? (
-                    <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
-                  ) : (
-                    <Tabs defaultValue="monitoring" className="space-y-4">
-                      <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
-                        <TabsTrigger value="monitoring">📊 ภาพรวมและการติดตาม</TabsTrigger>
-                        <TabsTrigger value="alerts">🔔 การแจ้งเตือนและควบคุม</TabsTrigger>
-                        <TabsTrigger value="analysis">📈 การวิเคราะห์และประสิทธิภาพ</TabsTrigger>
-                        <TabsTrigger value="forecasting">🔮 การพยากรณ์และวางแผน</TabsTrigger>
-                        <TabsTrigger value="technical">🛠️ เทคนิคและระบบ</TabsTrigger>
-                      </TabsList>
-
-                      <TabsContent value="monitoring" className="space-y-4">
-                        <div className="grid gap-4">
-                          <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
-                            <InventoryAnalytics items={inventoryItems} />
-                          </Suspense>
-                          {showWarehouseTab && (
-                            <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
-                              <WarehouseDashboard />
-                            </Suspense>
-                          )}
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="alerts" className="space-y-4">
-                        <AlertsPanel />
-                      </TabsContent>
-
-                      <TabsContent value="analysis" className="space-y-4">
-                        <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
-                          <AdvancedAnalytics warehouseId={selectedWarehouseId} />
-                        </Suspense>
-                      </TabsContent>
-
-                      <TabsContent value="forecasting" className="space-y-4">
-                        <div className="grid gap-4">
-                          <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
-                            <ForecastingDashboard warehouseId={selectedWarehouseId} />
-                          </Suspense>
-                          <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
-                            <BatchManagement warehouseId={selectedWarehouseId} />
-                          </Suspense>
-                        </div>
-                      </TabsContent>
-
-                      <TabsContent value="technical" className="space-y-4">
-                        <div className="space-y-4">
-                          <DatabaseDebug />
-                        </div>
-                      </TabsContent>
-                    </Tabs>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="department-analytics" className="space-y-4">
-                  {showWarehouseTab && (
-                    <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
-                      <WarehouseDashboard />
-                    </Suspense>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="history" className="space-y-4">
-                  <Tabs defaultValue="export_history" className="space-y-4">
-                    <TabsList className="grid w-full grid-cols-6">
-                      <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
-                      <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
-                      <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
-                      <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
-                      <TabsTrigger value="reserved_stock">🔒 Reserved Stock</TabsTrigger>
-                      <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
+              <TabsContent value="analytics" className="space-y-4">
+                {loading ? (
+                  <div className="text-center py-8">กำลังโหลดข้อมูล...</div>
+                ) : (
+                  <Tabs defaultValue="monitoring" className="space-y-4">
+                    <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200">
+                      <TabsTrigger value="monitoring">📊 ภาพรวมและการติดตาม</TabsTrigger>
+                      <TabsTrigger value="alerts">🔔 การแจ้งเตือนและควบคุม</TabsTrigger>
+                      <TabsTrigger value="analysis">📈 การวิเคราะห์และประสิทธิภาพ</TabsTrigger>
+                      <TabsTrigger value="forecasting">🔮 การพยากรณ์และวางแผน</TabsTrigger>
+                      <TabsTrigger value="technical">🛠️ เทคนิคและระบบ</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="export_history">
-                      <ExportHistory />
+
+                    <TabsContent value="monitoring" className="space-y-4">
+                      <div className="grid gap-4">
+                        <Suspense fallback={<ComponentLoadingFallback componentName="Analytics Overview" />}>
+                          <InventoryAnalytics items={inventoryItems} />
+                        </Suspense>
+                        {showWarehouseTab && (
+                          <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                            <WarehouseDashboard />
+                          </Suspense>
+                        )}
+                      </div>
                     </TabsContent>
-                    <TabsContent value="customer_dashboard">
-                      <CustomerExportDashboard />
+
+                    <TabsContent value="alerts" className="space-y-4">
+                      <AlertsPanel />
                     </TabsContent>
-                    <TabsContent value="unified_export">
-                      <UnifiedExportHistory />
+
+                    <TabsContent value="analysis" className="space-y-4">
+                      <Suspense fallback={<ComponentLoadingFallback componentName="Advanced Analytics" />}>
+                        <AdvancedAnalytics warehouseId={selectedWarehouseId} />
+                      </Suspense>
                     </TabsContent>
-                    <TabsContent value="movement_logs">
-                      <MovementLogs />
+
+                    <TabsContent value="forecasting" className="space-y-4">
+                      <div className="grid gap-4">
+                        <Suspense fallback={<ComponentLoadingFallback componentName="Forecasting Dashboard" />}>
+                          <ForecastingDashboard warehouseId={selectedWarehouseId} />
+                        </Suspense>
+                        <Suspense fallback={<ComponentLoadingFallback componentName="Batch Management" />}>
+                          <BatchManagement warehouseId={selectedWarehouseId} />
+                        </Suspense>
+                      </div>
                     </TabsContent>
-                    <TabsContent value="reserved_stock">
-                      <ReservedStockDashboard />
-                    </TabsContent>
-                    <TabsContent value="system_events">
-                      <EnhancedEventLogs />
+
+                    <TabsContent value="technical" className="space-y-4">
+                      <div className="space-y-4">
+                        <DatabaseDebug />
+                      </div>
                     </TabsContent>
                   </Tabs>
-                </TabsContent>
-              </Tabs>
-            </TabsContent>
+                )}
+              </TabsContent>
+
+              <TabsContent value="department-analytics" className="space-y-4">
+                {showWarehouseTab && (
+                  <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Dashboard" />}>
+                    <WarehouseDashboard />
+                  </Suspense>
+                )}
+              </TabsContent>
+
+              <TabsContent value="history" className="space-y-4">
+                <Tabs defaultValue="export_history" className="space-y-4">
+                  <TabsList className="grid w-full grid-cols-6">
+                    <TabsTrigger value="export_history">ประวัติการส่งออก</TabsTrigger>
+                    <TabsTrigger value="customer_dashboard">Dashboard ลูกค้า</TabsTrigger>
+                    <TabsTrigger value="unified_export">วิเคราะห์การส่งออก</TabsTrigger>
+                    <TabsTrigger value="movement_logs">ประวัติสต็อก</TabsTrigger>
+                    <TabsTrigger value="reserved_stock">🔒 Reserved Stock</TabsTrigger>
+                    <TabsTrigger value="system_events">กิจกรรมระบบ</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="export_history">
+                    <ExportHistory />
+                  </TabsContent>
+                  <TabsContent value="customer_dashboard">
+                    <CustomerExportDashboard />
+                  </TabsContent>
+                  <TabsContent value="unified_export">
+                    <UnifiedExportHistory />
+                  </TabsContent>
+                  <TabsContent value="movement_logs">
+                    <MovementLogs />
+                  </TabsContent>
+                  <TabsContent value="reserved_stock">
+                    <ReservedStockDashboard />
+                  </TabsContent>
+                  <TabsContent value="system_events">
+                    <EnhancedEventLogs />
+                  </TabsContent>
+                </Tabs>
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
 
           {/* 🔧 เครื่องมือ - Tools Tab with 3 sub-tabs */}
           <TabsContent value="tools" className="space-y-4">
@@ -1388,12 +1388,12 @@ const Index = memo(() => {
             otherItemsAtLocation={
               selectedItem
                 ? inventoryItems.filter(item =>
-                    normalizeLocation(item.location) === normalizeLocation(selectedLocation) &&
-                    item.id !== selectedItem.id
-                  )
+                  normalizeLocation(item.location) === normalizeLocation(selectedLocation) &&
+                  item.id !== selectedItem.id
+                )
                 : inventoryItems.filter(item =>
-                    normalizeLocation(item.location) === normalizeLocation(selectedLocation)
-                  )
+                  normalizeLocation(item.location) === normalizeLocation(selectedLocation)
+                )
             }
           />
         </ErrorBoundary>

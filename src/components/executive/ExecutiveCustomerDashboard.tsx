@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { format, parseISO, subDays, startOfDay, endOfDay } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Calendar, Download, Filter, RefreshCw } from 'lucide-react';
@@ -46,7 +46,7 @@ export const ExecutiveCustomerDashboard = () => {
     try {
       setLoading(true);
 
-      let query = supabase
+      let query = localDb
         .from('customer_exports')
         .select('id, product_name, product_code, customer_name, quantity_exported, from_location, created_at, unit_price, total_value')
         .order('created_at', { ascending: false });

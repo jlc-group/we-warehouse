@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface LocationInventoryCount {
   location: string;
@@ -20,7 +20,7 @@ export const useLocationInventoryCounts = () => {
     queryKey: ['location-inventory-counts'],
     queryFn: async () => {
       // Fetch all inventory items grouped by location
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('location, id')
         .order('location');

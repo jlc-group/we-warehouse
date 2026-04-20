@@ -264,7 +264,7 @@ export function useLocationQR() {
     // Real-time updates disabled to improve performance and prevent UI flickering
     // Data will be manually refreshed when needed
 
-    // const subscription = supabase
+    // const subscription = localDb
     //   .channel('location_qr_codes_changes')
     //   .on(
     //     'postgres_changes',

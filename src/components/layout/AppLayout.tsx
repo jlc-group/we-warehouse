@@ -35,6 +35,7 @@ export function AppLayout({
     'locations': { title: 'จัดการ Location', subtitle: 'เพิ่ม/แก้ไขตำแหน่งจัดเก็บ' },
     'stock-card': { title: 'Stock Card', subtitle: 'ประวัติการเคลื่อนไหว' },
     'packing-list': { title: 'รายการส่งของ', subtitle: 'Packing List ตาม TAXDATE' },
+    'staging': { title: 'พักสินค้า (Staging)', subtitle: 'จัดการสินค้าที่รอแพ็ค (Location: PACKING)' },
     'daily-shipment': { title: 'สรุปส่ง Csmile', subtitle: 'รวมบิลส่งออกรายวัน' },
     'finance': { title: 'รายงานการเงิน', subtitle: 'สรุปยอดขายและรายได้' },
     'analytics': { title: 'วิเคราะห์ยอดขาย', subtitle: 'กราฟและสถิติการขาย' },
@@ -58,6 +59,7 @@ export function AppLayout({
           subtitle={subtitle || currentTitle.subtitle}
           onRefresh={onRefresh}
           isRefreshing={isRefreshing}
+          helpTopic={activeTab || 'overview'}
         />
         <main className="flex-1 p-3 sm:p-4 md:p-6 bg-gray-50/50 overflow-x-hidden">
           {children}

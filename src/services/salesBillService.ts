@@ -1,5 +1,5 @@
 // Sales Bill Service - Phase 1: Sales Team Operations
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import {
   SalesBill,
   SalesBillInsert,
@@ -29,7 +29,7 @@ export class SalesBillService {
 
     try {
       // Start transaction
-      const { data: salesBill, error: billError } = await supabase
+      const { data: salesBill, error: billError } = await localDb
         .from('sales_bills')
         .insert({
           customer_id: data.customer_id,
@@ -98,7 +98,7 @@ export class SalesBillService {
   static async getSalesBills(filters?: SalesBillFilters): Promise<SalesBillWithCustomer[]> {
     console.log('🔍 Fetching sales bills with filters:', filters);
 
-    let query = supabase
+    let query = localDb
       .from('sales_bills')
       .select(`
         *,
@@ -160,7 +160,7 @@ export class SalesBillService {
   static async getSalesBillWithItems(billId: string): Promise<SalesBillWithItems | null> {
     console.log('🔍 Fetching sales bill with items:', billId);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bills')
       .select(`
         *,
@@ -192,7 +192,7 @@ export class SalesBillService {
   static async updateSalesBill(billId: string, updates: SalesBillUpdate): Promise<SalesBill> {
     console.log('📝 Updating sales bill:', billId, updates);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bills')
       .update({
         ...updates,
@@ -218,7 +218,7 @@ export class SalesBillService {
   static async updateSalesBillStatus(billId: string, status: SalesBillStatus): Promise<void> {
     console.log('📝 Updating sales bill status:', billId, status);
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('sales_bills')
       .update({
         status,
@@ -277,7 +277,7 @@ export class SalesBillService {
       line_number: index + 1
     }));
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bill_items')
       .insert(itemsToInsert)
       .select();
@@ -297,7 +297,7 @@ export class SalesBillService {
   static async updateSalesBillItem(itemId: string, updates: SalesBillItemUpdate): Promise<SalesBillItem> {
     console.log('📝 Updating sales bill item:', itemId, updates);
 
-    const { data, error } = await supabase
+    const { data, error } = await localDb
       .from('sales_bill_items')
       .update({
         ...updates,
@@ -327,13 +327,13 @@ export class SalesBillService {
     console.log('🗑️ Removing sales bill item:', itemId);
 
     // Get item to get bill ID for recalculation
-    const { data: item } = await supabase
+    const { data: item } = await localDb
       .from('sales_bill_items')
       .select('sales_bill_id')
       .eq('id', itemId)
       .single();
 
-    const { error } = await supabase
+    const { error } = await localDb
       .from('sales_bill_items')
       .delete()
       .eq('id', itemId);
@@ -361,7 +361,7 @@ export class SalesBillService {
   static async recalculateBillTotals(billId: string): Promise<void> {
     console.log('🧮 Recalculating bill totals:', billId);
 
-    const { data: items, error } = await supabase
+    const { data: items, error } = await localDb
       .from('sales_bill_items')
       .select('line_total, discount_amount')
       .eq('sales_bill_id', billId);
@@ -376,7 +376,7 @@ export class SalesBillService {
     const taxAmount = subtotal * 0.07; // 7% VAT (adjust as needed)
     const totalAmount = subtotal - totalDiscount + taxAmount;
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await localDb
       .from('sales_bills')
       .update({
         subtotal,
@@ -411,7 +411,7 @@ export class SalesBillService {
   static async getSalesStatistics(dateFrom?: string, dateTo?: string) {
     console.log('📊 Fetching sales statistics');
 
-    let query = supabase
+    let query = localDb
       .from('sales_bills')
       .select('status, total_amount, created_at');
 

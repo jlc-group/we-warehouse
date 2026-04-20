@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDown, Plus, AlertTriangle } from 'lucide-react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { localDb } from '@/integrations/local/client';
 import type { InventoryItem } from '@/hooks/useInventory';
 import type { Database } from '@/integrations/supabase/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, type ProductType } from '@/data/sampleInventory';
@@ -54,15 +54,17 @@ interface InventoryModalSimpleProps {
   location: string;
   existingItem?: InventoryItem;
   otherItemsAtLocation?: InventoryItem[];
+  availableLocations?: string[]; // รายการตำแหน่งที่มีในระบบ
 }
 
 
-export function InventoryModalSimple({ isOpen, onClose, onSave, location, existingItem, otherItemsAtLocation }: InventoryModalSimpleProps) {
+export function InventoryModalSimple({ isOpen, onClose, onSave, location, existingItem, otherItemsAtLocation, availableLocations = [] }: InventoryModalSimpleProps) {
   // Form state
   const [productName, setProductName] = useState('');
   const [productCode, setProductCode] = useState('');
   const [lot, setLot] = useState('');
   const [mfd, setMfd] = useState('');
+  const [editableLocation, setEditableLocation] = useState(location || ''); // สำหรับกรอก location เอง
   const { products } = useProducts();
   const { data: productsSummaryResult } = useProductsSummary();
 
@@ -142,7 +144,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
         });
       } else {
         // Fallback: Try to get product data from products table
-        const { data: productData, error: productError } = await supabase
+        const { data: productData, error: productError } = await localDb
           .from('products')
           .select('*')
           .eq('sku_code', sku)
@@ -188,6 +190,9 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   // Reset form when modal opens/closes or when existingItem changes
   useEffect(() => {
     if (isOpen) {
+      // Sync editable location with prop
+      setEditableLocation(location || '');
+
       if (existingItem) {
         // Editing existing item
         setProductName(existingItem.product_name);
@@ -217,7 +222,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
         setSelectedProductType('');
       }
     }
-  }, [isOpen, existingItem]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, existingItem, location]); // eslint-disable-line react-hooks/exhaustive-deps
   // Note: loadConversionRate intentionally excluded to prevent unnecessary re-renders and duplicate calls
 
 
@@ -295,7 +300,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
   };
 
   // Keyboard handler for product code input
-  const handleProductCodeKeyDown = (e: KeyboardEvent) => {
+  const handleProductCodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       setIsProductCodeOpen(false);
@@ -340,8 +345,16 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
     return `${calculation} = ${totalBaseQuantity.toLocaleString('th-TH')} ${conversionRate.unit_level3_name}`;
   }, [level1Quantity, level2Quantity, level3Quantity, conversionRate, totalBaseQuantity]);
 
+  // Get the actual location to use (from prop or editable field)
+  const actualLocation = location || editableLocation;
+
   const handleSave = () => {
     if (!productName.trim() || !productCode.trim()) {
+      return;
+    }
+
+    // Validate location
+    if (!actualLocation.trim()) {
       return;
     }
 
@@ -349,7 +362,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
       product_name: productName.trim(),
       product_code: productCode.trim(), // Keep for interface compatibility
       sku: productCode.trim(), // Add for database compatibility
-      location: location,
+      location: actualLocation.trim(),
       lot: lot.trim() || null,
       mfd: mfd || null,
       // Legacy fields for backward compatibility - map to interface names
@@ -395,11 +408,62 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
         </DialogHeader>
 
         <div className="space-y-3 sm:space-y-4 py-2 sm:py-4 px-4 sm:px-6">
-          {/* Location Display */}
-          <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-            <MapPin className="h-4 w-4 text-primary" />
-            <span className="font-mono font-medium">ตำแหน่ง: {location}</span>
-          </div>
+          {/* Location Display/Input */}
+          {location ? (
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="font-mono font-medium">ตำแหน่ง: {location}</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="location" className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                ตำแหน่งจัดเก็บ *
+              </Label>
+              <div className="relative">
+                <Input
+                  id="location"
+                  value={editableLocation}
+                  onChange={(e) => setEditableLocation(e.target.value)}
+                  placeholder="กรอกตำแหน่ง เช่น A1/1"
+                  className="font-mono h-11 sm:h-10"
+                  autoComplete="off"
+                />
+                {/* Location Suggestions Dropdown */}
+                {editableLocation && availableLocations.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {availableLocations
+                      .filter(loc =>
+                        loc.toLowerCase().includes(editableLocation.toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map((loc) => (
+                        <button
+                          key={loc}
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm font-mono hover:bg-muted/50 flex items-center gap-2"
+                          onClick={() => setEditableLocation(loc)}
+                        >
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          {loc}
+                        </button>
+                      ))
+                    }
+                    {availableLocations.filter(loc =>
+                      loc.toLowerCase().includes(editableLocation.toLowerCase())
+                    ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          ไม่พบตำแหน่ง "{editableLocation}" - จะสร้างใหม่
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                💡 กรอกตำแหน่งหรือเลือกจากรายการที่แนะนำ
+              </p>
+            </div>
+          )}
 
           {/* Warning for Multiple Items at Location */}
           {otherItemsAtLocation && otherItemsAtLocation.length > 0 && (
@@ -452,16 +516,16 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
               <SelectContent>
                 {availableProductTypes.map(type => (
                   <SelectItem key={type} value={type}>
-                    {type === 'FG' ? '🏷️ FG - สินค้าสำเร็จรูป (Finished Goods)' : 
-                     type === 'PK' ? '📦 PK - วัสดุบรรจุภัณฑ์ (Packaging)' : 
-                     `📋 ${type} - ประเภทสินค้า`}
+                    {type === 'FG' ? '🏷️ FG - สินค้าสำเร็จรูป (Finished Goods)' :
+                      type === 'PK' ? '📦 PK - วัสดุบรรจุภัณฑ์ (Packaging)' :
+                        `📋 ${type} - ประเภทสินค้า`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {selectedProductType && (
               <p className="text-xs text-muted-foreground">
-                {selectedProductType === PRODUCT_TYPES.FG
+                {selectedProductType === 'FG'
                   ? '💡 สินค้าสำเร็จรูปพร้อมขาย'
                   : '💡 วัสดุบรรจุภัณฑ์และอุปกรณ์'
                 }
@@ -540,9 +604,8 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
                               className="cursor-pointer"
                             >
                               <Check
-                                className={`mr-2 h-4 w-4 ${
-                                  productCodeInputValue === code ? 'opacity-100' : 'opacity-0'
-                                }`}
+                                className={`mr-2 h-4 w-4 ${productCodeInputValue === code ? 'opacity-100' : 'opacity-0'
+                                  }`}
                               />
                               <div className="flex flex-col">
                                 <span className="font-mono font-medium">{code}</span>
@@ -781,7 +844,7 @@ export function InventoryModalSimple({ isOpen, onClose, onSave, location, existi
           <Button
             onClick={handleSave}
             className="flex-1 h-11 sm:h-10"
-            disabled={!productName.trim() || !productCode.trim()}
+            disabled={!productName.trim() || !productCode.trim() || !actualLocation.trim()}
           >
             บันทึก
           </Button>

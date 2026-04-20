@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
 import { EventLoggingService } from '@/services/eventLoggingService';
 
@@ -87,7 +87,7 @@ export const useWarehouseTransfers = (options?: {
   return useQuery({
     queryKey: ['warehouse-transfers', options],
     queryFn: async () => {
-      let query = supabase.from('warehouse_transfers_view').select('*');
+      let query = localDb.from('warehouse_transfers_view').select('*');
 
       if (options?.status) {
         query = query.eq('status', options.status);
@@ -122,7 +122,7 @@ export const useWarehouseTransfer = (id: string) => {
   return useQuery({
     queryKey: ['warehouse-transfer', id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouse_transfers_view')
         .select('*')
         .eq('id', id)
@@ -144,7 +144,7 @@ export const useWarehouseTransferItems = (transferId: string) => {
   return useQuery({
     queryKey: ['warehouse-transfer-items', transferId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouse_transfer_items_view')
         .select('*')
         .eq('transfer_id', transferId)
@@ -168,7 +168,7 @@ export const useCreateWarehouseTransfer = () => {
   return useMutation({
     mutationFn: async (transferData: CreateWarehouseTransferData) => {
       // Create the transfer
-      const { data: transfer, error: transferError } = await supabase
+      const { data: transfer, error: transferError } = await localDb
         .rpc('create_warehouse_transfer', {
           p_title: transferData.title,
           p_source_warehouse_id: transferData.source_warehouse_id,
@@ -187,7 +187,7 @@ export const useCreateWarehouseTransfer = () => {
 
       // Add items if provided
       if (transferData.inventory_item_ids && transferData.inventory_item_ids.length > 0) {
-        const { data: itemsAdded, error: itemsError } = await supabase
+        const { data: itemsAdded, error: itemsError } = await localDb
           .rpc('add_items_to_transfer', {
             p_transfer_id: transferId,
             p_inventory_item_ids: transferData.inventory_item_ids
@@ -202,7 +202,7 @@ export const useCreateWarehouseTransfer = () => {
       }
 
       // Return the created transfer
-      const { data: createdTransfer, error: fetchError } = await supabase
+      const { data: createdTransfer, error: fetchError } = await localDb
         .from('warehouse_transfers_view')
         .select('*')
         .eq('id', transferId)
@@ -255,7 +255,7 @@ export const useUpdateTransferStatus = () => {
       userId?: string;
     }) => {
       // Get current transfer data for logging
-      const { data: currentTransfer } = await supabase
+      const { data: currentTransfer } = await localDb
         .from('warehouse_transfers_view')
         .select('*')
         .eq('id', transferId)
@@ -281,7 +281,7 @@ export const useUpdateTransferStatus = () => {
         updateData.notes = notes;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouse_transfers')
         .update(updateData)
         .eq('id', transferId)
@@ -335,7 +335,7 @@ export const useExecuteWarehouseTransfer = () => {
   return useMutation({
     mutationFn: async (transferId: string) => {
       // First get transfer details with warehouse names
-      const { data: transfer, error: transferError } = await supabase
+      const { data: transfer, error: transferError } = await localDb
         .from('warehouse_transfers_view')
         .select('*')
         .eq('id', transferId)
@@ -351,7 +351,7 @@ export const useExecuteWarehouseTransfer = () => {
       }
 
       // Get transfer items
-      const { data: items, error: itemsError } = await supabase
+      const { data: items, error: itemsError } = await localDb
         .from('warehouse_transfer_items')
         .select('*')
         .eq('transfer_id', transferId);
@@ -398,7 +398,7 @@ export const useExecuteWarehouseTransfer = () => {
         : null;
 
       // Update transfer status to completed
-      const { error: statusError } = await supabase
+      const { error: statusError } = await localDb
         .from('warehouse_transfers')
         .update({
           status: 'completed',
@@ -449,7 +449,7 @@ export const useWarehouseTransferStats = () => {
   return useQuery({
     queryKey: ['warehouse-transfer-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouse_transfers')
         .select('status, priority, created_at');
 

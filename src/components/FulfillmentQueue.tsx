@@ -39,14 +39,18 @@ import {
   FileText,
   Edit,
   MapPin,
-  X
+  X,
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import { usePurchaseOrders } from '@/hooks/usePurchaseOrders';
+import { usePOSync } from '@/hooks/usePOSync';
 import {
   PurchaseOrderService,
   type FulfillmentTask,
   type FulfillmentStatus
 } from '@/services/purchaseOrderService';
+
 
 interface FulfillmentQueueProps {
   locationFilter?: string;
@@ -59,6 +63,9 @@ export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: Fulf
     updateTaskStatus,
     cancelFulfillmentItem
   } = usePurchaseOrders();
+
+  // PO Sync hook
+  const { syncing, syncPOs } = usePOSync();
 
   const [selectedTask, setSelectedTask] = useState<FulfillmentTask | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -149,20 +156,31 @@ export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: Fulf
               <Package className="h-5 w-5" />
               งานจัดสินค้า (Fulfillment Queue)
             </CardTitle>
-            {locationFilter && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-sm px-3 py-1">
-                <MapPin className="h-4 w-4 mr-1" />
-                กรองตาม: {locationFilter}
-                {onClearLocationFilter && (
-                  <button
-                    onClick={onClearLocationFilter}
-                    className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => syncPOs()}
+                disabled={syncing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-1 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'กำลัง Sync...' : 'Sync PO จาก JLC'}
+              </Button>
+              {locationFilter && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-sm px-3 py-1">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  กรองตาม: {locationFilter}
+                  {onClearLocationFilter && (
+                    <button
+                      onClick={onClearLocationFilter}
+                      className="ml-2 hover:bg-blue-200 rounded-full p-0.5"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -491,14 +509,14 @@ export const FulfillmentQueue = ({ locationFilter, onClearLocationFilter }: Fulf
                               <Badge
                                 variant={
                                   item.status === 'completed' ? 'default' :
-                                  item.status === 'picked' ? 'secondary' : 'outline'
+                                    item.status === 'picked' ? 'secondary' : 'outline'
                                 }
                                 className={
                                   item.status === 'picked' ? 'bg-blue-100 text-blue-800' : ''
                                 }
                               >
                                 {item.status === 'completed' ? 'เสร็จสิ้น' :
-                                 item.status === 'picked' ? 'จัดแล้ว' : 'รอจัด'}
+                                  item.status === 'picked' ? 'จัดแล้ว' : 'รอจัด'}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">

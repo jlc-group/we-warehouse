@@ -1,12 +1,16 @@
 import cors from 'cors';
 
+// In development, allow all origins for easier debugging
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
   'http://localhost:4173',
+  'http://localhost:5178',
 ];
 
 export const corsMiddleware = cors({
-  origin: (origin, callback) => {
+  origin: isDevelopment ? true : (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
       return callback(null, true);
@@ -20,6 +24,6 @@ export const corsMiddleware = cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 });

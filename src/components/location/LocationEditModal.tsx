@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit3, Save, X, Package } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface LocationInventory {
@@ -63,7 +63,7 @@ export function LocationEditModal({ isOpen, onClose, locationId, inventory, onSu
 
       // Update each modified item
       const updates = Object.values(editingItems).map(async (item) => {
-        const { data, error } = await supabase
+        const { data, error } = await localDb
           .from('inventory_items')
           .update({
             unit_level1_quantity: item.unit_level1_quantity,

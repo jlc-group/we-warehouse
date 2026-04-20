@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 export interface Warehouse {
   id: string;
@@ -44,7 +44,7 @@ export class WarehouseManagementService {
    */
   static async getAllWarehouses(): Promise<Warehouse[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select('*')
         .order('name');
@@ -62,7 +62,7 @@ export class WarehouseManagementService {
    */
   static async getWarehouse(warehouseId: string): Promise<Warehouse | null> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select('*')
         .eq('id', warehouseId)
@@ -88,7 +88,7 @@ export class WarehouseManagementService {
     location_prefix_end?: string;
   }): Promise<Warehouse> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .insert({
           name: warehouseData.name,
@@ -118,7 +118,7 @@ export class WarehouseManagementService {
     updates: Partial<Omit<Warehouse, 'id' | 'created_at'>>
   ): Promise<Warehouse> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .update({
           ...updates,
@@ -142,7 +142,7 @@ export class WarehouseManagementService {
   static async getWarehouseStats(): Promise<WarehouseStats[]> {
     try {
       // ดึงข้อมูลคลังทั้งหมด
-      const { data: warehouses, error: warehousesError } = await supabase
+      const { data: warehouses, error: warehousesError } = await localDb
         .from('warehouses')
         .select('id, name')
         .eq('is_active', true);
@@ -150,7 +150,7 @@ export class WarehouseManagementService {
       if (warehousesError) throw warehousesError;
 
       // ดึงข้อมูล inventory ทั้งหมด
-      const { data: inventoryItems, error: inventoryError } = await supabase
+      const { data: inventoryItems, error: inventoryError } = await localDb
         .from('inventory_items')
         .select('warehouse_id, product_name, quantity_pieces');
 
@@ -195,7 +195,7 @@ export class WarehouseManagementService {
       console.log('Starting inter-warehouse transfer:', transferData);
 
       // 1. ดึงข้อมูล inventory item ต้นทาง
-      const { data: sourceItem, error: sourceError } = await supabase
+      const { data: sourceItem, error: sourceError } = await localDb
         .from('inventory_items')
         .select('*')
         .eq('id', transferData.inventory_item_id)
@@ -210,7 +210,7 @@ export class WarehouseManagementService {
       }
 
       // 2. ตรวจสอบว่ามีสินค้าชนิดเดียวกันในคลังปลายทางหรือไม่
-      const { data: targetItems, error: targetCheckError } = await supabase
+      const { data: targetItems, error: targetCheckError } = await localDb
         .from('inventory_items')
         .select('*')
         .eq('warehouse_id', transferData.to_warehouse_id)
@@ -249,7 +249,7 @@ export class WarehouseManagementService {
         const newBox = targetPreviousBox + transferBox;
         const newPieces = targetPreviousPieces + transferPieces;
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await localDb
           .from('inventory_items')
           .update({
             quantity_pieces: newQuantity,
@@ -263,7 +263,7 @@ export class WarehouseManagementService {
         if (updateError) throw updateError;
       } else {
         // ไม่มีสินค้า -> สร้างใหม่
-        const { data: newItem, error: insertError } = await supabase
+        const { data: newItem, error: insertError } = await localDb
           .from('inventory_items')
           .insert({
             warehouse_id: transferData.to_warehouse_id,
@@ -301,7 +301,7 @@ export class WarehouseManagementService {
 
       if (newSourceQuantity === 0) {
         // ถ้าหมด ให้ลบรายการ
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await localDb
           .from('inventory_items')
           .delete()
           .eq('id', transferData.inventory_item_id);
@@ -309,7 +309,7 @@ export class WarehouseManagementService {
         if (deleteError) throw deleteError;
       } else {
         // ยังเหลือ ให้อัปเดตจำนวน
-        const { error: updateError } = await supabase
+        const { error: updateError } = await localDb
           .from('inventory_items')
           .update({
             quantity_pieces: newSourceQuantity,
@@ -324,7 +324,7 @@ export class WarehouseManagementService {
       }
 
       // 5. บันทึก inventory movement (ออกจากคลังต้นทาง)
-      const { error: movementOutError } = await supabase
+      const { error: movementOutError } = await localDb
         .from('inventory_movements')
         .insert({
           inventory_item_id: transferData.inventory_item_id,
@@ -343,7 +343,7 @@ export class WarehouseManagementService {
 
       // 6. บันทึก inventory movement (เข้าคลังปลายทาง)
       if (targetItemId) {
-        const { error: movementInError } = await supabase
+        const { error: movementInError } = await localDb
           .from('inventory_movements')
           .insert({
             inventory_item_id: targetItemId,
@@ -362,7 +362,7 @@ export class WarehouseManagementService {
       }
 
       // 7. บันทึก system event
-      const { error: eventError } = await supabase
+      const { error: eventError } = await localDb
         .from('system_events')
         .insert({
           event_type: 'inter_warehouse_transfer',
@@ -404,7 +404,7 @@ export class WarehouseManagementService {
       console.log('🔍 [getWarehouseInventory] Starting manual JOIN for warehouse:', warehouseId);
 
       // Step 1: Get inventory items
-      const { data: items, error: itemsError } = await supabase
+      const { data: items, error: itemsError } = await localDb
         .from('inventory_items')
         .select('*')
         .eq('warehouse_id', warehouseId)
@@ -423,7 +423,7 @@ export class WarehouseManagementService {
       console.log('🔍 [getWarehouseInventory] Unique SKUs:', uniqueSkus.length);
 
       // Step 3: Fetch products for these SKUs
-      const { data: products, error: productsError } = await supabase
+      const { data: products, error: productsError } = await localDb
         .from('products')
         .select('sku_code, product_type')
         .in('sku_code', uniqueSkus);

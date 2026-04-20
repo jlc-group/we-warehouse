@@ -51,7 +51,7 @@ import InboundReceiptService, {
   type ReceiptType,
   type CreateInboundReceiptItemInput
 } from '@/services/inboundReceiptService';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 interface InboundReceiptModalProps {
   isOpen: boolean;
@@ -125,7 +125,7 @@ export function InboundReceiptModal({
 
   const fetchWarehouses = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('warehouses')
         .select('id, warehouse_name')
         .eq('is_active', true)
@@ -141,7 +141,7 @@ export function InboundReceiptModal({
   const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('products')
         .select('id, product_name, product_code, sku_code, unit_level1_name, unit_level2_name, unit_level3_name, unit_level1_rate, unit_level2_rate')
         .eq('is_active', true)

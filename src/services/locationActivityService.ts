@@ -1,6 +1,6 @@
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
-export type ActivityType = 'MOVE_IN' | 'MOVE_OUT' | 'TRANSFER' | 'ADJUST' | 'SCAN';
+export type ActivityType = 'MOVE_IN' | 'MOVE_OUT' | 'TRANSFER' | 'ADJUST' | 'SCAN' | 'RECEIVE' | 'SHIP_OUT' | 'COUNT' | 'INSPECT';
 
 export interface LocationActivity {
   id: string;
@@ -28,6 +28,9 @@ export interface LogActivityParams {
   unit?: string;
   fromLocation?: string;
   toLocation?: string;
+  /** UUID of the user (required for audit trail) */
+  userId?: string;
+  /** Display name only (for quick-view UI, not used as FK) */
   userName?: string;
   notes?: string;
   metadata?: Record<string, any>;
@@ -53,10 +56,11 @@ export class LocationActivityService {
    */
   static async logActivity(params: LogActivityParams): Promise<{ success: boolean; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_logs')
         .insert({
           location: params.location,
+          location_code: params.location,
           activity_type: params.activityType,
           product_sku: params.productSku,
           product_name: params.productName,
@@ -64,12 +68,11 @@ export class LocationActivityService {
           unit: params.unit,
           from_location: params.fromLocation,
           to_location: params.toLocation,
+          user_id: params.userId || null,
           user_name: params.userName || 'Anonymous',
           notes: params.notes,
           metadata: params.metadata
-        })
-        .select()
-        .single();
+        });
 
       if (error) {
         console.error('Error logging activity:', error);
@@ -91,7 +94,7 @@ export class LocationActivityService {
     limit: number = 50
   ): Promise<{ data: LocationActivity[]; error?: string }> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_logs')
         .select('*')
         .eq('location', location)
@@ -115,7 +118,7 @@ export class LocationActivityService {
    */
   static async getLocationInventory(location: string): Promise<LocationInventorySummary> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('inventory_items')
         .select('sku, product_name, unit_level1_quantity, unit_level2_quantity, unit_level3_quantity, unit_level1_name, lot, mfd')
         .eq('location', location);
@@ -146,13 +149,13 @@ export class LocationActivityService {
         }));
 
       // ดึง last activity
-      const { data: lastActivity } = await supabase
+      const { data: lastActivity } = await localDb
         .from('location_activity_logs')
         .select('created_at')
         .eq('location', location)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       return {
         location,
@@ -175,13 +178,13 @@ export class LocationActivityService {
    */
   static async getLocationStats(location: string) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await localDb
         .from('location_activity_summary')
         .select('*')
         .eq('location', location)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching stats:', error);
         return null;
       }
@@ -194,12 +197,13 @@ export class LocationActivityService {
   }
 
   /**
-   * บันทึก SCAN activity
+   * บันทึก SCAN activity — use userId (UUID), userName for display only
    */
-  static async logScan(location: string, userName?: string) {
+  static async logScan(location: string, userId?: string, userName?: string) {
     return this.logActivity({
       location,
       activityType: 'SCAN',
+      userId,
       userName,
       notes: 'QR Code scanned'
     });
@@ -214,6 +218,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -224,6 +229,7 @@ export class LocationActivityService {
       productName: params.productName,
       quantity: params.quantity,
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes
     });
@@ -238,6 +244,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
     metadata?: Record<string, any>;
@@ -247,8 +254,9 @@ export class LocationActivityService {
       activityType: 'MOVE_OUT',
       productSku: params.productSku,
       productName: params.productName,
-      quantity: -Math.abs(params.quantity), // ทำให้เป็นลบ
+      quantity: -Math.abs(params.quantity),
       unit: params.unit,
+      userId: params.userId,
       userName: params.userName,
       notes: params.notes,
       metadata: params.metadata
@@ -265,6 +273,7 @@ export class LocationActivityService {
     productName: string;
     quantity: number;
     unit?: string;
+    userId?: string;
     userName?: string;
     notes?: string;
   }) {
@@ -278,6 +287,7 @@ export class LocationActivityService {
       unit: params.unit,
       fromLocation: params.fromLocation,
       toLocation: params.toLocation,
+      userId: params.userId,
       userName: params.userName,
       notes: `ย้ายไป ${params.toLocation}`
     });
@@ -291,8 +301,116 @@ export class LocationActivityService {
       unit: params.unit,
       fromLocation: params.fromLocation,
       toLocation: params.toLocation,
+      userId: params.userId,
       userName: params.userName,
       notes: `ย้ายจาก ${params.fromLocation}`
+    });
+  }
+
+  /**
+   * บันทึก RECEIVE activity (รับสินค้าเข้า location)
+   */
+  static async logReceive(params: {
+    location: string;
+    productSku: string;
+    productName: string;
+    quantity: number;
+    unit?: string;
+    referenceType?: string;
+    referenceId?: string;
+    userId?: string;
+    userName?: string;
+    notes?: string;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'RECEIVE',
+      productSku: params.productSku,
+      productName: params.productName,
+      quantity: params.quantity,
+      unit: params.unit,
+      userId: params.userId,
+      userName: params.userName,
+      notes: params.notes || `รับเข้า ${params.quantity} ${params.unit || 'ชิ้น'}`,
+      metadata: {
+        reference_type: params.referenceType,
+        reference_id: params.referenceId
+      }
+    });
+  }
+
+  /**
+   * บันทึก SHIP_OUT activity (ส่งสินค้าออกจาก location)
+   */
+  static async logShipOut(params: {
+    location: string;
+    productSku: string;
+    productName: string;
+    quantity: number;
+    unit?: string;
+    orderId?: string;
+    userId?: string;
+    userName?: string;
+    notes?: string;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'SHIP_OUT',
+      productSku: params.productSku,
+      productName: params.productName,
+      quantity: -Math.abs(params.quantity),
+      unit: params.unit,
+      userId: params.userId,
+      userName: params.userName,
+      notes: params.notes || `ส่งออก ${params.quantity} ${params.unit || 'ชิ้น'}`,
+      metadata: {
+        order_id: params.orderId
+      }
+    });
+  }
+
+  /**
+   * บันทึก COUNT activity (นับสต็อกที่ location)
+   */
+  static async logCount(params: {
+    location: string;
+    results: Array<{ sku: string; productName: string; expected: number; actual: number }>;
+    userId?: string;
+    userName?: string;
+    notes?: string;
+  }) {
+    const discrepancies = params.results.filter(r => r.expected !== r.actual);
+    return this.logActivity({
+      location: params.location,
+      activityType: 'COUNT',
+      userId: params.userId,
+      userName: params.userName,
+      notes: params.notes || `นับสต็อก ${params.results.length} รายการ${discrepancies.length > 0 ? ` (ไม่ตรง ${discrepancies.length} รายการ)` : ' (ตรงทั้งหมด)'}`,
+      metadata: {
+        total_items: params.results.length,
+        discrepancies: discrepancies.length,
+        results: params.results
+      }
+    });
+  }
+
+  /**
+   * บันทึก INSPECT activity (ตรวจสอบ location)
+   */
+  static async logInspect(params: {
+    location: string;
+    userId?: string;
+    userName?: string;
+    notes?: string;
+    metadata?: Record<string, any>;
+  }) {
+    return this.logActivity({
+      location: params.location,
+      activityType: 'INSPECT',
+      userId: params.userId,
+      userName: params.userName,
+      notes: params.notes || 'ตรวจสอบตำแหน่ง',
+      metadata: params.metadata
     });
   }
 }

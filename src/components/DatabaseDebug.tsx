@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 import { Database, RefreshCw, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 interface DatabaseInfo {
@@ -21,7 +21,7 @@ export function DatabaseDebug() {
     setLoading(true);
     try {
       // Test basic connection
-      const { data: testData, error: testError } = await supabase
+      const { data: testData, error: testError } = await localDb
         .from('inventory_items')
         .select('count')
         .limit(1);
@@ -38,12 +38,12 @@ export function DatabaseDebug() {
       }
 
       // Count inventory items
-      const { count: inventoryCount, error: invError } = await supabase
+      const { count: inventoryCount, error: invError } = await localDb
         .from('inventory_items')
         .select('*', { count: 'exact', head: true });
 
       // Count products
-      const { count: productsCount, error: prodError } = await supabase
+      const { count: productsCount, error: prodError } = await localDb
         .from('products')
         .select('*', { count: 'exact', head: true });
 

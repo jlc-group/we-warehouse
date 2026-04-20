@@ -13,7 +13,7 @@ import InboundReceiptService, {
   type CreateInboundReceiptInput
 } from '@/services/inboundReceiptService';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { localDb } from '@/integrations/local/client';
 
 interface UseInboundReceiptsOptions {
   status?: ReceiptStatus;
@@ -171,7 +171,7 @@ export function useInboundReceipts(options?: UseInboundReceiptsOptions) {
 
   // Real-time subscription
   useEffect(() => {
-    const channel = supabase
+    const channel = localDb
       .channel('inbound-receipts-changes')
       .on(
         'postgres_changes',
@@ -188,7 +188,7 @@ export function useInboundReceipts(options?: UseInboundReceiptsOptions) {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      localDb.removeChannel(channel);
     };
   }, [queryClient]);
 
