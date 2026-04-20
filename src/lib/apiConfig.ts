@@ -14,6 +14,7 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 // Map tunnel frontend hostname → backend hostname
 const TUNNEL_MAP: Record<string, string> = {
     'warehouse.wejlc.com': 'https://warehouse-api.wejlc.com',
+    'we-warehouse.pages.dev': 'https://warehouse-api.wejlc.com',
 };
 
 /**
