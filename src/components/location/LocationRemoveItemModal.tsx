@@ -97,7 +97,7 @@ export function LocationRemoveItemModal({
             // Process each selected item
             for (const item of selectedItems) {
                 // Find the inventory item
-                const { data: inventoryItem, error: fetchError } = await (supabase
+                const { data: inventoryItem, error: fetchError } = await (localDb
                     .from('inventory_items') as any)
                     .select('id, unit_level3_quantity')
                     .eq('location', location)
@@ -116,7 +116,7 @@ export function LocationRemoveItemModal({
 
                 if (newQuantity <= 0) {
                     // Delete the item if quantity reaches zero
-                    const { error: deleteError } = await (supabase
+                    const { error: deleteError } = await (localDb
                         .from('inventory_items') as any)
                         .delete()
                         .eq('id', invItem.id);
@@ -124,7 +124,7 @@ export function LocationRemoveItemModal({
                     if (deleteError) throw deleteError;
                 } else {
                     // Update with reduced quantity
-                    const { error: updateError } = await (supabase
+                    const { error: updateError } = await (localDb
                         .from('inventory_items') as any)
                         .update({
                             unit_level3_quantity: newQuantity,

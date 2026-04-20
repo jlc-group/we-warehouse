@@ -84,7 +84,7 @@ export function useInventorySimple() {
         user_id: null // Allow null for RLS bypass
       };
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await (localDb as any)
         .from('inventory_items')
         .insert(insertData)
         .select()

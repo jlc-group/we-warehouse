@@ -72,7 +72,7 @@ export function LocationDetailView({ location, onClose }: LocationDetailViewProp
       setStats(statsData);
 
       // Load full inventory for transfer modal
-      const { data: fullInventory } = await (supabase
+      const { data: fullInventory } = await (localDb
         .from('inventory_items') as any)
         .select('*')
         .eq('location', location);

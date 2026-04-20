@@ -1,137 +1,35 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from './types';
+/**
+ * Supabase Client (compatibility shim)
+ *
+ * NOTE: This project has fully migrated to Local PostgreSQL (see commit b2b0505).
+ * Supabase cloud is no longer used for runtime queries.
+ *
+ * This file exists only for backward compatibility — any lingering import of
+ * `supabase` from `@/integrations/supabase/client` will transparently use the
+ * local DB client (`localDb`). No connection to Supabase cloud is ever made.
+ *
+ * If you are writing new code, import `localDb` directly from
+ * `@/integrations/local/client` instead.
+ */
+
 import { localDb } from '../local/client';
 
-// Database mode - check if we should use local PostgreSQL
-const USE_LOCAL_DB = import.meta.env.VITE_USE_LOCAL_DB === 'true';
+// Backward-compat: `supabase` is now an alias for `localDb`.
+// Casting to `any` preserves the loose typing used by legacy call sites.
+export const supabase = localDb as any;
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Debug: Log database mode
-console.log(`🔍 Database Mode: ${USE_LOCAL_DB ? '🏠 LOCAL PostgreSQL' : '☁️ SUPABASE CLOUD'}`);
-
-// Only validate Supabase credentials when NOT using local DB
-if (!USE_LOCAL_DB && (!supabaseUrl || !supabaseAnonKey)) {
-  console.error('❌ Missing Supabase environment variables (required for cloud mode)');
-  throw new Error('Missing Supabase environment variables');
-}
-
-// Exponential backoff retry configuration
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY = 1000; // 1 second
-
-async function exponentialBackoff(attempt: number): Promise<void> {
-  const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt);
-  await new Promise(resolve => setTimeout(resolve, delay));
-}
-
-// Only create Supabase cloud client when NOT using local DB
-const cloudClient = USE_LOCAL_DB ? null : createClient<Database, 'public'>(supabaseUrl!, supabaseAnonKey!, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: false, // CRITICAL: Disable auto refresh to prevent refresh loops
-  },
-  // CRITICAL: COMPLETELY DISABLE REALTIME TO PREVENT AUTO-REFRESHES
-  realtime: {
-    params: {
-      eventsPerSecond: 0, // Completely disable events
-    },
-    // heartbeatIntervalMs and reconnectDelayMs removed as they are invalid
-  },
-  db: {
-    schema: 'public',
-  },
-  global: {
-    headers: {
-      'x-client-info': 'warehouse-app@1.0.0',
-    },
-    fetch: async (url, options: RequestInit = {}) => {
-      let lastError: Error | null = null;
-
-      // Silent mode - only log on errors
-      // if (import.meta.env.MODE === 'development' && url.includes('/rest/v1/')) {
-      //   console.log('🔧 Supabase Request Debug:', {
-      //     url: url.substring(0, 80) + '...',
-      //     hasHeaders: !!options.headers,
-      //     headerType: options.headers instanceof Headers ? 'Headers object' : typeof options.headers,
-      //     apikey: options.headers instanceof Headers
-      //       ? options.headers.get('apikey')?.substring(0, 20) + '...'
-      //       : (options.headers as any)?.apikey?.substring(0, 20) + '...'
-      //   });
-      // }
-
-      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-          // CRITICAL: Preserve all headers from Supabase (including apikey)
-          // Don't override or spread - just pass through with minimal additions
-          const fetchOptions: RequestInit = {
-            ...options,
-            signal: controller.signal,
-            cache: 'no-store',
-          };
-
-          // Only add headers if not already present
-          if (options.headers instanceof Headers) {
-            // Clone existing Headers object
-            const headers = new Headers(options.headers);
-            headers.set('Connection', 'close');
-            headers.set('Cache-Control', 'no-cache');
-            fetchOptions.headers = headers;
-          } else if (typeof options.headers === 'object') {
-            // Merge plain object headers
-            fetchOptions.headers = {
-              ...options.headers,
-              'Connection': 'close',
-              'Cache-Control': 'no-cache',
-            };
-          }
-
-          const response = await fetch(url, fetchOptions);
-
-          clearTimeout(timeoutId);
-          return response;
-
-        } catch (error: any) {
-          lastError = error;
-          const isRetryableError =
-            error.name === 'AbortError' ||
-            error.message?.includes('QUIC') ||
-            error.message?.includes('net::ERR') ||
-            error.message?.includes('fetch failed');
-
-          if (isRetryableError && attempt < MAX_RETRIES - 1) {
-            console.warn(`Network error on attempt ${attempt + 1}/${MAX_RETRIES}, retrying...`, error.message);
-            await exponentialBackoff(attempt);
-            continue;
-          }
-
-          throw error;
-        }
-      }
-
-      throw lastError || new Error('Max retries exceeded');
-    },
-  },
-});
-
-// Export the appropriate client based on mode
-export const supabase = (USE_LOCAL_DB ? localDb : cloudClient) as any;
-
-// Connection check — works with both local and cloud
+/**
+ * Legacy connection check — now probes the local DB backend only.
+ */
 export async function checkSupabaseConnection(): Promise<boolean> {
   try {
-    if (USE_LOCAL_DB) {
-      const { data, error } = await localDb.from('products').select('id').limit(1);
-      return !error;
-    }
-    const { error } = await cloudClient!.from('products').select('id').limit(1);
+    const { error } = await localDb.from('products').select('id').limit(1);
     return !error;
   } catch {
     return false;
   }
 }
 
+if (typeof window !== 'undefined') {
+  console.log('🔍 Database Mode: 🏠 LOCAL PostgreSQL (Supabase cloud disabled)');
+}

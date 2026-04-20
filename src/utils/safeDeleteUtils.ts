@@ -20,7 +20,7 @@ interface SafeDeleteResult {
 export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDeleteResult> {
   try {
     // Option 1: Try simple delete first (might work if no related records)
-    const { error: directDeleteError } = await (supabase
+    const { error: directDeleteError } = await (localDb
       .from('inventory_items') as any)
       .delete()
       .eq('id' as any, itemId as any);
@@ -60,7 +60,7 @@ export async function safeDeleteInventoryItem(itemId: string): Promise<SafeDelet
 async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
   try {
     // Step 1: Get the item to make sure it exists
-    const { data: item, error: fetchError } = await (supabase
+    const { data: item, error: fetchError } = await (localDb
       .from('inventory_items') as any)
       .select('id, sku, location, product_name')
       .eq('id' as any, itemId as any)
@@ -79,7 +79,7 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
 
     // Step 2: Delete related movement records first (silently)
     try {
-      await (supabase
+      await (localDb
         .from('inventory_movements') as any)
         .delete()
         .eq('inventory_item_id' as any, itemId as any);
@@ -89,7 +89,7 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
 
     // Step 3: Delete any other related records that might cause conflicts (silently)
     try {
-      await (supabase
+      await (localDb
         .from('order_items') as any)
         .delete()
         .eq('inventory_item_id' as any, itemId as any);
@@ -113,7 +113,7 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     // Some database triggers may insert into system_events using OLD.user_id from inventory_items.
     // If that user_id is not a valid auth.users id, it will violate the FK. Set it to NULL first.
     try {
-      await (supabase
+      await (localDb
         .from('inventory_items') as any)
         .update({ user_id: null })
         .eq('id' as any, itemId as any);
@@ -123,7 +123,7 @@ async function cleanupAndDelete(itemId: string): Promise<SafeDeleteResult> {
     }
 
     // Step 4: Now try to delete the main inventory item
-    const { error: finalDeleteError } = await (supabase
+    const { error: finalDeleteError } = await (localDb
       .from('inventory_items') as any)
       .delete()
       .eq('id' as any, itemId as any);
@@ -167,7 +167,7 @@ export async function safeDeleteLocationItems(location: string): Promise<{
 }> {
   try {
     // Get all items at this location
-    const { data: items, error: fetchError } = await (supabase
+    const { data: items, error: fetchError } = await (localDb
       .from('inventory_items') as any)
       .select('id, sku, product_name')
       .eq('location' as any, location as any);
