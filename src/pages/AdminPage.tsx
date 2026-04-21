@@ -162,6 +162,18 @@ export default function AdminPage() {
                 return { id: '', code: val, name: val };
             };
 
+            // Resolve role id/code/name from roles table (u.role is a string — code OR name)
+            const rolesList: any[] = rolesRes.data || [];
+            const resolveRoles = (u: any) => {
+                if (!u.role) return [];
+                const val = String(u.role).trim();
+                if (!val) return [];
+                const r = rolesList.find((x: any) => x.code === val || x.name === val);
+                if (r) return [{ id: r.id, code: r.code, name: r.name }];
+                // Unknown: keep label, no id (checkbox won't match — but data preserved)
+                return [{ id: '', code: val, name: val }];
+            };
+
             const usersData: UserItem[] = (usersRes.data || []).map((u: any) => ({
                 id: u.id,
                 email: u.email || '',
@@ -169,7 +181,7 @@ export default function AdminPage() {
                 username: u.username || '',
                 is_active: u.is_active ?? true,
                 department: resolveDept(u),
-                roles: u.role ? [{ id: '', code: u.role, name: u.role }] : [],
+                roles: resolveRoles(u),
                 last_login: u.last_login || null,
                 employee_code: u.employee_code || '',
                 phone: u.phone || '',
