@@ -46,6 +46,7 @@ interface UserItem {
     legacy_role_level?: number;
     last_login?: string;
     employee_code?: string;
+    phone?: string;
 }
 
 interface AvailablePage {
@@ -152,6 +153,8 @@ export default function AdminPage() {
                 department: u.department ? { id: '', name: u.department } : null,
                 roles: u.role ? [{ id: '', code: u.role, name: u.role }] : [],
                 last_login: u.last_login || null,
+                employee_code: u.employee_code || '',
+                phone: u.phone || '',
             }));
 
             const parsePages = (val: any): string[] => {
@@ -565,6 +568,15 @@ function UsersTab({
     const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [editingInfoId, setEditingInfoId] = useState<string | null>(null);
+    const [editInfoForm, setEditInfoForm] = useState({
+        email: '',
+        full_name: '',
+        username: '',
+        employee_code: '',
+        phone: '',
+    });
+    const [savingInfo, setSavingInfo] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newUser, setNewUser] = useState({
         email: '',
@@ -634,6 +646,46 @@ function UsersTab({
             setNewPassword('');
         } catch (err: any) {
             toast.error(err.message);
+        }
+    };
+
+    const startEditInfo = (u: UserItem) => {
+        setEditingInfoId(u.id);
+        setEditInfoForm({
+            email: u.email || '',
+            full_name: u.full_name || '',
+            username: u.username || '',
+            employee_code: u.employee_code || '',
+            phone: u.phone || '',
+        });
+    };
+
+    const cancelEditInfo = () => {
+        setEditingInfoId(null);
+        setEditInfoForm({ email: '', full_name: '', username: '', employee_code: '', phone: '' });
+    };
+
+    const handleSaveUserInfo = async (userId: string) => {
+        if (!editInfoForm.email || !editInfoForm.full_name) {
+            toast.error('อีเมลและชื่อจริงต้องไม่ว่าง');
+            return;
+        }
+        try {
+            setSavingInfo(true);
+            await localDb.from('users').update({
+                email: editInfoForm.email,
+                full_name: editInfoForm.full_name,
+                username: editInfoForm.username || null,
+                employee_code: editInfoForm.employee_code || null,
+                phone: editInfoForm.phone || null,
+            }).eq('id', userId);
+            toast.success('อัปเดตข้อมูลผู้ใช้สำเร็จ');
+            cancelEditInfo();
+            onRefresh();
+        } catch (err: any) {
+            toast.error(err.message || 'บันทึกไม่สำเร็จ');
+        } finally {
+            setSavingInfo(false);
         }
     };
 
@@ -898,6 +950,74 @@ function UsersTab({
                                     <tr key={`${u.id}-expand`} className="bg-gray-50/80 dark:bg-gray-800/30">
                                         <td colSpan={6} className="px-6 py-4">
                                             <div className="space-y-4 max-w-2xl">
+                                                {/* Basic Info */}
+                                                <div>
+                                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">ข้อมูลพื้นฐาน</label>
+                                                    {editingInfoId === u.id ? (
+                                                        <div className="space-y-2">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                <Input
+                                                                    placeholder="อีเมล *"
+                                                                    type="email"
+                                                                    value={editInfoForm.email}
+                                                                    onChange={e => setEditInfoForm({ ...editInfoForm, email: e.target.value })}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                                <Input
+                                                                    placeholder="ชื่อจริง *"
+                                                                    value={editInfoForm.full_name}
+                                                                    onChange={e => setEditInfoForm({ ...editInfoForm, full_name: e.target.value })}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                                <Input
+                                                                    placeholder="Username"
+                                                                    value={editInfoForm.username}
+                                                                    onChange={e => setEditInfoForm({ ...editInfoForm, username: e.target.value })}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                                <Input
+                                                                    placeholder="รหัสพนักงาน"
+                                                                    value={editInfoForm.employee_code}
+                                                                    onChange={e => setEditInfoForm({ ...editInfoForm, employee_code: e.target.value })}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                                <Input
+                                                                    placeholder="เบอร์โทรศัพท์"
+                                                                    value={editInfoForm.phone}
+                                                                    onChange={e => setEditInfoForm({ ...editInfoForm, phone: e.target.value })}
+                                                                    className="h-8 text-sm"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleSaveUserInfo(u.id)}
+                                                                    disabled={savingInfo || !editInfoForm.email || !editInfoForm.full_name}
+                                                                    className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                                                                >
+                                                                    <Save className="h-3 w-3 mr-1" /> {savingInfo ? 'กำลังบันทึก...' : 'บันทึก'}
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" onClick={cancelEditInfo} disabled={savingInfo} className="h-8 text-xs">
+                                                                    ยกเลิก
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-4 flex-wrap">
+                                                                <span><strong>อีเมล:</strong> {u.email || '-'}</span>
+                                                                <span><strong>ชื่อ:</strong> {u.full_name || '-'}</span>
+                                                                <span><strong>Username:</strong> {u.username || '-'}</span>
+                                                                {u.employee_code && <span><strong>รหัสพนักงาน:</strong> {u.employee_code}</span>}
+                                                                {u.phone && <span><strong>โทร:</strong> {u.phone}</span>}
+                                                            </div>
+                                                            <Button size="sm" variant="outline" onClick={() => startEditInfo(u)} className="h-7 text-xs">
+                                                                <Pencil className="h-3 w-3 mr-1" /> แก้ไข
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 {/* Role Assignment */}
                                                 <div>
                                                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 block">บทบาท</label>
