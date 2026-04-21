@@ -666,23 +666,31 @@ function UsersTab({
     };
 
     const handleSaveUserInfo = async (userId: string) => {
+        console.log('[SaveUserInfo] clicked', { userId, form: editInfoForm });
         if (!editInfoForm.email || !editInfoForm.full_name) {
             toast.error('อีเมลและชื่อจริงต้องไม่ว่าง');
             return;
         }
         try {
             setSavingInfo(true);
-            await localDb.from('users').update({
+            const payload = {
                 email: editInfoForm.email,
                 full_name: editInfoForm.full_name,
                 username: editInfoForm.username || null,
                 employee_code: editInfoForm.employee_code || null,
                 phone: editInfoForm.phone || null,
-            }).eq('id', userId);
+            };
+            console.log('[SaveUserInfo] PATCH users id=', userId, 'payload:', payload);
+            const { data, error } = await localDb.from('users').update(payload).eq('id', userId);
+            console.log('[SaveUserInfo] PATCH result:', { data, error });
+            if (error) {
+                throw new Error(error.message || 'ไม่สามารถบันทึกได้');
+            }
             toast.success('อัปเดตข้อมูลผู้ใช้สำเร็จ');
             cancelEditInfo();
             onRefresh();
         } catch (err: any) {
+            console.error('[SaveUserInfo] error:', err);
             toast.error(err.message || 'บันทึกไม่สำเร็จ');
         } finally {
             setSavingInfo(false);
