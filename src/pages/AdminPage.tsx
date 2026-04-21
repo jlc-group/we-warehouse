@@ -144,13 +144,31 @@ export default function AdminPage() {
                 localDb.from('departments').select('*').order('name'),
             ]);
 
+            // Resolve department id/code/name from departments table (u.department is a string in DB)
+            const deptsList: any[] = deptsRes.data || [];
+            const resolveDept = (u: any) => {
+                if (!u.department && !u.department_id) return null;
+                // 1. Try lookup by department_id (UUID ref)
+                if (u.department_id) {
+                    const d = deptsList.find((x: any) => x.id === u.department_id);
+                    if (d) return { id: d.id, code: d.code, name: d.name };
+                }
+                // 2. Fallback: u.department may be a code OR a name
+                const val = String(u.department || '').trim();
+                if (!val) return null;
+                const d = deptsList.find((x: any) => x.code === val || x.name === val);
+                if (d) return { id: d.id, code: d.code, name: d.name };
+                // 3. Unknown: keep label but no id (dropdown won't match, but don't drop data)
+                return { id: '', code: val, name: val };
+            };
+
             const usersData: UserItem[] = (usersRes.data || []).map((u: any) => ({
                 id: u.id,
                 email: u.email || '',
                 full_name: u.full_name || '',
                 username: u.username || '',
                 is_active: u.is_active ?? true,
-                department: u.department ? { id: '', name: u.department } : null,
+                department: resolveDept(u),
                 roles: u.role ? [{ id: '', code: u.role, name: u.role }] : [],
                 last_login: u.last_login || null,
                 employee_code: u.employee_code || '',
