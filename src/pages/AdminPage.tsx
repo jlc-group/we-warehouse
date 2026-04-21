@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { localDb } from '@/integrations/local/client';
+import bcrypt from 'bcryptjs';
 
 import { getBackendRoot } from '@/lib/apiConfig';
 const API_BASE = getBackendRoot();
@@ -670,7 +671,9 @@ function UsersTab({
 
     const handleResetPassword = async (userId: string) => {
         try {
-            await localDb.from('users').update({ password_hash: newPassword }).eq('id', userId);
+            // bcrypt-hash before storing — backend /api/auth/login expects bcrypt
+            const passwordHash = await bcrypt.hash(newPassword, 10);
+            await localDb.from('users').update({ password_hash: passwordHash }).eq('id', userId);
             toast.success('รีเซ็ตรหัสผ่านสำเร็จ');
             setResetPasswordId(null);
             setNewPassword('');
@@ -740,11 +743,13 @@ function UsersTab({
             setCreating(true);
             const roleCode = roles.find(r => r.id === newUser.role_id)?.code || '';
             const deptCode = departments.find(d => d.id === newUser.department_id)?.code || '';
+            // bcrypt-hash the password before storing — backend /api/auth/login expects bcrypt
+            const passwordHash = await bcrypt.hash(newUser.password, 10);
             await localDb.from('users').insert({
                 email: newUser.email,
                 username: newUser.username || newUser.email,
                 full_name: newUser.full_name,
-                password_hash: newUser.password,
+                password_hash: passwordHash,
                 role: roleCode,
                 department: deptCode,
                 department_id: newUser.department_id || null,
