@@ -41,6 +41,11 @@ const TABLES = [
     'shipments',
 ];
 
+// Tables where local-only rows must NOT be deleted during mirror.
+// For these, we UPSERT instead of TRUNCATE+INSERT so local-only users
+// (e.g. package_staff01 created via AdminPage) survive repeated mirrors.
+const PRESERVE_LOCAL_ONLY = new Set(['users']);
+
 function supabaseRequest(path) {
     return new Promise((resolve, reject) => {
         const options = {
@@ -163,10 +168,18 @@ async function mirrorTable(table) {
             return { table, status: 'skipped', reason: 'table not found locally' };
         }
 
-        // 3. BEGIN tx + disable FK → TRUNCATE → INSERT → verify
+        const preserveLocal = PRESERVE_LOCAL_ONLY.has(table);
+
+        // 3. BEGIN tx + disable FK
         await client.query('BEGIN');
         await client.query(`SET LOCAL session_replication_role = 'replica'`);
-        await client.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`);
+
+        if (!preserveLocal) {
+            // Normal mirror: TRUNCATE then INSERT
+            await client.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE`);
+        } else {
+            console.log(`  🛡️  Preserve mode: UPSERT only (local-only rows kept)`);
+        }
 
         let inserted = 0;
         if (supaRows.length > 0) {
@@ -174,6 +187,15 @@ async function mirrorTable(table) {
             const firstRowCols = Object.keys(supaRows[0]);
             const cols = firstRowCols.filter((c) => localCols.includes(c));
             const colList = cols.map((c) => `"${c}"`).join(', ');
+
+            // For preserve-local tables we need UPSERT (ON CONFLICT DO UPDATE on id)
+            // For normal mirror tables, a plain INSERT is enough since we just TRUNCATEd
+            const updateSet = preserveLocal
+                ? cols.filter((c) => c !== 'id').map((c) => `"${c}" = EXCLUDED."${c}"`).join(', ')
+                : '';
+            const conflictClause = preserveLocal
+                ? (updateSet ? `ON CONFLICT (id) DO UPDATE SET ${updateSet}` : `ON CONFLICT (id) DO NOTHING`)
+                : '';
 
             // Batch inserts in chunks of 500
             const CHUNK = 500;
@@ -187,7 +209,7 @@ async function mirrorTable(table) {
                     placeholders.push(`(${rowPlaceholders.join(', ')})`);
                     for (const c of cols) values.push(row[c] ?? null);
                 }
-                const sql = `INSERT INTO "${table}" (${colList}) VALUES ${placeholders.join(', ')}`;
+                const sql = `INSERT INTO "${table}" (${colList}) VALUES ${placeholders.join(', ')} ${conflictClause}`;
                 await client.query(sql, values);
                 inserted += chunk.length;
             }
@@ -196,6 +218,19 @@ async function mirrorTable(table) {
         // 4. Verify count
         const { rows: cntRes } = await client.query(`SELECT COUNT(*)::int AS n FROM "${table}"`);
         const localCount = cntRes[0].n;
+
+        if (preserveLocal) {
+            // In preserve mode local count >= supabase count (local-only rows are kept)
+            if (localCount < supaRows.length) {
+                await client.query('ROLLBACK');
+                console.log(`  ❌ Count too low — ROLLED BACK. local=${localCount} vs expected≥${supaRows.length}`);
+                return { table, status: 'rolled_back', localCount, expected: supaRows.length };
+            }
+            const localOnly = localCount - supaRows.length;
+            await client.query('COMMIT');
+            console.log(`  ✅ Mirrored (preserve): ${supaRows.length} upserted, ${localOnly} local-only kept (total ${localCount})`);
+            return { table, status: 'ok', count: localCount, supaTotal, localOnly };
+        }
 
         if (localCount !== supaRows.length) {
             await client.query('ROLLBACK');
