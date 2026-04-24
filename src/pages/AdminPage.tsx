@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { localDb } from '@/integrations/local/client';
+import bcrypt from 'bcryptjs';
 
 import { getBackendRoot } from '@/lib/apiConfig';
 const API_BASE = getBackendRoot();
@@ -144,14 +145,44 @@ export default function AdminPage() {
                 localDb.from('departments').select('*').order('name'),
             ]);
 
+            // Resolve department id/code/name from departments table (u.department is a string in DB)
+            const deptsList: any[] = deptsRes.data || [];
+            const resolveDept = (u: any) => {
+                if (!u.department && !u.department_id) return null;
+                // 1. Try lookup by department_id (UUID ref)
+                if (u.department_id) {
+                    const d = deptsList.find((x: any) => x.id === u.department_id);
+                    if (d) return { id: d.id, code: d.code, name: d.name };
+                }
+                // 2. Fallback: u.department may be a code OR a name
+                const val = String(u.department || '').trim();
+                if (!val) return null;
+                const d = deptsList.find((x: any) => x.code === val || x.name === val);
+                if (d) return { id: d.id, code: d.code, name: d.name };
+                // 3. Unknown: keep label but no id (dropdown won't match, but don't drop data)
+                return { id: '', code: val, name: val };
+            };
+
+            // Resolve role id/code/name from roles table (u.role is a string — code OR name)
+            const rolesList: any[] = rolesRes.data || [];
+            const resolveRoles = (u: any) => {
+                if (!u.role) return [];
+                const val = String(u.role).trim();
+                if (!val) return [];
+                const r = rolesList.find((x: any) => x.code === val || x.name === val);
+                if (r) return [{ id: r.id, code: r.code, name: r.name }];
+                // Unknown: keep label, no id (checkbox won't match — but data preserved)
+                return [{ id: '', code: val, name: val }];
+            };
+
             const usersData: UserItem[] = (usersRes.data || []).map((u: any) => ({
                 id: u.id,
                 email: u.email || '',
                 full_name: u.full_name || '',
                 username: u.username || '',
                 is_active: u.is_active ?? true,
-                department: u.department ? { id: '', name: u.department } : null,
-                roles: u.role ? [{ id: '', code: u.role, name: u.role }] : [],
+                department: resolveDept(u),
+                roles: resolveRoles(u),
                 last_login: u.last_login || null,
                 employee_code: u.employee_code || '',
                 phone: u.phone || '',
@@ -640,7 +671,9 @@ function UsersTab({
 
     const handleResetPassword = async (userId: string) => {
         try {
-            await localDb.from('users').update({ password_hash: newPassword }).eq('id', userId);
+            // bcrypt-hash before storing — backend /api/auth/login expects bcrypt
+            const passwordHash = await bcrypt.hash(newPassword, 10);
+            await localDb.from('users').update({ password_hash: passwordHash }).eq('id', userId);
             toast.success('รีเซ็ตรหัสผ่านสำเร็จ');
             setResetPasswordId(null);
             setNewPassword('');
@@ -666,23 +699,31 @@ function UsersTab({
     };
 
     const handleSaveUserInfo = async (userId: string) => {
+        console.log('[SaveUserInfo] clicked', { userId, form: editInfoForm });
         if (!editInfoForm.email || !editInfoForm.full_name) {
             toast.error('อีเมลและชื่อจริงต้องไม่ว่าง');
             return;
         }
         try {
             setSavingInfo(true);
-            await localDb.from('users').update({
+            const payload = {
                 email: editInfoForm.email,
                 full_name: editInfoForm.full_name,
                 username: editInfoForm.username || null,
                 employee_code: editInfoForm.employee_code || null,
                 phone: editInfoForm.phone || null,
-            }).eq('id', userId);
+            };
+            console.log('[SaveUserInfo] PATCH users id=', userId, 'payload:', payload);
+            const { data, error } = await localDb.from('users').update(payload).eq('id', userId);
+            console.log('[SaveUserInfo] PATCH result:', { data, error });
+            if (error) {
+                throw new Error(error.message || 'ไม่สามารถบันทึกได้');
+            }
             toast.success('อัปเดตข้อมูลผู้ใช้สำเร็จ');
             cancelEditInfo();
             onRefresh();
         } catch (err: any) {
+            console.error('[SaveUserInfo] error:', err);
             toast.error(err.message || 'บันทึกไม่สำเร็จ');
         } finally {
             setSavingInfo(false);
@@ -702,11 +743,13 @@ function UsersTab({
             setCreating(true);
             const roleCode = roles.find(r => r.id === newUser.role_id)?.code || '';
             const deptCode = departments.find(d => d.id === newUser.department_id)?.code || '';
+            // bcrypt-hash the password before storing — backend /api/auth/login expects bcrypt
+            const passwordHash = await bcrypt.hash(newUser.password, 10);
             await localDb.from('users').insert({
                 email: newUser.email,
                 username: newUser.username || newUser.email,
                 full_name: newUser.full_name,
-                password_hash: newUser.password,
+                password_hash: passwordHash,
                 role: roleCode,
                 department: deptCode,
                 department_id: newUser.department_id || null,

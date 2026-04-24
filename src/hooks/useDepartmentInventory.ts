@@ -79,7 +79,20 @@ export function useDepartmentInventory(warehouseId?: string) {
   const checkItemAccess = useCallback((item: InventoryItem): boolean => {
     if (!user) return false;
 
-    const departmentRules = DEPARTMENT_ACCESS_RULES[user.department as keyof typeof DEPARTMENT_ACCESS_RULES];
+    // Supervisor+ (role_level >= 3): broad access regardless of department label.
+    // This fixes cases where user.department string doesn't match a known rule key
+    // (e.g. 'แผนกคลังสินค้า' vs 'คลังสินค้า', or English 'warehouse' vs Thai).
+    if ((user.role_level ?? 0) >= 3) {
+      return true;
+    }
+
+    // Normalize department: strip "แผนก" prefix, trim whitespace
+    const deptRaw = String(user.department || '').trim();
+    const deptNorm = deptRaw.replace(/^แผนก/, '').trim();
+
+    const departmentRules =
+      (DEPARTMENT_ACCESS_RULES as any)[deptRaw] ||
+      (DEPARTMENT_ACCESS_RULES as any)[deptNorm];
 
     if (!departmentRules) {
       return false;

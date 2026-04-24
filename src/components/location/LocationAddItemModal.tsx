@@ -19,8 +19,8 @@ interface LocationAddItemModalProps {
 
 interface Product {
   id: string;
-  sku: string;
-  name: string;
+  sku_code: string;
+  product_name: string;
   unit_level1_name?: string;
   unit_level2_name?: string;
   unit_level3_name?: string;
@@ -49,8 +49,8 @@ export function LocationAddItemModal({
 
   // Filter products based on search
   const filteredProducts = products?.filter(p =>
-    p.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    p.sku_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.product_name?.toLowerCase().includes(searchQuery.toLowerCase())
   ).slice(0, 10) || [];
 
   // Reset form when modal opens
@@ -66,7 +66,7 @@ export function LocationAddItemModal({
 
   const handleProductSelect = (product: Product) => {
     setSelectedProduct(product);
-    setSearchQuery(product.sku);
+    setSearchQuery(product.sku_code);
   };
 
   const handleSave = async () => {
@@ -95,8 +95,8 @@ export function LocationAddItemModal({
       const { error: insertError } = await localDb
         .from('inventory_items')
         .insert([{
-          sku: selectedProduct.sku,
-          product_name: selectedProduct.name,
+          sku: selectedProduct.sku_code,
+          product_name: selectedProduct.product_name,
           location: location,
           lot: lot || null,
           mfd: mfd || null,
@@ -116,8 +116,8 @@ export function LocationAddItemModal({
       // Log activity
       await LocationActivityService.logMoveIn({
         location,
-        productSku: selectedProduct.sku,
-        productName: selectedProduct.name,
+        productSku: selectedProduct.sku_code,
+        productName: selectedProduct.product_name,
         quantity: quantities.level1 + quantities.level2 + quantities.level3,
         unit: selectedProduct.unit_level1_name || 'ลัง',
         userName: 'User',
@@ -126,7 +126,7 @@ export function LocationAddItemModal({
 
       toast({
         title: '✅ รับสินค้าเข้าสำเร็จ',
-        description: `เพิ่ม ${selectedProduct.name} ใน ${location}`,
+        description: `เพิ่ม ${selectedProduct.product_name} ใน ${location}`,
       });
 
       onSuccess();
@@ -184,8 +184,8 @@ export function LocationAddItemModal({
                       className="p-2 hover:bg-gray-100 rounded cursor-pointer"
                       onClick={() => handleProductSelect(product as Product)}
                     >
-                      <div className="font-medium text-sm">{product.name}</div>
-                      <div className="text-xs text-gray-500 font-mono">{product.sku}</div>
+                      <div className="font-medium text-sm">{product.product_name}</div>
+                      <div className="text-xs text-gray-500 font-mono">{product.sku_code}</div>
                     </div>
                   ))}
                 </CardContent>
@@ -201,8 +201,8 @@ export function LocationAddItemModal({
                   <Package className="h-4 w-4 text-green-600" />
                   <span className="font-medium text-green-800">เลือกสินค้าแล้ว</span>
                 </div>
-                <div className="text-sm">{selectedProduct.name}</div>
-                <div className="text-xs text-gray-500 font-mono">{selectedProduct.sku}</div>
+                <div className="text-sm">{selectedProduct.product_name}</div>
+                <div className="text-xs text-gray-500 font-mono">{selectedProduct.sku_code}</div>
               </CardContent>
             </Card>
           )}
