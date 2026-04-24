@@ -39,6 +39,18 @@ const TABLES = [
     'warehouses',
     'customers',
     'shipments',
+    'customer_exports',
+    'fulfillment_tasks',
+    'fulfillment_items',
+    'location_activity_logs',
+    'location_qr_codes',
+    'meeting_rooms',
+    'product_conversion_rates',
+    'saved_datasets',
+    'stock_reservations',
+    'system_events',
+    'warehouse_transfers',
+    'warehouse_transfer_items',
 ];
 
 // Tables where local-only rows must NOT be deleted during mirror.
@@ -207,7 +219,14 @@ async function mirrorTable(table) {
                 for (const row of chunk) {
                     const rowPlaceholders = cols.map(() => `$${p++}`);
                     placeholders.push(`(${rowPlaceholders.join(', ')})`);
-                    for (const c of cols) values.push(row[c] ?? null);
+                    for (const c of cols) {
+                        const v = row[c];
+                        if (v !== null && v !== undefined && typeof v === 'object') {
+                            values.push(JSON.stringify(v));
+                        } else {
+                            values.push(v ?? null);
+                        }
+                    }
                 }
                 const sql = `INSERT INTO "${table}" (${colList}) VALUES ${placeholders.join(', ')} ${conflictClause}`;
                 await client.query(sql, values);
