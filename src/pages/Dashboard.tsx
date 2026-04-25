@@ -192,7 +192,7 @@ export default function Dashboard() {
                 // However, our router expects /location/:id and LocationDetail uses normalization.
                 // Using encodeURIComponent to handle slash safely in URL param
                 const encodedLocation = encodeURIComponent(location);
-                window.location.href = `/location/${encodedLocation}`;
+                navigate(`/location/${encodedLocation}`);
               }}
             />
           </Suspense>
