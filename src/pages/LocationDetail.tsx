@@ -318,7 +318,14 @@ export function LocationDetail({ propLocationId, isEmbedded = false }: LocationD
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
-            onClick={() => navigate('/')}
+            onClick={() => {
+              // Go back if there's history; otherwise fall back to home
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/');
+              }
+            }}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
