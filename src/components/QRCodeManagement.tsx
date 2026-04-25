@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,8 @@ interface QRCodeManagementProps {
 }
 
 function QRCodeManagement({ items }: QRCodeManagementProps) {
+  const navigate = useNavigate();
+  const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -233,14 +236,20 @@ function QRCodeManagement({ items }: QRCodeManagementProps) {
 
     // Auto-redirect: Navigate to the scanned URL for seamless experience
     if (data.url && data.action === 'add') {
-      window.location.href = data.url;
+      // data.url อาจเป็น absolute URL — แปลงเป็น path เพื่อใช้ React Router (ไม่ reload)
+      try {
+        const u = new URL(data.url, window.location.origin);
+        if (u.origin === window.location.origin) {
+          navigate(u.pathname + u.search + u.hash);
+        } else {
+          window.location.href = data.url; // external URL — fallback to full nav
+        }
+      } catch {
+        window.location.href = data.url;
+      }
     } else if (location) {
       // Fallback: Navigate with URL parameters
-      const params = new URLSearchParams();
-      params.set('tab', 'overview');
-      params.set('location', location);
-      params.set('action', 'add');
-      window.location.href = `${window.location.origin}?${params.toString()}`;
+      setSearchParams({ tab: 'overview', location, action: 'add' });
     }
   };
 

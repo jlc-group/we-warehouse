@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +40,7 @@ const COLOR_PALETTE = [
 ];
 
 export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOverviewAndSearchProps) {
+  const [, setSearchParams] = useSearchParams();
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
   const [visualMode, setVisualMode] = useState<VisualMode>('product');
   const [hiddenGroups, setHiddenGroups] = useState<Set<string>>(new Set());
@@ -705,11 +707,7 @@ export function ProductOverviewAndSearch({ items, onShelfClick }: ProductOvervie
                           variant="default"
                           className="bg-green-100 text-green-800 cursor-pointer hover:bg-green-200"
                           onClick={() => {
-                            const params = new URLSearchParams();
-                            params.set('tab', 'overview');
-                            params.set('location', location);
-                            params.set('action', 'add');
-                            window.location.href = `${window.location.origin}?${params.toString()}`;
+                            setSearchParams({ tab: 'overview', location, action: 'add' });
                           }}
                         >
                           มี QR
