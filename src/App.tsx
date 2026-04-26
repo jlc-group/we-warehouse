@@ -13,6 +13,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import SSOCallback from "./pages/SSOCallback";
 import NotFound from "./pages/NotFound";
 import { LocationDetail } from "./pages/LocationDetail";
 import SimpleAuth from "./pages/SimpleAuth";
@@ -84,6 +85,7 @@ const App = () => (
                         }
                       />
                       <Route path="/auth" element={<Auth />} />
+                      <Route path="/auth/sso/callback" element={<SSOCallback />} />
                       <Route path="/simple-auth" element={<SimpleAuth />} />
                       <Route
                         path="/location/:locationId"

@@ -351,23 +351,53 @@ export class LocalController {
     }
 
     /**
-     * POST /:table - Create record
+     * POST /:table - Create record(s)
+     * Accepts a single object or an array of objects (Supabase-compatible).
      */
     static async create(req: Request, res: Response, next: NextFunction) {
         try {
             const tableName = req.params.table;
-            const data = req.body;
+            const body = req.body;
+            const records = Array.isArray(body) ? body : [body];
 
-            const columns = Object.keys(data);
-            const values = Object.values(data);
-            const placeholders = columns.map((_, i) => `$${i + 1}`);
+            if (records.length === 0) {
+                return res.status(400).json({ error: 'Empty payload' });
+            }
 
-            const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
+            // Build column list from union of keys across all records (in case rows differ)
+            const colSet = new Set<string>();
+            records.forEach((r: any) => Object.keys(r || {}).forEach((k) => colSet.add(k)));
+            const columns = Array.from(colSet);
+            if (columns.length === 0) {
+                return res.status(400).json({ error: 'No columns to insert' });
+            }
+
+            const values: any[] = [];
+            const rowPlaceholders: string[] = [];
+            let p = 1;
+            for (const rec of records) {
+                const ph: string[] = [];
+                for (const c of columns) {
+                    const v = rec[c];
+                    // Serialize objects/arrays for JSONB columns
+                    if (v !== null && v !== undefined && typeof v === 'object') {
+                        values.push(JSON.stringify(v));
+                    } else {
+                        values.push(v ?? null);
+                    }
+                    ph.push(`$${p++}`);
+                }
+                rowPlaceholders.push(`(${ph.join(', ')})`);
+            }
+
+            const colList = columns.map((c) => `"${c}"`).join(', ');
+            const sql = `INSERT INTO ${tableName} (${colList}) VALUES ${rowPlaceholders.join(', ')} RETURNING *`;
 
             const pool = getLocalPool();
             const result = await pool.query(sql, values);
 
-            res.status(201).json(result.rows[0]);
+            // Mirror Supabase: return array if input was array, single object otherwise
+            res.status(201).json(Array.isArray(body) ? result.rows : result.rows[0]);
         } catch (error: any) {
             console.error('❌ Local DB insert error:', error);
             res.status(500).json({ error: error.message });
