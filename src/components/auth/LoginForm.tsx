@@ -189,6 +189,29 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               )}
             </Button>
 
+            {/* JLC SSO Login */}
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">หรือ</span>
+              </div>
+            </div>
+
+            <a
+              href={(() => {
+                const url = (import.meta as any).env?.VITE_BACKEND_URL || 'http://localhost:3005';
+                return `${url}/api/auth/sso/login`;
+              })()}
+              className="flex items-center justify-center gap-2 w-full h-10 px-4 rounded-md border border-input bg-background hover:bg-accent text-sm font-medium transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L1 7v10l11 5 11-5V7L12 2zm0 2.18L20.18 8 12 11.82 3.82 8 12 4.18zM3 9.55l8 3.64v7.27l-8-3.64V9.55zm10 10.91v-7.27l8-3.64v7.27l-8 3.64z" />
+              </svg>
+              เข้าสู่ระบบด้วย JLC SSO
+            </a>
+
             {onSwitchToRegister && (
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
