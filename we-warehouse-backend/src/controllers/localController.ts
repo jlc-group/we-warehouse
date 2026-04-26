@@ -84,25 +84,28 @@ export class LocalController {
     };
 
     /**
-     * Parse Supabase-style nested select patterns like "*, products(*)"
+     * Parse Supabase-style nested select patterns like "*, products(*)" or
+     * "*, customer:customers(id,name)" (with alias).
+     * Also tolerates whitespace/newlines inside parens.
      * Returns: { columns for main table, join definitions }
      */
     private static parseJoins(tableName: string, select: string): {
         cleanSelect: string;
-        joins: { joinTable: string; joinAlias: string; joinCols: string }[];
+        joins: { joinTable: string; joinAlias: string; joinCols: string; outputKey: string }[];
     } {
-        const joins: { joinTable: string; joinAlias: string; joinCols: string }[] = [];
+        const joins: { joinTable: string; joinAlias: string; joinCols: string; outputKey: string }[] = [];
         const mainCols: string[] = [];
 
-        // Split select by comma, but respect parentheses
+        // Split select by comma, respecting parentheses and ignoring newlines
+        const flat = select.replace(/\s+/g, ' ');
         const parts: string[] = [];
         let depth = 0;
         let current = '';
-        for (const ch of select) {
+        for (const ch of flat) {
             if (ch === '(') depth++;
             else if (ch === ')') depth--;
             else if (ch === ',' && depth === 0) {
-                parts.push(current.trim());
+                if (current.trim()) parts.push(current.trim());
                 current = '';
                 continue;
             }
@@ -110,11 +113,20 @@ export class LocalController {
         }
         if (current.trim()) parts.push(current.trim());
 
+        // Match either "table(cols)" or "alias:table(cols)" — cols may be empty or contain commas inside parens
+        const joinRegex = /^(?:(\w+)\s*:\s*)?(\w+)\s*\(([\s\S]*)\)$/;
+
         for (const part of parts) {
-            const joinMatch = part.match(/^(\w+)\(([^)]*)\)$/);
-            if (joinMatch) {
-                const [, joinTable, joinCols] = joinMatch;
-                joins.push({ joinTable, joinAlias: `_j_${joinTable}`, joinCols: joinCols || '*' });
+            const m = part.match(joinRegex);
+            if (m) {
+                const [, alias, joinTable, joinColsRaw] = m;
+                const joinCols = (joinColsRaw || '').trim() || '*';
+                joins.push({
+                    joinTable,
+                    joinAlias: `_j_${joinTable}`,
+                    joinCols,
+                    outputKey: alias || joinTable,
+                });
             } else {
                 mainCols.push(part);
             }
@@ -132,7 +144,7 @@ export class LocalController {
     private static buildSelectQuery(
         tableName: string,
         params: { select: string; limit: number | null; offset: number | null; orderBy: string | null; filters: any[]; orConditions: string[] }
-    ): { sql: string; values: any[]; joins: { joinTable: string; joinAlias: string; joinCols: string }[] } {
+    ): { sql: string; values: any[]; joins: { joinTable: string; joinAlias: string; joinCols: string; outputKey: string }[] } {
         const { cleanSelect, joins } = LocalController.parseJoins(tableName, params.select);
 
         // Build SELECT columns - prefix main table columns and add join columns
@@ -142,12 +154,18 @@ export class LocalController {
             const mainAlias = tableName;
             const mainColsPart = cleanSelect === '*' ? `${mainAlias}.*` : cleanSelect.split(',').map(c => `${mainAlias}.${c.trim()}`).join(', ');
 
-            // Join table columns - select with alias prefixes for later nesting
+            // Build a single JSON object per join so we can return a nested object cleanly
+            // — works for both "*" and specific column lists.
             const joinColParts = joins.map(j => {
                 if (j.joinCols === '*') {
-                    return `row_to_json(${j.joinAlias}.*) as _join_${j.joinTable}`;
+                    return `row_to_json(${j.joinAlias}.*) as _join_${j.outputKey}`;
                 }
-                return j.joinCols.split(',').map(c => `${j.joinAlias}.${c.trim()} as _join_${j.joinTable}_${c.trim()}`).join(', ');
+                const cols = j.joinCols.split(',').map(c => c.trim()).filter(Boolean);
+                const jsonPairs = cols
+                    .map(c => `'${c}', ${j.joinAlias}.${c}`)
+                    .join(', ');
+                // Use id (from FK target) to detect "no join row matched" — joins are LEFT JOIN on id
+                return `CASE WHEN ${j.joinAlias}.id IS NOT NULL THEN jsonb_build_object(${jsonPairs}) ELSE NULL END as _join_${j.outputKey}`;
             });
 
             selectClause = [mainColsPart, ...joinColParts].join(', ');
@@ -302,15 +320,14 @@ export class LocalController {
             const pool = getLocalPool();
             const result = await pool.query(sql, values);
 
-            // If joins exist, nest joined data into sub-objects
+            // If joins exist, nest joined data into sub-objects under the alias (or table name)
             if (joins.length > 0) {
                 const nested = result.rows.map(row => {
                     const newRow: any = { ...row };
                     for (const j of joins) {
-                        const joinKey = `_join_${j.joinTable}`;
+                        const joinKey = `_join_${j.outputKey}`;
                         if (row[joinKey] !== undefined) {
-                            // row_to_json returns a JSON object - nest it under the join table name
-                            newRow[j.joinTable] = row[joinKey];
+                            newRow[j.outputKey] = row[joinKey];
                             delete newRow[joinKey];
                         }
                     }
