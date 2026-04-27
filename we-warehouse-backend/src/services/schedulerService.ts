@@ -3,6 +3,7 @@
  * Scheduled tasks using node-cron
  */
 import { POSyncService } from './poSyncService.js';
+import { getLocalPool } from '../config/localDatabase.js';
 
 // Cron expression for every 6 hours: At minute 0 of hours 0, 6, 12, 18
 const SYNC_SCHEDULE = '0 */6 * * *';
@@ -10,6 +11,7 @@ const SYNC_SCHEDULE = '0 */6 * * *';
 // Simple in-memory scheduler using setInterval
 class SchedulerService {
     private intervalId: NodeJS.Timeout | null = null;
+    private cleanupIntervalId: NodeJS.Timeout | null = null;
     private isRunning = false;
 
     /**
@@ -34,12 +36,38 @@ class SchedulerService {
             await this.runScheduledSync();
         }, SIX_HOURS);
 
+        // Inventory cleanup job — รายชั่วโมง ลบ row qty=0/0/0 (safety net)
+        const ONE_HOUR = 60 * 60 * 1000;
+        this.cleanupIntervalId = setInterval(async () => {
+            await this.runInventoryCleanup();
+        }, ONE_HOUR);
+        // Run once on startup ด้วย (กัน row ที่ค้างจากก่อนเปิดระบบ)
+        this.runInventoryCleanup();
+
         this.isRunning = true;
+        console.log('✅ Scheduler started — PO sync every 6h + inventory cleanup hourly');
+    }
 
-        // Also run immediately on startup (optional - comment out if not needed)
-        // this.runScheduledSync();
-
-        console.log('✅ Scheduler started successfully');
+    /**
+     * Hourly cleanup: ลบ row inventory_items ที่ qty ทั้ง 3 levels = 0
+     * (safety net ในกรณี trigger พลาด หรือมี row ค้างจาก client เก่า)
+     */
+    async runInventoryCleanup() {
+        try {
+            const pool = getLocalPool();
+            const result = await pool.query(`
+                DELETE FROM inventory_items
+                WHERE COALESCE(unit_level1_quantity, 0) = 0
+                  AND COALESCE(unit_level2_quantity, 0) = 0
+                  AND COALESCE(unit_level3_quantity, 0) = 0
+                RETURNING id
+            `);
+            if (result.rowCount && result.rowCount > 0) {
+                console.log(`🧹 [CLEANUP] Deleted ${result.rowCount} zero-qty inventory rows`);
+            }
+        } catch (error: any) {
+            console.error('❌ Inventory cleanup failed:', error.message);
+        }
     }
 
     /**
@@ -49,9 +77,13 @@ class SchedulerService {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
-            this.isRunning = false;
-            console.log('⏹️  Scheduler stopped');
         }
+        if (this.cleanupIntervalId) {
+            clearInterval(this.cleanupIntervalId);
+            this.cleanupIntervalId = null;
+        }
+        this.isRunning = false;
+        console.log('⏹️  Scheduler stopped');
     }
 
     /**

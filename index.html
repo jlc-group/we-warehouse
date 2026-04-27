@@ -37,17 +37,44 @@
     <script src="/extension-error-handler.js"></script>
     <script type="module" src="/src/main.tsx"></script>
     
-    <!-- Register Service Worker for PWA -->
+    <!-- Register Service Worker + version check (auto-update on new deploy) -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then((registration) => {
-              console.log('✅ Service Worker registered:', registration.scope);
-            })
-            .catch((error) => {
-              console.log('❌ Service Worker registration failed:', error);
+          navigator.serviceWorker.register('/sw.js').then((registration) => {
+            console.log('✅ Service Worker registered:', registration.scope);
+
+            // เช็คเวอร์ชันใหม่ทุก 60 วินาที
+            setInterval(() => registration.update().catch(() => {}), 60_000);
+
+            // เมื่อพบ SW เวอร์ชันใหม่ที่ติดตั้งเสร็จแล้ว → แจ้ง user
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (!newWorker) return;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  window.dispatchEvent(new CustomEvent('app-update-available'));
+                }
+              });
             });
+          }).catch((error) => {
+            console.log('❌ Service Worker registration failed:', error);
+          });
+
+          // Backup version check: poll /index.html ทุก 2 นาที
+          // ถ้า bundle hash เปลี่ยน → แจ้ง user (เผื่อ SW updatefound ไม่ทำงาน)
+          const initialBundle = Array.from(document.scripts)
+            .map(s => s.src).find(s => /\/assets\/index-[^/]+\.js/.test(s)) || '';
+          setInterval(async () => {
+            try {
+              const res = await fetch('/?v=' + Date.now(), { cache: 'no-store' });
+              const html = await res.text();
+              const m = html.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/);
+              if (m && initialBundle && !initialBundle.endsWith(m[0])) {
+                window.dispatchEvent(new CustomEvent('app-update-available'));
+              }
+            } catch { /* offline ก็ปล่อยผ่าน */ }
+          }, 120_000);
         });
       }
     </script>
