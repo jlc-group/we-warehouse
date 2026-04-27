@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ArrowLeftRight, Save, X, Package, MapPin, AlertTriangle } from 'lucide-react';
 import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
+import { useBackClosesModal } from '@/hooks/useBackClosesModal';
 import { generateAllWarehouseLocations } from '@/utils/locationUtils';
 import { LocationCombobox } from './LocationCombobox';
 
@@ -57,6 +58,9 @@ export function LocationTransferModal({
   const [loading, setLoading] = useState(false);
   const [transferItems, setTransferItems] = useState<Record<string, TransferItem>>({});
   const [allLocations, setAllLocations] = useState<string[]>([]);
+
+  // ปุ่ม back ของ browser → ปิดเฉพาะ modal นี้
+  useBackClosesModal(isOpen, onClose);
 
   useEffect(() => {
     if (isOpen) {
@@ -276,6 +280,10 @@ export function LocationTransferModal({
       const destinationText = destinations.length === 1
         ? destinations[0]
         : `${destinations.length} ตำแหน่ง (${destinations.slice(0, 2).join(', ')}${destinations.length > 2 ? '...' : ''})`;
+
+      window.dispatchEvent(new CustomEvent('inventory-changed', {
+        detail: { action: 'transfer', from: fromLocationId, to: destinations }
+      }));
 
       toast({
         title: '✅ ย้ายสินค้าสำเร็จ',

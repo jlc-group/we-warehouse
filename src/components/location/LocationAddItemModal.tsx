@@ -9,6 +9,7 @@ import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { LocationActivityService } from '@/services/locationActivityService';
 import { useProducts } from '@/contexts/ProductsContext';
+import { useBackClosesModal } from '@/hooks/useBackClosesModal';
 
 interface LocationAddItemModalProps {
   isOpen: boolean;
@@ -46,6 +47,9 @@ export function LocationAddItemModal({
   });
   const [lot, setLot] = useState('');
   const [mfd, setMfd] = useState('');
+
+  // ปุ่ม back ของ browser → ปิดเฉพาะ modal นี้ (ไม่ navigate ออก)
+  useBackClosesModal(isOpen, onClose);
 
   // Filter products based on search
   const filteredProducts = products?.filter(p =>

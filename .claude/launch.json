@@ -4,14 +4,14 @@
     {
       "name": "dev",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "8080"],
-      "port": 8080
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5178"],
+      "port": 5178
     },
     {
       "name": "backend",
       "runtimeExecutable": "node",
       "runtimeArgs": ["--import", "tsx", "src/index.ts"],
-      "port": 3004
+      "port": 3005
     }
   ]
 }
