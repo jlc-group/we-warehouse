@@ -786,9 +786,22 @@ export function useInventory(warehouseId?: string) {
 
     initLoad();
 
+    // Listen for global "inventory-changed" event (dispatched by add/edit/delete modals
+    // ที่ใช้ localDb โดยตรง) → invalidate cache + refetch ทันที (bypass throttle)
+    const onInventoryChanged = () => {
+      console.log('📣 useInventory: received "inventory-changed" event → invalidating cache');
+      globalInventoryData = [];
+      isGloballyInitialized = false;
+      if (mounted) {
+        fetchItemsRef.current?.(true);
+      }
+    };
+    window.addEventListener('inventory-changed', onInventoryChanged);
+
     return () => {
       mounted = false;
       mountedInstances.delete(instanceId);
+      window.removeEventListener('inventory-changed', onInventoryChanged);
 
       // Reset primary if this was the primary instance
       if (primaryInstance === instanceId) {
