@@ -108,7 +108,11 @@ export function LocationAddItemModal({
           unit_level3_name: selectedProduct.unit_level3_name || 'ชิ้น',
           unit_level1_rate: selectedProduct.unit_level1_rate || 12,
           unit_level2_rate: selectedProduct.unit_level2_rate || 1,
-          unit: 'กล่อง'
+          // unit (legacy) — ใช้ชื่อหน่วยใหญ่สุดที่ผู้ใช้ป้อน เพื่อไม่ให้ overview แสดงไม่ตรง
+          unit:
+            (quantities.level1 > 0 && (selectedProduct.unit_level1_name || 'ลัง')) ||
+            (quantities.level2 > 0 && (selectedProduct.unit_level2_name || 'กล่อง')) ||
+            (selectedProduct.unit_level3_name || 'ชิ้น'),
         }]);
 
       if (insertError) throw insertError;
@@ -123,6 +127,11 @@ export function LocationAddItemModal({
         userName: 'User',
         notes: lot ? `LOT: ${lot}` : undefined
       });
+
+      // แจ้ง useInventory / overview ให้ refetch global cache (รองรับการกลับไปดูภาพรวม)
+      window.dispatchEvent(new CustomEvent('inventory-changed', {
+        detail: { action: 'add', location, sku: selectedProduct.sku_code }
+      }));
 
       toast({
         title: '✅ รับสินค้าเข้าสำเร็จ',

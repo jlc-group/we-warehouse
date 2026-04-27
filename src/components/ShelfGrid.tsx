@@ -222,8 +222,33 @@ export const ShelfGrid = memo(function ShelfGrid({
     selectedFilters: {}
   });
   const [highlightedLocations, setHighlightedLocations] = useState<string[]>([]);
-  const [availableRows, setAvailableRows] = useState(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N']);
-  const [visibleRowsCount, setVisibleRowsCount] = useState(10); // Show more rows initially for better data visibility
+  // Persist row state across navigation (sessionStorage) — ผู้ใช้กด "โหลดเพิ่ม"/"แสดงทั้งหมด" แล้ว
+  // กลับจาก Location detail ไม่ควรเด้งกลับไป A
+  const [availableRows, setAvailableRows] = useState<string[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('shelf-available-rows');
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+      }
+    } catch { /* ignore */ }
+    return ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N'];
+  });
+  const [visibleRowsCount, setVisibleRowsCount] = useState<number>(() => {
+    try {
+      const n = Number(sessionStorage.getItem('shelf-visible-rows-count'));
+      if (Number.isFinite(n) && n > 0) return n;
+    } catch { /* ignore */ }
+    return 10;
+  });
+
+  // Persist on change
+  useEffect(() => {
+    try { sessionStorage.setItem('shelf-available-rows', JSON.stringify(availableRows)); } catch { /* ignore */ }
+  }, [availableRows]);
+  useEffect(() => {
+    try { sessionStorage.setItem('shelf-visible-rows-count', String(visibleRowsCount)); } catch { /* ignore */ }
+  }, [visibleRowsCount]);
   const [showScanner, setShowScanner] = useState(false);
   const [showBulkTransfer, setShowBulkTransfer] = useState(false);
   const [bulkTransferLocation, setBulkTransferLocation] = useState<string>('');
