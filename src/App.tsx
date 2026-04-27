@@ -10,6 +10,7 @@ import { LocationQRProvider } from "@/contexts/LocationQRContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { AppUpdateBanner } from "@/components/AppUpdateBanner";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
@@ -53,6 +54,7 @@ const App = () => (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <AppUpdateBanner />
           <Toaster />
           <Sonner />
           <BrowserRouter
