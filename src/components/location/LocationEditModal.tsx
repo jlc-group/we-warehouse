@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit3, Save, X, Package } from 'lucide-react';
 import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
+import { useBackClosesModal } from '@/hooks/useBackClosesModal';
 
 interface LocationInventory {
   id: string;
@@ -35,6 +36,9 @@ export function LocationEditModal({ isOpen, onClose, locationId, inventory, onSu
   const [loading, setLoading] = useState(false);
   const [editingItems, setEditingItems] = useState<Record<string, LocationInventory>>({});
 
+  // ปุ่ม back ของ browser → ปิดเฉพาะ modal นี้ (ไม่ navigate ออก)
+  useBackClosesModal(isOpen, onClose);
+
   useEffect(() => {
     if (isOpen && inventory.length > 0) {
       // Initialize editing state with current inventory
@@ -61,9 +65,28 @@ export function LocationEditModal({ isOpen, onClose, locationId, inventory, onSu
     try {
       setLoading(true);
 
-      // Update each modified item
-      const updates = Object.values(editingItems).map(async (item) => {
-        const { data, error } = await localDb
+      let deletedCount = 0;
+      let updatedCount = 0;
+
+      // ถ้า level1+level2+level3 = 0 → ลบรายการนั้น (ไม่เก็บ row ขยะ)
+      // ไม่งั้น UPDATE ตามปกติ
+      const ops = Object.values(editingItems).map(async (item) => {
+        const total =
+          (item.unit_level1_quantity || 0) +
+          (item.unit_level2_quantity || 0) +
+          (item.unit_level3_quantity || 0);
+
+        if (total === 0) {
+          const { error } = await localDb
+            .from('inventory_items')
+            .delete()
+            .eq('id', item.id);
+          if (error) throw error;
+          deletedCount++;
+          return;
+        }
+
+        const { error } = await localDb
           .from('inventory_items')
           .update({
             unit_level1_quantity: item.unit_level1_quantity,
@@ -72,16 +95,23 @@ export function LocationEditModal({ isOpen, onClose, locationId, inventory, onSu
             updated_at: new Date().toISOString()
           })
           .eq('id', item.id);
-
         if (error) throw error;
-        return data;
+        updatedCount++;
       });
 
-      await Promise.all(updates);
+      await Promise.all(ops);
+
+      // แจ้ง overview ให้ refetch global cache
+      window.dispatchEvent(new CustomEvent('inventory-changed', {
+        detail: { action: 'edit', location: locationId }
+      }));
 
       toast({
         title: '✅ อัปเดตสำเร็จ',
-        description: `อัปเดตข้อมูลสินค้าใน Location ${locationId} แล้ว`,
+        description:
+          deletedCount > 0
+            ? `อัปเดต ${updatedCount} รายการ, ลบ ${deletedCount} รายการที่ไม่มีจำนวนแล้ว`
+            : `อัปเดตข้อมูลสินค้าใน Location ${locationId} แล้ว`,
       });
 
       onSuccess();

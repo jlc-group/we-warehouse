@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Minus, Save, X, Package, AlertTriangle } from 'lucide-react';
 import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
+import { useBackClosesModal } from '@/hooks/useBackClosesModal';
 import { LocationActivityService, type LocationInventorySummary } from '@/services/locationActivityService';
 import { CustomerSelector } from '@/components/CustomerSelector';
 import type { Customer } from '@/hooks/useCustomers';
@@ -42,6 +43,9 @@ export function LocationRemoveItemModal({
     const [removeItems, setRemoveItems] = useState<RemoveItem[]>([]);
     const [notes, setNotes] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+    // ปุ่ม back ของ browser → ปิดเฉพาะ modal นี้
+    useBackClosesModal(isOpen, onClose);
 
     // Initialize items from inventory when modal opens
     useEffect(() => {
@@ -151,6 +155,10 @@ export function LocationRemoveItemModal({
                     } : undefined
                 });
             }
+
+            window.dispatchEvent(new CustomEvent('inventory-changed', {
+                detail: { action: 'remove', location }
+            }));
 
             toast({
                 title: '✅ ส่งสินค้าออกสำเร็จ',
