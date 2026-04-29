@@ -35,6 +35,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { ShelfGrid } from './ShelfGrid';
+import { LocationQRModal } from './location/LocationQRModal';
 import { MonitorDashboardSimple } from './MonitorDashboardSimple';
 import { SKUDisplay, SKUGrid } from './SKUDisplay';
 import { LotBadge, LotGroup } from './LotBadge';
@@ -84,6 +85,7 @@ export const EnhancedOverview = memo(({
   const { products: productsFromContext, loading: productsLoading } = useProducts();
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [viewMode, setViewMode] = useState<'work' | 'monitor'>('work');
+  const [qrModalLocation, setQrModalLocation] = useState<string | null>(null);
   const [selectedSkus, setSelectedSkus] = useState<string[]>([]);
   const [selectedMfds, setSelectedMfds] = useState<string[]>([]);
   const [selectedProductTypes, setSelectedProductTypes] = useState<string[]>([]);
@@ -1398,11 +1400,7 @@ export const EnhancedOverview = memo(({
                         items={items}
                         warehouseId={warehouseId}
                         onShelfClick={onShelfClick}
-                        onQRCodeClick={async (location) => {
-                          if (!getQRByLocation(location)) {
-                            await generateQRForLocation(location, items);
-                          }
-                        }}
+                        onQRCodeClick={(location) => setQrModalLocation(location)}
                       />
                     )}
                   </CardContent>
@@ -2603,6 +2601,15 @@ export const EnhancedOverview = memo(({
             </Card>
           </div>
         </div>
+      )}
+
+      {/* QR Code modal — เปิดเมื่อคลิก icon QR ใน ShelfGrid */}
+      {qrModalLocation && (
+        <LocationQRModal
+          isOpen={!!qrModalLocation}
+          onClose={() => setQrModalLocation(null)}
+          location={qrModalLocation}
+        />
       )}
     </div>
   );
