@@ -134,8 +134,8 @@ export function useDepartmentInventory(warehouseId?: string) {
       console.log('⚠️ useDepartmentInventory: No user, showing all data for debugging');
       const filtered = allItems.filter(item => {
         if (!warehouseId) return true;
-        // แสดงสินค้าที่ไม่ระบุ warehouse เสมอ เพื่อไม่ให้ข้อมูลหาย
-        if (!item.warehouse_id) return true;
+        // STRICT filter: รายการ NULL warehouse_id ไม่ leak ข้ามคลังอีกแล้ว
+        // (ก่อนหน้านี้คืน true เมื่อ warehouse_id ว่าง → ทำให้ข้อมูลหลักไหลเข้าทุกคลัง)
         return item.warehouse_id === warehouseId;
       });
       console.log(`📊 No-user filter: ${filtered.length}/${allItems.length} items accessible`);
@@ -151,8 +151,7 @@ export function useDepartmentInventory(warehouseId?: string) {
       .filter(checkItemAccess)
       .filter(item => {
         if (!warehouseId) return true;
-        // แสดงสินค้าที่ไม่ระบุ warehouse เสมอ เพื่อไม่ให้ข้อมูลหาย
-        if (!item.warehouse_id) return true;
+        // STRICT filter: รายการ NULL warehouse_id ไม่ leak ข้ามคลังอีกแล้ว
         return item.warehouse_id === warehouseId;
       });
     console.log(`📊 Department filter: ${filtered.length}/${allItems.length} items accessible`);
