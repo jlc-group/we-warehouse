@@ -126,6 +126,7 @@ class QueryBuilder {
     private pendingUpdate: any = null;
     private pendingDelete: boolean = false;
     private pendingUpsert: { data: any; onConflict?: string } | null = null;
+    private pendingInsert: any = null;
 
     constructor(baseUrl: string, tableName: string) {
         this.baseUrl = baseUrl;
@@ -278,21 +279,33 @@ class QueryBuilder {
         return params.toString();
     }
 
-    async insert(data: any | any[]) {
+    /**
+     * .insert() - Defer insert; chainable with .select() / .single() (Supabase-compat)
+     * Awaiting directly executes the insert immediately.
+     */
+    insert(data: any | any[]) {
+        this.pendingInsert = data;
+        return this;
+    }
+
+    private async executeInsert() {
         try {
             const response = await fetch(`${this.baseUrl}/${this.tableName}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: JSON.stringify(this.pendingInsert),
             });
 
             if (!response.ok) {
-                const error = await response.json();
-                return { data: null, error: { message: error.message || 'Insert failed' } };
+                const error = await response.json().catch(() => ({ message: response.statusText }));
+                return { data: null, error: { message: error.message || error.error || 'Insert failed' } };
             }
 
             const result = await response.json();
-            return { data: result.data || result, error: null };
+            const rows = Array.isArray(result) ? result : (result.data ? (Array.isArray(result.data) ? result.data : [result.data]) : [result]);
+            // Mirror Supabase: with .single() return single row; with .select() (no .single()) return array; default also returns array
+            const data = this.singleResult ? (rows[0] || null) : rows;
+            return { data, error: null };
         } catch (error: any) {
             return { data: null, error: { message: error.message } };
         }
@@ -379,6 +392,13 @@ class QueryBuilder {
 
     async then(resolve: (value: { data: any; error: any }) => void) {
         try {
+            // Handle pending insert
+            if (this.pendingInsert !== null) {
+                const result = await this.executeInsert();
+                resolve(result);
+                return;
+            }
+
             // Handle pending upsert
             if (this.pendingUpsert !== null) {
                 const result = await this.executeUpsert();
