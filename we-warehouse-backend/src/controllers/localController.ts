@@ -144,8 +144,38 @@ export class LocalController {
     private static buildSelectQuery(
         tableName: string,
         params: { select: string; limit: number | null; offset: number | null; orderBy: string | null; filters: any[]; orConditions: string[] }
-    ): { sql: string; values: any[]; joins: { joinTable: string; joinAlias: string; joinCols: string; outputKey: string }[] } {
+    ): { sql: string; values: any[]; joins: { joinTable: string; joinAlias: string; joinCols: string; outputKey: string }[]; isCount?: boolean } {
         const { cleanSelect, joins } = LocalController.parseJoins(tableName, params.select);
+
+        // Supabase special case: select=count → return [{ count: N }] (no rows)
+        if (cleanSelect.trim().toLowerCase() === 'count' && joins.length === 0) {
+            const values: any[] = [];
+            const whereClauses: string[] = [];
+            for (const f of params.filters) {
+                if (f.operator === 'IS') {
+                    whereClauses.push(f.value === null ? `${f.column} IS NULL` : `${f.column} IS ${f.value}`);
+                } else if (f.operator === 'IS NOT') {
+                    whereClauses.push(f.value === null ? `${f.column} IS NOT NULL` : `${f.column} IS NOT ${f.value}`);
+                } else if (f.operator === 'IN' || f.operator === 'NOT IN') {
+                    const vals = f.value.replace(/^\(/, '').replace(/\)$/, '').split(',').map((v: string) => v.trim());
+                    const phs = vals.map((v: string) => { values.push(v); return `$${values.length}`; });
+                    whereClauses.push(`${f.column} ${f.operator} (${phs.join(', ')})`);
+                } else if (f.operator === '@>') {
+                    values.push(f.value);
+                    whereClauses.push(`${f.column} @> $${values.length}::jsonb`);
+                } else {
+                    values.push(f.value === 'true' ? true : f.value === 'false' ? false : f.value);
+                    whereClauses.push(`${f.column} ${f.operator} $${values.length}`);
+                }
+            }
+            const whereSql = whereClauses.length ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+            return {
+                sql: `SELECT COUNT(*)::int AS count FROM ${tableName}${whereSql}`,
+                values,
+                joins: [],
+                isCount: true,
+            };
+        }
 
         // Build SELECT columns - prefix main table columns and add join columns
         let selectClause: string;
