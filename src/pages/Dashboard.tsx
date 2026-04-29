@@ -26,6 +26,7 @@ const FinanceDashboard = lazy(() => import('@/components/FinanceDashboard').then
 const SalesAnalytics = lazy(() => import('@/components/SalesAnalytics').then(m => ({ default: m.SalesAnalytics })));
 const QRCodeManagement = lazy(() => import('@/components/QRCodeManagement'));
 const LocationManagement = lazy(() => import('@/components/LocationManagementNew'));
+const WarehouseManagementPage = lazy(() => import('@/components/WarehouseManagementPage').then(m => ({ default: m.WarehouseManagementPage })));
 const EnhancedEventLogs = lazy(() => import('@/components/EnhancedEventLogs').then(m => ({ default: m.EnhancedEventLogs })));
 const AdminPage = lazy(() => import('@/pages/AdminPage'));
 const DatabaseDebug = lazy(() => import('@/components/DatabaseDebug').then(m => ({ default: m.DatabaseDebug })));
@@ -202,6 +203,13 @@ export default function Dashboard() {
         return (
           <Suspense fallback={<ComponentLoadingFallback componentName="Location Management" />}>
             <LocationManagement />
+          </Suspense>
+        );
+
+      case 'warehouse-management':
+        return (
+          <Suspense fallback={<ComponentLoadingFallback componentName="Warehouse Management" />}>
+            <WarehouseManagementPage />
           </Suspense>
         );
 
