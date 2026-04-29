@@ -82,6 +82,7 @@ const menuGroups: MenuGroup[] = [
       { title: 'จัดการสินค้า', icon: PackagePlus, value: 'product-management', badge: 'เพิ่ม/แก้ไข', badgeColor: 'bg-emerald-500' },
       { title: 'แผนผังคลัง', icon: Grid3X3, value: 'shelf' },
       { title: 'จัดการ Location', icon: MapPin, value: 'locations' },
+      { title: 'จัดการคลัง', icon: Warehouse, value: 'warehouse-management' },
       { title: 'ทำงานเป็นชุด', icon: BoxesIcon, value: 'operations', badge: 'ใหม่', badgeColor: 'bg-orange-500' },
       { title: 'Stock Card', icon: FileText, value: 'stock-card' },
     ]
