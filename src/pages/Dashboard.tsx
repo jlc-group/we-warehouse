@@ -167,7 +167,9 @@ export default function Dashboard() {
             <StockOverviewPage
               warehouseId={selectedWarehouseId}
               onLocationClick={(location) => {
-                console.log('Location clicked:', location);
+                // คลิก badge location → ไปหน้า detail ของตำแหน่งนั้น
+                const encoded = encodeURIComponent(location);
+                navigate(`/location/${encoded}`);
               }}
             />
           </Suspense>
