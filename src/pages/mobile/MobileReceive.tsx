@@ -87,29 +87,70 @@ const MobileReceive = () => {
         }
     });
 
-    const handleLoadPO = async (po: string) => {
+    /**
+     * แปลง raw scan input → PO number
+     * รองรับ: URL จาก QR, JSON, plain text
+     */
+    const parsePOInput = (raw: string): string => {
+        const trimmed = raw.trim();
+        if (/^https?:\/\//i.test(trimmed)) {
+            try {
+                const u = new URL(trimmed);
+                const m = u.pathname.match(/\/(?:po|receive|mobile\/receive)\/([^/]+)/);
+                if (m) return decodeURIComponent(m[1]);
+                const q = u.searchParams.get('po') || u.searchParams.get('po_number');
+                if (q) return q;
+            } catch { /* fall through */ }
+        }
+        if (trimmed.startsWith('{')) {
+            try {
+                const j = JSON.parse(trimmed);
+                if (j.po_number) return String(j.po_number);
+            } catch { /* fall through */ }
+        }
+        return trimmed;
+    };
+
+    const handleLoadPO = async (rawInput: string) => {
+        const po = parsePOInput(rawInput);
         if (!po) return;
         setLoading(true);
         try {
-            const { data: receipt, error: receiptError } = await localDb
-                .from('inbound_receipts')
+            // PO sync เก็บลง customer_orders (order_number = PO number จาก JLC)
+            const { data: order, error: orderError } = await localDb
+                .from('customer_orders')
                 .select('*')
-                .eq('document_number', po)
-                .single();
+                .eq('order_number', po)
+                .maybeSingle();
 
-            if (receiptError) throw receiptError;
-            if (!receipt) throw new Error('ไม่พบ PO');
+            if (orderError) throw orderError;
+            if (!order) throw new Error(`ไม่พบ PO: ${po}`);
 
             const { data: items, error: itemsError } = await localDb
-                .from('inbound_receipt_items')
+                .from('order_items')
                 .select('*')
-                .eq('receipt_id', receipt.id);
+                .eq('order_id', order.id);
 
             if (itemsError) throw itemsError;
 
-            setPoData({ ...receipt, inbound_receipt_items: items || [] });
+            // Normalize ให้ตรงกับ shape เดิมที่ UI ใช้ (inbound_receipt_items)
+            const normalizedItems = (items || []).map((it: any) => ({
+                id: it.id,
+                product_code: it.sku,
+                product_name: it.product_name,
+                quantity_expected: it.ordered_quantity_level1 || 0,
+                quantity_received: it.shipped_quantity_level1 || 0,
+                location: it.location,
+                unit_price: it.unit_price,
+            }));
+
+            setPoData({
+                ...order,
+                document_number: order.order_number,
+                inbound_receipt_items: normalizedItems,
+            });
             setStep('process_item');
-            toast.success('โหลด PO สำเร็จ');
+            toast.success(`โหลด PO ${po} สำเร็จ (${normalizedItems.length} รายการ)`);
         } catch (e: any) {
             toast.error(e.message || 'เกิดข้อผิดพลาด');
         } finally {
@@ -120,7 +161,7 @@ const MobileReceive = () => {
     const handleFindItemInPO = (skuOrCode: string) => {
         if (!poData) return;
         const item = poData.inbound_receipt_items.find((i: any) =>
-            i.product_code === skuOrCode || i.product_name.includes(skuOrCode)
+            i.product_code === skuOrCode || (i.product_name || '').includes(skuOrCode)
         );
 
         if (item) {
