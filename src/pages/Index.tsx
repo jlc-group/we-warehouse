@@ -92,7 +92,7 @@ const AdvancedAnalytics = lazy(() => import('@/components/inventory/AdvancedAnal
 const BatchManagement = lazy(() => import('@/components/inventory/BatchManagement'));
 const ForecastingDashboard = lazy(() => import('@/components/inventory/ForecastingDashboard'));
 import type { InventoryItem } from '@/hooks/useDepartmentInventory';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 
 type InventoryItemContext = Database['public']['Tables']['inventory_items']['Row'];
 

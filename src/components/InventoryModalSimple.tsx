@@ -9,7 +9,7 @@ import { Package, Hash, Calendar, MapPin, Calculator, Info, Check, ChevronsUpDow
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { localDb } from '@/integrations/local/client';
 import type { InventoryItem } from '@/hooks/useInventory';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 import { PRODUCT_NAME_MAPPING, PRODUCT_TYPES, type ProductType } from '@/data/sampleInventory';
 import { useProducts } from '@/contexts/ProductsContext';
 import { useProductsSummary } from '@/hooks/useProductsSummary';

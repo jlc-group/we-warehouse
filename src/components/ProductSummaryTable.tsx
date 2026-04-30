@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import type { ProductConversionRate } from '@/integrations/supabase/types';
+import type { ProductConversionRate } from '@/integrations/local/types';
 
 interface ProductSummaryData {
   id: string;

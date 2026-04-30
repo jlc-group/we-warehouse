@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode,
 import { localDb } from '@/integrations/local/client';
 import { useToast } from '@/hooks/use-toast';
 import { checkSoftDeleteSupport } from '@/utils/databaseUtils';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';

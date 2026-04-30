@@ -27,7 +27,7 @@ import { Settings, Search, Edit, Trash2, Package, AlertTriangle } from 'lucide-r
 import { useProducts } from '@/contexts/ProductsContext';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 
 type Product = Database['public']['Tables']['products']['Row'];
 

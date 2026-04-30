@@ -7,7 +7,7 @@ import type {
   SalesBillWithItems,
   WarehouseAssignmentWithDetails,
   AssignmentStatus
-} from '@/integrations/supabase/types-3phase';
+} from '@/integrations/local/types-3phase';
 
 export interface WarehouseOrdersStats {
   pendingBills: number;

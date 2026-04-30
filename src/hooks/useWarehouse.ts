@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { localDb } from '@/integrations/local/client';
 import { toast } from '@/components/ui/sonner';
-import type { Warehouse, WarehouseInsert, WarehouseUpdate } from '@/integrations/supabase/types';
+import type { Warehouse, WarehouseInsert, WarehouseUpdate } from '@/integrations/local/types';
 
 const warehouseSelect =
   'id,name,code,description,address,is_active,location_prefix_start,location_prefix_end,max_levels,max_positions,created_at,updated_at';

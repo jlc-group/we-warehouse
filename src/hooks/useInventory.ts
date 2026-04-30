@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContextSimple';
 //   resourceMonitor,
 //   optimizeQuery
 // } from '@/utils/apiOptimization';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 // Dynamic import for better code splitting
 import { createInventoryItems } from '@/data/userRecoveryData';
 

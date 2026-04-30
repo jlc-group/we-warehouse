@@ -1,4 +1,4 @@
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 import { PRODUCT_NAME_MAPPING } from '@/data/sampleInventory';
 
 type Product = Database['public']['Tables']['products']['Row'];
