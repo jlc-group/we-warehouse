@@ -86,8 +86,15 @@ export class WarehouseManagementService {
     address?: string;
     location_prefix_start?: string;
     location_prefix_end?: string;
+    max_levels?: number;
+    max_positions?: number;
   }): Promise<Warehouse> {
     try {
+      const maxLevels = warehouseData.max_levels ?? 4;
+      const maxPositions = warehouseData.max_positions ?? 20;
+      const startLetter = warehouseData.location_prefix_start || 'A';
+      const endLetter = warehouseData.location_prefix_end || startLetter;
+
       const { data, error } = await localDb
         .from('warehouses')
         .insert({
@@ -95,15 +102,55 @@ export class WarehouseManagementService {
           code: warehouseData.code,
           description: warehouseData.description || null,
           address: warehouseData.address || null,
-          location_prefix_start: warehouseData.location_prefix_start || null,
-          location_prefix_end: warehouseData.location_prefix_end || null,
+          location_prefix_start: startLetter,
+          location_prefix_end: endLetter,
+          max_levels: maxLevels,
+          max_positions: maxPositions,
           is_active: true,
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      const warehouse = data as Warehouse;
+
+      // Auto-generate warehouse_locations ตามช่วง prefix ที่ระบุ
+      // เช่น A-B, level 1-4, position 1-20 → 2 × 4 × 20 = 160 locations
+      const startCode = startLetter.charCodeAt(0);
+      const endCode = endLetter.charCodeAt(0);
+      const rows: any[] = [];
+      for (let row = startCode; row <= endCode; row++) {
+        const rowChar = String.fromCharCode(row);
+        for (let pos = 1; pos <= maxPositions; pos++) {
+          for (let lvl = 1; lvl <= maxLevels; lvl++) {
+            rows.push({
+              location_code: `${rowChar}${pos}/${lvl}`,
+              row: rowChar,
+              position: pos,
+              level: lvl,
+              location_type: 'shelf',
+              warehouse_id: warehouse.id,
+              is_active: true,
+              description: 'Auto-generated on warehouse create',
+            });
+          }
+        }
+      }
+
+      if (rows.length > 0) {
+        // Insert เป็น batch
+        const { error: locErr } = await localDb
+          .from('warehouse_locations')
+          .insert(rows);
+        if (locErr) {
+          console.error(`⚠️ สร้างคลังสำเร็จแต่ generate locations ผิดพลาด:`, locErr);
+          // ไม่ throw — คลังสร้างแล้ว, location สร้างทีหลังได้
+        } else {
+          console.log(`✅ Auto-generated ${rows.length} locations for ${warehouse.code}`);
+        }
+      }
+
+      return warehouse;
     } catch (error) {
       console.error('Error creating warehouse:', error);
       throw error;
