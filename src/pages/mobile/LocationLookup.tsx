@@ -38,11 +38,50 @@ const LocationLookup = () => {
         }
     });
 
-    const handleSearch = async (searchTerm: string) => {
-        if (!searchTerm) return;
+    /**
+     * แปลง raw scan input → location_code ที่ DB ใช้
+     * รองรับ:
+     *   - URL ใหม่: https://warehouse.wejlc.com/mobile/location/A1-4 → "A1/4"
+     *   - URL เก่า: ?location=A1/4 → "A1/4"
+     *   - JSON QR (legacy): {"type":"WAREHOUSE_LOCATION","location":"A1/4",...} → "A1/4"
+     *   - plain text: "A1/4" → "A1/4"
+     */
+    const parseScanInput = (raw: string): string => {
+        const trimmed = raw.trim();
+
+        // 1. URL — extract path /mobile/location/{code} หรือ ?location=
+        if (/^https?:\/\//i.test(trimmed)) {
+            try {
+                const u = new URL(trimmed);
+                const pathMatch = u.pathname.match(/\/mobile\/location\/([^/]+)/);
+                if (pathMatch) {
+                    // Decode URL + แปลง dash format กลับเป็น slash (A1-4 → A1/4)
+                    return decodeURIComponent(pathMatch[1]).replace(/-/g, '/');
+                }
+                const qLoc = u.searchParams.get('location');
+                if (qLoc) return qLoc;
+            } catch { /* fall through */ }
+        }
+
+        // 2. JSON format (legacy)
+        if (trimmed.startsWith('{')) {
+            try {
+                const j = JSON.parse(trimmed);
+                if (j.location) return String(j.location);
+            } catch { /* fall through */ }
+        }
+
+        // 3. Plain — assume location code already (อาจเป็น A1-4 หรือ A1/4)
+        return trimmed.replace(/-/g, '/');
+    };
+
+    const handleSearch = async (rawInput: string) => {
+        if (!rawInput) return;
         setLoading(true);
         setItems([]);
         setLocationName(null);
+
+        const searchTerm = parseScanInput(rawInput);
 
         try {
             // 1. Try to find location first from local database
