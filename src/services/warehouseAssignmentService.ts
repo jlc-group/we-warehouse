@@ -8,7 +8,7 @@ import {
   SalesBillWithItems,
   AssignmentStatus,
   InventoryItem
-} from '@/integrations/supabase/types-3phase';
+} from '@/integrations/local/types-3phase';
 import { toast } from '@/components/ui/sonner';
 
 export class WarehouseAssignmentService {

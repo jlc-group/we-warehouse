@@ -1,4 +1,4 @@
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 
 type InventoryItem = Database['public']['Tables']['inventory_items']['Row'];
 

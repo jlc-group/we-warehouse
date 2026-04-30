@@ -11,7 +11,7 @@ import { Package, Hash, Calendar, MapPin, Search, Calculator, Check, ChevronsUpD
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { localDb } from '@/integrations/local/client';
 import type { InventoryItem } from '@/hooks/useInventory';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 import {
   calculateTotalBaseQuantity,
   formatUnitsDisplay,

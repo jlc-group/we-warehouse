@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { normalizeLocation, isValidLocation, parseLocation } from '@/utils/locationUtils';
 import { useWarehouseLocations } from '@/hooks/useWarehouseLocations';
 import { localDb } from '@/integrations/local/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 
 type LocationRow = Database['public']['Tables']['warehouse_locations']['Row'];
 

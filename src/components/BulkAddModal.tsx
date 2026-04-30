@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@
 import { Package, MapPin, Plus, Minus, Search, Hash, Check, ChevronsUpDown, AlertTriangle, CheckCircle, Filter } from 'lucide-react';
 import { normalizeLocation, displayLocation } from '@/utils/locationUtils';
 import { localDb } from '@/integrations/local/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database } from '@/integrations/local/types';
 import type { InventoryItem } from '@/hooks/useInventory';
 import { useProducts } from '@/hooks/useProducts';
 import { useProductsSummary } from '@/hooks/useProductsSummary';
