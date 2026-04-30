@@ -114,8 +114,9 @@ export const transferPartialStock = async (
         // Type casting for safety
         const sourceItem = sourceItemData as any;
 
-        const level1Rate = sourceItem.unit_level1_rate || 144;
-        const level2Rate = sourceItem.unit_level2_rate || 12;
+        // ใช้ ?? เพื่อป้องกันกรณี rate=0 (truthy fallback ผิด)
+        const level1Rate = sourceItem.unit_level1_rate ?? 144;
+        const level2Rate = sourceItem.unit_level2_rate ?? 12;
 
         // Calculate total available in pieces
         const currentTotalPieces =
@@ -155,7 +156,22 @@ export const transferPartialStock = async (
             return { success: false, error: updateSourceError, message: 'Failed to update source item' };
         }
 
-        // 4. Update/Create Target Item
+        // 4. Update/Create Target Item — ถ้า fail ต้อง rollback source
+        // Helper: คืน source กลับเป็นค่าก่อนหน้า (compensating update)
+        const rollbackSource = async (reason: string) => {
+            console.error(`🔄 Rollback source ${sourceItemId}: ${reason}`);
+            await localDb
+                .from('inventory_items')
+                .update({
+                    unit_level1_quantity: sourceItem.unit_level1_quantity || 0,
+                    unit_level2_quantity: sourceItem.unit_level2_quantity || 0,
+                    unit_level3_quantity: sourceItem.unit_level3_quantity || 0,
+                    quantity_pieces: currentTotalPieces,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', sourceItemId);
+        };
+
         const { data: existingTargetData, error: targetFetchError } = await localDb
             .from('inventory_items')
             .select('*')
@@ -164,7 +180,8 @@ export const transferPartialStock = async (
             .maybeSingle();
 
         if (targetFetchError) {
-            console.error('Error checking target:', targetFetchError);
+            await rollbackSource('target fetch failed');
+            return { success: false, error: targetFetchError, message: 'Failed to check target location — source restored' };
         }
 
         const existingTarget = existingTargetData as any;
@@ -174,7 +191,7 @@ export const transferPartialStock = async (
             const targetNewL3 = (existingTarget.unit_level3_quantity || 0) + quantityToTransfer;
             const targetNewPieces = (existingTarget.quantity_pieces || 0) + quantityToTransfer;
 
-            await localDb
+            const { error: mergeErr } = await localDb
                 .from('inventory_items')
                 .update({
                     unit_level3_quantity: targetNewL3,
@@ -182,6 +199,11 @@ export const transferPartialStock = async (
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existingTarget.id);
+
+            if (mergeErr) {
+                await rollbackSource('target merge failed');
+                return { success: false, error: mergeErr, message: 'Failed to merge to target — source restored' };
+            }
         } else {
             // CREATE NEW: With L3 = quantity
             const newItem = {
@@ -199,7 +221,11 @@ export const transferPartialStock = async (
 
             delete newItem.id;
 
-            await localDb.from('inventory_items').insert(newItem);
+            const { error: insertErr } = await localDb.from('inventory_items').insert(newItem);
+            if (insertErr) {
+                await rollbackSource('target insert failed');
+                return { success: false, error: insertErr, message: 'Failed to create target item — source restored' };
+            }
         }
 
         // 5. Log Movement
@@ -216,6 +242,13 @@ export const transferPartialStock = async (
             location_after: targetLocation,
             notes: `Partial Staging: Moved ${quantityToTransfer} pieces to ${targetLocation}`
         });
+
+        // แจ้งทุก component ที่ฟังว่ามีการเปลี่ยนแปลง stock
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('inventory-changed', {
+                detail: { action: 'transfer-partial', from: sourceItem.location, to: targetLocation, quantity: quantityToTransfer }
+            }));
+        }
 
         return { success: true };
 

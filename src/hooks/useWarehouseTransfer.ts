@@ -368,7 +368,7 @@ export const useExecuteWarehouseTransfer = () => {
 
       // Update each inventory item's warehouse_id
       const updatePromises = items.map(item =>
-        supabase
+        localDb
           .from('inventory_items')
           .update({
             warehouse_id: transfer.target_warehouse_id,
@@ -434,6 +434,11 @@ export const useExecuteWarehouseTransfer = () => {
       queryClient.invalidateQueries({ queryKey: ['warehouse-transfers'] });
       queryClient.invalidateQueries({ queryKey: ['warehouse-transfer', transferId] });
       queryClient.invalidateQueries({ queryKey: ['inventory-items'] });
+
+      // แจ้ง component อื่น (Stock Overview, ShelfGrid, Dashboard) ให้ refetch
+      window.dispatchEvent(new CustomEvent('inventory-changed', {
+        detail: { action: 'warehouse-transfer', transferId, itemsUpdated: data.itemsUpdated }
+      }));
 
       toast.success(`ย้ายสินค้า ${data.itemsUpdated} รายการเสร็จสิ้น`);
     },
