@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { localDb } from '@/integrations/local/client';
 
@@ -55,16 +56,25 @@ export function useStockOverview(warehouseId?: string) {
   const query = useQuery({
     queryKey: ['stock-overview', warehouseId || 'all'],
     queryFn: () => fetchStockOverview(warehouseId),
-    staleTime: THREE_HOURS_MS,
-    gcTime: THREE_HOURS_MS, // Previously cacheTime in v4
+    // ใช้ staleTime สั้นลง + refetchOnWindowFocus เพื่อให้ refresh เมื่อกลับมาที่ tab
+    staleTime: 30_000, // 30 วินาที (เคยเป็น 3 ชม. → cache เหนียว, ลบข้อมูลแล้วยังแสดง)
+    gcTime: THREE_HOURS_MS,
     refetchInterval: THREE_HOURS_MS,
-    refetchOnWindowFocus: false, // Don't refetch on tab focus
-    refetchOnReconnect: false, // Don't refetch on reconnect
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: false,
   });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['stock-overview', warehouseId || 'all'] });
   };
+
+  // ฟัง custom event จาก modal save/delete → invalidate cache ทันที
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener('inventory-changed', handler);
+    return () => window.removeEventListener('inventory-changed', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     ...query,
