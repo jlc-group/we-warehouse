@@ -228,7 +228,7 @@ export class POSyncService {
                 await pool.query(
                     `INSERT INTO order_items (
                         order_id, line_number, product_name, sku,
-                        quantity_requested, unit_price, location, status,
+                        ordered_quantity_level1, unit_price, location, status,
                         created_at, updated_at
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())`,
                     [
@@ -236,7 +236,7 @@ export class POSyncService {
                         i + 1,
                         detail.Keydata,
                         detail.Keydata.substring(0, 50), // Use first 50 chars as SKU
-                        parseFloat(detail.Quantity) || 0,
+                        Math.round(parseFloat(detail.Quantity)) || 0,
                         parseFloat(detail.UnitPrice) || 0,
                         location || 'UNASSIGNED',
                         'PENDING'
