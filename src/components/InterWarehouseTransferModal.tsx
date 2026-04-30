@@ -23,6 +23,8 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowRight, Package, MapPin, Search, ChevronsUpDown, Check } from 'lucide-react';
 import { WarehouseManagementService, type Warehouse } from '@/services/warehouseManagementService';
 import { useToast } from '@/hooks/use-toast';
+import { localDb } from '@/integrations/local/client';
+import { LocationCombobox } from '@/components/location/LocationCombobox';
 
 interface InterWarehouseTransferModalProps {
   open: boolean;
@@ -55,6 +57,7 @@ export const InterWarehouseTransferModal = ({
 
   const [toLocation, setToLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [targetLocations, setTargetLocations] = useState<string[]>([]);
 
   useEffect(() => {
     if (fromWarehouseId) {
@@ -66,6 +69,32 @@ export const InterWarehouseTransferModal = ({
       setSearchQuery('');
     }
   }, [fromWarehouseId]);
+
+  // โหลด locations ของคลังปลายทาง — ใช้ใน LocationCombobox
+  useEffect(() => {
+    if (!toWarehouseId) {
+      setTargetLocations([]);
+      setToLocation('');
+      return;
+    }
+    (async () => {
+      const { data, error } = await localDb
+        .from('warehouse_locations')
+        .select('location_code')
+        .eq('warehouse_id', toWarehouseId)
+        .eq('is_active', true)
+        .order('location_code', { ascending: true });
+      if (error) {
+        console.error('Error loading target warehouse locations:', error);
+        setTargetLocations([]);
+        return;
+      }
+      const codes = (data || [])
+        .map((l: any) => l.location_code)
+        .filter(Boolean);
+      setTargetLocations(codes);
+    })();
+  }, [toWarehouseId]);
 
   // Filter inventory by search query and product type
   useEffect(() => {
@@ -607,13 +636,25 @@ export const InterWarehouseTransferModal = ({
 
               <div className="space-y-2">
                 <Label>ตำแหน่งปลายทาง</Label>
-                <Input
-                  value={toLocation}
-                  onChange={(e) => setToLocation(e.target.value.toUpperCase())}
-                  placeholder="เช่น A/1/01 หรือ EC/1/01"
-                />
+                {targetLocations.length > 0 ? (
+                  <LocationCombobox
+                    value={toLocation}
+                    onChange={setToLocation}
+                    allLocations={targetLocations}
+                    placeholder="เลือกตำแหน่งใน คลังปลายทาง..."
+                  />
+                ) : (
+                  <Input
+                    value={toLocation}
+                    onChange={(e) => setToLocation(e.target.value.toUpperCase())}
+                    placeholder={toWarehouseId ? 'คลังนี้ยังไม่มีตำแหน่ง' : 'เลือกคลังปลายทางก่อน'}
+                    disabled={!toWarehouseId}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
-                  รูปแบบ: แถว/ชั้น/ตำแหน่ง (เช่น A/1/01)
+                  {targetLocations.length > 0
+                    ? `${targetLocations.length} ตำแหน่งในคลังปลายทาง — แสดงตำแหน่งว่างก่อน`
+                    : 'รูปแบบ: แถว/ชั้น/ตำแหน่ง (เช่น A1/4)'}
                 </p>
               </div>
 
